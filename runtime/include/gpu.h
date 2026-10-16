@@ -541,6 +541,8 @@ int  gpu_shadow_time_now(void);
  * time day|night (none = the title's detector), '#' a comment.
  * Returns the entries set, -1 with no file. */
 int  gpu_shadow_lights_load(const char *path);
+/* screen_x_sites on `sltu rd, SX, W` (W in a register): -4m <= SX < W. */
+int  psx_ws_cull_sltu_band(uint32_t sx, uint32_t bound);
 /* Signed-funnel variants (min/max + center±halfwidth idioms — see
  * ws_cull_detect.h): right-edge widen for `slti v, minSX, W` and left-edge
  * widen for the paired `bltz maxSX` reject. Identity at 4:3. */
