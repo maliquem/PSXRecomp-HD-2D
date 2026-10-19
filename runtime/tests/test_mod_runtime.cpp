@@ -159,6 +159,7 @@ extern "C" void gpu_ws_tag_hud_prim(uint32_t, int) {}
 extern "C" void gpu_ws_tag_screen_mask_quad(uint32_t) {}
 extern "C" void gpu_ws_tag_reveal_edge_quad(uint32_t, int) {}
 extern "C" void gpu_ws_tag_radial_screen_mask_quad(uint32_t, float) {}
+extern "C" void gpu_ws_tag_feedback_rect(uint32_t) {}
 
 static CPUState* interrupted_entry_cpu;
 static void test_vblank_plugin(void) {
