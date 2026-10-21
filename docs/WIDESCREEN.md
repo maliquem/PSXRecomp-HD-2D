@@ -354,8 +354,6 @@ screen_x_sites = [
 ]
 ```
 
-`screen_x_sites` is applied when code is generated: native code and overlay
-shards. The dirty-RAM interpreter does not consult this list. In the main EXE
 `screen_x_sites` is applied when code is generated (native code and overlay
 shards) and, at runtime, by the dirty-RAM interpreter: code that runs from
 RAM through the interpreter (including under `PSX_FORCE_INTERP=1`) widens the
