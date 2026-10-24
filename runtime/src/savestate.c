@@ -60,10 +60,13 @@ static int      s_title_blocked;
 static int      s_title_load_blocked;
 static int      s_save_pending = -1;   /* slot, or -1 */
 static int      s_load_pending = -1;
+int g_psx_savestate_pending = 0;
 static int      s_load_completed = 0;
 static int      s_load_failed = 0;
 static uint32_t s_status_generation = 0;
 static int      s_status_pending = 0;
+static uint32_t s_status_polls;
+static const char* s_status_wait = "";
 static int      s_status_last_ok = 0;
 static int      s_status_last_load = 0;
 static int      s_status_last_slot = -1;
@@ -782,6 +785,9 @@ static int request_save_inner(int slot) {
     s_last_save_pc = 0; /* block netplay transfer until this write stamps a PC */
     s_save_defer_slot = -1;
     s_save_pending = slot;
+    s_status_polls = 0;
+    s_status_wait = "boundary";
+    g_psx_savestate_pending = 1;
     s_status_pending = 1;
     s_status_last_load = 0;
     s_status_last_slot = slot;
@@ -799,6 +805,9 @@ static int request_load_inner(int slot) {
     s_load_failed = 0;
     s_load_completed = 0;
     s_load_pending = slot;
+    s_status_polls = 0;
+    s_status_wait = "boundary";
+    g_psx_savestate_pending = 1;
     s_status_pending = 1;
     s_status_last_load = 1;
     s_status_last_slot = slot;
@@ -847,6 +856,7 @@ int savestate_request_load_blob_protocol(const void* data, size_t size) {
     s_load_failed = 0;
     s_load_completed = 0;
     s_load_pending = 0; /* non-negative: poll will prefer the blob */
+    g_psx_savestate_pending = 1;
     return 1;
 }
 
@@ -858,10 +868,11 @@ void savestate_status_json(char* buf, size_t cap) {
     if (!buf || cap == 0) return;
     snprintf(buf, cap,
              "\"generation\":%u,\"pending\":%d,\"last_ok\":%d,"
-             "\"last_op\":\"%s\",\"last_slot\":%d",
+             "\"last_op\":\"%s\",\"last_slot\":%d,"
+             "\"polls\":%u,\"wait\":\"%s\"",
              (unsigned)s_status_generation, s_status_pending,
              s_status_last_ok, s_status_last_load ? "load" : "save",
-             s_status_last_slot);
+             s_status_last_slot, s_status_polls, s_status_pending ? s_status_wait : "");
 }
 
 void savestate_status_get(uint32_t* generation, int* pending, int* last_ok,
@@ -897,7 +908,9 @@ uint32_t savestate_last_save_pc(void) {
 void savestate_poll(CPUState* cpu, uint32_t resume_pc) {
     if (s_save_pending < 0 && s_load_pending < 0) return;   /* hot path: nothing staged */
     extern int psx_mod_function_entry_active(void);
-    if (psx_mod_function_entry_active()) return;
+    ++s_status_polls;
+    if (psx_mod_function_entry_active()) { s_status_wait = "mod_callback"; return; }
+    s_status_wait = "resume_pc";
 
     if (s_save_pending >= 0) {
         int slot = s_save_pending;
@@ -930,6 +943,7 @@ void savestate_poll(CPUState* cpu, uint32_t resume_pc) {
             if (now - s_save_defer_t0 < 2000.0)
                 return;
             s_save_pending = -1;
+            g_psx_savestate_pending = s_load_pending >= 0;
             s_save_defer_slot = -1;
             s_last_save_pc = 0;
             s_save_failed = 1;
@@ -950,6 +964,7 @@ void savestate_poll(CPUState* cpu, uint32_t resume_pc) {
             psx_frontend_on_savestate_notify(0, slot, 0);
         } else {
             s_save_pending = -1;
+            g_psx_savestate_pending = s_load_pending >= 0;
             s_save_defer_slot = -1;
             if (pc != resume_pc && resume_pc == 0u) {
                 fprintf(stderr,
@@ -998,6 +1013,7 @@ void savestate_poll(CPUState* cpu, uint32_t resume_pc) {
             (s_load_blob && s_load_blob_len > 0) ? "blob" : "file";
 #endif
         s_load_pending = -1;
+        g_psx_savestate_pending = s_save_pending >= 0;
         char path[600];
         const double t_load0 = savestate_mono_ms();
         double t_after_boot = t_load0;
