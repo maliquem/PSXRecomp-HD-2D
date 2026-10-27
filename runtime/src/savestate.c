@@ -13,6 +13,7 @@
 #include "gpu.h"
 #include "gpu_hd_textures.h"
 #include "interrupts.h"
+#include "psx_cycle_freeze.h"
 #include "psx_cycles.h"
 #include "psx_netplay.h"
 #include "psx_netplay_rb.h"
@@ -907,6 +908,13 @@ void savestate_poll(CPUState* cpu, uint32_t resume_pc) {
     extern int psx_mod_function_entry_active(void);
     ++s_status_polls;
     if (psx_mod_function_entry_active()) { s_status_wait = "mod_callback"; return; }
+    /* Both operations must wait for host continuations. Loading here can
+     * longjmp past a caller's register/clock restore, leaking frozen time.
+     * The save-only resume-PC check below does not protect loads. */
+    if (psx_snapshot_host_call_depth() || g_psx_guest_time_frozen) {
+        s_status_wait = "host_continuation";
+        return;
+    }
     s_status_wait = "resume_pc";
 
     if (s_save_pending >= 0) {
