@@ -56,7 +56,7 @@ typedef struct {
 typedef struct {
     uint64_t pushed_frames;
     uint64_t pulled_frames;
-    uint64_t underrun_events;   /* times the ring ran dry mid-pull            */
+    uint64_t underrun_events;   /* depletion episodes; excludes re-prime silence */
     uint64_t overflow_drops;    /* source frames dropped on ring overflow     */
     double   last_fill_ms;
     double   last_correction;   /* applied ratio correction (signed)          */
@@ -348,8 +348,14 @@ void rab_pull(rab_bridge *b, int16_t *out, int frames) {
             /* underrun / not yet primed: hold last sample, let gain fade it out */
             s[0] = b->last_out[0];
             if (ch == 2) s[1] = b->last_out[1];
-            if (b->primed && newest_needed >= (int64_t)b->in_count)
+            if (b->primed && newest_needed >= (int64_t)b->in_count) {
+                /* Rebuild the existing target after a true depletion. Staying
+                 * primed here resumes with one tiny block and can starve again
+                 * on every small producer jitter. Count one depletion episode;
+                 * intentional startup/refill silence is not another underrun. */
                 b->stats.underrun_events++;
+                b->primed = 0;
+            }
         }
 
         /* smooth gate: fade toward 1 when delivering real audio, toward 0 else */
