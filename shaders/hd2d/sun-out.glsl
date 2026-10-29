@@ -14,6 +14,10 @@
 // Night (u_night.x, the framework's: gl_renderer_set_night): the light and the
 // ambient move that far toward u_mooncol and u_moonamb, and the sprites take
 // u_moonspr's tint (they keep their daytime colours in the game).
+// Dim grey dust or smoke drawn over the scenery (u_m alpha 0.5: the framework
+// takes it as lit with the ground under it) that piles up nearly white is
+// mostly the dust: it is not darkened below its own brightness there (a crash's
+// cloud over a hull in shadow went blue-grey).
 
 uniform vec4 u_suncol;
 uniform vec4 u_amb;
@@ -80,5 +84,9 @@ void main()
     if (u_sunview.x > 0.5) { o = vec4(vec3(m > 0.5 ? lit : 0.5), 1.0); return; }
     vec3 shade = u_ss.y > 0.5 ? mix(amb, suncol, lit)
                               : mix(amb / max(suncol, vec3(1e-3)), vec3(1.0), lit);
-    o = vec4(src * mix(vec3(1.0), shade, m), 1.0);
+    vec3 res = src * mix(vec3(1.0), shade, m);
+    float ma = texelFetch(u_m, p, 0).a;
+    if (ma > 0.25 && ma < 0.75)
+        res = max(res, src * smoothstep(0.55, 0.9, dot(src, vec3(0.299, 0.587, 0.114))));
+    o = vec4(res, 1.0);
 }

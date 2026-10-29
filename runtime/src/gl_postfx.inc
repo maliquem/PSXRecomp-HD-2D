@@ -576,7 +576,10 @@ static int pfx_depth_build(int fresh, int lw, int lh) {
  * ground under it, as the textured cover pass already does for 3D pieces (it
  * stood out as a light where they darkened the ground). The scene-capture
  * pieces (sc_add_emit) are kept while a chain reads the shadow map or the
- * sprites. */
+ * sprites. The same triangles get mask alpha 0.5 (a generated frame's objects
+ * keep 1, the larger): where such dust piles up nearly white (a crash's cloud
+ * over a hull in shadow), sun-out.glsl keeps it from being darkened and tinted
+ * as the ground under it. */
 enum { UNC_MAX = 1024 };
 #define UNC_DIM 0.4f
 /* a glowing piece that is dim and grey (dust, smoke), not a light */
@@ -615,7 +618,7 @@ static void pfx_mask_uncover(int lw, int lh) {
     if (!s_unc_prog) {
         s_unc_prog = build_program(
             "#version 330\nlayout(location = 0) in vec2 a_p;\nvoid main(){ gl_Position = vec4(a_p, 0.0, 1.0); }\n",
-            "#version 330\nout vec4 o;\nvoid main(){ o = vec4(0.0); }\n");
+            "#version 330\nout vec4 o;\nvoid main(){ o = vec4(0.0, 0.0, 0.0, 0.5); }\n");
         if (!s_unc_prog) return;
         p_glGenVertexArrays(1, &s_unc_vao);
         p_glGenBuffers(1, &s_unc_vbo);
@@ -626,13 +629,24 @@ static void pfx_mask_uncover(int lw, int lh) {
     }
     p_glBindFramebuffer(PSXGL_FRAMEBUFFER, s_mask_fbo);
     glViewport(0, 0, lw, lh);
-    glColorMask(GL_FALSE, GL_FALSE, GL_TRUE, GL_FALSE);   /* the cover mark only */
+    glColorMask(GL_FALSE, GL_FALSE, GL_TRUE, GL_TRUE);    /* the cover mark, and alpha (dust) */
+    GLint bl[6];   /* the blending this changes, put back after */
+    const GLboolean blend_was = glIsEnabled(GL_BLEND);
+    glGetIntegerv(0x80C9, &bl[0]); glGetIntegerv(0x80C8, &bl[1]);   /* BLEND_SRC_RGB, DST_RGB */
+    glGetIntegerv(0x80CB, &bl[2]); glGetIntegerv(0x80CA, &bl[3]);   /* BLEND_SRC_ALPHA, DST_ALPHA */
+    glGetIntegerv(0x8009, &bl[4]); glGetIntegerv(0x883D, &bl[5]);   /* BLEND_EQUATION_RGB, _ALPHA */
+    glEnable(GL_BLEND);   /* blue replaced, alpha the larger (0x8008: MAX) */
+    p_glBlendEquationSeparate(PSXGL_FUNC_ADD, 0x8008);
+    p_glBlendFuncSeparate(GL_ONE, GL_ZERO, GL_ONE, GL_ONE);
     p_glUseProgram(s_unc_prog);
     p_glBindVertexArray(s_unc_vao);
     p_glBindBuffer(PSXGL_ARRAY_BUFFER, s_unc_vbo);
     p_glBufferData(PSXGL_ARRAY_BUFFER, (GLsizeiptr)((size_t)n * 6 * sizeof(float)), s_unc_buf, PSXGL_STREAM_DRAW);
     glDrawArrays(GL_TRIANGLES, 0, n * 3);
     p_glBindVertexArray(0);
+    p_glBlendEquationSeparate((GLenum)bl[4], (GLenum)bl[5]);
+    p_glBlendFuncSeparate((GLenum)bl[0], (GLenum)bl[1], (GLenum)bl[2], (GLenum)bl[3]);
+    if (!blend_was) glDisable(GL_BLEND);
     glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
     p_glBindFramebuffer(PSXGL_FRAMEBUFFER, 0);
 }
