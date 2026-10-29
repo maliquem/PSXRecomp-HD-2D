@@ -233,6 +233,8 @@ void  gl_renderer_shadow_anchor(const float v[3]);
 void  gl_renderer_shadow_point(const float v[3]);
 /* 1 while a fire light (a steady glow the game draws) casts shadows. */
 int   gl_renderer_fire_casting(void);
+/* 1 while the area's windows placed by hand shine (area_lights.h). */
+int   gl_renderer_windows_casting(void);
 int   gl_renderer_shadow_sprites_wanted(void);   /* a chain reads `sprite` */
 /* The sun of the last shadow map built (render thread, read anywhere): its
  * elevation in degrees (the area's own, the night's move included) and

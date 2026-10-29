@@ -41,6 +41,7 @@
 #endif
 #include "dma.h"
 #include "gpu.h"
+#include "area_lights.h"
 #include "gpu_hd_textures.h"
 #include "gpu_render.h"   /* gr_scale + gr_render_display_hires (screenshot_hires) */
 #include "present_ring.h"
@@ -8876,6 +8877,93 @@ static void handle_sun_area(int id, const char *json)
              info[0], info[1], age, info[2], info[3], info[4], info[5], info[6], info[7]);
 }
 
+/* area_lights: the lights placed by hand per area (area_lights.h), for a tool
+ * that places them while the game runs. {} reads the current area, the areas
+ * that have lights and this area's lines ("text", file lines joined by '|').
+ * {"set":"<lines joined by |>"} replaces the area's set ("area":"0x..."
+ * another area; "" = none); {"pick":1,"u":U,"v":V} gives the world point and
+ * surface normal under that place of the picture (0..1 from its top left,
+ * the scenery's 3D triangles), or "wx","wy","wa" for a place of the game's
+ * window (0..1 of its client area, its height over its width); {"mark":N}
+ * draws the lights' markers on the picture with light N picked (-1 none, -2
+ * = markers off; "corner":K the picked window's corner a tool holds, -1
+ * none); {"force":1|0} shows the placed lights whatever the game's
+ * option says (a tool editing them); {"mesh":1} gives the picture's 3D
+ * triangles in the world instead. The answer has "camera" (its right,
+ * forward and place in the world) and "running" (the light chain runs: the
+ * lights can show). Allowed in the restricted mode: it only changes the
+ * light. */
+static void handle_area_lights(int id, const char *json)
+{
+    extern int gl_renderer_area_pick(float u, float v, float out[7]);
+    extern int gl_renderer_window_to_picture(float fx, float fy, float aspect, float *u, float *v);
+    extern int gl_renderer_area_camera(float out[9]);
+    extern int gl_renderer_area_mesh(float *out, int max);
+    extern int gl_renderer_area_lights_running(void);
+    extern void gl_renderer_area_lights_mark(int sel);
+    extern void gl_renderer_area_lights_corner(int c);
+    extern void gl_renderer_area_lights_force(int on);
+    static char lines[RECV_BUF_SIZE], text[8192], esc[9000], err[200];
+    char buf[64];
+    const uint32_t cur = gpu_shadow_current_area();
+    const uint32_t area = json_get_str(json, "area", buf, sizeof buf) ? hex_to_u32(buf) : cur;
+    if (json_get_str(json, "mark", buf, sizeof buf)) gl_renderer_area_lights_mark(json_get_int(json, "mark", -2));
+    if (json_get_str(json, "corner", buf, sizeof buf)) gl_renderer_area_lights_corner(json_get_int(json, "corner", -1));
+    if (json_get_str(json, "force", buf, sizeof buf)) gl_renderer_area_lights_force(json_get_int(json, "force", 0));
+    if (json_get_int(json, "mesh", 0)) {
+        enum { MESH_MAX = 3000 };
+        static float tri[MESH_MAX * 9];
+        static char body[MESH_MAX * 9 * 8 + 64];
+        const int n = gl_renderer_area_mesh(tri, MESH_MAX);
+        int k = 0;
+        for (int i = 0; i < n * 9 && k < (int)sizeof body - 16; i++)
+            k += snprintf(body + k, sizeof body - (size_t)k, "%s%.0f", i ? "," : "", tri[i]);
+        body[k] = '\0';
+        send_fmt("{\"id\":%d,\"ok\":true,\"area\":\"0x%08x\",\"tris\":%d,\"mesh\":[%s]}", id, (unsigned)area, n, body);
+        return;
+    }
+    if (json_get_int(json, "pick", 0)) {
+        float r[7];
+        float u = json_get_str(json, "u", buf, sizeof buf) ? strtof(buf, NULL) : -1.0f;
+        float v = json_get_str(json, "v", buf, sizeof buf) ? strtof(buf, NULL) : -1.0f;
+        if (json_get_str(json, "wx", buf, sizeof buf)) {
+            const float wx = strtof(buf, NULL);
+            const float wy = json_get_str(json, "wy", buf, sizeof buf) ? strtof(buf, NULL) : -1.0f;
+            const float wa = json_get_str(json, "wa", buf, sizeof buf) ? strtof(buf, NULL) : 0.5625f;
+            if (!gl_renderer_window_to_picture(wx, wy, wa, &u, &v)) { send_err(id, "outside the game's picture"); return; }
+        }
+        if (!gl_renderer_area_pick(u, v, r)) { send_err(id, "nothing 3D there (or no light chain running)"); return; }
+        send_fmt("{\"id\":%d,\"ok\":true,\"area\":\"0x%08x\",\"world\":[%.1f,%.1f,%.1f],\"normal\":[%.3f,%.3f,%.3f],\"z\":%.0f}",
+                 id, (unsigned)area, r[0], r[1], r[2], r[3], r[4], r[5], r[6]);
+        return;
+    }
+    if (json_get_str(json, "set", lines, sizeof lines)) {
+        for (char *p = lines; *p; p++) if (*p == '|') *p = '\n';
+        err[0] = '\0';
+        if (!area_lights_set_text(area, lines, err, (int)sizeof err)) { send_err(id, err); return; }
+    }
+    const int k = area_lights_text(area, text, (int)sizeof text);
+    for (int i = 0; i < k; i++) if (text[i] == '\n') text[i] = '|';
+    json_escape_string(esc, sizeof esc, text);
+    uint32_t areas[64];
+    const int na = area_lights_areas(areas, 64);
+    char list[64 * 13 + 4];
+    int kl = 0;
+    list[0] = '\0';
+    for (int i = 0; i < na; i++) kl += snprintf(list + kl, sizeof list - (size_t)kl, "%s\"0x%08x\"", i ? "," : "", (unsigned)areas[i]);
+    float cam[9] = {0.0f};
+    const int cam_ok = gl_renderer_area_camera(cam);
+    extern int gl_renderer_area_windows_json(char *out, int cap);
+    static char wins[2048];
+    gl_renderer_area_windows_json(wins, (int)sizeof wins);
+    send_fmt("{\"id\":%d,\"ok\":true,\"area\":\"0x%08x\",\"current\":\"0x%08x\",\"night\":%.3f,\"version\":%u,"
+             "\"running\":%d,\"camera\":[%d,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.0f,%.0f,%.0f],"
+             "\"areas\":[%s],%s,\"text\":\"%s\"}",
+             id, (unsigned)area, (unsigned)cur, gl_renderer_night(), area_lights_version(),
+             gl_renderer_area_lights_running(), cam_ok, cam[0], cam[1], cam[2], cam[3], cam[4], cam[5], cam[6], cam[7], cam[8],
+             list, wins, esc);
+}
+
 /* sprite_dump: the foot points and 2D pieces of the picture on screen
  * (sprite shadows, gl_renderer_sprite_dump_json). */
 static void handle_sprite_dump(int id, const char *json)
@@ -16466,6 +16554,7 @@ static const CmdEntry s_commands[] = {
     { "post_uniform",      handle_post_uniform },
     { "shadow_cache",      handle_shadow_cache },
     { "sun_area",          handle_sun_area },
+    { "area_lights",       handle_area_lights },
     { "sprite_dump",       handle_sprite_dump },
     { "postfx_timing",     handle_postfx_timing },
     { "shadow_hide",       handle_shadow_hide },
@@ -16790,6 +16879,7 @@ static int restricted_allows(const char *cmd)
         "ping", "frame", "quit", "savestate", "savestate_status",
         "mod_counters", "perf_summary", "frame_perf",
         "sun_area",   /* the light per area only (a tuning tool) */
+        "area_lights",   /* the lights placed per area only (the same tool) */
         "present_shot", "present_shot_seq", "screenshot", "screenshot_hires",
         NULL
     };
@@ -17568,7 +17658,7 @@ void debug_server_poll(void)
 
     {   /* a light tuning tool's polling (sun_area) leaves the recorders off */
         char c[32];
-        if (!json_get_str(req, "cmd", c, sizeof c) || strcmp(c, "sun_area") != 0)
+        if (!json_get_str(req, "cmd", c, sizeof c) || (strcmp(c, "sun_area") != 0 && strcmp(c, "area_lights") != 0))
             passive_on_first_request();
     }
     /* Execute on the emu thread (safe point). send_line appends to s_resp_buf. */

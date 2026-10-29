@@ -1,4 +1,5 @@
-// Sun tool: tune the sun and the moon of each area while a game runs.
+// Sun tool: tune the sun and the moon of each area while a game runs, and
+// place lights by hand in it (the Lights tab, lights.inc).
 //
 // The game (a build with the debug tools) answers TCP sun_area: the area on
 // screen ([video.shadow]: a mod's map id or the scene_keys'), whether it is
@@ -27,6 +28,7 @@
 
 #include <algorithm>
 #include <atomic>
+#include <cctype>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -186,6 +188,32 @@ public:
         out = state_;
         return connected_;
     }
+    // a request kept by key (and area): a newer one replaces it; its answer
+    // in answer(key), with a count that moves at each new one
+    void send_keyed(int key, const std::string& req, unsigned area) {
+        std::lock_guard<std::mutex> lk(mu_);
+        for (auto& p : pending_)
+            if (p.area == area && p.which == key) {
+                p.req = req;
+                return;
+            }
+        pending_.push_back({area, key, req});
+    }
+    unsigned answer(int key, std::string& out) {
+        std::lock_guard<std::mutex> lk(mu_);
+        out = ans_[key & 15];
+        return ans_seq_[key & 15];
+    }
+    // nothing of that key waits or is on its way: its last answer is in
+    bool idle(int key) {
+        std::lock_guard<std::mutex> lk(mu_);
+        if (busy_ == key) return false;
+        for (auto& p : pending_)
+            if (p.which == key) return false;
+        return true;
+    }
+    // the Lights tab shown: TCP area_lights read with the sun's (answer key 15)
+    void poll_lights(bool on) { lights_on_ = on; }
     int port() const { return port_; }
 
 private:
@@ -247,12 +275,19 @@ private:
                 if (!pending_.empty()) {
                     p = pending_.front();
                     pending_.erase(pending_.begin());
+                    busy_ = p.which;
                 }
             }
             std::string resp;
             const Uint64 now = SDL_GetTicks();
             if (!p.req.empty()) {
                 if (!request(p.req, resp)) set_connected(false);
+                std::lock_guard<std::mutex> lk(mu_);
+                if (p.which >= 10) {
+                    ans_[p.which & 15] = resp;
+                    ans_seq_[p.which & 15]++;
+                }
+                busy_ = -1;
                 continue;
             }
             if (now - last_read < 150) {
@@ -262,10 +297,13 @@ private:
             last_read = now;
             GameState g;
             const bool ok = request("{\"cmd\":\"sun_area\"}", resp) && parse_state(resp, g);
+            std::string lr;
+            const bool lok = ok && lights_on_ && request("{\"cmd\":\"area_lights\"}", lr);
             std::lock_guard<std::mutex> lk(mu_);
             connected_ = ok;
             if (ok) state_ = g;
             else if (!quit_) last_read = now + 850;   // no game: look again in ~1 s
+            if (lok) ans_[15] = lr, ans_seq_[15]++;
         }
     }
     void set_connected(bool c) {
@@ -279,6 +317,10 @@ private:
     std::vector<Pending> pending_;
     GameState state_;
     bool connected_ = false;
+    std::string ans_[16];
+    unsigned ans_seq_[16] = {};
+    int busy_ = -1;   // the key of the request on its way
+    std::atomic<bool> lights_on_{false};
 };
 
 // ---- sun_areas.txt ------------------------------------------------------------------
@@ -577,10 +619,14 @@ bool pick_dome(const View& v, ImVec2 m, const V3& nearp, V3& out) {
     return true;
 }
 
+#include "lights.inc"
+
 // ---- the tool ----------------------------------------------------------------------------
 struct Tool {
     GameLink link;
     SunFile file;
+    LightsTab lights;
+    int tab = 0;           // 0 sun and moon, 1 lights
     GameState g;
     bool connected = false;
     unsigned area = 0;     // the area being edited
@@ -592,6 +638,7 @@ struct Tool {
     View view;
     std::string msg;
     bool hotkey = false;   // Ctrl+S registered
+    bool want_lights_tab = false;   // --tab lights (tests)
 
     Light saved(unsigned a, int w) {
         Entry* x = file.find(a);
@@ -686,6 +733,8 @@ struct Tool {
     void frame(float W, float H) {
         connected = link.state(g);
         if (connected && g.area && g.area != area) switch_area(g.area);
+        if (connected) lights.update(g.area);
+        if (tab == 1) lights.keys();
         if (follow_night && connected) which = g.night > 0.5f ? 1 : 0;
         if (follow_cam && connected && g.used_age >= 0) {
             view.heading = g.cam_heading;
@@ -699,10 +748,28 @@ struct Tool {
         const float side = std::max(ImGui::GetFontSize() * 24.0f, W * 0.38f);
         const ImVec2 p0 = ImGui::GetCursorScreenPos();
         const ImVec2 vs(W - side - ImGui::GetStyle().WindowPadding.x * 3, H - ImGui::GetStyle().WindowPadding.y * 2);
-        scene(p0, vs);
-        ImGui::SameLine();
+        if (tab == 1) {
+            lights.views(p0, vs);
+            ImGui::SetCursorScreenPos(ImVec2(p0.x + vs.x + ImGui::GetStyle().WindowPadding.x, p0.y));
+        } else {
+            scene(p0, vs);
+            ImGui::SameLine();
+        }
         ImGui::BeginChild("##side", ImVec2(0, 0));
-        panel();
+        if (ImGui::BeginTabBar("##tabs")) {
+            if (ImGui::BeginTabItem("Sol e lua")) {
+                tab = 0;
+                panel();
+                ImGui::EndTabItem();
+            }
+            if (ImGui::BeginTabItem("Luzes", nullptr, want_lights_tab ? ImGuiTabItemFlags_SetSelected : 0)) {
+                tab = 1;
+                lights.panel(connected, g.night);
+                ImGui::EndTabItem();
+            }
+            want_lights_tab = false;
+            ImGui::EndTabBar();
+        }
         ImGui::EndChild();
         ImGui::End();
     }
@@ -945,11 +1012,16 @@ int main(int argc, char** argv) {
     std::string dir = exe_dir(), shot_path, test_set;
     bool test_apply = false, start_hidden = false;
     HANDLE parent = nullptr;   // the game that started it: the tool quits with it
+    DWORD parent_pid = 0;
+    std::string test_tab, test_pick, test_window, test_corner, test_drag;
     for (int i = 1; i < argc; i++) {
         const std::string a = argv[i];
         if (a == "--port" && i + 1 < argc) port = atoi(argv[++i]);
         else if (a == "--dir" && i + 1 < argc) dir = argv[++i];
-        else if (a == "--parent" && i + 1 < argc) parent = OpenProcess(SYNCHRONIZE, FALSE, (DWORD)strtoul(argv[++i], nullptr, 10));
+        else if (a == "--parent" && i + 1 < argc) {
+            parent_pid = (DWORD)strtoul(argv[++i], nullptr, 10);
+            parent = OpenProcess(SYNCHRONIZE, FALSE, parent_pid);
+        }
         else if (a == "--hidden") start_hidden = true;
         else if (a == "--shot" && i + 1 < argc) shot_path = argv[++i];
         else if (a == "--frames" && i + 1 < argc) shot_frames = atoi(argv[++i]);
@@ -957,6 +1029,13 @@ int main(int argc, char** argv) {
         // "sun none" = the Default button), then Apply
         else if (a == "--test-set" && i + 1 < argc) test_set = argv[++i];
         else if (a == "--test-apply") test_apply = true;
+        // tests: the Lights tab shown; a new light at "U V" of the game's picture (as if clicked there)
+        else if (a == "--tab" && i + 1 < argc) test_tab = argv[++i];
+        else if (a == "--test-pick" && i + 1 < argc) test_pick = argv[++i];
+        // tests: a window between two corners "U1 V1 U2 V2" of the game's picture (as if clicked)
+        else if (a == "--test-window" && i + 1 < argc) test_window = argv[++i];
+        else if (a == "--test-corner" && i + 1 < argc) test_corner = argv[++i];
+        else if (a == "--test-drag" && i + 1 < argc) test_drag = argv[++i];
     }
     const bool shot_mode = !shot_path.empty();
     // one tool per game port: a second start (the game opened again, or by hand) leaves
@@ -976,8 +1055,8 @@ int main(int argc, char** argv) {
     float cs = SDL_GetDisplayContentScale(SDL_GetPrimaryDisplay());
     if (cs <= 0.0f) cs = 1.0f;
     // always on top of the game's window
-    SDL_Window* win = SDL_CreateWindow("Sol e lua por área (Ctrl+S mostra/esconde)", (int)(1000 * cs),
-                                       (int)(600 * cs),
+    SDL_Window* win = SDL_CreateWindow("Sol, lua e luzes por área (Ctrl+S mostra/esconde)", (int)(1100 * cs),
+                                       (int)(680 * cs),
                                        SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIDDEN |
                                            SDL_WINDOW_ALWAYS_ON_TOP);
     if (!win) return 1;
@@ -1000,6 +1079,12 @@ int main(int argc, char** argv) {
     Tool* t = new Tool();
     t->file.path = dir + "\\sun_areas.txt";
     t->file.load();
+    t->lights.link = &t->link;
+    t->lights.file.path = dir + "\\area_lights.txt";
+    t->lights.file.load();
+    t->want_lights_tab = test_tab == "lights";
+    g_click.own = (HWND)SDL_GetPointerProperty(SDL_GetWindowProperties(win), SDL_PROP_WINDOW_WIN32_HWND_POINTER, nullptr);
+    g_click.game_pid = parent_pid;
     t->link.start(port);
     Shot shot;
     if (shot_mode) {
@@ -1033,6 +1118,8 @@ int main(int argc, char** argv) {
                 SDL_HideWindow(win);
             }
         }
+        // the Lights tab on screen: the game shows the markers and the placed lights
+        t->lights.visible(t->tab == 1 && (shot_mode || !(SDL_GetWindowFlags(win) & (SDL_WINDOW_MINIMIZED | SDL_WINDOW_HIDDEN))));
         if (!shot_mode && (SDL_GetWindowFlags(win) & (SDL_WINDOW_MINIMIZED | SDL_WINDOW_HIDDEN))) {
             SDL_WaitEventTimeout(nullptr, 50);   // hidden: nothing to draw (Ctrl+S still comes)
             continue;
@@ -1054,6 +1141,35 @@ int main(int argc, char** argv) {
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
         if (shot_mode) {
             ++frames;
+            // the first window's arrow dragged by its tip in the view from above, by (DX DY) px
+            if (!test_drag.empty() && t->lights.area) {
+                LightsTab& L = t->lights;
+                const int f0 = shot_frames / 4;
+                static ImVec2 a0;
+                float dd[2] = {0, 0};
+                sscanf(test_drag.c_str(), "%f %f", &dd[0], &dd[1]);
+                if (frames == f0)
+                    for (int i = 0; i < (int)L.cur.l.size(); i++)
+                        if (L.cur.l[i].kind == PL_WINDOW) {
+                            L.sel = i;
+                            break;
+                        }
+                if (frames == f0 + 4 && L.sel >= 0) {
+                    a0 = L.tip_seen[0];
+                    io.AddMousePosEvent(a0.x, a0.y);
+                    printf("test-drag from %.0f %.0f: %s\n", a0.x, a0.y, light_line(L.area, L.cur.l[L.sel]).c_str());
+                }
+                if (frames == f0 + 6) io.AddMouseButtonEvent(0, true);
+                if (frames > f0 + 6 && frames <= f0 + 26) {
+                    const float k = (float)(frames - f0 - 6) / 20.0f;
+                    io.AddMousePosEvent(a0.x + dd[0] * k, a0.y + dd[1] * k);
+                }
+                if (frames == f0 + 30 && L.sel >= 0) {
+                    io.AddMouseButtonEvent(0, false);
+                    printf("test-drag to: %s\n", light_line(L.area, L.cur.l[L.sel]).c_str());
+                    fflush(stdout);
+                }
+            }
             if (frames == shot_frames / 3 && !test_set.empty() && t->area) {
                 char w[8] = "", v[16] = "";
                 float az = 0, el = 0;
@@ -1067,7 +1183,58 @@ int main(int argc, char** argv) {
                 else if (n == 3) az = strtof(v, nullptr), t->change(which, Light{L_AT, az, el});
                 printf("test-set %s on 0x%08x\n", test_set.c_str(), t->area);
             }
-            if (frames == shot_frames * 2 / 3 && test_apply) {
+            // a window's corner dragged on the game (the hook's part left out): the
+            // first window picked, pressed at the picture's (U1 V1), held to (U2 V2), let go
+            for (int c = 0; c < 3 && !test_corner.empty() && t->lights.area; c++)
+                if (frames == shot_frames / 4 + c * shot_frames / 8) {
+                    LightsTab& L = t->lights;
+                    if (c == 0) {
+                        for (int i = 0; i < (int)L.cur.l.size(); i++)
+                            if (L.cur.l[i].kind == PL_WINDOW) {
+                                L.sel = i;
+                                break;
+                            }
+                        L.corner_end();
+                        L.arm = ARM_CORNERS;   // no hook in a test
+                        L.corner_down = true;
+                    }
+                    if (c == 2) {
+                        L.corner_up = true;
+                        printf("test-corner: corner %d held, let go: %s\n", L.corner + 1,
+                               L.sel >= 0 ? light_line(L.area, L.cur.l[L.sel]).c_str() : "-");
+                        fflush(stdout);
+                        continue;
+                    }
+                    float q[4] = {0.5f, 0.5f, 0.5f, 0.5f};
+                    sscanf(test_corner.c_str(), "%f %f %f %f", &q[0], &q[1], &q[2], &q[3]);
+                    char req[160];
+                    snprintf(req, sizeof req, "{\"cmd\":\"area_lights\",\"pick\":1,\"u\":%.4f,\"v\":%.4f}", q[2 * c], q[2 * c + 1]);
+                    t->link.send_keyed(K_PICK, req, 0);
+                    printf("test-corner place %d on 0x%08x\n", c + 1, L.area);
+                }
+            for (int c = 0; c < 2 && !test_window.empty() && t->lights.area; c++)
+                if (frames == shot_frames / 4 + c * shot_frames / 6) {   // the corners, one after the other
+                    float q[4] = {0.5f, 0.5f, 0.5f, 0.5f};
+                    sscanf(test_window.c_str(), "%f %f %f %f", &q[0], &q[1], &q[2], &q[3]);
+                    if (c == 0) t->lights.win_redo = false, t->lights.arm = ARM_WIN1;
+                    char req[160];
+                    snprintf(req, sizeof req, "{\"cmd\":\"area_lights\",\"pick\":1,\"u\":%.4f,\"v\":%.4f}", q[2 * c], q[2 * c + 1]);
+                    t->link.send_keyed(K_PICK, req, 0);
+                    printf("test-window corner %d on 0x%08x\n", c + 1, t->lights.area);
+                }
+            if (frames == shot_frames / 3 && !test_pick.empty() && t->lights.area) {
+                float u = 0.5f, v = 0.5f;
+                sscanf(test_pick.c_str(), "%f %f", &u, &v);
+                t->lights.arm = ARM_NEW_POINT;
+                char req[160];
+                snprintf(req, sizeof req, "{\"cmd\":\"area_lights\",\"pick\":1,\"u\":%.4f,\"v\":%.4f}", u, v);
+                t->link.send_keyed(K_PICK, req, 0);
+                printf("test-pick %s on 0x%08x\n", test_pick.c_str(), t->lights.area);
+            }
+            if (frames == shot_frames * 2 / 3 && test_apply && t->tab == 1) {
+                t->lights.apply();
+                printf("test-apply: %s\n", t->lights.msg.c_str());
+            } else if (frames == shot_frames * 2 / 3 && test_apply) {
                 t->apply();
                 printf("test-apply: %s\n", t->msg.c_str());
             }
@@ -1085,6 +1252,9 @@ int main(int argc, char** argv) {
     if (t->area)
         for (int w = 0; w < 2; w++)
             if (t->dirty(w)) t->link.send_set(t->area, w, t->saved(t->area, w));
+    if (t->lights.area && t->lights.dirty()) t->lights.send_saved(t->lights.area);
+    t->lights.visible(false);
+    click_arm(false);
     SDL_Delay(400);   // the worker sends it
     if (t->hotkey) UnregisterHotKey(nullptr, k_hotkey);
     t->link.stop();
