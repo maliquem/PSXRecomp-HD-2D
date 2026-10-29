@@ -21464,6 +21464,30 @@ session_reboot:
         /* this is the emulation thread; with the passive recorders deferred,
          * the first debug request starts it (debug_server_poll) */
         if (debug_server_passive_active()) host_sampler_start();
+#ifdef _WIN32
+        /* tools/sun_tool next to the exe (a title's development folder):
+         * started hidden with the game (Ctrl+S shows it), on this debug port;
+         * it quits when this process ends (--parent). PSX_SUN_TOOL=0: not
+         * started (test runs). */
+        if (const char *st = std::getenv("PSX_SUN_TOOL"); !st || *st != '0') {
+            const std::filesystem::path dir = exe_dir_from_argv(argv[0]);
+            const std::filesystem::path tool = dir / "psx_sun_tool.exe";
+            std::error_code tec;
+            if (std::filesystem::exists(tool, tec)) {
+                std::wstring cmd = L"\"" + tool.wstring() + L"\" --port " + std::to_wstring(debug_server_port()) +
+                                   L" --dir \"" + dir.wstring() + L"\" --parent " +
+                                   std::to_wstring(GetCurrentProcessId()) + L" --hidden";
+                STARTUPINFOW si{};
+                si.cb = sizeof si;
+                PROCESS_INFORMATION pi{};
+                if (CreateProcessW(nullptr, cmd.data(), nullptr, nullptr, FALSE, 0, nullptr,
+                                   dir.wstring().c_str(), &si, &pi)) {
+                    CloseHandle(pi.hThread);
+                    CloseHandle(pi.hProcess);
+                }
+            }
+        }
+#endif
 #else
         (void)debug_port;
 #endif

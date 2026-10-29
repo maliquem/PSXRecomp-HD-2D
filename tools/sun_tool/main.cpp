@@ -8,6 +8,9 @@
 // Apply writes the area's line in sun_areas.txt next to the game's exe, which
 // the runtime reads at start (gpu_shadow_lights_load) over game.toml's
 // sun_areas. Ctrl+S (system-wide) shows or hides the window; it stays on top.
+// A game with the debug tools starts it (hidden) when psx_sun_tool.exe is next
+// to its exe, with --parent: the tool then quits when the game does, and its
+// window's close button only hides it. One tool per game port.
 //
 //   psx_sun_tool.exe [--port 4370] [--dir <game folder>]
 //   test: --shot out.png [--frames N]: draws off screen and saves a PNG
@@ -940,11 +943,14 @@ bool SDLCALL hotkey_hook(void*, MSG* m) {
 int main(int argc, char** argv) {
     int port = 4370, shot_frames = 60;
     std::string dir = exe_dir(), shot_path, test_set;
-    bool test_apply = false;
+    bool test_apply = false, start_hidden = false;
+    HANDLE parent = nullptr;   // the game that started it: the tool quits with it
     for (int i = 1; i < argc; i++) {
         const std::string a = argv[i];
         if (a == "--port" && i + 1 < argc) port = atoi(argv[++i]);
         else if (a == "--dir" && i + 1 < argc) dir = argv[++i];
+        else if (a == "--parent" && i + 1 < argc) parent = OpenProcess(SYNCHRONIZE, FALSE, (DWORD)strtoul(argv[++i], nullptr, 10));
+        else if (a == "--hidden") start_hidden = true;
         else if (a == "--shot" && i + 1 < argc) shot_path = argv[++i];
         else if (a == "--frames" && i + 1 < argc) shot_frames = atoi(argv[++i]);
         // tests (with --shot): a change as if dragged ("sun AZ EL", "moon off",
@@ -953,6 +959,13 @@ int main(int argc, char** argv) {
         else if (a == "--test-apply") test_apply = true;
     }
     const bool shot_mode = !shot_path.empty();
+    // one tool per game port: a second start (the game opened again, or by hand) leaves
+    if (!shot_mode) {
+        char name[64];
+        snprintf(name, sizeof name, "psx_sun_tool_port_%d", port);
+        CreateMutexA(nullptr, TRUE, name);
+        if (GetLastError() == ERROR_ALREADY_EXISTS) return 0;
+    }
     if (!SDL_Init(SDL_INIT_VIDEO)) {
         MessageBoxA(nullptr, SDL_GetError(), "Sun tool", MB_ICONERROR);
         return 1;
@@ -994,17 +1007,22 @@ int main(int argc, char** argv) {
         SDL_GetWindowSizeInPixels(win, &pw, &ph);
         if (!shot.make(pw, ph)) return 2;
     } else {
-        SDL_ShowWindow(win);
+        if (!start_hidden) SDL_ShowWindow(win);
         SDL_SetWindowsMessageHook(hotkey_hook, nullptr);
         t->hotkey = RegisterHotKey(nullptr, k_hotkey, MOD_CONTROL | MOD_NOREPEAT, 'S') != 0;
     }
     int frames = 0;
     bool quit = false;
     while (!quit) {
+        if (parent && WaitForSingleObject(parent, 0) == WAIT_OBJECT_0) break;   // the game closed
         SDL_Event e;
         while (SDL_PollEvent(&e)) {
             ImGui_ImplSDL3_ProcessEvent(&e);
-            if (e.type == SDL_EVENT_QUIT || e.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED) quit = true;
+            if (e.type == SDL_EVENT_QUIT || e.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED) {
+                // started with the game: closing the window hides it (Ctrl+S brings it back)
+                if (parent && e.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED) SDL_HideWindow(win);
+                else quit = true;
+            }
         }
         for (; g_toggles > 0; g_toggles--) {
             if (SDL_GetWindowFlags(win) & (SDL_WINDOW_HIDDEN | SDL_WINDOW_MINIMIZED)) {

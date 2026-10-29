@@ -83,6 +83,8 @@ typedef struct {
 /* Initialize the server. Call once at startup.
  * port=0 uses the default (4370). */
 void debug_server_init(int port);
+/* The port it listens on (the default when init had none). */
+int  debug_server_port(void);
 
 /* Current listener status for heartbeat diagnostics. error is the platform
  * socket error captured by init, or 0 when the listener is active. */

@@ -16922,6 +16922,8 @@ malformed:
     return n;
 }
 
+int debug_server_port(void) { return s_port; }
+
 void debug_server_init(int port)
 {
     if (port > 0) s_port = port;

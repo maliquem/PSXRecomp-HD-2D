@@ -36,7 +36,11 @@ program to line up the shadows with each area's painted ones while the game runs
   shows the area and whether it is night, a 3D scene (the light dragged on a dome, the
   shadows of a few boxes, the view following the game's camera), sliders, Apply (writes the
   area's line in `sun_areas.txt`), Discard, Default (drops the area's entry), "off", a note
-  per area, and "In this area: Automatic / Always day / Always night" (the forced time). Ctrl+S (system-wide) shows or hides it; the window stays on top. What was not
+  per area, and "In this area: Automatic / Always day / Always night" (the forced time).
+  A runtime with the debug tools starts it by itself when `psx_sun_tool.exe` sits next to
+  its exe (hidden; `--port` its debug port, `--parent` its process): the tool quits when the
+  game does, its close button only hides it, and a second start for the same port leaves at
+  once. `PSX_SUN_TOOL=0` keeps it closed (test runs). Ctrl+S (system-wide) shows or hides it; the window stays on top. What was not
   applied goes back to the file's when the area changes or the tool closes.
 
   ```
