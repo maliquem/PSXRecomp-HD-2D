@@ -579,14 +579,19 @@ static int pfx_depth_build(int fresh, int lw, int lh) {
  * sprites. The same triangles get mask alpha 0.5 (a generated frame's objects
  * keep 1, the larger): where such dust piles up nearly white (a crash's cloud
  * over a hull in shadow), sun-out.glsl keeps it from being darkened and tinted
- * as the ground under it. */
+ * as the ground under it. A piece over a shadow the game paints (a see-through
+ * piece that is not additive, sc_note_cover) stays covered: uncovered, its
+ * whole quad lost that shadow's cover too and the GI darkened the shadow again
+ * there (a chimney's smoke in a town stood in a dark box). */
 enum { UNC_MAX = 1024 };
 #define UNC_DIM 0.4f
 /* a glowing piece that is dim and grey (dust, smoke), not a light */
-static int emit_dim_grey(const float *e) {
+static int emit_grey_under(const float *e, float dim) {
     const float mx = fmaxf(e[5], fmaxf(e[6], e[7])), mn = fminf(e[5], fminf(e[6], e[7]));
-    return mx * e[14] < UNC_DIM && mx - mn < 0.5f * mx;
+    return mx * e[14] < dim && mx - mn < 0.5f * mx;
 }
+static int emit_dim_grey(const float *e) { return emit_grey_under(e, UNC_DIM); }
+#define LIT_GREY_DIM 0.5f   /* pfx_lights_update: a grey glow under this is no light */
 static GLuint s_unc_prog = 0, s_unc_vao = 0, s_unc_vbo = 0;
 static float  s_unc_buf[UNC_MAX * 6];
 static int    s_unc_last = 0;   /* TCP shadow_cache "uncovered": the last mask's pieces */
@@ -603,6 +608,15 @@ static void pfx_mask_uncover(int lw, int lh) {
         for (int c = 0; c < sc->ncov && !tinted; c++)
             tinted = e[0] >= sc->cov[c][0] && e[0] <= sc->cov[c][2] && e[1] >= sc->cov[c][1] && e[1] <= sc->cov[c][3];
         if (tinted) continue;
+        int shaded = 0;   /* over a shadow the game paints: stays covered */
+        for (int c = 0; c < sc->nshade && !shaded; c++) {
+            const float *s = sc->shade[c];
+            const float d1 = (e[0] - s[2]) * (s[1] - s[3]) - (s[0] - s[2]) * (e[1] - s[3]);
+            const float d2 = (e[0] - s[4]) * (s[3] - s[5]) - (s[2] - s[4]) * (e[1] - s[5]);
+            const float d3 = (e[0] - s[0]) * (s[5] - s[1]) - (s[4] - s[0]) * (e[1] - s[1]);
+            shaded = !(((d1 < 0.0f) || (d2 < 0.0f) || (d3 < 0.0f)) && ((d1 > 0.0f) || (d2 > 0.0f) || (d3 > 0.0f)));
+        }
+        if (shaded) continue;
         if ((float)sc->n - e[4] < after_min) continue;                      /* over the scene */
         const float cx = (e[8] + e[10] + e[12]) / 3.0f, cy = (e[9] + e[11] + e[13]) / 3.0f;
         for (int v = 0; v < 3; v++) {   /* native px from the picture's centre -> NDC (y up) */
@@ -2044,8 +2058,11 @@ static void pfx_lights_update(void) {
              * in black, which lit the field round them after a battle */
             if (fmaxf(e[5], fmaxf(e[6], e[7])) < LIT_DARK) continue;
             /* nor does a dim grey one (dust, smoke: emit_dim_grey), however
-             * long it stays (a party member running on the spot) */
-            if (emit_dim_grey(e)) continue;
+             * long it stays (a party member running on the spot); for a light
+             * a grey one up to LIT_GREY_DIM is still smoke: a town chimney's
+             * column adds about 0.4 of each as it puffs, just over UNC_DIM in
+             * some frames, and its light went on and off with it */
+            if (emit_grey_under(e, LIT_GREY_DIM)) continue;
             const float x = e[0] - s_sc_cx, y = e[1] - s_sc_cy, z = e[2], a = fmaxf(e[3], 1.0f);
             int k = 0;
             for (; k < ng; k++) {

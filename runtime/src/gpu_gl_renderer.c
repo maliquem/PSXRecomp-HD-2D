@@ -854,7 +854,7 @@ enum { SC_ANC_MAX = 64 };
 /* atl: the cut-outs of the frame's sprite pieces (1 = drawn texel), copied from
  * VRAM as each piece was drawn (the game may load the next animation's pieces
  * before the picture is shown), packed in rows of SC_ATL x SC_ATL. */
-enum { SC_ATL = 512, SC_PTS_MAX = 256, SC_EV = 16 };
+enum { SC_ATL = 512, SC_PTS_MAX = 256, SC_EV = 16, SC_SHADE_MAX = 512 };
 typedef struct { int area[4]; int n, cap, shown, conv; unsigned use; float *v; ScCam cam; int cam_ok; unsigned cam_ver;
                  float *sv; int sn, scap; float anc[SC_ANC_MAX][3]; int nanc;
                  float *sb;   /* per 2D triangle: VRAM y below its lowest drawn texel row, -1e30 = none known */
@@ -862,6 +862,8 @@ typedef struct { int area[4]; int n, cap, shown, conv; unsigned use; float *v; S
                  uint8_t *atl; int atl_x, atl_y, atl_h, atl_key[10], atl_kx, atl_ky, atl_klo, atl_khi;
                  float atl_kfill;
                  float cov[16][4]; int ncov;   /* big see-through pieces' boxes, VRAM px (sc_note_cover) */
+                 float shade[SC_SHADE_MAX][6]; int nshade;   /* the see-through triangles that are not
+                                               additive (a shadow the game paints), VRAM px */
                  float *ev; int en, ecap;   /* glowing pieces (light sources): x, y (VRAM px), SZ (0 = none), area,
                                                3D triangles drawn before it, colour (rgb, 1 = full), its
                                                corners (x, y VRAM px x 3), the share of the colour it adds
@@ -909,7 +911,7 @@ static ScSlot *sc_slot(const int area[4], int make) {
     if (!make) return NULL;
     sc_hold(lru);
     memcpy(lru->area, area, sizeof lru->area);
-    lru->n = 0; lru->conv = 0; lru->shown = 0; lru->sn = 0; lru->nanc = 0; lru->en = 0; lru->ncov = 0; lru->npts = 0;
+    lru->n = 0; lru->conv = 0; lru->shown = 0; lru->sn = 0; lru->nanc = 0; lru->en = 0; lru->ncov = 0; lru->nshade = 0; lru->npts = 0;
     lru->atl_x = lru->atl_y = lru->atl_h = 0; lru->atl_key[0] = -1;
     memset(lru->tone, 0, sizeof lru->tone);
     if (!lru->cap) { lru->v = (float *)malloc(4096 * 3 * SC_V * sizeof(float)); lru->cap = lru->v ? 4096 : 0; }
@@ -968,7 +970,7 @@ static void sc_restart(ScSlot *sl, int why) {
         return;
     }
     sc_hold(sl);
-    sl->n = 0; sl->shown = 0; sl->conv = 0; sl->sn = 0; sl->en = 0; sl->ncov = 0;
+    sl->n = 0; sl->shown = 0; sl->conv = 0; sl->sn = 0; sl->en = 0; sl->ncov = 0; sl->nshade = 0;
     sl->atl_x = sl->atl_y = sl->atl_h = 0; sl->atl_key[0] = -1;
     memset(sl->tone, 0, sizeof sl->tone);
     memcpy(sl->anc, s_anc_pend, (size_t)s_anc_pend_n * sizeof s_anc_pend[0]);
@@ -1136,8 +1138,19 @@ static void sc_add_emit(int x1, int y1, int x2, int y2, const int *xs, const int
  * (pfx_mask_uncover leaves them): uncovered, the running dust under the
  * forest's tint took the GI as holes in it, dark squares where the rest of
  * the picture, covered, was left as drawn. */
-static void sc_note_cover(int x1, int y1, int x2, int y2, const int *xs, const int *ys) {
+/* The see-through triangles that are not additive (modes 0 and 2: the dark
+ * shadows BoF4 paints under its buildings) are kept too, whatever their size:
+ * a dim glowing piece over one stays covered (pfx_mask_uncover). */
+static void sc_note_cover(int x1, int y1, int x2, int y2, const int *xs, const int *ys, int semi) {
     if (!s_sc_on || s_fg_drawing) return;
+    if (semi == 0 || semi == 2) {
+        const int sarea[4] = {x1, y1, x2, y2};
+        ScSlot *ss = sc_slot(sarea, 0);
+        if (ss && !ss->shown && ss->nshade < SC_SHADE_MAX) {
+            float *s = ss->shade[ss->nshade++];
+            for (int i = 0; i < 3; i++) { s[2 * i] = (float)xs[i]; s[2 * i + 1] = (float)ys[i]; }
+        }
+    }
     const float a = 0.5f * fabsf((float)(xs[1] - xs[0]) * (float)(ys[2] - ys[0]) - (float)(xs[2] - xs[0]) * (float)(ys[1] - ys[0]));
     const int bw = (xs[0] > xs[1] ? (xs[0] > xs[2] ? xs[0] : xs[2]) : (xs[1] > xs[2] ? xs[1] : xs[2])) -
                    (xs[0] < xs[1] ? (xs[0] < xs[2] ? xs[0] : xs[2]) : (xs[1] < xs[2] ? xs[1] : xs[2]));
@@ -6138,7 +6151,7 @@ static void gpu_geometry(GLenum mode, const int *xs, const int *ys,
         tone_flat_rgb(cs, tone);
         sc_add_tri(s_area_x1, s_area_y1, s_area_x2, s_area_y2, NULL, tone);
     }
-    if (n == 3 && semi >= 0 && s_sc_on) sc_note_cover(s_area_x1, s_area_y1, s_area_x2, s_area_y2, xs, ys);
+    if (n == 3 && semi >= 0 && s_sc_on) sc_note_cover(s_area_x1, s_area_y1, s_area_x2, s_area_y2, xs, ys, semi);
     if (n == 3 && (semi == 1 || semi == 3) && s_sc_on) {
         float rgb[3], wsc, wce;
         emit_flat_rgb(cs, rgb);
@@ -6304,7 +6317,7 @@ static void gpu_textured_triangle(const int *xs, const int *ys,
         const int tex_b3d = glass ? 3 : (s_bcls_on || s_b3d_on) && pgxp_tri_is_3d() ? 1
                           : s_b3d_on && (ctx_prim_in_backdrop() & 7) == 1 ? 2 : 0;
         s_dbg_bdm[2]++; if (tex_b3d == 2) s_dbg_bdm[1]++;
-        if (semi >= 0 && s_sc_on && !glass) sc_note_cover(s_area_x1, s_area_y1, s_area_x2, s_area_y2, xs, ys);
+        if (semi >= 0 && s_sc_on && !glass) sc_note_cover(s_area_x1, s_area_y1, s_area_x2, s_area_y2, xs, ys, semi);
         if ((semi == 1 || semi == 3) && s_sc_on && !glass) {
             float rgb[3], wsc, wce;
             emit_tex_rgb(us, vs, base_x, base_y, depth, clut_x, clut_y, col, rawtex, rgb);
@@ -6514,7 +6527,7 @@ static void gpu_textured_rect(int x,int y,int w,int h,
     if (w <= 0 || h <= 0) return;
     if (semi >= 0 && s_sc_on) {   /* a see-through tint (sc_note_cover) */
         const int rx[3] = {x, x + w, x}, ry[3] = {y, y, y + h};
-        sc_note_cover(s_area_x1, s_area_y1, s_area_x2, s_area_y2, rx, ry);
+        sc_note_cover(s_area_x1, s_area_y1, s_area_x2, s_area_y2, rx, ry, semi);
     }
     float mr=s_mod_r/255.0f, mg=s_mod_g/255.0f, mb=s_mod_b/255.0f;
     float col[9]={mr,mg,mb, mr,mg,mb, mr,mg,mb};
