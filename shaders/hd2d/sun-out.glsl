@@ -56,7 +56,9 @@ void main()
     vec3 mk = texelFetch(u_m, p, 0).rgb;
     float m = mk.g * (1.0 - mk.b);
     float zs = texelFetch(u_spr, p, 0).r;
-    if (mk.g < 0.5 && zs > 0.0 && zs < 50000.0) {   // a sprite standing in the scene
+    // (not under something see-through drawn over it: a dialogue window
+    // over the place a sprite's piece was drawn took its shadow as stains)
+    if (mk.g < 0.5 && mk.b < 0.5 && zs > 0.0 && zs < 50000.0) {   // a sprite standing in the scene
         float ls = lit_at(zs);
         if (u_sunview.x > 0.5) { o = vec4(vec3(0.25 + 0.5 * ls), 1.0); return; }
         o = vec4(src * sprk * mix(amb / max(suncol, vec3(1e-3)), vec3(1.0), ls), 1.0);
