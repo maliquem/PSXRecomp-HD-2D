@@ -1206,7 +1206,7 @@ static void sc_add_sprite_tri(int x1, int y1, int x2, int y2, const int *xs, con
             v0 = vs[i] < v0 ? vs[i] : v0; w1 = vs[i] > w1 ? vs[i] : w1;
         }
         const int px = (int)tex6[0], py = (int)tex6[1], cx = (int)tex6[2], cy = (int)tex6[3], win = (int)tex6[5];
-        const int key[10] = {px, py, cx, cy, depth, win | (smooth << 20), u0, v0, u1, w1};
+        const int key[10] = {px, py, cx, cy, depth, win | (smooth << 20) | ((semi >= 0) << 21), u0, v0, u1, w1};
         const int w = u1 - u0 + 1, hgt = w1 - v0 + 1;
         /* a filtered outline (smooth): the sprite input reads the cut-out
          * bilinearly, so the piece gets a one-texel apron */
@@ -1236,7 +1236,9 @@ static void sc_add_sprite_tri(int x1, int y1, int x2, int y2, const int *xs, con
                         if (depth == 0) raw = s_vram[(cy & 511) * 1024 + ((cx + ((s_vram[row + ((px + (u >> 2)) & 1023)] >> ((u & 3) * 4)) & 0xF)) & 1023)];
                         else if (depth == 1) raw = s_vram[(cy & 511) * 1024 + ((cx + ((s_vram[row + ((px + (u >> 1)) & 1023)] >> ((u & 1) * 8)) & 0xFF)) & 1023)];
                         else raw = s_vram[row + ((px + u) & 1023)];
-                        sl->atl[(size_t)(ay + t) * SC_ATL + ax + s] = raw ? 255 : 0;
+                        /* a see-through piece's texels with the STP bit blend (128); its
+                         * others are drawn solid, as an opaque piece's (255) */
+                        sl->atl[(size_t)(ay + t) * SC_ATL + ax + s] = !raw ? 0 : semi >= 0 && (raw & 0x8000u) ? 128 : 255;
                         if (s < 0 || t < 0 || s >= w || t >= hgt) continue;
                         drawn += raw != 0;
                         /* the row and column past the far edges (v1, u1 themselves)

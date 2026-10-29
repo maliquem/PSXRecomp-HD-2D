@@ -1361,7 +1361,10 @@ static void pfx_sprites_stand(const ScSlot *sc, float aspect, const float *L) {
     }
     if (s_spr_n) s_spr_frames++;
     s_spr_last = (unsigned)s_spr_n / 3u;
-    /* in draw order: the standing pieces, and the other opaque ones over them */
+    /* in draw order: the standing pieces, and the other opaque ones over them;
+     * a see-through piece's solid texels too (the atlas' 255, SM_FS_TEXEL's
+     * kind 4): the HUD's compass, see-through sprites, hid a character
+     * standing behind it, whose shadow then darkened the compass in its shape */
     if (s_spr_n && sc->sn * 3 > s_spr_ocap) {
         float *o = (float *)realloc(s_spr_ord, (size_t)sc->sn * 3 * SC_V * sizeof(float));
         if (o) { s_spr_ord = o; s_spr_ocap = sc->sn * 3; }
@@ -1371,12 +1374,13 @@ static void pfx_sprites_stand(const ScSlot *sc, float aspect, const float *L) {
             const float *v = sc->sv + (size_t)t * 3 * SC_V;
             float *o = s_spr_ord + (size_t)s_spr_nord * SC_V;
             if (s_spr_at[t] >= 0) memcpy(o, s_spr_scr + (size_t)s_spr_at[t] * SC_V, 3 * SC_V * sizeof(float));
-            else if (v[2] != 1.0f)   /* opaque, no sprite (the UI too) */
+            else if (v[2] != 1.0f || v[9] == 3.0f)   /* opaque, no sprite (the UI too); see-through: its solid texels */
                 for (int j = 0; j < 3; j++) {
                     float *q = o + j * SC_V;
                     memcpy(q, v + j * SC_V, SC_V * sizeof(float));
                     q[0] = (v[j * SC_V] - s_sc_cx) * kx; q[1] = -(v[j * SC_V + 1] - s_sc_cy) * ky;
                     q[2] = (float)SPR_NONE;
+                    if (v[2] == 1.0f) q[9] = 4.0f;
                 }
             else continue;
             s_spr_nord += 3;
@@ -1530,6 +1534,7 @@ static void pfx_sm_init(void) {
         "    if (a < 0.5) discard; return;\n" \
         "  }\n" \
         "  if (v_dw.x == 3) { if (texelFetch(u_atl, ivec2(floor(v_uv)), 0).r < 0.5) discard; return; }\n" \
+        "  if (v_dw.x == 4) { if (texelFetch(u_atl, ivec2(floor(v_uv)), 0).r < 0.75) discard; return; }   /* a see-through piece: its solid texels */\n" \
         "  int u = int(floor(v_uv.x)) & 255, v = int(floor(v_uv.y)) & 255;\n" \
         "  ivec4 tw = ivec4(v_dw.y & 31, (v_dw.y >> 5) & 31, (v_dw.y >> 10) & 31, (v_dw.y >> 15) & 31);\n" \
         "  if ((tw.x | tw.y) != 0) { u = (u & ~(tw.x * 8)) | ((tw.z & tw.x) * 8);\n" \
