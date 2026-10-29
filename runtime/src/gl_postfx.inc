@@ -579,8 +579,8 @@ static int pfx_depth_build(int fresh, int lw, int lh) {
  * sprites. The same triangles get mask alpha 0.5 (a generated frame's objects
  * keep 1, the larger): where such dust piles up nearly white (a crash's cloud
  * over a hull in shadow), sun-out.glsl keeps it from being darkened and tinted
- * as the ground under it. A piece over a shadow the game paints (a see-through
- * piece that is not additive, sc_note_cover) stays covered: uncovered, its
+ * as the ground under it. A piece over a shadow the game paints, any part of
+ * it (a see-through piece that is not additive, sc_note_cover), stays covered: uncovered, its
  * whole quad lost that shadow's cover too and the GI darkened the shadow again
  * there (a chimney's smoke in a town stood in a dark box). */
 enum { UNC_MAX = 1024 };
@@ -608,13 +608,20 @@ static void pfx_mask_uncover(int lw, int lh) {
         for (int c = 0; c < sc->ncov && !tinted; c++)
             tinted = e[0] >= sc->cov[c][0] && e[0] <= sc->cov[c][2] && e[1] >= sc->cov[c][1] && e[1] <= sc->cov[c][3];
         if (tinted) continue;
-        int shaded = 0;   /* over a shadow the game paints: stays covered */
+        /* over a shadow the game paints, any part of it (its box meets the
+         * shadow triangle's): stays covered. Its middle alone missed a column
+         * that stood over a shadow's edge, which then lost its cover there */
+        float ex0 = e[8], ex1 = e[8], ey0 = e[9], ey1 = e[9];
+        for (int v = 1; v < 3; v++) {
+            ex0 = fminf(ex0, e[8 + 2 * v]); ex1 = fmaxf(ex1, e[8 + 2 * v]);
+            ey0 = fminf(ey0, e[9 + 2 * v]); ey1 = fmaxf(ey1, e[9 + 2 * v]);
+        }
+        int shaded = 0;
         for (int c = 0; c < sc->nshade && !shaded; c++) {
             const float *s = sc->shade[c];
-            const float d1 = (e[0] - s[2]) * (s[1] - s[3]) - (s[0] - s[2]) * (e[1] - s[3]);
-            const float d2 = (e[0] - s[4]) * (s[3] - s[5]) - (s[2] - s[4]) * (e[1] - s[5]);
-            const float d3 = (e[0] - s[0]) * (s[5] - s[1]) - (s[4] - s[0]) * (e[1] - s[1]);
-            shaded = !(((d1 < 0.0f) || (d2 < 0.0f) || (d3 < 0.0f)) && ((d1 > 0.0f) || (d2 > 0.0f) || (d3 > 0.0f)));
+            const float sx0 = fminf(s[0], fminf(s[2], s[4])), sx1 = fmaxf(s[0], fmaxf(s[2], s[4]));
+            const float sy0 = fminf(s[1], fminf(s[3], s[5])), sy1 = fmaxf(s[1], fmaxf(s[3], s[5]));
+            shaded = sx0 < ex1 && sx1 > ex0 && sy0 < ey1 && sy1 > ey0;
         }
         if (shaded) continue;
         if ((float)sc->n - e[4] < after_min) continue;                      /* over the scene */
@@ -1374,13 +1381,15 @@ static void pfx_sprites_stand(const ScSlot *sc, float aspect, const float *L) {
             const float *v = sc->sv + (size_t)t * 3 * SC_V;
             float *o = s_spr_ord + (size_t)s_spr_nord * SC_V;
             if (s_spr_at[t] >= 0) memcpy(o, s_spr_scr + (size_t)s_spr_at[t] * SC_V, 3 * SC_V * sizeof(float));
-            else if (v[2] != 1.0f || v[9] == 3.0f)   /* opaque, no sprite (the UI too); see-through: its solid texels */
+            else if (v[2] != 1.0f || (v[9] >= 0.0f && v[9] <= 3.0f))   /* opaque, no sprite (the UI too); see-through: its solid texels */
                 for (int j = 0; j < 3; j++) {
                     float *q = o + j * SC_V;
                     memcpy(q, v + j * SC_V, SC_V * sizeof(float));
                     q[0] = (v[j * SC_V] - s_sc_cx) * kx; q[1] = -(v[j * SC_V + 1] - s_sc_cy) * ky;
                     q[2] = (float)SPR_NONE;
-                    if (v[2] == 1.0f) q[9] = 4.0f;
+                    /* the atlas' cut-out (4), or, with the atlas full (a busy town),
+                     * VRAM now with the STP texels left out (depth + 8) */
+                    if (v[2] == 1.0f) q[9] = v[9] == 3.0f ? 4.0f : v[9] + 8.0f;
                 }
             else continue;
             s_spr_nord += 3;
@@ -1535,15 +1544,16 @@ static void pfx_sm_init(void) {
         "  }\n" \
         "  if (v_dw.x == 3) { if (texelFetch(u_atl, ivec2(floor(v_uv)), 0).r < 0.5) discard; return; }\n" \
         "  if (v_dw.x == 4) { if (texelFetch(u_atl, ivec2(floor(v_uv)), 0).r < 0.75) discard; return; }   /* a see-through piece: its solid texels */\n" \
+        "  int dw = v_dw.x >= 8 ? v_dw.x - 8 : v_dw.x;   /* 8+: a see-through piece, solid texels only */\n" \
         "  int u = int(floor(v_uv.x)) & 255, v = int(floor(v_uv.y)) & 255;\n" \
         "  ivec4 tw = ivec4(v_dw.y & 31, (v_dw.y >> 5) & 31, (v_dw.y >> 10) & 31, (v_dw.y >> 15) & 31);\n" \
         "  if ((tw.x | tw.y) != 0) { u = (u & ~(tw.x * 8)) | ((tw.z & tw.x) * 8);\n" \
         "                            v = (v & ~(tw.y * 8)) | ((tw.w & tw.y) * 8); }\n" \
         "  int raw;\n" \
-        "  if (v_dw.x == 0) raw = vram_at(v_tc.z + ((vram_at(v_tc.x + (u >> 2), v_tc.y + v) >> ((u & 3) * 4)) & 0xF), v_tc.w);\n" \
-        "  else if (v_dw.x == 1) raw = vram_at(v_tc.z + ((vram_at(v_tc.x + (u >> 1), v_tc.y + v) >> ((u & 1) * 8)) & 0xFF), v_tc.w);\n" \
+        "  if (dw == 0) raw = vram_at(v_tc.z + ((vram_at(v_tc.x + (u >> 2), v_tc.y + v) >> ((u & 3) * 4)) & 0xF), v_tc.w);\n" \
+        "  else if (dw == 1) raw = vram_at(v_tc.z + ((vram_at(v_tc.x + (u >> 1), v_tc.y + v) >> ((u & 1) * 8)) & 0xFF), v_tc.w);\n" \
         "  else raw = vram_at(v_tc.x + u, v_tc.y + v);\n" \
-        "  if (raw == 0) discard;\n" \
+        "  if (raw == 0 || (v_dw.x >= 8 && (raw & 0x8000) != 0)) discard;\n" \
         "}\n"
     s_sm_prog = build_program(SM_VS_HEAD "  gl_Position = vec4(a_p, 1.0); }\n",
                               SM_FS_HEAD "  o = vec4(1.0);\n" SM_FS_TEXEL);
