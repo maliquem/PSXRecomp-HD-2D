@@ -599,6 +599,10 @@ static void pfx_mask_uncover(int lw, int lh) {
     for (int i = 0; i < sc->en && n < UNC_MAX; i++) {
         const float *e = sc->ev + (size_t)i * SC_EV;
         if (!emit_dim_grey(e)) continue;                                     /* a light */
+        int tinted = 0;   /* under a big see-through piece (sc_note_cover): stays covered */
+        for (int c = 0; c < sc->ncov && !tinted; c++)
+            tinted = e[0] >= sc->cov[c][0] && e[0] <= sc->cov[c][2] && e[1] >= sc->cov[c][1] && e[1] <= sc->cov[c][3];
+        if (tinted) continue;
         if ((float)sc->n - e[4] < after_min) continue;                      /* over the scene */
         const float cx = (e[8] + e[10] + e[12]) / 3.0f, cy = (e[9] + e[11] + e[13]) / 3.0f;
         for (int v = 0; v < 3; v++) {   /* native px from the picture's centre -> NDC (y up) */
