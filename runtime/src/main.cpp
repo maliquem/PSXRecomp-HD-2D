@@ -4567,6 +4567,8 @@ static void teardown_game_session_keep_lobby(void) {
          * them, then shut the renderer down. The next session attaches again. */
         gl_renderer_render_thread_stop();
         recomp_overlay_detach();
+        bug_report_ui_release_gl();
+        bug_report_ui_set_window(nullptr);
         gl_renderer_shutdown();
         g_gl_active = false;
     }
@@ -9181,6 +9183,8 @@ static void title_page_host_pause_loop(void) {
 #endif
         SDL_Event ev;
         while (SDL_PollEvent(&ev)) {
+            /* the bug report's ImGui form: its keys, text and mouse */
+            if (g_title_page_open && bug_report_ui_event(&ev)) continue;
             (void)psx_local_mouse_event(ev);
             if (ev.type == SDL_TEXTINPUT) {
                 if (g_title_page_open && bug_report_page_active()) bug_report_page_text(ev.text.text);
@@ -21775,6 +21779,7 @@ session_reboot:
         dynres_setup();
         psx_video_current(&g_video_boot);  /* boot snapshot for restart-only rows */
         recomp_overlay_setup(argv[0], s_picker_game_name);
+        bug_report_ui_set_window(g_gl_active && !g_headless ? sdl_window : nullptr);
         if (dbg_live_scale && g_gl_active) {
             if (!dynres_requested()) g_dynres.active = false;
             const int ceil_s = gl_renderer_dynamic_resolution_ceiling();

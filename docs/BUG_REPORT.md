@@ -17,10 +17,20 @@ writes everything a developer needs to reproduce it into one folder.
 2. **The form**, a title page over the frozen game (it opens once the picture and the state
    landed, or after three seconds): type, severity (Critical / Annoying / Minor), frequency
    (Always / Sometimes / Once) and a description typed on the keyboard (SDL text input: any
-   language; Ctrl+V pastes). Keys: arrows / Tab move, left / right change a value or move
-   the caret, Enter goes to the next row (Shift+Enter: a new line), **Ctrl+Enter saves**,
-   **Esc discards** (twice when something was written). Controller: D-pad, Cross = next /
-   press a button, Circle = discard, Start = save.
+   language; Ctrl+V pastes).
+   - **Dear ImGui** (builds with recomp-ui, OpenGL window; `bug_report_ui.cpp`): a panel
+     drawn over the presented frame in the launcher's font and PlayStation colours, the
+     three choices as drop-down lists, the moment's picture, Unicode text shown as typed
+     (accents), mouse. Keys: Tab / arrows move, Enter / Space open a list or press a button,
+     Enter in the description is a new line, **Ctrl+Enter saves**, **Esc discards** (twice
+     when something was written; with a list open it closes the list). Controller: D-pad,
+     Cross = open / pick / press, Circle = close a list or discard, Start = save. Typing
+     anywhere puts the caret in the description.
+   - **Canvas** (other builds: Vulkan, no recomp-ui): the form drawn on the page canvas
+     (the title's look or the framework's 8x8 panel; accents folded). Keys: arrows / Tab
+     move, left / right change a value or move the caret, Enter goes to the next row
+     (Shift+Enter: a new line), Ctrl+Enter saves, Esc discards. Controller: D-pad, Cross =
+     next / press a button, Circle = discard, Start = save.
 3. **Save** writes the folder; **discard** deletes it and the state.
 
 ## The folder
@@ -52,9 +62,14 @@ picture keeps going).
   holding a password, token or key.
 - `psx_mod_set_bug_report_info(fn)`: `fn` writes `"name": value` members of the report's
   `game` object (where the player was, the title's modes).
-- `psx_mod_set_bug_report_renderer(fn)`: the form in the title's look, drawn from a
+- `psx_mod_bug_report_translate(english, shown)`: the ImGui form's words in the player's
+  language (labels, buttons, the saved / discarded notices, the names of the types,
+  severities and frequencies; the list is in mod_plugins.h). `report.json` keeps the
+  English names.
+- `psx_mod_set_bug_report_renderer(fn)`: the canvas form in the title's look, drawn from a
   `PSXModBugReportView` (rows, values, text and caret, the moment's thumbnail, what was
-  taken); return 0 to have the framework's panel. Input stays the framework's.
+  taken); return 0 to have the framework's panel. Not called where the ImGui form is
+  drawn. Input stays the framework's.
 - `psx_mod_bug_report_open()` (a title's own shortcut), `psx_mod_bug_report_active()`.
 
 All of it is cleared at each session's activation.
@@ -64,7 +79,9 @@ All of it is cleared at each session's activation.
 `{"cmd":"bug_report","op":"status"|"open"|"save"|"discard"}`,
 `{"op":"text","chars":"..."}`, `{"op":"key","sdlk":K,"mods":M}`,
 `{"op":"set","row":R,"value":V}` (value -1 selects the row). The answer carries the stage
-(0 idle, 1 taking the moment, 2 form), the folder and what was taken.
+(0 idle, 1 taking the moment, 2 form), the folder and what was taken. With the ImGui form,
+`text` and `key` go through ImGui's own input at the next presented frame (a status read
+right after may not show them yet).
 
 ## Not covered
 

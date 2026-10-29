@@ -53,9 +53,10 @@ extern int debug_server_write_wide_picture(const char *path);
 #define BR_CAPTURE_MS   3000   /* the moment's captures, at most */
 #define BR_CLIP_VBLANKS 180    /* the clip: the last three seconds */
 #define BR_CLIP_MAX     360    /* presented frames in it (Smooth motion: more than one a VBlank) */
-#define BR_TEXT_MAX     4000
+#define BR_TEXT_MAX     BUG_REPORT_TEXT_MAX
 #define BR_TYPES_MAX    32
 #define BR_FILES_MAX    16
+#define BR_WORDS_MAX    64
 
 enum { BR_IDLE = 0, BR_CAPTURING, BR_FORM };
 
@@ -73,6 +74,8 @@ static char *s_files[BR_FILES_MAX];
 static int s_file_n;
 static PSXModBugReportRenderer s_render;
 static PSXModBugReportInfo s_info;
+static char *s_word_en[BR_WORDS_MAX], *s_word_shown[BR_WORDS_MAX];
+static int s_word_n;
 
 /* The report being made. */
 static int s_stage = BR_IDLE;
@@ -91,6 +94,7 @@ static int s_type_n;
 static int s_row, s_type, s_sev = 1, s_freq = 1, s_confirm;
 static char s_text[BR_TEXT_MAX + 1];
 static int s_caret;
+static int s_ui;   /* the form is up in Dear ImGui (bug_report_ui.cpp), not on the canvas */
 
 /* ---- files ---------------------------------------------------------------- */
 
@@ -553,6 +557,38 @@ int bug_report_begin(void) {
     return 1;
 }
 
+/* The form in Dear ImGui when the build and the window have it: the names
+ * in the title's words, the description empty. */
+static void ui_open(void) {
+    static const char *types[BR_TYPES_MAX + 8], *sev[3], *freq[3];
+    for (int i = 0; i < s_type_n; i++) types[i] = bug_report_tr(s_types[i]);
+    for (int i = 0; i < 3; i++) {
+        sev[i] = bug_report_tr(k_severities[i]);
+        freq[i] = bug_report_tr(k_frequencies[i]);
+    }
+    BugReportUiForm f;
+    memset(&f, 0, sizeof f);
+    f.types = types; f.type_count = s_type_n; f.type = s_type;
+    f.severities = sev; f.severity_count = 3; f.severity = s_sev;
+    f.frequencies = freq; f.frequency_count = 3; f.frequency = s_freq;
+    f.thumb = s_thumb; f.thumb_w = s_thumb_w; f.thumb_h = s_thumb_h;
+    f.photo = s_photo > 0;
+    f.state = s_state;
+    f.clip_frames = s_clip_frames;
+    s_ui = bug_report_ui_open(&f);
+}
+/* What the player chose and wrote, from the ImGui form. */
+static void ui_take(void) {
+    if (!s_ui) return;
+    bug_report_ui_values(&s_type, &s_sev, &s_freq, s_text, (int)sizeof s_text);
+    s_caret = (int)strlen(s_text);
+}
+static void ui_end(void) {
+    if (!s_ui) return;
+    bug_report_ui_close();
+    s_ui = 0;
+}
+
 int bug_report_tick(void) {
     if (s_stage == BR_CAPTURING) {
         const int late = br_now_ms() - s_t0 > BR_CAPTURE_MS;
@@ -577,6 +613,7 @@ int bug_report_tick(void) {
     if (s_stage != BR_FORM || s_page_open) return 0;
     if (!psx_mod_open_title_page(bug_report_page_render, bug_report_page_input)) return 0;
     s_page_open = 1;
+    ui_open();
     return 1;
 }
 
@@ -717,7 +754,7 @@ static void write_report(void) {
     fprintf(f, ",\n  \"history\": [{\"at\": \"%s\", \"status\": \"new\", \"by\": \"player\"}]\n}\n", s_created);
     fclose(f);
     char msg[300];
-    snprintf(msg, sizeof msg, "Bug report saved: %s", s_name);
+    snprintf(msg, sizeof msg, "%s: %s", bug_report_tr("Bug report saved"), s_name);
     host_osd_push(msg, 3500);
 }
 
@@ -732,10 +769,12 @@ static void discard_report(void) {
     br_rmdir(s_folder);
     bug_slot_forget();
     ring_release();
-    host_osd_push("Bug report discarded", 1500);
+    host_osd_push(bug_report_tr("Bug report discarded"), 1500);
 }
 
 static void finish(int save) {
+    ui_take();
+    ui_end();
     if (save) write_report();
     else discard_report();
     free(s_thumb);
@@ -746,6 +785,7 @@ static void finish(int save) {
 
 void bug_report_reset(void) {
     if (s_stage != BR_IDLE) {
+        ui_end();
         discard_report();
         free(s_thumb);
         s_thumb = NULL;
@@ -754,7 +794,8 @@ void bug_report_reset(void) {
     }
     for (int i = 0; i < s_title_type_n; i++) free(s_title_types[i]);
     for (int i = 0; i < s_file_n; i++) free(s_files[i]);
-    s_title_type_n = s_file_n = 0;
+    for (int i = 0; i < s_word_n; i++) { free(s_word_en[i]); free(s_word_shown[i]); }
+    s_title_type_n = s_file_n = s_word_n = 0;
     s_render = NULL;
     s_info = NULL;
     s_type = 0;
@@ -796,6 +837,10 @@ void bug_report_page_text(const char *utf8) {
         if ((unsigned char)*utf8 >= 0x20 || *utf8 == '\n') clean[n++] = *utf8;
     clean[n] = 0;
     if (!n) return;
+    if (s_ui) {
+        bug_report_ui_text(clean);
+        return;
+    }
     if (s_row != PSX_MOD_BUG_ROW_TEXT) {
         s_row = PSX_MOD_BUG_ROW_TEXT;
         s_caret = (int)strlen(s_text);
@@ -818,8 +863,17 @@ static int activate_discard(void) {
 }
 
 int bug_report_page_input(uint32_t pressed, uint32_t held, int key, int mods) {
-    (void)held;
     if (s_stage != BR_FORM) return 0;
+    if (s_ui) {
+        /* the ImGui form takes its events itself; here the controller, the
+         * debug server's keys and the player's save / discard */
+        if (key) bug_report_ui_key(key, mods);
+        else bug_report_ui_pad(held);
+        const int act = bug_report_ui_action();
+        if (!act) return 1;
+        finish(act == BUG_REPORT_UI_SAVE);
+        return 0;
+    }
     const int was_confirm = s_confirm;
     int redraw = 0, up = 0, down = 0, left = 0, right = 0, ok = 0, back = 0, save = 0;
     if (key) {
@@ -1011,6 +1065,10 @@ static int default_render(uint32_t *d, int w, int h) {
 
 int bug_report_page_render(uint32_t *argb, int w, int h) {
     if (s_stage != BR_FORM) return 0;
+    if (s_ui) {   /* the frozen game, dimmed, under the ImGui form */
+        for (int i = 0; i < w * h; i++) argb[i] = 0xA8000000u;
+        return 1;
+    }
     if (s_render) {
         PSXModBugReportView v;
         memset(&v, 0, sizeof v);
@@ -1084,11 +1142,36 @@ void psx_mod_bug_report_add_file(const char *path) {
     s_files[s_file_n] = (char *)malloc(strlen(path) + 1);
     if (s_files[s_file_n]) strcpy(s_files[s_file_n++], path);
 }
+void psx_mod_bug_report_translate(const char *english, const char *shown) {
+    if (!english || !*english || !shown) return;
+    int i = 0;
+    while (i < s_word_n && strcmp(s_word_en[i], english)) i++;
+    if (i == BR_WORDS_MAX) return;
+    char *s = (char *)malloc(strlen(shown) + 1);
+    if (!s) return;
+    strcpy(s, shown);
+    if (i < s_word_n) {
+        free(s_word_shown[i]);
+        s_word_shown[i] = s;
+        return;
+    }
+    s_word_en[i] = (char *)malloc(strlen(english) + 1);
+    if (!s_word_en[i]) { free(s); return; }
+    strcpy(s_word_en[i], english);
+    s_word_shown[i] = s;
+    s_word_n++;
+}
+const char *bug_report_tr(const char *english) {
+    for (int i = 0; english && i < s_word_n; i++)
+        if (!strcmp(s_word_en[i], english)) return s_word_shown[i];
+    return english;
+}
 int psx_mod_bug_report_open(void) { return bug_report_begin(); }
 int psx_mod_bug_report_active(void) { return bug_report_busy(); }
 
 int bug_report_debug(const char *op, const char *text, int key, int row, int value, char *out, size_t cap) {
     int ok = 1;
+    if (s_stage == BR_FORM) ui_take();
     if (!op || !strcmp(op, "status")) {
     } else if (!strcmp(op, "open")) {
         ok = bug_report_begin();
@@ -1110,6 +1193,7 @@ int bug_report_debug(const char *op, const char *text, int key, int row, int val
             else if (row == PSX_MOD_BUG_ROW_FREQUENCY && value >= 0 && value < 3) s_freq = value;
             else if (row >= 0 && row < PSX_MOD_BUG_ROWS && value < 0) s_row = row;
             else ok = 0;
+            if (ok && value >= 0) bug_report_ui_set(row, value);
             psx_mod_title_page_redraw();
         }
     } else if (!strcmp(op, "save") || !strcmp(op, "discard")) {

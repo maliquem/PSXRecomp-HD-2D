@@ -75,6 +75,7 @@
  * half-GL hybrid. */
 
 #include "host_overlay.h"
+#include "bug_report.h"      /* the bug report's ImGui form, at the present */
 #include "gpu.h"
 #include "area_lights.h"
 #include "gpu_render.h"
@@ -11693,6 +11694,7 @@ static void gl_swap_with_osd(void) {
             /* In-game overlay provider (host_overlay.h P2), over everything
              * the host composes; no-op unless one registered. */
             psx_host_overlay_draw(ww, wh);
+            if (bug_report_ui_draw(ww, wh)) s_hdr_overlay = 1;   /* the bug report's form */
             ptr_draw(ww, wh);   /* a title's mouse pointer, last */
         }
     }
