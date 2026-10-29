@@ -1809,9 +1809,42 @@ static void rebuild_lazy_manifest_index(void) {
     for (int i = 0; i < s_cand_n; i++) exact_entry_set(s_cand[i].addr);
 }
 
+/* The index's paths in a hash set (open addressing, index + 1, 0 = empty),
+ * by the same equality as cache_path_equal. A rescan asks this once per DLL
+ * on disk: the linear search made it quadratic, a 1.4 s stall of the game
+ * thread when the background precompile finished with ~4000 DLLs cached.
+ * Entries appended since the last call are added on the next; a removal
+ * (s_cidx_gen) rebuilds the set. */
+enum { CIDX_HASH = 2 * CACHE_IDX_CAP };
+static int      s_cidx_set[CIDX_HASH];
+static int      s_cidx_set_n = 0;
+static unsigned s_cidx_gen = 0, s_cidx_set_gen = ~0u;
+static uint32_t cache_path_hash(const char *p) {
+    uint32_t h = 2166136261u;
+    for (; *p; p++) {
+        unsigned char c = (unsigned char)*p;
+#ifdef _WIN32
+        if (c == '\\') c = '/';
+        c = (unsigned char)tolower(c);
+#endif
+        h = (h ^ c) * 16777619u;
+    }
+    return h;
+}
+static void cidx_set_add(int i) {
+    uint32_t k = cache_path_hash(s_cache_idx[i].path) & (CIDX_HASH - 1);
+    while (s_cidx_set[k]) k = (k + 1) & (CIDX_HASH - 1);
+    s_cidx_set[k] = i + 1;
+}
 static int cache_idx_has_path(const char *path) {
-    for (int i = 0; i < s_cache_idx_count; i++)
-        if (cache_path_equal(s_cache_idx[i].path, path)) return 1;
+    if (s_cidx_set_gen != s_cidx_gen || s_cidx_set_n > s_cache_idx_count) {
+        memset(s_cidx_set, 0, sizeof s_cidx_set);
+        s_cidx_set_n = 0;
+        s_cidx_set_gen = s_cidx_gen;
+    }
+    while (s_cidx_set_n < s_cache_idx_count) cidx_set_add(s_cidx_set_n++);
+    for (uint32_t k = cache_path_hash(path) & (CIDX_HASH - 1); s_cidx_set[k]; k = (k + 1) & (CIDX_HASH - 1))
+        if (cache_path_equal(s_cache_idx[s_cidx_set[k] - 1].path, path)) return 1;
     return 0;
 }
 
@@ -2013,6 +2046,7 @@ static void cache_idx_remove_path(const char *path) {
     for (int i = 0; i < s_cache_idx_count; i++) {
         if (cache_path_equal(s_cache_idx[i].path, path)) {
             s_cache_idx[i] = s_cache_idx[--s_cache_idx_count];
+            s_cidx_gen++;
             return;
         }
     }
@@ -2106,6 +2140,7 @@ static void abi_preflight_sweep(const char *dir) {
             for (int i = 0; i < s_cache_idx_count; i++) {
                 if (cache_path_equal(s_cache_idx[i].path, full)) {
                     s_cache_idx[i] = s_cache_idx[--s_cache_idx_count];
+                    s_cidx_gen++;
                     break;
                 }
             }
