@@ -11,7 +11,8 @@
 // slow drifting haze (3D value noise in the window's own frame, so it stays
 // put when the camera turns), and in a = the dust: sparse bright motes.
 // u_wn: x the windows, y the quality (1 Low: 14 samples, no dust; 2 High: 26
-// and dust). Composited by light-out.glsl.
+// and dust). A sample is lit only where the light's way back to the window is
+// clear of scenery (air_clear). Composited by light-out.glsl.
 
 uniform vec4 u_proj;
 uniform vec4 u_win[8], u_wu[8], u_wv[8], u_wd[8], u_wc[8], u_wa[8], u_wb[8], u_wn;
@@ -53,6 +54,27 @@ vec2 band(float f0, float f1, float lo, float hi, vec2 zz)
     if (abs(f1) < 1e-7) return (f0 >= lo && f0 <= hi) ? zz : vec2(1.0, 0.0);
     float a = (lo - f0) / f1, b = (hi - f0) / f1;
     return vec2(max(zz.x, min(a, b)), min(zz.y, max(a, b)));
+}
+
+// Is the light's way from the window to X (view space) clear? Five steps back
+// toward the window over the depth, as the patch's (light-out.glsl
+// window_light): the air under a stair's landing in a door's beam was lit
+// through the landing, a glow over the floor no light reached.
+float air_clear(vec3 X, vec3 D, float t, vec2 g_nat, float jit)
+{
+    float span = t - 30.0;   // not up to the window: its own wall is there
+    if (span <= 0.0) return 1.0;
+    for (int k = 0; k < 5; k++) {
+        vec3 Y = X - D * (span * (float(k) + jit) / 5.0);
+        if (Y.z < 1.0) continue;
+        vec2 uv = Y.xy * u_proj.x / (Y.z * g_nat) + 0.5;
+        if (any(lessThan(uv, vec2(0.0))) || any(greaterThan(uv, vec2(1.0)))) continue;
+        float d = texture(u_d, uv).r;
+        if (d >= 0.99999) continue;
+        float zs = 256.0 / max(1.0 - d, 1e-7) - 256.0;
+        if (zs < Y.z - (8.0 + 0.004 * Y.z)) return 0.0;
+    }
+    return 1.0;
 }
 
 void main()
@@ -103,6 +125,8 @@ void main()
             vec3 L = vec3(s * lu, r * lv, t);   // the window's own frame (world units)
             float haze = 0.55 + 0.6 * noise3(L / 46.0 + vec3(0.0, u_time * 0.05, u_time * 0.03)) + 0.25 * noise3(L / 17.0 - u_time * 0.04);
             float a = edge * bars * fade * u_wd[i].w;
+            if (a <= 0.0) continue;
+            a *= air_clear(R * z, D, t, g_nat, jit);
             acc += u_wc[i].rgb * a * haze * dz;
             if (u_wn.y > 1.5 && u_wc[i].w > 0.0) {   // motes: sparse sparks of a fine noise, drifting down slowly
                 float m = noise3(L / 3.2 + vec3(0.0, u_time * 0.6, u_time * 0.15));
