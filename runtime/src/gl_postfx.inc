@@ -2175,7 +2175,12 @@ static float s_al_view[AL_FREE_MAX][4], s_al_col[AL_FREE_MAX][4], s_al_dir[AL_FR
 static int   s_al_n = 0;
 static float s_al_amb[4];
 static _Atomic int s_al_mark = -2;
+static _Atomic int s_al_force = 0;   /* a tool edits them: on whatever u_placed says */
 void gl_renderer_area_lights_mark(int sel) { atomic_store(&s_al_mark, sel); }
+void gl_renderer_area_lights_force(int on) { atomic_store(&s_al_force, on ? 1 : 0); }
+/* the light chain (a pass reading `firemap`) ran in the last presents: the
+ * placed lights can show */
+int gl_renderer_area_lights_running(void) { return s_pfx_presents - s_fire_built <= 4u; }
 /* A fire light cast shadows in the last present (gpu.c: the game's own blob
  * shadows are hidden then, as under the sun). */
 /* a fire light cast in the last presents (the chain may be gone since) */
@@ -2197,7 +2202,7 @@ static int pfx_area_lights_prep(const PfxPass *ps, int nl, float *mapd) {
     s_al_n = 0;
     s_al_amb[3] = 0.0f;
     const float *on = pfx_pass_uniform(ps, "u_placed");
-    if (!on || on[0] <= 0.0f) return nl;
+    if ((!on || on[0] <= 0.0f) && !atomic_load(&s_al_force)) return nl;
     static AreaLightSet set;
     if (!area_lights_get(gpu_shadow_current_area(), &set)) return nl;
     const float n = s_night_f;
@@ -2245,7 +2250,7 @@ static void pfx_fire_build(const PfxPass *ps, float aspect, int lw, int lh) {
     const float *fcol = pfx_pass_uniform(ps, "u_firecol");
     const int fire_on = !(fcol && fcol[3] <= 0.0f);   /* the fire lights off (menu) */
     const float *pon = pfx_pass_uniform(ps, "u_placed");
-    if (!fire_on && !(pon && pon[0] > 0.0f)) return;
+    if (!fire_on && !(pon && pon[0] > 0.0f) && !atomic_load(&s_al_force)) return;
     if (!s_sm_tex) pfx_sm_init();
     if (!s_fm_prog) return;
     const float *cfg = pfx_pass_uniform(ps, "u_firecfg");
@@ -2445,6 +2450,55 @@ static void pfx_fire_uniforms(GLuint prog) {
     if ((loc = p_glGetUniformLocation(prog, "u_aln")) >= 0)
         p_glUniform4f(loc, (float)s_al_n, mark >= -1 ? 1.0f : 0.0f, (float)mark, 0.0f);
     if ((loc = p_glGetUniformLocation(prog, "u_alamb")) >= 0) p_glUniform4fv(loc, 1, s_al_amb);
+}
+/* The window's (fx, fy: 0..1 of its client area from the top left; aspect:
+ * its height over its width) place on the presented picture (0..1), from the
+ * last present's picture rect (pres_note_map). 0 = outside it, or none yet. */
+int gl_renderer_window_to_picture(float fx, float fy, float aspect, float *u, float *v) {
+    int m[8];
+    unsigned s0, tries = 0;
+    do {
+        s0 = atomic_load_explicit(&s_map_seq, memory_order_acquire);
+        memcpy(m, s_map, sizeof m);
+    } while (((s0 & 1u) || s0 != atomic_load_explicit(&s_map_seq, memory_order_acquire)) && ++tries < 64);
+    if (!s0 || tries >= 64 || m[2] < 1 || m[3] < 1 || m[7] < 1) return 0;
+    const float px = fx * (float)m[7], py = fy * (float)m[7] * aspect;
+    *u = (px - (float)m[0]) / (float)m[2];
+    *v = (py - (float)m[1]) / (float)m[3];
+    return *u >= 0.0f && *u <= 1.0f && *v >= 0.0f && *v <= 1.0f;
+}
+/* The presented picture's camera in the world: its right, forward (the GTE
+ * view's x and z axes) and place. 0 = none. */
+int gl_renderer_area_camera(float out[9]) {
+    GL_RT_SYNC("area_camera");
+    const ScSlot *sc = sc_presented();
+    if (!sc || !sc->cam_ok) return 0;
+    const float *r = sc->cam.r, *t = sc->cam.t;
+    for (int c = 0; c < 3; c++) {
+        out[c] = r[c]; out[3 + c] = r[6 + c];
+        out[6 + c] = -(r[c] * t[0] + r[3 + c] * t[1] + r[6 + c] * t[2]);
+    }
+    return 1;
+}
+/* The presented picture's 3D triangles in the world (x, y, z per corner), up
+ * to max of them (evenly skipped beyond): a tool's view of the room. */
+int gl_renderer_area_mesh(float *out, int max) {
+    GL_RT_SYNC("area_mesh");
+    const ScSlot *sc = sc_presented();
+    if (!sc || !sc->cam_ok || sc->n <= 0 || max <= 0) return 0;
+    const float *r = sc->cam.r, *tr = sc->cam.t, h = sc->cam.h;
+    const int step = sc->n > max ? (sc->n + max - 1) / max : 1;
+    int n = 0;
+    for (int t = 0; t < sc->n && n < max; t += step) {
+        const float *q = sc->v + (size_t)t * 3 * SC_V;
+        if (q[9] == -2.0f || q[2] < 1.0f || q[2 + SC_V] < 1.0f || q[2 + 2 * SC_V] < 1.0f) continue;
+        for (int k = 0; k < 3; k++, q += SC_V) {
+            const float V[3] = {(q[0] - s_sc_cx) * q[2] / h - tr[0], (q[1] - s_sc_cy) * q[2] / h - tr[1], q[2] - tr[2]};
+            for (int c = 0; c < 3; c++) out[(size_t)n * 9 + (size_t)k * 3 + (size_t)c] = r[c] * V[0] + r[3 + c] * V[1] + r[6 + c] * V[2];
+        }
+        n++;
+    }
+    return n;
 }
 /* TCP area_lights "pick": the world point and surface normal under (u, v) of
  * the presented picture (0..1 from its top left): the nearest of its 3D
