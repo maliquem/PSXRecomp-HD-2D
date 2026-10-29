@@ -76,6 +76,7 @@
 
 #include "host_overlay.h"
 #include "gpu.h"
+#include "area_lights.h"
 #include "gpu_render.h"
 #include "gl_scale_limits.h"
 #include "gpu_sw_renderer.h"

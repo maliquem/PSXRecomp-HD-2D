@@ -41,6 +41,7 @@
 #endif
 #include "dma.h"
 #include "gpu.h"
+#include "area_lights.h"
 #include "gpu_hd_textures.h"
 #include "gpu_render.h"   /* gr_scale + gr_render_display_hires (screenshot_hires) */
 #include "present_ring.h"
@@ -8876,6 +8877,52 @@ static void handle_sun_area(int id, const char *json)
              info[0], info[1], age, info[2], info[3], info[4], info[5], info[6], info[7]);
 }
 
+/* area_lights: the lights placed by hand per area (area_lights.h), for a tool
+ * that places them while the game runs. {} reads the current area, the areas
+ * that have lights and this area's lines ("text", file lines joined by '|').
+ * {"set":"<lines joined by |>"} replaces the area's set ("area":"0x..."
+ * another area; "" = none); {"pick":1,"u":U,"v":V} gives the world point and
+ * surface normal under that place of the picture (0..1 from its top left,
+ * the scenery's 3D triangles); {"mark":N} draws the lights' markers on the
+ * picture with light N picked (-1 none, -2 = markers off). Allowed in the
+ * restricted mode: it only changes the light. */
+static void handle_area_lights(int id, const char *json)
+{
+    extern int gl_renderer_area_pick(float u, float v, float out[7]);
+    extern void gl_renderer_area_lights_mark(int sel);
+    static char lines[RECV_BUF_SIZE], text[8192], esc[9000], err[200];
+    char buf[64];
+    const uint32_t cur = gpu_shadow_current_area();
+    const uint32_t area = json_get_str(json, "area", buf, sizeof buf) ? hex_to_u32(buf) : cur;
+    if (json_get_str(json, "mark", buf, sizeof buf)) gl_renderer_area_lights_mark(json_get_int(json, "mark", -2));
+    if (json_get_int(json, "pick", 0)) {
+        float r[7];
+        const float u = json_get_str(json, "u", buf, sizeof buf) ? strtof(buf, NULL) : -1.0f;
+        const float v = json_get_str(json, "v", buf, sizeof buf) ? strtof(buf, NULL) : -1.0f;
+        if (!gl_renderer_area_pick(u, v, r)) { send_err(id, "nothing 3D there (or no light chain running)"); return; }
+        send_fmt("{\"id\":%d,\"ok\":true,\"area\":\"0x%08x\",\"world\":[%.1f,%.1f,%.1f],\"normal\":[%.3f,%.3f,%.3f],\"z\":%.0f}",
+                 id, (unsigned)area, r[0], r[1], r[2], r[3], r[4], r[5], r[6]);
+        return;
+    }
+    if (json_get_str(json, "set", lines, sizeof lines)) {
+        for (char *p = lines; *p; p++) if (*p == '|') *p = '\n';
+        err[0] = '\0';
+        if (!area_lights_set_text(area, lines, err, (int)sizeof err)) { send_err(id, err); return; }
+    }
+    const int k = area_lights_text(area, text, (int)sizeof text);
+    for (int i = 0; i < k; i++) if (text[i] == '\n') text[i] = '|';
+    json_escape_string(esc, sizeof esc, text);
+    uint32_t areas[64];
+    const int na = area_lights_areas(areas, 64);
+    char list[64 * 13 + 4];
+    int kl = 0;
+    list[0] = '\0';
+    for (int i = 0; i < na; i++) kl += snprintf(list + kl, sizeof list - (size_t)kl, "%s\"0x%08x\"", i ? "," : "", (unsigned)areas[i]);
+    send_fmt("{\"id\":%d,\"ok\":true,\"area\":\"0x%08x\",\"current\":\"0x%08x\",\"night\":%.3f,\"version\":%u,"
+             "\"areas\":[%s],\"text\":\"%s\"}",
+             id, (unsigned)area, (unsigned)cur, gl_renderer_night(), area_lights_version(), list, esc);
+}
+
 /* sprite_dump: the foot points and 2D pieces of the picture on screen
  * (sprite shadows, gl_renderer_sprite_dump_json). */
 static void handle_sprite_dump(int id, const char *json)
@@ -16466,6 +16513,7 @@ static const CmdEntry s_commands[] = {
     { "post_uniform",      handle_post_uniform },
     { "shadow_cache",      handle_shadow_cache },
     { "sun_area",          handle_sun_area },
+    { "area_lights",       handle_area_lights },
     { "sprite_dump",       handle_sprite_dump },
     { "postfx_timing",     handle_postfx_timing },
     { "shadow_hide",       handle_shadow_hide },
@@ -16790,6 +16838,7 @@ static int restricted_allows(const char *cmd)
         "ping", "frame", "quit", "savestate", "savestate_status",
         "mod_counters", "perf_summary", "frame_perf",
         "sun_area",   /* the light per area only (a tuning tool) */
+        "area_lights",   /* the lights placed per area only (the same tool) */
         "present_shot", "present_shot_seq", "screenshot", "screenshot_hires",
         NULL
     };
@@ -17568,7 +17617,7 @@ void debug_server_poll(void)
 
     {   /* a light tuning tool's polling (sun_area) leaves the recorders off */
         char c[32];
-        if (!json_get_str(req, "cmd", c, sizeof c) || strcmp(c, "sun_area") != 0)
+        if (!json_get_str(req, "cmd", c, sizeof c) || (strcmp(c, "sun_area") != 0 && strcmp(c, "area_lights") != 0))
             passive_on_first_request();
     }
     /* Execute on the emu thread (safe point). send_line appends to s_resp_buf. */

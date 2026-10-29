@@ -13,14 +13,24 @@
 // u_flicker: x = how much the light flickers (0 = steady), y = its pace: a
 // flame's slow, uneven pulse (three slow waves of unrelated frequencies over
 // u_time), the same for every light in the picture.
-// The fire lights (the framework's `firemap`, u_fl0/u_fl1 their places in
-// view space, y up, w the reach): fire_light gives how much of a light
+// The lights that cast (the framework's `firemap`, u_fl their places in
+// view space, y up, w the map's depth): fire_light gives how much of a light
 // reaches a point, by its distance, how the surface faces it and whether
 // something nearer the light (the scenery, a sprite) stands in the way.
-// Each fire light takes its glow's colour (u_flc0/u_flc1 rgb, the pieces the
+// Each fire light takes its glow's colour (u_flc rgb, the pieces the
 // game draws glowing there: a flame orange, a staff's orb white; none known:
 // u_firecol.rgb) and size (w: a small glow lights less and less far,
-// gl_postfx.inc).
+// gl_postfx.inc). u_flx: x its reach over the map's depth, y its flicker
+// (< 0: u_flicker's), z the flicker's phase, w the placed light's index (< 0:
+// a fire's); u_fld a spot's direction and half-angle cosine (w 0: all ways).
+// The lights placed by hand in the area (gl_postfx.inc, area_lights.h; on by
+// u_placed.x): up to 2 among the casting ones (u_flx.w >= 0), the others
+// with no shadow in u_al (place, reach), u_alc (colour, strength), u_ald,
+// u_alx (as u_fld, u_flx), u_aln.x of them. They add their light to the
+// scenery and the sprites (not to the fire's darkening). u_alamb: the area's
+// ambient (rgb; w 1 = set): what the 3D scenery and the sprites keep where
+// no light reaches (an indoor room under no sun). u_aln.y = 1 draws a marker
+// on each placed light, u_aln.z the picked one (a tuning tool).
 // u_lightview.x = 1 shows the light alone; .y = 1 the fire lights alone
 // (white lit, black in their shadow or out of reach).
 
@@ -29,13 +39,26 @@ uniform vec4 u_lightview;
 uniform vec4 u_lspr;
 uniform vec4 u_flicker;
 uniform vec4 u_proj;
-uniform vec4 u_fl0, u_fl1, u_fls0, u_fls1, u_flc0, u_flc1, u_flmap;
+uniform vec4 u_fl[4], u_fls[4], u_flc[4], u_flx[4], u_fld[4], u_flmap;
+uniform vec4 u_al[8], u_alc[8], u_ald[8], u_alx[8], u_aln, u_alamb;
 uniform vec4 u_firecol, u_firecfg;
 
-float flicker(float t)
+float flicker_by(float t, float amount)
 {
     float n = 0.5 * sin(t * 7.3) + 0.3 * sin(t * 13.1 + 1.7) + 0.2 * sin(t * 23.7 + 0.4);
-    return 1.0 + u_flicker.x * n;
+    return 1.0 + amount * n;
+}
+float flicker(float t) { return flicker_by(t, u_flicker.x); }
+// a light's flicker (x: u_flx, u_alx: y the amount, < 0 u_flicker's; z its phase)
+float light_flicker(vec4 x)
+{
+    float pace = max(u_flicker.y, 0.0);
+    return x.y < 0.0 ? flicker(u_time * pace) : flicker_by(u_time * max(pace, 1.0) + x.z, x.y);
+}
+// a spot's share at d (the unit way from the light to the point)
+float spot(vec4 s, vec3 d)
+{
+    return s.w > 0.0 ? smoothstep(s.w, mix(s.w, 1.0, 0.3), dot(d, s.xyz)) : 1.0;
 }
 
 // the cube face of direction d (largest axis), its axes as in gl_postfx.inc
@@ -96,20 +119,34 @@ vec3 face_step(vec2 uv0, vec3 P, float z, vec2 d)
     if (ef >= 1e9 && eb >= 1e9) return vec3(d * g_nat * z / u_proj.x * 2.0, 0.0);   // alone: facing the camera
     return ef <= eb ? pos_at(uv0 + 2.0 * d, f2) - P : P - pos_at(uv0 - 2.0 * d, b2);
 }
-// light li at P with normal n (n 0: a sprite, facing all ways): x = how much
-// reaches it, y = how much would but something stands in the way (its shadow);
-// k: its size (1 = a campfire's), its reach fl.w * k (the map's depth: fl.w)
-vec2 fire_light(vec3 P, vec3 n, vec4 fl, int li, float k)
+// how much of a light at L reaching R reaches P with normal n (n 0: a
+// sprite, facing all ways), by distance and facing; s a spot's way
+float light_reach(vec3 P, vec3 n, vec3 L, float R, vec4 s)
 {
-    float R = fl.w * k;
-    if (R <= 0.0) return vec2(0.0);
-    vec3 d = fl.xyz - P;
+    vec3 d = L - P;
     float dist = length(d);
-    if (dist >= R) return vec2(0.0);
+    if (R <= 0.0 || dist >= R) return 0.0;
     float att = (1.0 - smoothstep(0.35 * R, R, dist)) / (1.0 + dist * dist / (0.08 * R * R));
     float face = dot(n, n) > 0.0 ? clamp(0.25 + 0.75 * dot(n, d / dist), 0.0, 1.0) : 0.7;
+    return att * face * spot(s, -d / max(dist, 1e-4));
+}
+// light li at P with normal n: x = how much reaches it, y = how much would
+// but something stands in the way (its shadow); k: its size (1 = a
+// campfire's), its reach fl.w * k (the map's depth: fl.w)
+vec2 fire_light(vec3 P, vec3 n, vec4 fl, int li, float k, vec4 s)
+{
+    float a = light_reach(P, n, fl.xyz, fl.w * k, s);
+    if (a <= 0.0) return vec2(0.0);
     float vis = fire_vis(P, fl, li);
-    return vec2(att * face * vis, att * (1.0 - vis));
+    return vec2(a * vis, a * (1.0 - vis));
+}
+// a marker on the placed light at L (view space): 1 on its ring, picked bigger
+float marker(vec3 L, bool picked)
+{
+    if (L.z < 1.0) return 0.0;
+    vec2 uv = L.xy * u_proj.x / (L.z * g_nat) + 0.5;
+    float r = length((v_uv - uv) * u_size), rad = picked ? 13.0 : 9.0;
+    return max(1.0 - smoothstep(1.0, 2.2, abs(r - rad)), 1.0 - smoothstep(1.2, 2.4, r));
 }
 
 void main()
@@ -125,9 +162,10 @@ void main()
     // the fire lights at this point (scenery from its depth, a sprite on its plane)
     vec2 fire = vec2(0.0);
     vec3 firec = vec3(0.0);   // the lights' colours, each by how much of it reaches here
-    if (u_flmap.y > 0.0 && (m > 0.5 || is_spr)) {
-        g_nat = vec2(u_proj.y * u_size.x / u_size.y, u_proj.y);
-        g_grid = g_nat * max(u_proj.z, 1.0);
+    vec3 placed = vec3(0.0);  // the lights placed by hand, coloured
+    g_nat = vec2(u_proj.y * u_size.x / u_size.y, u_proj.y);
+    g_grid = g_nat * max(u_proj.z, 1.0);
+    if ((u_flmap.y > 0.0 || u_aln.x > 0.0) && (m > 0.5 || is_spr)) {
         float z = zs;
         if (!is_spr) {
             float dd = texelFetch(u_d, p, 0).r;
@@ -142,15 +180,42 @@ void main()
                                     face_step(v_uv, P, z, vec2(0.0, p1.y))) + vec3(0.0, 0.0, -1e-6));
                 if (dot(n, P) > 0.0) n = -n;   // face the camera, along its ray
             }
-            vec2 f0 = fire_light(P, n, u_fl0, 0, u_flc0.w), f1 = vec2(0.0);
-            if (u_flmap.y > 1.0) f1 = fire_light(P, n, u_fl1, 1, u_flc1.w);
-            fire = f0 + f1;
-            firec = u_flc0.rgb * u_flc0.w * f0.x + u_flc1.rgb * u_flc1.w * f1.x;
+            for (int i = 0; i < 4; i++) {
+                if (float(i) >= u_flmap.y) break;
+                vec2 f = fire_light(P, n, u_fl[i], i, u_flx[i].x, u_fld[i]);
+                if (u_flx[i].w < 0.0) { fire += f; firec += u_flc[i].rgb * u_flc[i].w * f.x; }
+                else placed += u_flc[i].rgb * u_flc[i].w * f.x * light_flicker(u_flx[i]);
+            }
+            for (int i = 0; i < 8; i++) {
+                if (float(i) >= u_aln.x) break;
+                placed += u_alc[i].rgb * u_alc[i].w * light_flicker(u_alx[i])
+                        * light_reach(P, n, u_al[i].xyz, u_al[i].w, u_ald[i]);
+            }
         }
     }
-    if (u_lightview.y > 0.5) { o = vec4(src * 0.15 + vec3(min(fire.x, 1.0)), 1.0); return; }
+    float mk = 0.0, mkp = 0.0;   // the tool's markers: the lights, the picked one
+    if (u_aln.y > 0.5) {
+        for (int i = 0; i < 4; i++) {
+            if (float(i) >= u_flmap.y) break;
+            if (u_flx[i].w < 0.0) continue;
+            bool p = abs(u_flx[i].w - u_aln.z) < 0.5;
+            float k = marker(u_fl[i].xyz, p);
+            if (p) mkp = max(mkp, k); else mk = max(mk, k);
+        }
+        for (int i = 0; i < 8; i++) {
+            if (float(i) >= u_aln.x) break;
+            bool p = abs(u_alx[i].w - u_aln.z) < 0.5;
+            float k = marker(u_al[i].xyz, p);
+            if (p) mkp = max(mkp, k); else mk = max(mk, k);
+        }
+    }
+    if (u_lightview.y > 0.5) { o = vec4(src * 0.15 + vec3(min(fire.x, 1.0)) + placed, 1.0); return; }
 
     if (u_lightview.x > 0.5) { o = vec4(src * 0.25 + l * max(m, spr), 1.0); return; }
+    // the area's ambient: the scenery and the sprites darker where no light
+    // reaches; the placed lights bring back their light (from the colours as drawn)
+    vec3 src0 = src;
+    if (u_alamb.w > 0.5 && (m > 0.5 || is_spr)) src *= u_alamb.rgb;
     vec3 add = (src * l + u_light.z * l) * m + (src * l + 0.5 * u_light.z * l) * spr;
     // the fire lights: their shadow darkens (u_firecfg.z), their light
     // brightens and tints by each light's colour (u_firecol.w the strength), flickering
@@ -158,5 +223,10 @@ void main()
     vec3 fc = firec * (min(fire.x, 1.5) / max(fire.x, 1e-4)) * u_firecol.w * fw;
     src *= 1.0 - u_firecfg.z * min(fire.y, 1.0) * (m > 0.5 ? 1.0 : spr);
     add += src * fc + 0.15 * fc;
-    o = vec4(src + add * (1.0 - src), 1.0);
+    vec3 pc = placed * (m > 0.5 ? 1.0 : spr);
+    add += src0 * pc + 0.08 * pc;
+    vec3 c = src + add * (1.0 - src);
+    c = mix(c, vec3(1.0), mk * 0.85);
+    c = mix(c, vec3(1.0, 0.75, 0.2), mkp);
+    o = vec4(c, 1.0);
 }

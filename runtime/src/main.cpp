@@ -54,6 +54,7 @@ extern "C" int g_psx_track_last_store;
 extern "C" uint32_t g_guest_last_store_addr, g_guest_last_store_val;
 #include "overlay_backend.h"
 #include "gpu.h"
+#include "area_lights.h"
 #include "draw_distance.h"
 #include "display_scanout.h"
 #include "pgxp.h"
@@ -18618,6 +18619,10 @@ int main(int argc, char** argv) {
             {   /* tools/sun_tool's file: the sun and moon per area, over sun_areas */
                 const int nl = gpu_shadow_lights_load((exe_dir_from_argv(argv[0]) / "sun_areas.txt").string().c_str());
                 if (nl > 0) std::printf("psxrecomp: sun_areas.txt: %d lights\n", nl);
+            }
+            {   /* the lights placed by hand per area (tools/sun_tool's Lights tab) */
+                const int na = area_lights_load((exe_dir_from_argv(argv[0]) / "area_lights.txt").string().c_str());
+                if (na > 0) std::printf("psxrecomp: area_lights.txt: %d lights\n", na);
             }
             g_video_ss_milli   = gc.runtime.video_supersample_milli;
             g_video_texfilter  = gc.runtime.video_texture_filter;
