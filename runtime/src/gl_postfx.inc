@@ -2003,10 +2003,16 @@ static void lit_look_learn(uint32_t key) {
     *lit_look_slot(key) = key;
     s_lit_looks++;
 }
+/* A light that stays and missed only this present or two keeps shining: a
+ * glow the game draws every other frame (BoF4's orbs round the dragon in the
+ * forest) blinks on the screen, but its light on the scenery flickered at
+ * the frame rate, on and off. */
+#define LIT_HOLD 3
 static void pfx_lights_update(void) {
     const ScSlot *sc = sc_presented();
     s_lit_steps++;
-    for (int i = 0; i < s_lit_n; i++) s_lit[i].active = 0;
+    for (int i = 0; i < s_lit_n; i++)
+        s_lit[i].active = (s_lit[i].known || s_lit[i].up) && s_pfx_presents - s_lit[i].seen <= LIT_HOLD;
     if (!sc || !sc->cam_ok || sc->en <= 0) goto age;
     {
         const float *r = sc->cam.r, *t = sc->cam.t, h = sc->cam.h;
