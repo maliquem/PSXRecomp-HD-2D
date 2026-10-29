@@ -2479,6 +2479,11 @@ static int    s_hdr_lm_failed = 0, s_hdr_lm_w = 0, s_hdr_lm_h = 0;
 static int    s_hdr_lights = 0;         /* lights in this present's mask */
 static float  s_hdr_lm_buf[HDR_LG_MAX * 6 * 4];
 static int    s_hdr_overlay = 0;        /* a big overlay is over the picture: no boost */
+/* The title canvas over the picture (toasts, the perf meter, a title's pages
+ * and save state menu: overlay image 3 with alpha), window sized: the boost
+ * skips the pixels it covers (by its alpha), not the whole picture. */
+static GLuint s_hdr_ov_tex = 0;
+static int    s_hdr_ov_on = 0, s_hdr_ov_w = 0, s_hdr_ov_h = 0;
 static int    s_hdr_pic_rect[4];        /* the last present's picture rect (dynamic tone mapping) */
 static uint64_t s_hdr_frames = 0, s_hdr_boosted = 0;
 static char   s_hdr_probe_path[512];
@@ -11530,6 +11535,7 @@ static void gl_swap_with_osd(void) {
     if (s_ctx) present_image_ring_capture_gl();
 #endif
     s_hdr_overlay = 0;
+    s_hdr_ov_on = 0;
     if (s_present_prog && s_ctx) {
         int ww = 0, wh = 0;
         SDL_GL_GetDrawableSize(s_win, &ww, &wh);
@@ -11562,8 +11568,27 @@ static void gl_swap_with_osd(void) {
                 s_hdr_overlay = 1;
             }
             if (ov_image(3, &px, &ow, &oh) && px) {
-                gl_draw_osd_image_blend(px, ow, oh, ww, wh, 0, 0, ww, wh, ov_savestate_blend());
-                s_hdr_overlay = 1;
+                const int blend = ov_savestate_blend();
+                gl_draw_osd_image_blend(px, ow, oh, ww, wh, 0, 0, ww, wh, blend);
+                if (blend && s_hdr_on) {   /* see-through canvas: its alpha for the HDR pass */
+                    if (!s_hdr_ov_tex) glGenTextures(1, &s_hdr_ov_tex);
+                    p_glActiveTexture(PSXGL_TEXTURE0);
+                    glBindTexture(GL_TEXTURE_2D, s_hdr_ov_tex);
+                    if (s_hdr_ov_w != ow || s_hdr_ov_h != oh) {
+                        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+                        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+                        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+                        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+                        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, ow, oh, 0, GL_BGRA, GL_UNSIGNED_BYTE, px);
+                        s_hdr_ov_w = ow; s_hdr_ov_h = oh;
+                    } else {
+                        glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, ow, oh, GL_BGRA, GL_UNSIGNED_BYTE, px);
+                    }
+                    glBindTexture(GL_TEXTURE_2D, 0);
+                    s_hdr_ov_on = 1;
+                } else {
+                    s_hdr_overlay = 1;   /* the framework's opaque panel */
+                }
             }
             /* In-game overlay provider (host_overlay.h P2), over everything
              * the host composes; no-op unless one registered. */

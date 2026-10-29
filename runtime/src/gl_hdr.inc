@@ -236,6 +236,14 @@ static const char *HDR_COMMON =
     "uniform int u_gamma;\n"       /* 0: sRGB curve, 1: gamma 2.2 */
     "uniform int u_mr;\n"          /* mask softening radius (px) */
     "uniform vec4 u_con;\n"       /* contrast: shadow stretch, scenery stretch, exposure max, min */
+    "uniform sampler2D u_ov;\n"    /* the title canvas over the picture (window, top-down) */
+    "uniform int u_ovon;\n"
+    /* how much of a pixel is the picture, not that canvas (its alpha) */
+    "float ov_free(ivec2 p){\n"
+    "  if (u_ovon == 0) return 1.0;\n"
+    "  vec2 ws = vec2(textureSize(u_src, 0));\n"
+    "  return 1.0 - texture(u_ov, vec2((float(p.x) + 0.5) / ws.x, 1.0 - (float(p.y) + 0.5) / ws.y)).a;\n"
+    "}\n"
     "vec3 eotf(vec3 c){\n"
     "  if (u_gamma == 1) return pow(c, vec3(2.2));\n"
     "  return mix(c / 12.92, pow((c + 0.055) / 1.055, vec3(2.4)), step(vec3(0.04045), c));\n"
@@ -255,7 +263,7 @@ static const char *HDR_COMMON =
     "  ivec2 q = p - u_mrect.xy;\n"
     "  if (any(lessThan(q, ivec2(0))) || any(greaterThanEqual(q, u_mrect.zw))) return 0.0;\n"
     "  vec4 m = texelFetch(u_mask, q, 0);\n"
-    "  return m.g * (1.0 - m.b);\n"
+    "  return m.g * (1.0 - m.b) * ov_free(p);\n"
     "}\n"
     /* its stops over mid grey stretch (none at it, the full stretch at white) */
     "float scene_t(float Y){\n"
@@ -275,7 +283,7 @@ static const char *HDR_COMMON =
     /* only its bright part: from the knee (encoded max channel) to full */
     "  float mx = max(c.r, max(c.g, c.b));\n"
     "  float t = clamp((mx - u_p.w) / (1.0 - u_p.w), 0.0, 1.0);\n"
-    "  return m * (1.0 / 9.0) * t * t * (3.0 - 2.0 * t);\n"
+    "  return m * (1.0 / 9.0) * t * t * (3.0 - 2.0 * t) * ov_free(p);\n"
     "}\n";
 
 static const char *HDR_MAIN =
@@ -580,6 +588,24 @@ static void hdr_common_uniforms(GLint uSrc, GLint uMask, GLint uLmask, GLint uMr
     p_glUniform4f(uCon, 0.4f * s_hdr_shadows_v, 0.45f * s_hdr_scene_v, s_hdr_exp_max, s_hdr_exp_min);
     p_glUniform1i(uGamma, s_hdr_gamma);
     p_glUniform1i(uMr, wh >= 1080 ? wh / 540 : 1);
+    {   /* the canvas over the picture (s_hdr_ov_on), unit 4; per program */
+        GLint prog = 0;
+        glGetIntegerv(0x8B8D /* GL_CURRENT_PROGRAM */, &prog);
+        static GLint cprog[2] = { -1, -1 }, lov[2], lon[2];
+        int k = cprog[0] == prog ? 0 : cprog[1] == prog ? 1 : -1;
+        if (k < 0) {
+            k = cprog[0] < 0 ? 0 : 1;
+            cprog[k] = prog;
+            lov[k] = p_glGetUniformLocation((GLuint)prog, "u_ov");
+            lon[k] = p_glGetUniformLocation((GLuint)prog, "u_ovon");
+        }
+        const int on = mask_ok && s_hdr_ov_on && s_hdr_ov_tex;
+        p_glActiveTexture(PSXGL_TEXTURE0 + 4);
+        glBindTexture(GL_TEXTURE_2D, on ? s_hdr_ov_tex : 0);
+        p_glActiveTexture(PSXGL_TEXTURE0);
+        if (lov[k] >= 0) p_glUniform1i(lov[k], 4);
+        if (lon[k] >= 0) p_glUniform1i(lon[k], on);
+    }
 }
 
 /* Dynamic tone mapping: this frame measured (the composed copy on unit 0,
@@ -758,6 +784,8 @@ static void hdr_finish(void) {
         }
         hdr_probe_take(ww, wh, pe, peak);
     }
+    p_glActiveTexture(PSXGL_TEXTURE0 + 4);
+    glBindTexture(GL_TEXTURE_2D, 0);
     p_glActiveTexture(PSXGL_TEXTURE0 + 3);
     glBindTexture(GL_TEXTURE_2D, 0);
     p_glActiveTexture(PSXGL_TEXTURE0 + 2);
