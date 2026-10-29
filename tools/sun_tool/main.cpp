@@ -28,6 +28,7 @@
 
 #include <algorithm>
 #include <atomic>
+#include <cctype>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -203,6 +204,14 @@ public:
         out = ans_[key & 15];
         return ans_seq_[key & 15];
     }
+    // nothing of that key waits or is on its way: its last answer is in
+    bool idle(int key) {
+        std::lock_guard<std::mutex> lk(mu_);
+        if (busy_ == key) return false;
+        for (auto& p : pending_)
+            if (p.which == key) return false;
+        return true;
+    }
     // the Lights tab shown: TCP area_lights read with the sun's (answer key 15)
     void poll_lights(bool on) { lights_on_ = on; }
     int port() const { return port_; }
@@ -266,17 +275,19 @@ private:
                 if (!pending_.empty()) {
                     p = pending_.front();
                     pending_.erase(pending_.begin());
+                    busy_ = p.which;
                 }
             }
             std::string resp;
             const Uint64 now = SDL_GetTicks();
             if (!p.req.empty()) {
                 if (!request(p.req, resp)) set_connected(false);
+                std::lock_guard<std::mutex> lk(mu_);
                 if (p.which >= 10) {
-                    std::lock_guard<std::mutex> lk(mu_);
                     ans_[p.which & 15] = resp;
                     ans_seq_[p.which & 15]++;
                 }
+                busy_ = -1;
                 continue;
             }
             if (now - last_read < 150) {
@@ -308,6 +319,7 @@ private:
     bool connected_ = false;
     std::string ans_[16];
     unsigned ans_seq_[16] = {};
+    int busy_ = -1;   // the key of the request on its way
     std::atomic<bool> lights_on_{false};
 };
 
@@ -1001,7 +1013,7 @@ int main(int argc, char** argv) {
     bool test_apply = false, start_hidden = false;
     HANDLE parent = nullptr;   // the game that started it: the tool quits with it
     DWORD parent_pid = 0;
-    std::string test_tab, test_pick, test_window;
+    std::string test_tab, test_pick, test_window, test_corner, test_drag;
     for (int i = 1; i < argc; i++) {
         const std::string a = argv[i];
         if (a == "--port" && i + 1 < argc) port = atoi(argv[++i]);
@@ -1022,6 +1034,8 @@ int main(int argc, char** argv) {
         else if (a == "--test-pick" && i + 1 < argc) test_pick = argv[++i];
         // tests: a window between two corners "U1 V1 U2 V2" of the game's picture (as if clicked)
         else if (a == "--test-window" && i + 1 < argc) test_window = argv[++i];
+        else if (a == "--test-corner" && i + 1 < argc) test_corner = argv[++i];
+        else if (a == "--test-drag" && i + 1 < argc) test_drag = argv[++i];
     }
     const bool shot_mode = !shot_path.empty();
     // one tool per game port: a second start (the game opened again, or by hand) leaves
@@ -1127,6 +1141,35 @@ int main(int argc, char** argv) {
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
         if (shot_mode) {
             ++frames;
+            // the first window's arrow dragged by its tip in the view from above, by (DX DY) px
+            if (!test_drag.empty() && t->lights.area) {
+                LightsTab& L = t->lights;
+                const int f0 = shot_frames / 4;
+                static ImVec2 a0;
+                float dd[2] = {0, 0};
+                sscanf(test_drag.c_str(), "%f %f", &dd[0], &dd[1]);
+                if (frames == f0)
+                    for (int i = 0; i < (int)L.cur.l.size(); i++)
+                        if (L.cur.l[i].kind == PL_WINDOW) {
+                            L.sel = i;
+                            break;
+                        }
+                if (frames == f0 + 4 && L.sel >= 0) {
+                    a0 = L.tip_seen[0];
+                    io.AddMousePosEvent(a0.x, a0.y);
+                    printf("test-drag from %.0f %.0f: %s\n", a0.x, a0.y, light_line(L.area, L.cur.l[L.sel]).c_str());
+                }
+                if (frames == f0 + 6) io.AddMouseButtonEvent(0, true);
+                if (frames > f0 + 6 && frames <= f0 + 26) {
+                    const float k = (float)(frames - f0 - 6) / 20.0f;
+                    io.AddMousePosEvent(a0.x + dd[0] * k, a0.y + dd[1] * k);
+                }
+                if (frames == f0 + 30 && L.sel >= 0) {
+                    io.AddMouseButtonEvent(0, false);
+                    printf("test-drag to: %s\n", light_line(L.area, L.cur.l[L.sel]).c_str());
+                    fflush(stdout);
+                }
+            }
             if (frames == shot_frames / 3 && !test_set.empty() && t->area) {
                 char w[8] = "", v[16] = "";
                 float az = 0, el = 0;
@@ -1140,6 +1183,35 @@ int main(int argc, char** argv) {
                 else if (n == 3) az = strtof(v, nullptr), t->change(which, Light{L_AT, az, el});
                 printf("test-set %s on 0x%08x\n", test_set.c_str(), t->area);
             }
+            // a window's corner dragged on the game (the hook's part left out): the
+            // first window picked, pressed at the picture's (U1 V1), held to (U2 V2), let go
+            for (int c = 0; c < 3 && !test_corner.empty() && t->lights.area; c++)
+                if (frames == shot_frames / 4 + c * shot_frames / 8) {
+                    LightsTab& L = t->lights;
+                    if (c == 0) {
+                        for (int i = 0; i < (int)L.cur.l.size(); i++)
+                            if (L.cur.l[i].kind == PL_WINDOW) {
+                                L.sel = i;
+                                break;
+                            }
+                        L.corner_end();
+                        L.arm = ARM_CORNERS;   // no hook in a test
+                        L.corner_down = true;
+                    }
+                    if (c == 2) {
+                        L.corner_up = true;
+                        printf("test-corner: corner %d held, let go: %s\n", L.corner + 1,
+                               L.sel >= 0 ? light_line(L.area, L.cur.l[L.sel]).c_str() : "-");
+                        fflush(stdout);
+                        continue;
+                    }
+                    float q[4] = {0.5f, 0.5f, 0.5f, 0.5f};
+                    sscanf(test_corner.c_str(), "%f %f %f %f", &q[0], &q[1], &q[2], &q[3]);
+                    char req[160];
+                    snprintf(req, sizeof req, "{\"cmd\":\"area_lights\",\"pick\":1,\"u\":%.4f,\"v\":%.4f}", q[2 * c], q[2 * c + 1]);
+                    t->link.send_keyed(K_PICK, req, 0);
+                    printf("test-corner place %d on 0x%08x\n", c + 1, L.area);
+                }
             for (int c = 0; c < 2 && !test_window.empty() && t->lights.area; c++)
                 if (frames == shot_frames / 4 + c * shot_frames / 6) {   // the corners, one after the other
                     float q[4] = {0.5f, 0.5f, 0.5f, 0.5f};

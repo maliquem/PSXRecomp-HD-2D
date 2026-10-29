@@ -1,18 +1,19 @@
 // Light shafts through the windows placed by hand (area_lights.h), the air's
-// part. Written for psxrecomp. A window is a rectangle in the room's wall (u_win
-// a corner, view space y up, w how far its light goes in; u_wu, u_wv its
-// width and height edges, w its panes); its light travels along u_wd; u_wc its
-// colour (w: how dusty). Each pixel's camera ray crosses the beam (the
-// window's rectangle pushed along u_wd) between two depths, found exactly;
+// part. Written for psxrecomp. A window is four corners in the room's wall,
+// in a box (u_win the box's corner, view space y up, w how far its light goes
+// in; u_wu, u_wv its width and height edges, w its panes; u_wa, u_wb the four
+// corners in the box, 0..1); its light travels along u_wd; u_wc its colour (w:
+// how dusty). Each pixel's camera ray crosses the beam (the box pushed along
+// u_wd) between two depths, found exactly;
 // samples along that stretch, up to the scenery (u_d) or a sprite (u_spr) in front, sum how much
-// air is lit: brighter near the window, the panes' bars a little darker, a
+// air is lit inside the window's own shape: brighter near the window, the panes' bars a little darker, a
 // slow drifting haze (3D value noise in the window's own frame, so it stays
 // put when the camera turns), and in a = the dust: sparse bright motes.
 // u_wn: x the windows, y the quality (1 Low: 14 samples, no dust; 2 High: 26
 // and dust). Composited by light-out.glsl.
 
 uniform vec4 u_proj;
-uniform vec4 u_win[4], u_wu[4], u_wv[4], u_wd[4], u_wc[4], u_wn;
+uniform vec4 u_win[4], u_wu[4], u_wv[4], u_wd[4], u_wc[4], u_wa[4], u_wb[4], u_wn;
 
 float hash(vec3 p)
 {
@@ -27,6 +28,23 @@ float noise3(vec3 x)
     return mix(mix(mix(hash(i), hash(i + vec3(1, 0, 0)), f.x), mix(hash(i + vec3(0, 1, 0)), hash(i + vec3(1, 1, 0)), f.x), f.y),
                mix(mix(hash(i + vec3(0, 0, 1)), hash(i + vec3(1, 0, 1)), f.x), mix(hash(i + vec3(0, 1, 1)), hash(i + vec3(1, 1, 1)), f.x), f.y),
                f.z);
+}
+// The window's own place (0..1 across, 0..1 up) at p, a place in its box
+// (0..1): its corners a, b (u_wa), c, d (u_wb) go round it, any four, and
+// p = a + e u + f v + g u v (e = b - a, f = d - a, g = a - b + c - d). Crossing
+// both sides with f + g u leaves u's quadratic, taken by its root that is u
+// itself when the window is a parallelogram (g = 0); then v along f + g u.
+float cr2(vec2 a, vec2 b) { return a.x * b.y - a.y * b.x; }
+vec2 quad_uv(vec2 p, int i)
+{
+    vec2 a = u_wa[i].xy, b = u_wa[i].zw, c = u_wb[i].xy, d = u_wb[i].zw;
+    vec2 e = b - a, f = d - a, g = a - b + c - d, h = p - a;
+    float A = cr2(e, g), B = cr2(e, f) - cr2(h, g), hf = cr2(h, f);
+    float den = B + sqrt(max(B * B + 4.0 * A * hf, 0.0));
+    if (abs(den) < 1e-8) return vec2(-1.0);
+    float u = 2.0 * hf / den;
+    vec2 fg = f + g * u;
+    return vec2(u, dot(h - e * u, fg) / max(dot(fg, fg), 1e-8));
 }
 // the stretch of z (along the ray: X = R z) where lo <= f0 + f1 z <= hi
 vec2 band(float f0, float f1, float lo, float hi, vec2 zz)
@@ -72,10 +90,12 @@ void main()
             if (k >= N) break;
             float z = zz.x + (float(k) + jit) * dz;
             float t = t0 + t1 * z, s = s0 + s1 * z, r = r0 + r1 * z;
-            float edge = smoothstep(-0.04, 0.04, s) * smoothstep(1.04, 0.96, s) * smoothstep(-0.04, 0.04, r) * smoothstep(1.04, 0.96, r);
+            vec2 q = quad_uv(vec2(s, r), i);
+            float edge = smoothstep(-0.04, 0.04, q.x) * smoothstep(1.04, 0.96, q.x) * smoothstep(-0.04, 0.04, q.y) * smoothstep(1.04, 0.96, q.y);
+            if (edge <= 0.0) continue;
             // the panes' bars: a little darker streaks
-            float bu = abs(fract(s * u_wu[i].w + 0.5) - 0.5) * lu / u_wu[i].w;
-            float bv = abs(fract(r * u_wv[i].w + 0.5) - 0.5) * lv / u_wv[i].w;
+            float bu = abs(fract(q.x * u_wu[i].w + 0.5) - 0.5) * lu / u_wu[i].w;
+            float bv = abs(fract(q.y * u_wv[i].w + 0.5) - 0.5) * lv / u_wv[i].w;
             float bars = mix(1.0, min(smoothstep(1.5, 4.0, bu), smoothstep(1.5, 4.0, bv)), 0.45);
             float fade = smoothstep(0.0, 30.0, t) * exp(-t / (0.6 * u_win[i].w + 150.0)) * (1.0 - smoothstep(0.8, 1.0, t / u_win[i].w));
             vec3 L = vec3(s * lu, r * lv, t);   // the window's own frame (world units)

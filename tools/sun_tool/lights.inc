@@ -6,7 +6,10 @@
 // takes that one click, so the game never sees it): the game answers with the
 // world point under it and the surface's normal. The views here (from above
 // and from the side, the room's triangles from TCP area_lights "mesh") move
-// it and show its height; every change goes to the game at once.
+// it and show its height; every change goes to the game at once. A window's
+// four corners are dragged on the game's window itself (the hook holds the
+// button and follows the mouse); its light's way by the tip of its arrow in
+// the views.
 
 enum { PL_POINT = 1, PL_SPOT, PL_WINDOW };
 enum { W_ALWAYS = 0, W_DAY, W_NIGHT };
@@ -17,6 +20,7 @@ const char* const k_src_word[] = {"sun", "moon", "fixed"};
 struct PLight {
     int kind = PL_POINT;
     V3 p{0, 0, 0}, a{0, 0, 0}, b{0, 0, 0};
+    V3 q{0, 0, 0};      // a window's fourth corner, across from p (round it: p, a, q, b)
     float col[3] = {1.0f, 0.85f, 0.6f};
     float power = 1.0f, reach = 600.0f, flicker = 0.0f, cone = 60.0f, dust = 0.0f, az = 0.0f, el = 0.0f;
     bool shadow = false, own_dir = false, has_dir = false;
@@ -49,6 +53,9 @@ std::string light_line(unsigned area, const PLight& l) {
         put("  %.1f %.1f %.1f  %.1f %.1f %.1f panes %d %d light %s", l.a.x, l.a.y, l.a.z, l.b.x, l.b.y, l.b.z, l.cols,
             l.rows, k_src_word[l.src]);
         if (l.own_dir || l.src == 2) put(" %.1f %.1f", l.az, l.el);
+        const V3 par = l.a + l.b - l.p;
+        if (std::max({std::fabs(l.q.x - par.x), std::fabs(l.q.y - par.y), std::fabs(l.q.z - par.z)}) > 0.05f)
+            put(" corner %.1f %.1f %.1f", l.q.x, l.q.y, l.q.z);
         if (l.has_dir) put(" dir %.3f %.3f %.3f", l.dir.x, l.dir.y, l.dir.z);
     }
     if (l.kind == PL_SPOT) put(" at %.1f %.1f %.1f cone %.1f", l.a.x, l.a.y, l.a.z, l.cone);
@@ -112,6 +119,7 @@ bool parse_light_line(char* line, unsigned* area, PArea& into) {
         if (!v3(l.a) || !v3(l.b)) return false;
         l.reach = 0.0f;
     }
+    bool has_q = false;
     while ((t = strtok_s(nullptr, " \t\r\n", &save))) {
         if (!strcmp(t, "color")) num(l.col[0]), num(l.col[1]), num(l.col[2]);
         else if (!strcmp(t, "power")) num(l.power);
@@ -121,6 +129,7 @@ bool parse_light_line(char* line, unsigned* area, PArea& into) {
         else if (!strcmp(t, "cone")) num(l.cone);
         else if (!strcmp(t, "shadow")) l.shadow = true;
         else if (!strcmp(t, "at")) v3(l.a);
+        else if (!strcmp(t, "corner")) has_q = v3(l.q);
         else if (!strcmp(t, "dir")) l.has_dir = v3(l.dir);
         else if (!strcmp(t, "panes")) {
             float c = 1, r = 1;
@@ -133,20 +142,22 @@ bool parse_light_line(char* line, unsigned* area, PArea& into) {
         } else if (!strcmp(t, "light")) {
             char* w = strtok_s(nullptr, " \t\r\n", &save);
             l.src = w && !strcmp(w, "moon") ? 1 : w && !strcmp(w, "fixed") ? 2 : 0;
-            // a direction of its own may follow (two numbers)
-            char* save2 = save;
-            char* x = strtok_s(nullptr, " \t\r\n", &save2);
+            // a direction of its own may follow (two numbers): looked at without
+            // cutting the next word (strtok_s ends it, and the rest with it)
+            const char* x = save ? save : "";
+            while (*x == ' ' || *x == '\t') x++;
             char* e = nullptr;
-            const float az = x ? strtof(x, &e) : 0.0f;
-            if (x && e && *e == '\0') {
-                char* y = strtok_s(nullptr, " \t\r\n", &save2);
+            const float az = strtof(x, &e);
+            if (e != x && (*e == '\0' || isspace((unsigned char)*e))) {
+                strtok_s(nullptr, " \t\r\n", &save);
+                char* y = strtok_s(nullptr, " \t\r\n", &save);
                 l.az = az;
                 l.el = y ? strtof(y, nullptr) : 30.0f;
                 l.own_dir = true;
-                save = save2;
             }
         }
     }
+    if (l.kind == PL_WINDOW && !has_q) l.q = l.a + l.b - l.p;
     l.note = note;
     into.l.push_back(l);
     return true;
@@ -198,7 +209,7 @@ struct LightsFile {
                    "# 0xAREA amb R G B [night R G B]            (o escuro do interior onde nenhuma luz chega)\n"
                    "# 0xAREA point X Y Z color R G B power F reach A [shadow] [flicker F] [when day|night]\n"
                    "# 0xAREA spot X Y Z at X Y Z cone GRAUS ...  (foco)\n"
-                   "# 0xAREA window X Y Z  X Y Z  X Y Z panes C L light sun|moon|fixed [AZ EL] ...  (janela)\n");
+                   "# 0xAREA window X Y Z  X Y Z  X Y Z panes C L light sun|moon|fixed [AZ EL] [corner X Y Z] ...  (janela)\n");
         for (const auto& x : a)
             if (!x.empty()) fputs(area_lines(x).c_str(), f);
         const bool ok = fclose(f) == 0;
@@ -216,17 +227,54 @@ struct LightsFile {
 // tool's own window, over a window of the game (its process, or any SDL
 // window when the game's process is not known): its place over that window's
 // client area (0..1) and the client's height over its width.
+// In drag mode (a window's corners) it stays armed: the press (taken), the
+// moves while held (the game sees them, no click) and the release (taken)
+// each give a place, and up tells the release.
 struct GameClick {
-    std::atomic<bool> armed{false}, got{false};
+    std::atomic<bool> armed{false}, got{false}, drag{false}, down{false}, up{false};
     float fx = 0, fy = 0, aspect = 0.5625f;
-    HWND own = nullptr;
+    HWND own = nullptr, held = nullptr;
     DWORD game_pid = 0;
     HHOOK hook = nullptr;
     bool swallow_up = false;
 };
 GameClick g_click;
 LRESULT CALLBACK click_hook(int code, WPARAM wp, LPARAM lp) {
-    if (code == HC_ACTION && g_click.armed) {
+    if (code == HC_ACTION && g_click.armed && g_click.drag) {
+        const MSLLHOOKSTRUCT* m = (const MSLLHOOKSTRUCT*)lp;
+        auto place = [&](HWND w) {
+            POINT p = m->pt;
+            RECT rc;
+            ScreenToClient(w, &p);
+            GetClientRect(w, &rc);
+            if (rc.right <= 0 || rc.bottom <= 0) return false;
+            g_click.fx = std::clamp((float)p.x / (float)rc.right, 0.0f, 1.0f);
+            g_click.fy = std::clamp((float)p.y / (float)rc.bottom, 0.0f, 1.0f);
+            g_click.aspect = (float)rc.bottom / (float)rc.right;
+            g_click.got = true;
+            return true;
+        };
+        if (g_click.down && g_click.held) {
+            if (wp == WM_MOUSEMOVE) place(g_click.held);
+            else if (wp == WM_LBUTTONUP) {
+                place(g_click.held);
+                g_click.down = false;
+                g_click.up = true;
+                return 1;
+            }
+        } else if (wp == WM_LBUTTONDOWN) {
+            HWND w = GetAncestor(WindowFromPoint(m->pt), GA_ROOT);
+            DWORD pid = 0;
+            if (w) GetWindowThreadProcessId(w, &pid);
+            char cls[64] = "";
+            if (w) GetClassNameA(w, cls, sizeof cls);
+            if (w && w != g_click.own && (g_click.game_pid ? pid == g_click.game_pid : strcmp(cls, "SDL_app") == 0) && place(w)) {
+                g_click.held = w;
+                g_click.down = true;
+                return 1;
+            }
+        }
+    } else if (code == HC_ACTION && g_click.armed) {
         const MSLLHOOKSTRUCT* m = (const MSLLHOOKSTRUCT*)lp;
         if (wp == WM_LBUTTONUP && g_click.swallow_up) {
             g_click.swallow_up = false;
@@ -258,9 +306,12 @@ LRESULT CALLBACK click_hook(int code, WPARAM wp, LPARAM lp) {
     }
     return CallNextHookEx(nullptr, code, wp, lp);
 }
-void click_arm(bool on) {
+void click_arm(bool on, bool drag = false) {
     if (on && !g_click.hook) g_click.hook = SetWindowsHookExA(WH_MOUSE_LL, click_hook, GetModuleHandleA(nullptr), 0);
     g_click.got = false;
+    g_click.drag = on && drag;
+    g_click.down = false;
+    g_click.up = false;
     g_click.armed = on && g_click.hook;
     if (!on && g_click.hook && !g_click.swallow_up) {
         UnhookWindowsHookEx(g_click.hook);
@@ -270,16 +321,17 @@ void click_arm(bool on) {
 
 // ---- the tab ------------------------------------------------------------------------------
 enum { K_SET = 10, K_MARK, K_FORCE, K_PICK, K_MESH, K_POLL };
-enum { ARM_NONE = 0, ARM_NEW_POINT, ARM_NEW_SPOT, ARM_MOVE, ARM_AIM, ARM_WIN1, ARM_WIN2 };
+enum { ARM_NONE = 0, ARM_NEW_POINT, ARM_NEW_SPOT, ARM_MOVE, ARM_AIM, ARM_WIN1, ARM_WIN2, ARM_CORNERS };
 
 // a window's frame: across it (w), into the room (n, toward the camera), up
 struct WinFrame {
     V3 w, n, up{0, 1, 0};
 };
+V3 win_center(const PLight& l) { return (l.p + l.a + l.q + l.b) * 0.25f; }
 WinFrame win_frame(const PLight& l, V3 cam) {
     WinFrame f;
     f.w = norm(l.a - l.p);
-    f.n = norm(cross(l.a - l.p, l.b - l.p));
+    f.n = norm(cross(l.q - l.p, l.b - l.a));   // across its diagonals: any four corners
     if (dot(f.n, cam - l.p) < 0) f.n = f.n * -1.0f;
     return f;
 }
@@ -288,10 +340,9 @@ V3 win_dir(const WinFrame& f, float across, float drop) {
     const float a = across * k_deg, e = drop * k_deg;
     return norm(f.n * (std::cos(e) * std::cos(a)) + f.w * (std::cos(e) * std::sin(a)) - f.up * std::sin(e));
 }
-void win_angles(const WinFrame& f, V3 d, float& across, float& drop) {
-    drop = std::asin(std::clamp(-dot(d, f.up), -1.0f, 1.0f)) / k_deg;
-    across = std::atan2(dot(d, f.w), dot(d, f.n)) / k_deg;
-}
+// the light placed by a view: its window's center, or the light itself
+V3 anchor(const PLight& l) { return l.kind == PL_WINDOW ? win_center(l) : l.p; }
+const float k_tip = 300.0f;   // a window's arrow: this long in the world
 
 struct LightsTab {
     GameLink* link = nullptr;
@@ -312,6 +363,12 @@ struct LightsTab {
     std::string copy_from;
     V3 win_p1{0, 0, 0}, win_n1{0, 0, 1};   // the first corner clicked, its wall's normal
     bool win_redo = false;                 // the clicks remake the picked window's corners
+    // dragging a window's corners on the game: the corner held (-1 none yet),
+    // pressed, released (the last places still coming)
+    int corner = -1, shown_corner = -2;
+    bool corner_down = false, corner_up = false;
+    bool drag_tip = false;   // the views drag the arrow's tip (not the light)
+    ImVec2 tip_seen[2];      // the picked light's tip on each view (tests)
 
     PArea saved(unsigned a) {
         PArea* x = file.find(a);
@@ -340,28 +397,47 @@ struct LightsTab {
         sel = cur.l.empty() ? -1 : 0;
         arm = ARM_NONE;
         click_arm(false);
+        corner_end();
         msg.clear();
         mesh.clear();
         mesh_area = 0;
     }
     // the tab shown (and the tool visible): markers and the lights forced on in the game
     void visible(bool on) {
-        const int mark = on ? sel : -2, force = on ? 1 : 0;
-        if (mark != shown_mark) {
-            link->send_keyed(K_MARK, "{\"cmd\":\"area_lights\",\"mark\":" + std::to_string(mark) + "}", 0);
+        const int mark = on ? sel : -2, force = on ? 1 : 0, cn = on ? corner : -1;
+        if (mark != shown_mark || cn != shown_corner) {
+            link->send_keyed(K_MARK, "{\"cmd\":\"area_lights\",\"mark\":" + std::to_string(mark) +
+                                         ",\"corner\":" + std::to_string(cn) + "}", 0);
             shown_mark = mark;
+            shown_corner = cn;
         }
         if (force != shown_force) {
             link->send_keyed(K_FORCE, "{\"cmd\":\"area_lights\",\"force\":" + std::to_string(force) + "}", 0);
             shown_force = force;
         }
         link->poll_lights(on);
-        if (!on && arm) arm = ARM_NONE, click_arm(false);
+        if (!on && arm) arm = ARM_NONE, click_arm(false), corner_end();
+    }
+    void corner_end() {
+        corner = -1;
+        corner_down = corner_up = false;
+    }
+    void corners_mode(bool on) {
+        corner_end();
+        arm = on ? ARM_CORNERS : ARM_NONE;
+        click_arm(on, true);
+        msg = !on ? "" : g_click.hook ? "Segure o botão num canto da janela no jogo e arraste. Esc termina."
+                                      : "Não consegui escutar o mouse (SetWindowsHookEx).";
     }
     void changed() { send(); }
     // the game's answers: the poll (camera, running), a pick, the mesh
     void update(unsigned game_area) {
         if (game_area && game_area != area) switch_area(game_area);
+        const bool pick_idle = link->idle(K_PICK);   // before the answers: all of them are in then
+        if (arm == ARM_CORNERS) {
+            if (g_click.down) corner_down = true;
+            if (g_click.up.exchange(false)) corner_up = true;
+        }
         std::string r;
         unsigned s = link->answer(K_POLL, r);
         if (s != poll_seq) {
@@ -379,11 +455,12 @@ struct LightsTab {
             if (strstr(r.c_str(), "\"ok\":true") && read_nums(find_key(r.c_str(), "world"), w, 3) == 3 &&
                 read_nums(find_key(r.c_str(), "normal"), n, 3) == 3)
                 picked(V3{w[0], w[1], w[2]}, V3{n[0], n[1], n[2]});
-            else {
+            else if (arm != ARM_CORNERS) {
                 const char* e = find_key(r.c_str(), "error");
                 msg = std::string("Clique sem chão 3D: ") + (e ? std::string(e).substr(0, 80) : "sem resposta");
             }
         }
+        if (corner_up && pick_idle && !g_click.got) corner_end();   // its last place is in
         s = link->answer(K_MESH, r);
         if (s != mesh_seq) {
             mesh_seq = s;
@@ -415,7 +492,36 @@ struct LightsTab {
         mesh_area = area;   // asked (the answer fills it)
         link->send_keyed(K_MESH, "{\"cmd\":\"area_lights\",\"mesh\":1}", 0);
     }
+    // a window's corner dragged on the game: the one nearest the press, then
+    // where the mouse is, on the window's wall (the surface there when it is
+    // that wall; else where the camera's ray through it meets the window's plane)
+    void corner_to(V3 w, V3 n) {
+        if (!corner_down || sel < 0 || sel >= (int)cur.l.size() || cur.l[sel].kind != PL_WINDOW) return;
+        PLight& l = cur.l[sel];
+        V3* c[4] = {&l.p, &l.a, &l.q, &l.b};
+        const V3 mid = win_center(l), nw = norm(cross(l.q - l.p, l.b - l.a));
+        V3 x = w;
+        if (std::fabs(dot(n, nw)) < 0.9f || std::fabs(dot(w - mid, nw)) > 30.0f) {
+            const V3 ray = w - cam_p;
+            const float dn = dot(nw, ray);
+            if (std::fabs(dn) > 1e-4f) x = cam_p + ray * (dot(nw, mid - cam_p) / dn);
+        }
+        if (corner < 0) {
+            float bd = 1e30f;
+            for (int k = 0; k < 4; k++) {
+                const V3 d = *c[k] - x;
+                if (dot(d, d) < bd) bd = dot(d, d), corner = k;
+            }
+            msg = "Canto " + std::to_string(corner + 1) + " seguindo o mouse.";
+        }
+        *c[corner] = x;
+        changed();
+    }
     void picked(V3 w, V3 n) {
+        if (arm == ARM_CORNERS) {
+            corner_to(w, n);
+            return;
+        }
         const V3 at = w + n * lift;
         if (arm == ARM_NEW_POINT || arm == ARM_NEW_SPOT) {
             PLight l;
@@ -455,6 +561,7 @@ struct LightsTab {
             l.p = o;
             l.a = o + ww * std::fabs(dw);
             l.b = o + up * std::fabs(dh);
+            l.q = l.a + l.b - l.p;
             l.reach = 0.0f;
             if (!win_redo) {
                 l.cols = 2, l.rows = 3, l.dust = 0.5f, l.note = "janela";
@@ -504,10 +611,15 @@ struct LightsTab {
         v.y = 0;
         return norm(v);
     }
+    // the whole light (a window: its four corners; a spot: what it faces too)
+    void shift(PLight& l, V3 d) {
+        l.p = l.p + d;
+        if (l.kind == PL_SPOT) l.a = l.a + d;
+        if (l.kind == PL_WINDOW) l.a = l.a + d, l.b = l.b + d, l.q = l.q + d;
+    }
     void nudge(V3 d) {
         if (sel < 0) return;
-        cur.l[sel].p = cur.l[sel].p + d;
-        if (cur.l[sel].kind == PL_SPOT) cur.l[sel].a = cur.l[sel].a + d;
+        shift(cur.l[sel], d);
         changed();
     }
     void keys() {
@@ -545,7 +657,7 @@ struct LightsTab {
             x0 = std::min(x0, a.x), x1 = std::max(x1, a.x), y0 = std::min(y0, a.y), y1 = std::max(y1, a.y);
         };
         for (size_t i = 0; i + 2 < mesh.size(); i += 3) grow(V3{mesh[i], mesh[i + 1], mesh[i + 2]});
-        for (const auto& l : cur.l) grow(l.p);
+        for (const auto& l : cur.l) grow(anchor(l));
         if (x0 > x1) x0 = -500, x1 = 500, y0 = -500, y1 = 500;
         const float pad = 40.0f, sc = std::min((size.x - 2 * pad) / std::max(x1 - x0, 1.0f), (size.y - 2 * pad) / std::max(y1 - y0, 1.0f));
         const ImVec2 c((x0 + x1) * 0.5f, (y0 + y1) * 0.5f), mid(p0.x + size.x * 0.5f, p0.y + size.y * 0.5f);
@@ -576,22 +688,37 @@ struct LightsTab {
         }
         std::sort(tris.begin(), tris.end(), [](const T& a, const T& b) { return a.d < b.d; });
         for (const T& t : tris) dl->AddTriangleFilled(t.p[0], t.p[1], t.p[2], t.c);
+        // an arrow's tip (a window's light, what a spot faces): false = none
+        auto tip_of = [&](const PLight& l, V3& t) {
+            if (l.kind == PL_WINDOW && l.has_dir) t = win_center(l) + l.dir * k_tip;
+            else if (l.kind == PL_SPOT) t = l.a;
+            else return false;
+            return true;
+        };
         // the lights: a disc (its reach, from above), a dot, its number
         for (int i = 0; i < (int)cur.l.size(); i++) {
             const PLight& l = cur.l[i];
-            const ImVec2 s = S(l.p);
+            const ImVec2 s = S(anchor(l));
             const ImU32 col = IM_COL32((int)(std::min(l.col[0], 1.0f) * 255), (int)(std::min(l.col[1], 1.0f) * 255),
                                        (int)(std::min(l.col[2], 1.0f) * 255), 255);
             if (top && l.kind != PL_WINDOW) dl->AddCircle(s, l.reach * sc, (col & 0x00FFFFFF) | 0x50000000, 48, 1.5f);
             if (!top) {   // its height over the floor below (y 0 or the lowest point under it)
-                dl->AddLine(s, S(V3{l.p.x, 0.0f, l.p.z}), IM_COL32(255, 255, 255, 60), 1.0f);
+                const V3 a = anchor(l);
+                dl->AddLine(s, S(V3{a.x, 0.0f, a.z}), IM_COL32(255, 255, 255, 60), 1.0f);
             }
             if (l.kind == PL_SPOT) dl->AddLine(s, S(l.a), (col & 0x00FFFFFF) | 0xA0000000, 2.0f);
-            if (l.kind == PL_WINDOW) {   // its rectangle and its light's way
-                const V3 q = l.a + (l.b - l.p);
-                dl->AddQuad(S(l.p), S(l.a), S(q), S(l.b), col, 2.0f);
-                const V3 c = (l.p + q) * 0.5f;
-                if (l.has_dir) dl->AddLine(S(c), S(c + l.dir * 300.0f), (col & 0x00FFFFFF) | 0x90000000, 3.0f);
+            if (l.kind == PL_WINDOW) {   // its four corners and its light's way
+                dl->AddQuad(S(l.p), S(l.a), S(l.q), S(l.b), col, 2.0f);
+                if (l.has_dir) dl->AddLine(s, S(win_center(l) + l.dir * k_tip), (col & 0x00FFFFFF) | 0x90000000, 3.0f);
+            }
+            V3 t;
+            if (tip_of(l, t)) {   // the tip to drag: a handle
+                const ImVec2 ts = S(t);
+                if (i == sel) tip_seen[top ? 0 : 1] = ts;
+                const bool held = i == sel && drag_tip && ImGui::IsMouseDown(ImGuiMouseButton_Left);
+                if (held && l.kind == PL_WINDOW) dl->AddCircle(s, k_tip * sc, IM_COL32(255, 255, 255, 40), 64, 1.0f);
+                dl->AddCircleFilled(ts, held ? 7.0f : 5.0f, (col & 0x00FFFFFF) | 0xE0000000);
+                dl->AddCircle(ts, held ? 9.0f : 6.5f, i == sel ? IM_COL32(255, 190, 50, 255) : IM_COL32(0, 0, 0, 200), 20, 1.5f);
             }
             dl->AddCircleFilled(s, i == sel ? 8.0f : 6.0f, col);
             dl->AddCircle(s, i == sel ? 10.0f : 7.0f, i == sel ? IM_COL32(255, 190, 50, 255) : IM_COL32(0, 0, 0, 200), 24, 2.0f);
@@ -599,29 +726,56 @@ struct LightsTab {
             snprintf(n, sizeof n, "%d", i + 1);
             dl->AddText(ImVec2(s.x + 10, s.y - 8), IM_COL32(255, 255, 255, 220), n);
         }
-        // drag: the picked light (or the one nearest the press) along the view's plane
+        // drag: an arrow's tip (the picked light's first), else the light
+        // nearest the press, along the view's plane
         ImGuiIO& io = ImGui::GetIO();
-        if (ImGui::IsItemClicked()) {
+        auto d2 = [&](ImVec2 s) { return (s.x - io.MousePos.x) * (s.x - io.MousePos.x) + (s.y - io.MousePos.y) * (s.y - io.MousePos.y); };
+        if (ImGui::IsItemClicked() && arm == ARM_NONE && !cur.l.empty()) {
             int best = -1;
-            float bd = 18.0f * 18.0f;
-            for (int i = 0; i < (int)cur.l.size(); i++) {
-                const ImVec2 s = S(cur.l[i].p);
-                const float d = (s.x - io.MousePos.x) * (s.x - io.MousePos.x) + (s.y - io.MousePos.y) * (s.y - io.MousePos.y);
-                if (d < bd) bd = d, best = i;
+            float bd = 14.0f * 14.0f;
+            drag_tip = false;
+            for (int j = 0; j < (int)cur.l.size(); j++) {
+                const int i = (j + std::max(sel, 0)) % (int)cur.l.size();   // the picked one wins a tie
+                V3 t;
+                if (tip_of(cur.l[i], t) && d2(S(t)) < bd) bd = d2(S(t)), best = i, drag_tip = true;
+            }
+            if (best < 0) {
+                bd = 18.0f * 18.0f;
+                for (int i = 0; i < (int)cur.l.size(); i++)
+                    if (d2(S(anchor(cur.l[i]))) < bd) bd = d2(S(anchor(cur.l[i]))), best = i;
             }
             if (best >= 0) sel = best;
         }
-        if (active && sel >= 0 && sel < (int)cur.l.size() && ImGui::IsMouseDragging(ImGuiMouseButton_Left, 1.0f)) {
+        if (active && arm == ARM_NONE && sel >= 0 && sel < (int)cur.l.size() && ImGui::IsMouseDragging(ImGuiMouseButton_Left, 1.0f)) {
             PLight& l = cur.l[sel];
-            const float keep = top ? l.p.y : dot(l.p, f);
-            const V3 to = W(io.MousePos, keep);
-            const V3 d = to - l.p;
-            l.p = to;
-            if (l.kind == PL_SPOT) l.a = l.a + d;
+            V3 t;
+            if (drag_tip && l.kind == PL_SPOT) {
+                l.a = W(io.MousePos, top ? l.a.y : dot(l.a, f));
+            } else if (drag_tip && tip_of(l, t)) {
+                // the tip stays on a sphere around the window's center: the view
+                // gives two of its axes, the hidden one keeps its side
+                const V3 c = win_center(l), hid = top ? up : f;
+                const V3 m = W(io.MousePos, dot(c, hid)) - c;   // in the view's plane through c
+                const float ml = std::sqrt(dot(m, m));
+                const float most = k_tip * 0.996f;   // a few degrees off flat, at least
+                const V3 v = ml > most ? m * (most / ml) : m;
+                const float th = dot(t - c, hid);
+                const float side = th > 0.0f ? 1.0f : th < 0.0f || top ? -1.0f : 1.0f;
+                V3 d = norm(v + hid * (side * std::sqrt(std::max(k_tip * k_tip - dot(v, v), 0.0f))));
+                const WinFrame fr = win_frame(l, cam_p);   // never from the room's side
+                const float k = dot(d, fr.n);
+                if (k < 0.08f) d = norm(d + fr.n * (0.08f - k));
+                l.dir = d;
+            } else {
+                const V3 a = anchor(l);
+                shift(l, W(io.MousePos, top ? a.y : dot(a, f)) - a);
+            }
             changed();
         }
         dl->AddText(ImVec2(p0.x + 8, p0.y + 6), IM_COL32(255, 255, 255, 170),
                     top ? "De cima (para cima = para onde a câmera olha)" : "De lado (altura)");
+        dl->AddText(ImVec2(p0.x + 8, p1.y - 6 - ImGui::GetTextLineHeight()), IM_COL32(255, 255, 255, 110),
+                    "Arraste a luz, ou a ponta da seta (direção)");
         if (mesh.empty())
             dl->AddText(ImVec2(p0.x + 8, p0.y + 6 + ImGui::GetTextLineHeightWithSpacing()), IM_COL32(255, 220, 120, 200),
                         "(sem a malha da sala: Atualizar vista)");
@@ -637,18 +791,22 @@ struct LightsTab {
             arm_click(ARM_WIN1);
         }
         ImGui::EndDisabled();
+        ImGui::SameLine();
+        bool cm = arm == ARM_CORNERS;
+        ImGui::BeginDisabled(arm != ARM_NONE && !cm);
+        if (ImGui::Checkbox("Arrastar os cantos no jogo", &cm)) corners_mode(cm);
+        ImGui::EndDisabled();
+        if (ImGui::IsItemHovered())
+            ImGui::SetTooltip("Ligado: segure o botão num canto da janela, no jogo, e arraste.\n"
+                              "O canto mais perto do clique segue o mouse. O jogo não recebe esses cliques.");
         int cr[2] = {l.cols, l.rows};
         ImGui::SetNextItemWidth(160);
         if (ImGui::SliderInt2("Vidros (colunas, linhas)", cr, 1, 8)) l.cols = cr[0], l.rows = cr[1], ch = true;
         const WinFrame f = win_frame(l, cam_p);
         if (!l.has_dir) l.dir = win_dir(f, 0.0f, 35.0f), l.has_dir = true, ch = true;
-        float across = 0, drop = 35;
-        win_angles(f, l.dir, across, drop);
-        ImGui::SetNextItemWidth(200);
-        bool dd = ImGui::SliderFloat("Ângulo de entrada", &across, -75.0f, 75.0f, "%.0f°");
-        ImGui::SetNextItemWidth(200);
-        dd |= ImGui::SliderFloat("Inclinação (para baixo)", &drop, 5.0f, 85.0f, "%.0f°");
-        if (dd) l.dir = win_dir(f, across, drop), ch = true;
+        ImGui::TextDisabled("Direção: arraste a ponta da seta nas vistas.");
+        ImGui::SameLine();
+        if (ImGui::SmallButton("Reto para dentro")) l.dir = win_dir(f, 0.0f, 35.0f), ch = true;
         int src = l.src;
         ImGui::TextUnformatted("Luz:");
         ImGui::SameLine();
@@ -741,7 +899,11 @@ struct LightsTab {
         }
         ImGui::EndDisabled();
         ImGui::EndDisabled();
-        if (arm != ARM_NONE) {
+        if (arm == ARM_CORNERS) {
+            ImGui::TextColored(ImVec4(1, 0.85f, 0.3f, 1), "Arrastando os cantos no jogo...");
+            ImGui::SameLine();
+            if (ImGui::SmallButton("Terminar") || ImGui::IsKeyPressed(ImGuiKey_Escape)) corners_mode(false);
+        } else if (arm != ARM_NONE) {
             ImGui::TextColored(ImVec4(1, 0.85f, 0.3f, 1), "Esperando o clique no jogo...");
             ImGui::SameLine();
             if (ImGui::SmallButton("Cancelar") || ImGui::IsKeyPressed(ImGuiKey_Escape)) arm = ARM_NONE, click_arm(false), msg.clear();
@@ -796,6 +958,7 @@ struct LightsTab {
         }
         if (!msg.empty()) ImGui::TextWrapped("%s", msg.c_str());
         ImGui::TextDisabled("Setas: move no chão (Shift = mais). PgUp/PgDn: altura. Arraste nas vistas.");
+        ImGui::TextDisabled("Seta: a direção da luz (janela) ou para onde o foco aponta: arraste a ponta.");
     }
     void light_editor(PLight& l) {
         ImGui::PushID(&l);

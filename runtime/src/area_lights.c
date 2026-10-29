@@ -5,6 +5,7 @@
 #include "area_lights.h"
 
 #include <ctype.h>
+#include <math.h>
 #include <stdarg.h>
 #include <stdatomic.h>
 #include <stdio.h>
@@ -116,6 +117,7 @@ static int al_parse_line(char *line, AreaLightSet *set, uint32_t *area_out, char
         snprintf(err, (size_t)errcap, "window: three corners X Y Z"); return 0;
     }
     if (kind == AREA_LIGHT_SPOT) { l.a[0] = l.p[0]; l.a[1] = l.p[1] + 100.0f; l.a[2] = l.p[2]; }
+    int has_q = 0;
     while ((t = al_word(&w)) != NULL) {
         int ok = 1;
         if (strcmp(t, "color") == 0) ok = al_nums(&w, l.col, 3);
@@ -126,6 +128,7 @@ static int al_parse_line(char *line, AreaLightSet *set, uint32_t *area_out, char
         else if (strcmp(t, "cone") == 0) ok = al_num(&w, &l.cone);
         else if (strcmp(t, "shadow") == 0) l.shadow = 1;
         else if (strcmp(t, "at") == 0) ok = al_nums(&w, l.a, 3);
+        else if (strcmp(t, "corner") == 0 && kind == AREA_LIGHT_WINDOW) { ok = al_nums(&w, l.q, 3); has_q = ok; }
         else if (strcmp(t, "dir") == 0) { ok = al_nums(&w, l.dir, 3); l.has_dir = ok; }
         else if (strcmp(t, "panes") == 0) {
             float c[2];
@@ -159,6 +162,8 @@ static int al_parse_line(char *line, AreaLightSet *set, uint32_t *area_out, char
         } else ok = 0;
         if (!ok) { snprintf(err, (size_t)errcap, "%s: bad or unknown '%s'", kind == AREA_LIGHT_WINDOW ? "window" : "light", t); return 0; }
     }
+    if (kind == AREA_LIGHT_WINDOW && !has_q)   /* a parallelogram */
+        for (int c = 0; c < 3; c++) l.q[c] = l.a[c] + l.b[c] - l.p[c];
     memcpy(l.note, note, sizeof note);
     set->l[set->n++] = l;
     return 1;
@@ -247,6 +252,11 @@ static int al_put_light(char *out, int cap, int k, uint32_t area, const AreaLigh
                    l->b[0], l->b[1], l->b[2], l->cols, l->rows, sn[l->src]);
     if (l->kind == AREA_LIGHT_WINDOW && l->own_dir)
         k = al_put(out, cap, k, " %.1f %.1f", l->az, l->el);
+    if (l->kind == AREA_LIGHT_WINDOW) {
+        float off = 0.0f;
+        for (int c = 0; c < 3; c++) off = fmaxf(off, fabsf(l->q[c] - (l->a[c] + l->b[c] - l->p[c])));
+        if (off > 0.05f) k = al_put(out, cap, k, " corner %.1f %.1f %.1f", l->q[0], l->q[1], l->q[2]);
+    }
     if (l->kind == AREA_LIGHT_WINDOW && l->has_dir) k = al_put(out, cap, k, " dir %.3f %.3f %.3f", l->dir[0], l->dir[1], l->dir[2]);
     if (l->kind == AREA_LIGHT_SPOT)
         k = al_put(out, cap, k, " at %.1f %.1f %.1f cone %.1f", l->a[0], l->a[1], l->a[2], l->cone);

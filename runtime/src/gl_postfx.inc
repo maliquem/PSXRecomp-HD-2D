@@ -2173,17 +2173,23 @@ static int   s_fl_n = 0, s_fl_nfire = 0;
 enum { AL_CAST_MAX = 2, AL_FREE_MAX = 8, AL_WIN_MAX = 4 };
 static float s_al_view[AL_FREE_MAX][4], s_al_col[AL_FREE_MAX][4], s_al_dir[AL_FREE_MAX][4], s_al_ext[AL_FREE_MAX][4];
 static int   s_al_n = 0;
-/* The area's windows (view space, y up): a corner (w: how far the light goes
- * in, down to the scene's lowest point), its width and height edges (w: its
- * panes across and down), the way the light travels (w 1), its colour now
- * (day's toward moonlight by the night's share; w: its dust); u_wn: count,
- * quality (u_shaft.x, or 2 while a tool edits). */
-static float s_alw[AL_WIN_MAX][5][4];
-static int   s_alw_n = 0, s_alw_q = 0;
+/* The area's windows (view space, y up): the box around the window in its
+ * plane, a corner (w: how far the light goes in, down to the scene's lowest
+ * point), its width and height edges (w: its panes across and down), the way
+ * the light travels (w 1), its colour now (day's toward moonlight by the
+ * night's share; w: its dust), then the window's four corners in the box
+ * (0..1: the first two, the last two; any four, not only a rectangle); u_wn:
+ * count, quality (u_shaft.x, or 2 while a tool edits), the picked window's
+ * slot and its corner held by the tool (-1 none). s_alw_set: each one's light
+ * in the area's set. */
+enum { ALW_ROWS = 7 };
+static float s_alw[AL_WIN_MAX][ALW_ROWS][4];
+static int   s_alw_n = 0, s_alw_q = 0, s_alw_set[AL_WIN_MAX];
 static float s_al_amb[4];
-static _Atomic int s_al_mark = -2;
+static _Atomic int s_al_mark = -2, s_al_corner = -1;
 static _Atomic int s_al_force = 0;   /* a tool edits them: on whatever u_placed says */
 void gl_renderer_area_lights_mark(int sel) { atomic_store(&s_al_mark, sel); }
+void gl_renderer_area_lights_corner(int c) { atomic_store(&s_al_corner, c); }
 void gl_renderer_area_lights_force(int on) { atomic_store(&s_al_force, on ? 1 : 0); }
 /* the light chain (a pass reading `firemap`) ran in the last presents: the
  * placed lights can show */
@@ -2191,10 +2197,10 @@ int gl_renderer_area_lights_running(void) { return s_pfx_presents - s_fire_built
 /* TCP area_lights: the windows as last drawn (view space), for checks */
 int gl_renderer_area_windows_json(char *out, int cap) {
     int k = snprintf(out, (size_t)cap, "\"windows\":{\"n\":%d,\"q\":%d,\"lights\":%d,\"w\":[", s_alw_n, s_alw_q, s_al_n);
-    for (int i = 0; i < s_alw_n && k < cap - 400; i++) {
+    for (int i = 0; i < s_alw_n && k < cap - 600; i++) {
         k += snprintf(out + k, (size_t)(cap - k), "%s[", i ? "," : "");
-        for (int j = 0; j < 5; j++)
-            k += snprintf(out + k, (size_t)(cap - k), "%s%.1f,%.1f,%.1f,%.2f", j ? "," : "", s_alw[i][j][0], s_alw[i][j][1],
+        for (int j = 0; j < ALW_ROWS; j++)
+            k += snprintf(out + k, (size_t)(cap - k), "%s%.2f,%.2f,%.2f,%.2f", j ? "," : "", s_alw[i][j][0], s_alw[i][j][1],
                           s_alw[i][j][2], s_alw[i][j][3]);
         k += snprintf(out + k, (size_t)(cap - k), "]");
     }
@@ -2277,11 +2283,38 @@ static int pfx_area_lights_prep(const PfxPass *ps, int nl, float *mapd) {
             if (l->kind != AREA_LIGHT_WINDOW) continue;
             const float kw = l->power * al_when(l->when);
             if (kw <= 0.0f) continue;
-            float O[3], A[3], B[3], U[3], V[3], D[3], N[3];
-            al_view(l->p, O); al_view(l->a, A); al_view(l->b, B);
-            for (int c = 0; c < 3; c++) { U[c] = A[c] - O[c]; V[c] = B[c] - O[c]; }
-            N[0] = U[1] * V[2] - U[2] * V[1]; N[1] = U[2] * V[0] - U[0] * V[2]; N[2] = U[0] * V[1] - U[1] * V[0];
+            /* its corners in order around it (p, a, q, b); its plane's normal by
+             * Newell's sum (four placed by hand need not be quite flat) */
+            float C[4][3], O[3], U[3], V[3], D[3], N[3] = {0.0f, 0.0f, 0.0f}, ax[3], ay[3], cs[4], cr[4];
+            al_view(l->p, C[0]); al_view(l->a, C[1]); al_view(l->q, C[2]); al_view(l->b, C[3]);
+            for (int c = 0; c < 4; c++) {
+                const float *x = C[c], *y = C[(c + 1) & 3];
+                N[0] += (x[1] - y[1]) * (x[2] + y[2]);
+                N[1] += (x[2] - y[2]) * (x[0] + y[0]);
+                N[2] += (x[0] - y[0]) * (x[1] + y[1]);
+            }
             al_norm(N);
+            /* the box around it in that plane: one side along its first edge */
+            for (int c = 0; c < 3; c++) ax[c] = C[1][c] - C[0][c];
+            const float an = ax[0] * N[0] + ax[1] * N[1] + ax[2] * N[2];
+            for (int c = 0; c < 3; c++) ax[c] -= N[c] * an;
+            al_norm(ax);
+            ay[0] = N[1] * ax[2] - N[2] * ax[1]; ay[1] = N[2] * ax[0] - N[0] * ax[2]; ay[2] = N[0] * ax[1] - N[1] * ax[0];
+            if ((C[3][0] - C[0][0]) * ay[0] + (C[3][1] - C[0][1]) * ay[1] + (C[3][2] - C[0][2]) * ay[2] < 0.0f)
+                for (int c = 0; c < 3; c++) ay[c] = -ay[c];
+            float s0 = 1e30f, s1 = -1e30f, r0 = 1e30f, r1 = -1e30f;
+            for (int k = 0; k < 4; k++) {
+                const float e[3] = {C[k][0] - C[0][0], C[k][1] - C[0][1], C[k][2] - C[0][2]};
+                cs[k] = e[0] * ax[0] + e[1] * ax[1] + e[2] * ax[2];
+                cr[k] = e[0] * ay[0] + e[1] * ay[1] + e[2] * ay[2];
+                s0 = fminf(s0, cs[k]); s1 = fmaxf(s1, cs[k]); r0 = fminf(r0, cr[k]); r1 = fmaxf(r1, cr[k]);
+            }
+            const float sw = fmaxf(s1 - s0, 1.0f), rh = fmaxf(r1 - r0, 1.0f);
+            for (int c = 0; c < 3; c++) {
+                O[c] = C[0][c] + ax[c] * s0 + ay[c] * r0;
+                U[c] = ax[c] * sw;
+                V[c] = ay[c] * rh;
+            }
             if (N[0] * O[0] + N[1] * O[1] + N[2] * O[2] > 0.0f) for (int c = 0; c < 3; c++) N[c] = -N[c];   /* into the room: toward the camera */
             float az = l->az, el = l->el;
             const int moon_now = l->src == AREA_SRC_MOON || (l->src == AREA_SRC_SUN && n > 0.5f);
@@ -2299,11 +2332,7 @@ static int pfx_area_lights_prep(const PfxPass *ps, int nl, float *mapd) {
             if (dn < 0.05f) continue;   /* the light from the room's side: none comes in */
             /* how far in: from its highest corner down to the scene's lowest point */
             float top = -1e30f;
-            for (int c = 0; c < 4; c++) {
-                const float X[3] = {O[0] + (c & 1 ? U[0] : 0.0f) + (c & 2 ? V[0] : 0.0f), O[1] + (c & 1 ? U[1] : 0.0f) + (c & 2 ? V[1] : 0.0f),
-                                    O[2] + (c & 1 ? U[2] : 0.0f) + (c & 2 ? V[2] : 0.0f)};
-                top = fmaxf(top, X[0] * up[0] + X[1] * up[1] + X[2] * up[2]);
-            }
+            for (int c = 0; c < 4; c++) top = fmaxf(top, C[c][0] * up[0] + C[c][1] * up[1] + C[c][2] * up[2]);
             const float down = -(D[0] * up[0] + D[1] * up[1] + D[2] * up[2]);
             float tmax = 3000.0f;
             if (hmin < 1e29f && down > 0.05f) tmax = fminf(3000.0f, (top - hmin) / down + 20.0f);
@@ -2316,6 +2345,11 @@ static int pfx_area_lights_prep(const PfxPass *ps, int nl, float *mapd) {
                 w[4][c] = kw * (l->col[c] + (moon[c] * 0.45f - l->col[c]) * nn);
             }
             w[0][3] = tmax; w[1][3] = (float)l->cols; w[2][3] = (float)l->rows; w[3][3] = 1.0f; w[4][3] = l->dust;
+            for (int k = 0; k < 4; k++) {
+                w[5 + k / 2][(k & 1) * 2] = (cs[k] - s0) / sw;
+                w[5 + k / 2][(k & 1) * 2 + 1] = (cr[k] - r0) / rh;
+            }
+            s_alw_set[s_alw_n] = i;
             s_alw_n++;
         }
     }
@@ -2565,18 +2599,21 @@ static void pfx_fire_uniforms(GLuint prog) {
     if ((loc = p_glGetUniformLocation(prog, "u_aln")) >= 0)
         p_glUniform4f(loc, (float)s_al_n, mark >= -1 ? 1.0f : 0.0f, (float)mark, 0.0f);
     if ((loc = p_glGetUniformLocation(prog, "u_alamb")) >= 0) p_glUniform4fv(loc, 1, s_al_amb);
-    {   /* the windows (u_win, u_wu, u_wv, u_wd, u_wc; u_wn count and quality) */
-        static const char *const wn[5] = {"u_win", "u_wu", "u_wv", "u_wd", "u_wc"};
-        float wv[5][AL_WIN_MAX][4];
+    {   /* the windows (u_win, u_wu, u_wv, u_wd, u_wc, u_wa, u_wb; u_wn count, quality, picked, corner) */
+        static const char *const wn[ALW_ROWS] = {"u_win", "u_wu", "u_wv", "u_wd", "u_wc", "u_wa", "u_wb"};
+        float wv[ALW_ROWS][AL_WIN_MAX][4];
+        int picked = -1;
         for (int i = 0; i < s_alw_n; i++)
-            for (int k = 0; k < 5; k++) {
+            for (int k = 0; k < ALW_ROWS; k++) {
+                if (k == 0 && s_alw_set[i] == mark) picked = i;
                 memcpy(wv[k][i], s_alw[i][k], sizeof wv[k][i]);
                 if (s_pfx_vx_on && k == 0) pfx_vx_point(s_alw[i][k], wv[k][i]);
                 else if (s_pfx_vx_on && k < 4) pfx_vx_dir(s_alw[i][k], wv[k][i]);
             }
-        for (int k = 0; k < 5 && s_alw_n > 0; k++)
+        for (int k = 0; k < ALW_ROWS && s_alw_n > 0; k++)
             if ((loc = p_glGetUniformLocation(prog, wn[k])) >= 0) p_glUniform4fv(loc, s_alw_n, &wv[k][0][0]);
-        if ((loc = p_glGetUniformLocation(prog, "u_wn")) >= 0) p_glUniform4f(loc, (float)s_alw_n, (float)s_alw_q, 0.0f, 0.0f);
+        if ((loc = p_glGetUniformLocation(prog, "u_wn")) >= 0)
+            p_glUniform4f(loc, (float)s_alw_n, (float)s_alw_q, (float)picked, (float)atomic_load(&s_al_corner));
     }
 }
 /* The window's (fx, fy: 0..1 of its client area from the top left; aspect:

@@ -33,9 +33,11 @@
 // on each placed light, u_aln.z the picked one (a tuning tool).
 // The windows placed by hand (u_win.. as shaft.glsl; u_wn.y > 0: shafts on):
 // the patch each one's light lands on (back along the light to the window's
-// rectangle: inside it, its panes' bars dark, edges softer the farther it
+// four corners: inside them, its panes' bars dark, edges softer the farther it
 // goes; what stands between, from the depth, shades it), and the lit air and
 // dust of the shaft pass (u_sh, blurred) over the scenery and the sprites.
+// With the markers on, each window's outline; the picked one's (u_wn.z) with
+// its corners ringed, the one the tool holds (u_wn.w) filled.
 // u_lightview.x = 1 shows the light alone; .y = 1 the fire lights alone
 // (white lit, black in their shadow or out of reach).
 
@@ -46,7 +48,7 @@ uniform vec4 u_flicker;
 uniform vec4 u_proj;
 uniform vec4 u_fl[4], u_fls[4], u_flc[4], u_flx[4], u_fld[4], u_flmap;
 uniform vec4 u_al[8], u_alc[8], u_ald[8], u_alx[8], u_aln, u_alamb;
-uniform vec4 u_win[4], u_wu[4], u_wv[4], u_wd[4], u_wc[4], u_wn;
+uniform vec4 u_win[4], u_wu[4], u_wv[4], u_wd[4], u_wc[4], u_wa[4], u_wb[4], u_wn;
 uniform vec4 u_firecol, u_firecfg;
 
 float flicker_by(float t, float amount)
@@ -150,6 +152,23 @@ vec2 fire_light(vec3 P, vec3 n, vec4 fl, int li, float k, vec4 s)
 // back along the light, the panes' bars dark, the edges softer far from it;
 // shaded where the depth shows something between P and the window, or a
 // sprite stands in the way
+// The window's own place (0..1 across, 0..1 up) at p, a place in its box
+// (0..1): its corners a, b (u_wa), c, d (u_wb) go round it, any four, and
+// p = a + e u + f v + g u v (e = b - a, f = d - a, g = a - b + c - d). Crossing
+// both sides with f + g u leaves u's quadratic, taken by its root that is u
+// itself when the window is a parallelogram (g = 0); then v along f + g u.
+float cr2(vec2 a, vec2 b) { return a.x * b.y - a.y * b.x; }
+vec2 quad_uv(vec2 p, int i)
+{
+    vec2 a = u_wa[i].xy, b = u_wa[i].zw, c = u_wb[i].xy, d = u_wb[i].zw;
+    vec2 e = b - a, f = d - a, g = a - b + c - d, h = p - a;
+    float A = cr2(e, g), B = cr2(e, f) - cr2(h, g), hf = cr2(h, f);
+    float den = B + sqrt(max(B * B + 4.0 * A * hf, 0.0));
+    if (abs(den) < 1e-8) return vec2(-1.0);
+    float u = 2.0 * hf / den;
+    vec2 fg = f + g * u;
+    return vec2(u, dot(h - e * u, fg) / max(dot(fg, fg), 1e-8));
+}
 float window_light(vec3 P, vec3 n, int i)
 {
     vec3 O = u_win[i].xyz, U = u_wu[i].xyz, V = u_wv[i].xyz, D = u_wd[i].xyz;
@@ -160,13 +179,13 @@ float window_light(vec3 P, vec3 n, int i)
     if (t <= 0.0) return 0.0;
     vec3 Q = P - D * t - O;
     float uu = dot(U, U), vv = dot(V, V), lu = sqrt(uu), lv = sqrt(vv);
-    float s = dot(Q, U) / uu, r = dot(Q, V) / vv;
+    vec2 q = quad_uv(vec2(dot(Q, U) / uu, dot(Q, V) / vv), i);
     float soft = 1.5 + 0.012 * t;   // world units
     float es = soft / lu, er = soft / lv;
-    float inside = smoothstep(-es, es, s) * smoothstep(1.0 + es, 1.0 - es, s) * smoothstep(-er, er, r) * smoothstep(1.0 + er, 1.0 - er, r);
+    float inside = smoothstep(-es, es, q.x) * smoothstep(1.0 + es, 1.0 - es, q.x) * smoothstep(-er, er, q.y) * smoothstep(1.0 + er, 1.0 - er, q.y);
     if (inside <= 0.0) return 0.0;
-    float bu = abs(fract(s * u_wu[i].w + 0.5) - 0.5) * lu / u_wu[i].w;
-    float bv = abs(fract(r * u_wv[i].w + 0.5) - 0.5) * lv / u_wv[i].w;
+    float bu = abs(fract(q.x * u_wu[i].w + 0.5) - 0.5) * lu / u_wu[i].w;
+    float bv = abs(fract(q.y * u_wv[i].w + 0.5) - 0.5) * lv / u_wv[i].w;
     float bw = 1.6 + 0.004 * t;
     float bars = min(u_wu[i].w > 1.5 ? smoothstep(bw, bw + soft, bu) : 1.0, u_wv[i].w > 1.5 ? smoothstep(bw, bw + soft, bv) : 1.0);
     float face = dot(n, n) > 0.0 ? clamp(dot(n, -D), 0.0, 1.0) : 0.6;
@@ -194,6 +213,31 @@ float marker(vec3 L, bool picked)
     vec2 uv = L.xy * u_proj.x / (L.z * g_nat) + 0.5;
     float r = length((v_uv - uv) * u_size), rad = picked ? 13.0 : 9.0;
     return max(1.0 - smoothstep(1.0, 2.2, abs(r - rad)), 1.0 - smoothstep(1.2, 2.4, r));
+}
+// a window's outline on the picture (x: its edges; y: a ring on each corner,
+// z: the corner the tool holds, filled), its corners from the box (u_wa, u_wb)
+vec3 window_marker(int i, bool picked)
+{
+    vec2 c[4], px = v_uv * u_size;
+    for (int k = 0; k < 4; k++) {
+        vec4 ab = k < 2 ? u_wa[i] : u_wb[i];
+        vec2 w = (k & 1) == 0 ? ab.xy : ab.zw;
+        vec3 X = u_win[i].xyz + u_wu[i].xyz * w.x + u_wv[i].xyz * w.y;
+        if (X.z < 1.0) return vec3(0.0);
+        c[k] = (X.xy * u_proj.x / (X.z * g_nat) + 0.5) * u_size;
+    }
+    vec3 o = vec3(0.0);
+    float lw = picked ? 1.6 : 0.9;
+    for (int k = 0; k < 4; k++) {
+        vec2 a = c[k], ab = c[(k + 1) & 3] - a;
+        float d = length(px - a - ab * clamp(dot(px - a, ab) / max(dot(ab, ab), 1e-6), 0.0, 1.0));
+        o.x = max(o.x, 1.0 - smoothstep(lw, lw + 1.2, d));
+        if (!picked) continue;
+        float r = length(px - c[k]);
+        o.y = max(o.y, 1.0 - smoothstep(1.0, 2.2, abs(r - 7.0)));
+        if (abs(float(k) - u_wn.w) < 0.5) o.z = max(o.z, 1.0 - smoothstep(6.0, 7.5, r));
+    }
+    return o;
 }
 
 void main()
@@ -260,6 +304,13 @@ void main()
             bool p = abs(u_alx[i].w - u_aln.z) < 0.5;
             float k = marker(u_al[i].xyz, p);
             if (p) mkp = max(mkp, k); else mk = max(mk, k);
+        }
+        for (int i = 0; i < 4; i++) {
+            if (float(i) >= u_wn.x) break;
+            bool p = abs(float(i) - u_wn.z) < 0.5;
+            vec3 k = window_marker(i, p);
+            if (p) { mkp = max(mkp, max(k.x * 0.8, k.z)); mk = max(mk, k.y); }
+            else mk = max(mk, k.x * 0.6);
         }
     }
     if (u_lightview.y > 0.5) { o = vec4(src * 0.15 + vec3(min(fire.x, 1.0)) + placed, 1.0); return; }

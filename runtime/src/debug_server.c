@@ -8886,7 +8886,8 @@ static void handle_sun_area(int id, const char *json)
  * the scenery's 3D triangles), or "wx","wy","wa" for a place of the game's
  * window (0..1 of its client area, its height over its width); {"mark":N}
  * draws the lights' markers on the picture with light N picked (-1 none, -2
- * = markers off); {"force":1|0} shows the placed lights whatever the game's
+ * = markers off; "corner":K the picked window's corner a tool holds, -1
+ * none); {"force":1|0} shows the placed lights whatever the game's
  * option says (a tool editing them); {"mesh":1} gives the picture's 3D
  * triangles in the world instead. The answer has "camera" (its right,
  * forward and place in the world) and "running" (the light chain runs: the
@@ -8900,12 +8901,14 @@ static void handle_area_lights(int id, const char *json)
     extern int gl_renderer_area_mesh(float *out, int max);
     extern int gl_renderer_area_lights_running(void);
     extern void gl_renderer_area_lights_mark(int sel);
+    extern void gl_renderer_area_lights_corner(int c);
     extern void gl_renderer_area_lights_force(int on);
     static char lines[RECV_BUF_SIZE], text[8192], esc[9000], err[200];
     char buf[64];
     const uint32_t cur = gpu_shadow_current_area();
     const uint32_t area = json_get_str(json, "area", buf, sizeof buf) ? hex_to_u32(buf) : cur;
     if (json_get_str(json, "mark", buf, sizeof buf)) gl_renderer_area_lights_mark(json_get_int(json, "mark", -2));
+    if (json_get_str(json, "corner", buf, sizeof buf)) gl_renderer_area_lights_corner(json_get_int(json, "corner", -1));
     if (json_get_str(json, "force", buf, sizeof buf)) gl_renderer_area_lights_force(json_get_int(json, "force", 0));
     if (json_get_int(json, "mesh", 0)) {
         enum { MESH_MAX = 3000 };
