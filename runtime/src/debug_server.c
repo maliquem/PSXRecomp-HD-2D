@@ -8954,7 +8954,7 @@ static void handle_area_lights(int id, const char *json)
     float cam[9] = {0.0f};
     const int cam_ok = gl_renderer_area_camera(cam);
     extern int gl_renderer_area_windows_json(char *out, int cap);
-    static char wins[2048];
+    static char wins[4096];   /* 8 windows (AL_WIN_MAX) */
     gl_renderer_area_windows_json(wins, (int)sizeof wins);
     send_fmt("{\"id\":%d,\"ok\":true,\"area\":\"0x%08x\",\"current\":\"0x%08x\",\"night\":%.3f,\"version\":%u,"
              "\"running\":%d,\"camera\":[%d,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.0f,%.0f,%.0f],"

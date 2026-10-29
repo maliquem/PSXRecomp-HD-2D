@@ -2,7 +2,8 @@
 // part. Written for psxrecomp. A window is four corners in the room's wall,
 // in a box (u_win the box's corner, view space y up, w how far its light goes
 // in; u_wu, u_wv its width and height edges, w its panes; u_wa, u_wb the four
-// corners in the box, 0..1); its light travels along u_wd; u_wc its colour (w:
+// corners in the box, 0..1); its light travels along u_wd (w: the air's share, 0
+// with the camera behind its wall); u_wc its colour (w:
 // how dusty). Each pixel's camera ray crosses the beam (the box pushed along
 // u_wd) between two depths, found exactly;
 // samples along that stretch, up to the scenery (u_d) or a sprite (u_spr) in front, sum how much
@@ -13,7 +14,7 @@
 // and dust). Composited by light-out.glsl.
 
 uniform vec4 u_proj;
-uniform vec4 u_win[4], u_wu[4], u_wv[4], u_wd[4], u_wc[4], u_wa[4], u_wb[4], u_wn;
+uniform vec4 u_win[8], u_wu[8], u_wv[8], u_wd[8], u_wc[8], u_wa[8], u_wb[8], u_wn;
 
 float hash(vec3 p)
 {
@@ -68,8 +69,9 @@ void main()
     float jit = fract(sin(dot(gl_FragCoord.xy, vec2(12.9898, 78.233))) * 43758.5453);
     vec3 acc = vec3(0.0);
     float dust = 0.0;
-    for (int i = 0; i < 4; i++) {
+    for (int i = 0; i < 8; i++) {
         if (float(i) >= u_wn.x) break;
+        if (u_wd[i].w <= 0.0) continue;   // the camera behind its wall: no air
         vec3 O = u_win[i].xyz, U = u_wu[i].xyz, V = u_wv[i].xyz, D = u_wd[i].xyz;
         vec3 Nw = normalize(cross(U, V));
         float dn = dot(D, Nw);
@@ -100,7 +102,7 @@ void main()
             float fade = smoothstep(0.0, 30.0, t) * exp(-t / (0.6 * u_win[i].w + 150.0)) * (1.0 - smoothstep(0.8, 1.0, t / u_win[i].w));
             vec3 L = vec3(s * lu, r * lv, t);   // the window's own frame (world units)
             float haze = 0.55 + 0.6 * noise3(L / 46.0 + vec3(0.0, u_time * 0.05, u_time * 0.03)) + 0.25 * noise3(L / 17.0 - u_time * 0.04);
-            float a = edge * bars * fade;
+            float a = edge * bars * fade * u_wd[i].w;
             acc += u_wc[i].rgb * a * haze * dz;
             if (u_wn.y > 1.5 && u_wc[i].w > 0.0) {   // motes: sparse sparks of a fine noise, drifting down slowly
                 float m = noise3(L / 3.2 + vec3(0.0, u_time * 0.6, u_time * 0.15));

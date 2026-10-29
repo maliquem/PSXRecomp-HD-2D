@@ -2224,13 +2224,14 @@ static int   s_fl_n = 0, s_fl_nfire = 0;
  * places in view space (y up), colours, spots and flickers, as the fire
  * lights'; the area's ambient (rgb, w 1 = set); the markers (TCP area_lights
  * "mark": the picked light, -1 none, -2 off). */
-enum { AL_CAST_MAX = 2, AL_FREE_MAX = 8, AL_WIN_MAX = 4 };
+enum { AL_CAST_MAX = 2, AL_FREE_MAX = 8, AL_WIN_MAX = 8 };   /* windows: shaft.glsl, light-out.glsl u_win[8] */
 static float s_al_view[AL_FREE_MAX][4], s_al_col[AL_FREE_MAX][4], s_al_dir[AL_FREE_MAX][4], s_al_ext[AL_FREE_MAX][4];
 static int   s_al_n = 0;
 /* The area's windows (view space, y up): the box around the window in its
  * plane, a corner (w: how far the light goes in, down to the scene's lowest
  * point), its width and height edges (w: its panes across and down), the way
- * the light travels (w 1), its colour now (day's toward moonlight by the
+ * the light travels (w: its lit air's share, 0 with the camera behind its
+ * wall), its colour now (day's toward moonlight by the
  * night's share; w: its dust), then the window's four corners in the box
  * (0..1: the first two, the last two; any four, not only a rectangle); u_wn:
  * count, quality (u_shaft.x, or 2 while a tool edits), the picked window's
@@ -2324,17 +2325,20 @@ static int pfx_area_lights_prep(const PfxPass *ps, int nl, float *mapd) {
     if (!area_lights_get(gpu_shadow_current_area(), &set)) return nl;
     const float n = s_night_f;
     {   /* the windows */
-        float up[3], hmin = 1e30f;
+        float up[3], hmin = 1e30f, mid[3] = {0.0f, 0.0f, 0.0f}, nmid = 0.0f;
         al_up(up);
         const ScSlot *sc = sc_presented();
         const float h = s_cam_h, k = h > 0.0f ? 1.0f / h : 0.0f;
-        for (int t = 0; sc && s_alw_q > 0 && t < sc->n * 3; t++) {   /* the scene's lowest point (its floor) */
+        for (int t = 0; sc && s_alw_q > 0 && t < sc->n * 3; t++) {   /* the scene's lowest point (its floor) and middle */
             const float *v = sc->v + (size_t)t * SC_V;
             if (v[2] < 1.0f) continue;
             const float P[3] = {(v[0] - s_sc_cx) * v[2] * k, -(v[1] - s_sc_cy) * v[2] * k, v[2]};
             const float hh = P[0] * up[0] + P[1] * up[1] + P[2] * up[2];
             if (hh < hmin) hmin = hh;
+            for (int c = 0; c < 3; c++) mid[c] += P[c];
+            nmid += 1.0f;
         }
+        if (nmid > 0.0f) for (int c = 0; c < 3; c++) mid[c] /= nmid;
         for (int i = 0; i < set.n && s_alw_q > 0 && s_alw_n < AL_WIN_MAX; i++) {
             const AreaLight *l = &set.l[i];
             if (l->kind != AREA_LIGHT_WINDOW) continue;
@@ -2372,7 +2376,16 @@ static int pfx_area_lights_prep(const PfxPass *ps, int nl, float *mapd) {
                 U[c] = ax[c] * sw;
                 V[c] = ay[c] * rh;
             }
-            if (N[0] * O[0] + N[1] * O[1] + N[2] * O[2] > 0.0f) for (int c = 0; c < 3; c++) N[c] = -N[c];   /* into the room: toward the camera */
+            /* into the room: toward the scene's middle (the camera's side
+             * turned the window round when the camera went behind its wall:
+             * its light then came "from the room's side" and was dropped);
+             * the camera's side with no scene */
+            {
+                const float *to = nmid > 0.0f ? mid : NULL;
+                const float s = to ? N[0] * (to[0] - O[0]) + N[1] * (to[1] - O[1]) + N[2] * (to[2] - O[2])
+                                   : -(N[0] * O[0] + N[1] * O[1] + N[2] * O[2]);
+                if (s < 0.0f) for (int c = 0; c < 3; c++) N[c] = -N[c];
+            }
             float az = l->az, el = l->el;
             const int moon_now = l->src == AREA_SRC_MOON || (l->src == AREA_SRC_SUN && n > 0.5f);
             if (l->has_dir) al_view_dir(l->dir, D);
@@ -2386,7 +2399,9 @@ static int pfx_area_lights_prep(const PfxPass *ps, int nl, float *mapd) {
             }
             al_norm(D);
             const float dn = D[0] * N[0] + D[1] * N[1] + D[2] * N[2];
-            if (dn < 0.05f) continue;   /* the light from the room's side: none comes in */
+            /* the light from the room's side: none comes in (a way set by hand
+             * is the light's way in, whichever side the room is on) */
+            if (!l->has_dir && dn < 0.05f) continue;
             /* how far in: from its highest corner down to the scene's lowest point */
             float top = -1e30f;
             for (int c = 0; c < 4; c++) top = fmaxf(top, C[c][0] * up[0] + C[c][1] * up[1] + C[c][2] * up[2]);
@@ -2401,7 +2416,13 @@ static int pfx_area_lights_prep(const PfxPass *ps, int nl, float *mapd) {
                 w[0][c] = O[c]; w[1][c] = U[c]; w[2][c] = V[c]; w[3][c] = D[c];
                 w[4][c] = kw * (l->col[c] + (moon[c] * 0.45f - l->col[c]) * nn);
             }
-            w[0][3] = tmax; w[1][3] = (float)l->cols; w[2][3] = (float)l->rows; w[3][3] = 1.0f; w[4][3] = l->dust;
+            /* its lit air only with the camera on the room's side: from behind
+             * its wall the camera looks along the beam through the window
+             * itself, a white block; the patch it lights stays */
+            const float ol = sqrtf(O[0] * O[0] + O[1] * O[1] + O[2] * O[2]);
+            const float side = ol > 1e-3f ? -(N[0] * O[0] + N[1] * O[1] + N[2] * O[2]) / ol : 1.0f;
+            const float air = side <= 0.0f ? 0.0f : side >= 0.2f ? 1.0f : side / 0.2f;
+            w[0][3] = tmax; w[1][3] = (float)l->cols; w[2][3] = (float)l->rows; w[3][3] = air; w[4][3] = l->dust;
             for (int k = 0; k < 4; k++) {
                 w[5 + k / 2][(k & 1) * 2] = (cs[k] - s0) / sw;
                 w[5 + k / 2][(k & 1) * 2 + 1] = (cr[k] - r0) / rh;

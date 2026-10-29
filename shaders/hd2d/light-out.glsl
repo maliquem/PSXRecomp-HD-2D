@@ -48,7 +48,7 @@ uniform vec4 u_flicker;
 uniform vec4 u_proj;
 uniform vec4 u_fl[4], u_fls[4], u_flc[4], u_flx[4], u_fld[4], u_flmap;
 uniform vec4 u_al[8], u_alc[8], u_ald[8], u_alx[8], u_aln, u_alamb;
-uniform vec4 u_win[4], u_wu[4], u_wv[4], u_wd[4], u_wc[4], u_wa[4], u_wb[4], u_wn;
+uniform vec4 u_win[8], u_wu[8], u_wv[8], u_wd[8], u_wc[8], u_wa[8], u_wb[8], u_wn;
 uniform vec4 u_firecol, u_firecfg;
 
 float flicker_by(float t, float amount)
@@ -337,7 +337,7 @@ void main()
                         * light_reach(P, n, u_al[i].xyz, u_al[i].w, u_ald[i]);
             }
             if (u_wn.y > 0.5)
-                for (int i = 0; i < 4; i++) {
+                for (int i = 0; i < 8; i++) {
                     if (float(i) >= u_wn.x) break;
                     wpatch += u_wc[i].rgb * window_light(P, n, i);
                 }
@@ -358,7 +358,7 @@ void main()
             float k = marker(u_al[i].xyz, p);
             if (p) mkp = max(mkp, k); else mk = max(mk, k);
         }
-        for (int i = 0; i < 4; i++) {
+        for (int i = 0; i < 8; i++) {
             if (float(i) >= u_wn.x) break;
             bool p = abs(float(i) - u_wn.z) < 0.5;
             vec3 k = window_marker(i, p);
