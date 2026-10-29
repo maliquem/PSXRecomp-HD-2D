@@ -1001,7 +1001,7 @@ int main(int argc, char** argv) {
     bool test_apply = false, start_hidden = false;
     HANDLE parent = nullptr;   // the game that started it: the tool quits with it
     DWORD parent_pid = 0;
-    std::string test_tab, test_pick;
+    std::string test_tab, test_pick, test_window;
     for (int i = 1; i < argc; i++) {
         const std::string a = argv[i];
         if (a == "--port" && i + 1 < argc) port = atoi(argv[++i]);
@@ -1020,6 +1020,8 @@ int main(int argc, char** argv) {
         // tests: the Lights tab shown; a new light at "U V" of the game's picture (as if clicked there)
         else if (a == "--tab" && i + 1 < argc) test_tab = argv[++i];
         else if (a == "--test-pick" && i + 1 < argc) test_pick = argv[++i];
+        // tests: a window between two corners "U1 V1 U2 V2" of the game's picture (as if clicked)
+        else if (a == "--test-window" && i + 1 < argc) test_window = argv[++i];
     }
     const bool shot_mode = !shot_path.empty();
     // one tool per game port: a second start (the game opened again, or by hand) leaves
@@ -1138,6 +1140,16 @@ int main(int argc, char** argv) {
                 else if (n == 3) az = strtof(v, nullptr), t->change(which, Light{L_AT, az, el});
                 printf("test-set %s on 0x%08x\n", test_set.c_str(), t->area);
             }
+            for (int c = 0; c < 2 && !test_window.empty() && t->lights.area; c++)
+                if (frames == shot_frames / 4 + c * shot_frames / 6) {   // the corners, one after the other
+                    float q[4] = {0.5f, 0.5f, 0.5f, 0.5f};
+                    sscanf(test_window.c_str(), "%f %f %f %f", &q[0], &q[1], &q[2], &q[3]);
+                    if (c == 0) t->lights.win_redo = false, t->lights.arm = ARM_WIN1;
+                    char req[160];
+                    snprintf(req, sizeof req, "{\"cmd\":\"area_lights\",\"pick\":1,\"u\":%.4f,\"v\":%.4f}", q[2 * c], q[2 * c + 1]);
+                    t->link.send_keyed(K_PICK, req, 0);
+                    printf("test-window corner %d on 0x%08x\n", c + 1, t->lights.area);
+                }
             if (frames == shot_frames / 3 && !test_pick.empty() && t->lights.area) {
                 float u = 0.5f, v = 0.5f;
                 sscanf(test_pick.c_str(), "%f %f", &u, &v);

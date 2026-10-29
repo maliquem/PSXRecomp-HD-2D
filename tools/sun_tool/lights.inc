@@ -19,7 +19,8 @@ struct PLight {
     V3 p{0, 0, 0}, a{0, 0, 0}, b{0, 0, 0};
     float col[3] = {1.0f, 0.85f, 0.6f};
     float power = 1.0f, reach = 600.0f, flicker = 0.0f, cone = 60.0f, dust = 0.0f, az = 0.0f, el = 0.0f;
-    bool shadow = false, own_dir = false;
+    bool shadow = false, own_dir = false, has_dir = false;
+    V3 dir{0, -1, 0};   // a window's light: the way it travels (world)
     int when = W_ALWAYS, cols = 1, rows = 1, src = 0;
     std::string note;
 };
@@ -48,6 +49,7 @@ std::string light_line(unsigned area, const PLight& l) {
         put("  %.1f %.1f %.1f  %.1f %.1f %.1f panes %d %d light %s", l.a.x, l.a.y, l.a.z, l.b.x, l.b.y, l.b.z, l.cols,
             l.rows, k_src_word[l.src]);
         if (l.own_dir || l.src == 2) put(" %.1f %.1f", l.az, l.el);
+        if (l.has_dir) put(" dir %.3f %.3f %.3f", l.dir.x, l.dir.y, l.dir.z);
     }
     if (l.kind == PL_SPOT) put(" at %.1f %.1f %.1f cone %.1f", l.a.x, l.a.y, l.a.z, l.cone);
     put(" color %.2f %.2f %.2f power %.2f", l.col[0], l.col[1], l.col[2], l.power);
@@ -119,6 +121,7 @@ bool parse_light_line(char* line, unsigned* area, PArea& into) {
         else if (!strcmp(t, "cone")) num(l.cone);
         else if (!strcmp(t, "shadow")) l.shadow = true;
         else if (!strcmp(t, "at")) v3(l.a);
+        else if (!strcmp(t, "dir")) l.has_dir = v3(l.dir);
         else if (!strcmp(t, "panes")) {
             float c = 1, r = 1;
             num(c), num(r);
@@ -267,7 +270,28 @@ void click_arm(bool on) {
 
 // ---- the tab ------------------------------------------------------------------------------
 enum { K_SET = 10, K_MARK, K_FORCE, K_PICK, K_MESH, K_POLL };
-enum { ARM_NONE = 0, ARM_NEW_POINT, ARM_NEW_SPOT, ARM_MOVE, ARM_AIM };
+enum { ARM_NONE = 0, ARM_NEW_POINT, ARM_NEW_SPOT, ARM_MOVE, ARM_AIM, ARM_WIN1, ARM_WIN2 };
+
+// a window's frame: across it (w), into the room (n, toward the camera), up
+struct WinFrame {
+    V3 w, n, up{0, 1, 0};
+};
+WinFrame win_frame(const PLight& l, V3 cam) {
+    WinFrame f;
+    f.w = norm(l.a - l.p);
+    f.n = norm(cross(l.a - l.p, l.b - l.p));
+    if (dot(f.n, cam - l.p) < 0) f.n = f.n * -1.0f;
+    return f;
+}
+// its light's way from the angle across (degrees, 0 = straight in) and the drop (degrees down)
+V3 win_dir(const WinFrame& f, float across, float drop) {
+    const float a = across * k_deg, e = drop * k_deg;
+    return norm(f.n * (std::cos(e) * std::cos(a)) + f.w * (std::cos(e) * std::sin(a)) - f.up * std::sin(e));
+}
+void win_angles(const WinFrame& f, V3 d, float& across, float& drop) {
+    drop = std::asin(std::clamp(-dot(d, f.up), -1.0f, 1.0f)) / k_deg;
+    across = std::atan2(dot(d, f.w), dot(d, f.n)) / k_deg;
+}
 
 struct LightsTab {
     GameLink* link = nullptr;
@@ -286,6 +310,8 @@ struct LightsTab {
     int shown_mark = -3, shown_force = -1;
     char note[96] = "";
     std::string copy_from;
+    V3 win_p1{0, 0, 0}, win_n1{0, 0, 1};   // the first corner clicked, its wall's normal
+    bool win_redo = false;                 // the clicks remake the picked window's corners
 
     PArea saved(unsigned a) {
         PArea* x = file.find(a);
@@ -412,6 +438,40 @@ struct LightsTab {
         } else if (arm == ARM_AIM && sel >= 0) {
             cur.l[sel].a = w;
             msg = "Foco apontado.";
+        } else if (arm == ARM_WIN1) {
+            win_p1 = w;
+            win_n1 = n;
+            arm = ARM_WIN2;
+            msg = "Agora o canto oposto da janela.";
+            click_arm(true);
+            return;
+        } else if (arm == ARM_WIN2) {
+            // an upright rectangle on the wall between the two corners
+            const V3 up{0, 1, 0}, ww = norm(cross(up, win_n1)), d = w - win_p1;
+            const float dw = dot(d, ww), dh = dot(d, up);
+            const V3 o = win_p1 + ww * std::min(0.0f, dw) + up * std::min(0.0f, dh);
+            PLight l = win_redo && sel >= 0 ? cur.l[sel] : PLight{};
+            l.kind = PL_WINDOW;
+            l.p = o;
+            l.a = o + ww * std::fabs(dw);
+            l.b = o + up * std::fabs(dh);
+            l.reach = 0.0f;
+            if (!win_redo) {
+                l.cols = 2, l.rows = 3, l.dust = 0.5f, l.note = "janela";
+                l.col[0] = 1.0f, l.col[1] = 0.86f, l.col[2] = 0.62f;
+                // straight in, a little toward the camera, 32 degrees down
+                const WinFrame f = win_frame(l, cam_p);
+                const float side = dot(f.w, cam_f) > 0 ? -25.0f : 25.0f;
+                l.dir = win_dir(f, side, 32.0f);
+                l.has_dir = true;
+            }
+            if (win_redo && sel >= 0) cur.l[sel] = l;
+            else {
+                cur.l.push_back(l);
+                sel = (int)cur.l.size() - 1;
+            }
+            win_redo = false;
+            msg = std::fabs(dw) < 4.0f || std::fabs(dh) < 4.0f ? "Janela muito fina: clique em cantos opostos." : "Janela marcada.";
         }
         arm = ARM_NONE;
         click_arm(false);
@@ -527,6 +587,12 @@ struct LightsTab {
                 dl->AddLine(s, S(V3{l.p.x, 0.0f, l.p.z}), IM_COL32(255, 255, 255, 60), 1.0f);
             }
             if (l.kind == PL_SPOT) dl->AddLine(s, S(l.a), (col & 0x00FFFFFF) | 0xA0000000, 2.0f);
+            if (l.kind == PL_WINDOW) {   // its rectangle and its light's way
+                const V3 q = l.a + (l.b - l.p);
+                dl->AddQuad(S(l.p), S(l.a), S(q), S(l.b), col, 2.0f);
+                const V3 c = (l.p + q) * 0.5f;
+                if (l.has_dir) dl->AddLine(S(c), S(c + l.dir * 300.0f), (col & 0x00FFFFFF) | 0x90000000, 3.0f);
+            }
             dl->AddCircleFilled(s, i == sel ? 8.0f : 6.0f, col);
             dl->AddCircle(s, i == sel ? 10.0f : 7.0f, i == sel ? IM_COL32(255, 190, 50, 255) : IM_COL32(0, 0, 0, 200), 24, 2.0f);
             char n[8];
@@ -562,6 +628,39 @@ struct LightsTab {
         dl->PopClipRect();
     }
 
+    // a window: its corners again, panes, the light's way, sun / moon, dust
+    bool window_editor(PLight& l) {
+        bool ch = false;
+        ImGui::BeginDisabled(arm != ARM_NONE);
+        if (ImGui::SmallButton("Refazer os cantos (2 cliques)")) {
+            win_redo = true;
+            arm_click(ARM_WIN1);
+        }
+        ImGui::EndDisabled();
+        int cr[2] = {l.cols, l.rows};
+        ImGui::SetNextItemWidth(160);
+        if (ImGui::SliderInt2("Vidros (colunas, linhas)", cr, 1, 8)) l.cols = cr[0], l.rows = cr[1], ch = true;
+        const WinFrame f = win_frame(l, cam_p);
+        if (!l.has_dir) l.dir = win_dir(f, 0.0f, 35.0f), l.has_dir = true, ch = true;
+        float across = 0, drop = 35;
+        win_angles(f, l.dir, across, drop);
+        ImGui::SetNextItemWidth(200);
+        bool dd = ImGui::SliderFloat("Ângulo de entrada", &across, -75.0f, 75.0f, "%.0f°");
+        ImGui::SetNextItemWidth(200);
+        dd |= ImGui::SliderFloat("Inclinação (para baixo)", &drop, 5.0f, 85.0f, "%.0f°");
+        if (dd) l.dir = win_dir(f, across, drop), ch = true;
+        int src = l.src;
+        ImGui::TextUnformatted("Luz:");
+        ImGui::SameLine();
+        if (ImGui::RadioButton("Sol (de noite, luar)", src == 0)) l.src = 0, ch = true;
+        ImGui::SameLine();
+        if (ImGui::RadioButton("Só luar", src == 1)) l.src = 1, ch = true;
+        ImGui::SameLine();
+        if (ImGui::RadioButton("Fixa", src == 2)) l.src = 2, ch = true;
+        ImGui::SetNextItemWidth(160);
+        ch |= ImGui::SliderFloat("Poeira", &l.dust, 0.0f, 1.0f, "%.2f");
+        return ch;
+    }
     // ---- the panel ----
     void color_presets(PLight& l) {
         struct P {
@@ -618,6 +717,13 @@ struct LightsTab {
         if (ImGui::Button("+ Luz (clique no jogo)")) arm_click(ARM_NEW_POINT);
         ImGui::SameLine();
         if (ImGui::Button("+ Foco")) arm_click(ARM_NEW_SPOT);
+        ImGui::SameLine();
+        if (ImGui::Button("+ Janela")) {
+            win_redo = false;
+            arm_click(ARM_WIN1);
+            msg = "Clique num canto da janela pintada (depois no canto oposto).";
+        }
+        if (ImGui::IsItemHovered()) ImGui::SetTooltip("A luz do sol (ou da lua) entra por ela: feixe no ar e mancha no chão.");
         ImGui::SameLine();
         ImGui::BeginDisabled(sel < 0);
         if (ImGui::Button("Duplicar")) {
@@ -700,6 +806,7 @@ struct LightsTab {
         ImGui::SetNextItemWidth(-lw);
         if (ImGui::InputText("Nota", nb, sizeof nb)) l.note = nb, ch = true;
         int kind = l.kind == PL_SPOT;
+        if (l.kind == PL_WINDOW) ch |= window_editor(l);
         if (l.kind != PL_WINDOW) {
             if (ImGui::RadioButton("Luz", kind == 0)) {
                 l.kind = PL_POINT;
@@ -720,8 +827,10 @@ struct LightsTab {
             }
             ImGui::EndDisabled();
         }
-        ImGui::SetNextItemWidth(-lw);
-        ch |= ImGui::DragFloat3("Posição", &l.p.x, 1.0f, -100000.0f, 100000.0f, "%.0f");
+        if (l.kind != PL_WINDOW) {
+            ImGui::SetNextItemWidth(-lw);
+            ch |= ImGui::DragFloat3("Posição", &l.p.x, 1.0f, -100000.0f, 100000.0f, "%.0f");
+        }
         if (l.kind == PL_SPOT) {
             ImGui::SetNextItemWidth(-lw);
             ch |= ImGui::DragFloat3("Aponta para", &l.a.x, 1.0f, -100000.0f, 100000.0f, "%.0f");
@@ -739,9 +848,11 @@ struct LightsTab {
             ch |= ImGui::Checkbox("Sombra", &l.shadow);
             ImGui::SameLine();
         }
-        ImGui::SetNextItemWidth(120);
-        ch |= ImGui::SliderFloat("Chama", &l.flicker, 0.0f, 1.0f, "%.2f");
-        ImGui::SameLine();
+        if (l.kind != PL_WINDOW) {
+            ImGui::SetNextItemWidth(120);
+            ch |= ImGui::SliderFloat("Chama", &l.flicker, 0.0f, 1.0f, "%.2f");
+            ImGui::SameLine();
+        }
         ImGui::SetNextItemWidth(110);
         const char* wn[] = {"sempre", "só de dia", "só de noite"};
         ch |= ImGui::Combo("Acende", &l.when, wn, 3);
