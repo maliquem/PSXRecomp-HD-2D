@@ -375,6 +375,11 @@ static int pfx_surf_mask(int k, GLuint rb, int tw, int th, const int r[4]) {
         glColorMask(GL_FALSE, GL_FALSE, GL_TRUE, GL_FALSE);
         glStencilFunc(GL_EQUAL, 0x08, 0x08);
         post_fullscreen(s_mask_prog, s_mask_uUv);
+        if (s_pfx_vx_on) {   /* a generated frame's objects (s_fg_obj_mark), alpha */
+            glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_TRUE);
+            glStencilFunc(GL_EQUAL, 0x10, 0x10);
+            post_fullscreen(s_mask_prog, s_mask_uUv);
+        }
     }
     glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
     glDisable(GL_STENCIL_TEST);
@@ -644,8 +649,7 @@ static int pfx_mask_build(int fresh, int lw, int lh) {
             "  vec2 f = gl_FragCoord.xy;\n"
             "  int sx = u_src.x + int(floor((f.x - u_dst.x) * float(u_src.z - u_src.x) / u_dst.y));\n"
             "  int sy = u_src.y + int(floor((u_dst.z - f.y) * float(u_src.w - u_src.y) / u_dst.z));\n"
-            "  vec3 m = texelFetch(u_s, ivec2(sx, sy), 0).rgb;\n"
-            "  o = vec4(m, m.r);\n"
+            "  o = texelFetch(u_s, ivec2(sx, sy), 0);\n"
             "}\n");
         if (!s_mask_prog || !s_mask_map_prog) { s_mask_prog = 0; return 0; }
         s_mask_uUv = p_glGetUniformLocation(s_mask_prog, "u_uv_rect");
@@ -2337,6 +2341,20 @@ static void pfx_fire_uniforms(GLuint prog) {
     if (loc >= 0) p_glUniform4f(loc, (float)FIRE_FACE, (float)s_fl_n, (float)(2 * FIRE_MAX), 0.0f);
 }
 static void pfx_shadow_uniforms(GLuint prog) {
+    {   /* a generated frame: its objects' pixels (mask3d alpha) are mapped
+         * by P' = A P + b before the rows below, which then give the real
+         * frame's map at the place the real frame had them (not moved with
+         * the camera); identity otherwise (sun.glsl fg_obj) */
+        static const char *const fn[3] = {"u_fgx", "u_fgy", "u_fgz"};
+        for (int r = 0; r < 3; r++) {
+            const GLint loc = p_glGetUniformLocation(prog, fn[r]);
+            if (loc < 0) continue;
+            if (s_pfx_vx_on)
+                p_glUniform4f(loc, s_pfx_vx_a[3 * r], s_pfx_vx_a[3 * r + 1], s_pfx_vx_a[3 * r + 2], s_pfx_vx_b[r]);
+            else
+                p_glUniform4f(loc, r == 0 ? 1.0f : 0.0f, r == 1 ? 1.0f : 0.0f, r == 2 ? 1.0f : 0.0f, 0.0f);
+        }
+    }
     static const char *const names[4] = {"u_smx", "u_smy", "u_smz", "u_sms"};
     for (int k = 0; k < 4; k++) {
         const GLint loc = p_glGetUniformLocation(prog, names[k]);

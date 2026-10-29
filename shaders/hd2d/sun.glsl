@@ -48,6 +48,10 @@ uniform vec4 u_worldup;
 uniform vec4 u_shadow;
 uniform vec4 u_shadowdir;
 uniform vec4 u_smx, u_smy, u_smz, u_sms;
+// u_fgx..u_fgz: a Smooth motion frame's map for its objects' pixels (u_m
+// alpha: drawn as a moving object, e.g. the boat the camera follows), rows
+// of P' = A P + b applied before the u_sm/u_ss rows (identity otherwise)
+uniform vec4 u_fgx, u_fgy, u_fgz;
 uniform vec4 u_ssx, u_ssy, u_ssz, u_sss;   // the sprites' map's own mapping (w 0: none, the scenery's)
 uniform vec4 u_sprsun;   // x: the sprites' sun at most this high (framework); y: their shadow's reach (world units, 0 = any); z: its softness then (world units)
 uniform vec4 u_proj;
@@ -81,6 +85,8 @@ bool sm_in(vec2 q) { return all(greaterThanEqual(q, vec2(0.0))) && all(lessThanE
 float shadow_at(vec3 P, float bias, float tilt, float spr, float scn)
 {
     if (u_sms.w <= 0.0 || u_sms.z <= 0.0) return 1.0;
+    if (texture(u_m, v_uv).a > 0.5)
+        P = vec3(dot(u_fgx.xyz, P), dot(u_fgy.xyz, P), dot(u_fgz.xyz, P)) + vec3(u_fgx.w, u_fgy.w, u_fgz.w);
     vec2 suv = vec2((dot(P, u_smx.xyz) - u_smx.w) * u_sms.x, (dot(P, u_smy.xyz) - u_smy.w) * u_sms.y);
     float own = (u_smz.w - dot(P, u_smz.xyz) - bias) * u_sms.z;
     // the sprites' map: its own mapping when the framework gives one (a sun

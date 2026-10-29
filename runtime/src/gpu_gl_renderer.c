@@ -452,6 +452,13 @@ static int       s_fg_marks;
  * P' = A P + b (fg_effects_view); s_pfx_vx_on 0 = the same. */
 static int       s_pfx_vx_on;
 static float     s_pfx_vx_a[9], s_pfx_vx_b[3];
+/* A generated frame's triangle placed as an object (fg_cam_place: it moved in
+ * camera space, not with the fitted camera, e.g. the boat the camera follows)
+ * marks its pixels in stencil bit 4 (0x10, mask alpha): the effects take its
+ * inputs where the real frame had it on screen, not moved with the camera
+ * (the boat's own shadows slid across its deck in every generated frame). */
+static int       s_fg_obj_mark;
+static uint32_t  s_fg_obj_toggles, s_fg_obj_toggles_last, s_fg_obj_tris, s_fg_obj_tris_last;
 static void      fg_capture(const RtCmd *c, const void *payload);
 static int       fg_on_present(uint16_t op, const uint8_t *p, uint32_t bytes, int stale);
 static void      fg_flush(void);
@@ -4953,6 +4960,7 @@ static GLint s_tex_uBaddonly = -1, s_geo_uBaddonly = -1;
  * "see-through cover" mark (mask3d blue: something semi-transparent was
  * drawn over the last opaque thing; kept with the 3D mark). */
 static void bcls_begin(int tex, int additive, GLuint bit) {
+    if ((bit & 0x04) && s_fg_drawing && s_fg_marks) bit |= 0x10;   /* the object mark goes with the 3D mark */
     glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
     glDisable(GL_BLEND);
     glEnable(GL_STENCIL_TEST);
@@ -4966,7 +4974,8 @@ static void bcls_begin(int tex, int additive, GLuint bit) {
  * fragments; pass 5: the 3D mark on every fragment (a painted backdrop's,
  * b3d 2 below). */
 static void bcls_pass(int tex, int pass) {
-    glStencilFunc(GL_ALWAYS, pass == 1 ? 0x02 : (pass == 3 || pass == 5) ? 0x04 : pass == 4 ? 0x08 : 0x00, 0xFF);
+    const GLint obj = s_fg_obj_mark && s_fg_drawing ? 0x10 : 0x00;
+    glStencilFunc(GL_ALWAYS, pass == 1 ? 0x02 : (pass == 3 || pass == 5) ? 0x04 | obj : pass == 4 ? 0x08 : 0x00, 0xFF);
     p_glUniform1i(tex ? s_tex_uBcls : s_geo_uBcls, pass);
 }
 /* Back to an untextured draw's state: its blend and mask-bit stencil. */
@@ -5224,6 +5233,7 @@ typedef struct {
     int     wsx, wsy, wsw, wsh;  /* its wide-surface scissor (native px) */
     uint8_t depth;           /* PGXP depth mode (depth_apply) */
     int8_t  b3d;             /* its marking (bcls_passes): 2 = a painted backdrop, else -1 (each fragment's own) */
+    uint8_t obj;             /* s_fg_obj_mark when queued */
 } HiCmd;
 static int s_hq_depth_cur = 0;   /* depth mode of the batch being queued */
 static int s_hq_b3d_cur = -1;    /* a flat batch's b3d while it is queued */
@@ -5258,6 +5268,7 @@ static HiCmd *hiw_enqueue(int kind, const float *verts, int nverts, int stride) 
     c->check = (uint8_t)s_mask_check;
     c->depth = (uint8_t)s_hq_depth_cur;
     c->b3d = -1;
+    c->obj = (uint8_t)s_fg_obj_mark;
     c->ax0 = s_area_x1; c->ay0 = s_area_y1; c->ax1 = s_area_x2; c->ay1 = s_area_y2;
     s_hq_cmds++;
     return c;
@@ -5375,7 +5386,7 @@ static void hiw_replay_wide(void) {
             p_glBufferData(PSXGL_ARRAY_BUFFER, (ptrdiff_t)((size_t)c->vcount * TEXV * sizeof(float)),
                            s_hq_v + c->vfirst, PSXGL_STREAM_DRAW);
             depth_apply_ex(c->depth, 1);
-            tex_draw_passes_ex(c->vcount, c->semi, c->mask, c->check, 0, c->b3d);
+            { const int om_ = s_fg_obj_mark; s_fg_obj_mark = c->obj; tex_draw_passes_ex(c->vcount, c->semi, c->mask, c->check, 0, c->b3d); s_fg_obj_mark = om_; }
             depth_restore_ex(c->depth, 1, c->vcount);
         } else {
             if (cur != HQ_GEO) {
@@ -5392,7 +5403,7 @@ static void hiw_replay_wide(void) {
             p_glBufferData(PSXGL_ARRAY_BUFFER, (ptrdiff_t)((size_t)c->vcount * 6 * sizeof(float)),
                            s_hq_v + c->vfirst, PSXGL_STREAM_DRAW);
             depth_apply_ex(c->depth, 0);
-            BCLS_DRAW(c->semi, c->depth, c->mask, c->check, c->b3d, glDrawArrays(GL_TRIANGLES, 0, c->vcount));
+            { const int om_ = s_fg_obj_mark; s_fg_obj_mark = c->obj; BCLS_DRAW(c->semi, c->depth, c->mask, c->check, c->b3d, glDrawArrays(GL_TRIANGLES, 0, c->vcount)); s_fg_obj_mark = om_; }
             depth_restore_ex(c->depth, 0, c->vcount);
         }
     }
@@ -5459,7 +5470,7 @@ static void hiw_flush_queue(void) {
                 p_glBufferData(PSXGL_ARRAY_BUFFER, (ptrdiff_t)((size_t)c->vcount * TEXV * sizeof(float)),
                                s_hq_v + c->vfirst, PSXGL_STREAM_DRAW);
                 depth_apply_ex(c->depth, 1);
-                tex_draw_passes_ex(c->vcount, c->semi, c->mask, c->check, 0, c->b3d);
+                { const int om_ = s_fg_obj_mark; s_fg_obj_mark = c->obj; tex_draw_passes_ex(c->vcount, c->semi, c->mask, c->check, 0, c->b3d); s_fg_obj_mark = om_; }
                 depth_restore_ex(c->depth, 1, c->vcount);
             } else {
                 if (cur != HQ_GEO) {
@@ -5473,7 +5484,7 @@ static void hiw_flush_queue(void) {
                 p_glBufferData(PSXGL_ARRAY_BUFFER, (ptrdiff_t)((size_t)c->vcount * 6 * sizeof(float)),
                                s_hq_v + c->vfirst, PSXGL_STREAM_DRAW);
                 depth_apply_ex(c->depth, 0);
-                BCLS_DRAW(c->semi, c->depth, c->mask, c->check, c->b3d, glDrawArrays(GL_TRIANGLES, 0, c->vcount));
+                { const int om_ = s_fg_obj_mark; s_fg_obj_mark = c->obj; BCLS_DRAW(c->semi, c->depth, c->mask, c->check, c->b3d, glDrawArrays(GL_TRIANGLES, 0, c->vcount)); s_fg_obj_mark = om_; }
                 depth_restore_ex(c->depth, 0, c->vcount);
             }
         }
@@ -14192,6 +14203,27 @@ static void fg_replay(const FgList *a, const FgList *b, double t, GLuint gen_wid
         s_rthx_front = (h.flags & RTHF_FRONT) != 0;
         const int area[4] = { s_area_x1, s_area_y1, s_area_x2, s_area_y2 };
         const int in = !s_fg_replay_objects_only && fg_area_meets(area, disp);
+        {   /* the object mark (s_fg_obj_mark), set by triangles and cleared by
+             * other drawing (the state records between keep it): batches end
+             * where it changes */
+            const int tri = h.op == RTH_FLAT_TRI || h.op == RTH_GOURAUD_TRI || h.op == RTH_TEX_TRI ||
+                            h.op == RTH_SHADED_TEX_TRI || h.op == RTH_PROJ_TRI;
+            const int draw = tri || h.op == RTH_FILL || h.op == RTH_FLAT_RECT || h.op == RTH_TEX_RECT ||
+                             h.op == RTH_TEX_RECT_SCALED || h.op == RTH_LINE || h.op == RTH_SHADED_LINE;
+            int om = draw ? 0 : s_fg_obj_mark;
+            if (tri && s_fg_marks && placed == 1 && b->rec2prim) {
+                const int pi = b->rec2prim[r];
+                if (pi >= 0) {
+                    int no = 0;
+                    for (int k = 0; k < 3; k++) no += s_fg_verts[3 * pi + k].mode == FG_PLACE_OBJECT;
+                    om = no >= 2;
+                } else {
+                    om = s_fg_obj_mark;   /* not drawn here */
+                }
+            }
+            s_fg_obj_tris += (uint32_t)(tri && om);
+            if (om != s_fg_obj_mark) { flush_flat_batch(); flush_tex_batch(); s_fg_obj_mark = om; s_fg_obj_toggles++; }
+        }
         switch (h.op) {
         case RTH_SEMI:    glb_set_semi_transparency(v[0], v[1]); break;
         case RTH_DITHER:  glb_set_dither(v[0]); break;
@@ -14382,6 +14414,9 @@ static void fg_replay(const FgList *a, const FgList *b, double t, GLuint gen_wid
     flush_flat_batch();
     flush_tex_batch();
     hiw_flush_queue();
+    s_fg_obj_mark = 0;
+    s_fg_obj_toggles_last = s_fg_obj_toggles; s_fg_obj_tris_last = s_fg_obj_tris;
+    s_fg_obj_toggles = s_fg_obj_tris = 0;
     while (npoke > 0) {
         npoke--;
         glb_vram_write(pokes[npoke][0], pokes[npoke][1], (uint16_t)pokes[npoke][2]);
@@ -16069,7 +16104,7 @@ int gl_renderer_frame_gen_json(char *out, int cap) {
         "\"trips_late\":%u,\"trips_backed_up\":%u,\"trips_behind\":%u,"
         "\"place_camera\":%u,\"place_object\":%u,\"place_neighbour\":%u,"
         "\"place_unchanged\":%u,\"cam_angle_deg\":%.3f,\"cam_shift\":%.1f,"
-        "\"clamped\":%u,\"guessed\":%u,\"verdict_ok\":%d,\"rejected\":%llu,\"reject_why\":\"%s\",\"noplan_why\":\"%s\",\"rp_ms\":[%.3f,%.3f,%.3f],\"rp_zn\":%u,\"reprojected\":%llu,\"reproject_fallback\":%llu,\"reproject\":%d,\"np\":[%llu,%llu,%llu,%llu],\"end_ahead\":%llu,\"end_bp\":%llu,\"end_phase\":%llu",
+        "\"clamped\":%u,\"guessed\":%u,\"verdict_ok\":%d,\"rejected\":%llu,\"reject_why\":\"%s\",\"noplan_why\":\"%s\",\"rp_ms\":[%.3f,%.3f,%.3f],\"rp_zn\":%u,\"reprojected\":%llu,\"reproject_fallback\":%llu,\"reproject\":%d,\"np\":[%llu,%llu,%llu,%llu],\"end_ahead\":%llu,\"end_bp\":%llu,\"end_phase\":%llu,\"obj_marks\":[%u,%u]",
         s_fg_on, s_fg_on && s_rth_on && open, s_fg_force,
         (unsigned long long)s_fg_generated, (unsigned long long)s_fg_real_presents,
         (unsigned long long)s_fg_flips, (unsigned long long)s_fg_dups,
@@ -16100,7 +16135,7 @@ int gl_renderer_frame_gen_json(char *out, int cap) {
         (unsigned long long)s_fg_np_brk, (unsigned long long)s_fg_np_stale,
         (unsigned long long)s_fg_np_held, (unsigned long long)s_fg_np_room,
         (unsigned long long)s_fg_end_ahead, (unsigned long long)s_fg_end_bp,
-        (unsigned long long)s_fg_end_phase);
+        (unsigned long long)s_fg_end_phase, s_fg_obj_toggles_last, s_fg_obj_tris_last);
     if (k < 0 || k >= cap - 64) return k;
     /* oldest first: type, phase, ms after the oldest */
     const unsigned n = s_fg_tl_n < FG_TL ? s_fg_tl_n : FG_TL, first = s_fg_tl_n - n;
