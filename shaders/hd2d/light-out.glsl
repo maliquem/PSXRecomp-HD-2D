@@ -169,6 +169,27 @@ vec2 quad_uv(vec2 p, int i)
     vec2 fg = f + g * u;
     return vec2(u, dot(h - e * u, fg) / max(dot(fg, fg), 1e-8));
 }
+// The plane of the sprite seen at uv (its depth zp there): a point on it and
+// its normal, from its depth a few pixels across and down (the side that
+// stays on the same piece). False: too small a piece to tell.
+bool spr_plane(vec2 uv, float zp, out vec3 S, out vec3 nS)
+{
+    S = pos_at(uv, zp);
+    nS = vec3(0.0, 0.0, 1.0);
+    vec2 e = 3.0 / u_size;
+    vec3 a = vec3(0.0), b = vec3(0.0);
+    for (int k = 0; k < 2; k++) {
+        float sg = k == 0 ? 1.0 : -1.0;
+        float zx = texture(u_spr, uv + vec2(sg * e.x, 0.0)).r;
+        if (a == vec3(0.0) && zx > 0.0 && abs(zx - zp) < 8.0) a = (pos_at(uv + vec2(sg * e.x, 0.0), zx) - S) * sg;
+        float zy = texture(u_spr, uv + vec2(0.0, sg * e.y)).r;
+        if (b == vec3(0.0) && zy > 0.0 && abs(zy - zp) < 8.0) b = (pos_at(uv + vec2(0.0, sg * e.y), zy) - S) * sg;
+    }
+    vec3 c = cross(a, b);
+    if (dot(c, c) < 1e-8) return false;
+    nS = normalize(c);
+    return true;
+}
 float window_light(vec3 P, vec3 n, int i)
 {
     vec3 O = u_win[i].xyz, U = u_wu[i].xyz, V = u_wv[i].xyz, D = u_wd[i].xyz;
@@ -192,17 +213,33 @@ float window_light(vec3 P, vec3 n, int i)
     if (face <= 0.0) return 0.0;
     // something between: steps back toward the window over the depth
     float vis = 1.0;
-    for (int k = 1; k <= 10; k++) {
+    for (int k = 1; k <= 16; k++) {
         if (u_lightview.w > 0.5) break;
-        vec3 X = P - D * (t * float(k) / 11.0);
+        vec3 X = P - D * (t * float(k) / 17.0);
         vec2 uv = X.xy * u_proj.x / (X.z * g_nat) + 0.5;
         if (any(lessThan(uv, vec2(0.0))) || any(greaterThan(uv, vec2(1.0)))) continue;
         float zs = sz_at(uv);
         if (zs > 0.0 && zs < X.z - (8.0 + 0.004 * X.z)) { vis = 0.0; break; }
-        // a sprite standing there (its upright plane at that depth): the light
-        // passes through its cut-out, so it casts into the patch
+        // a sprite seen near the way: where the light's way meets its plane
+        // (upright in the world, so its depth changes with its height; from
+        // its depth around uv), exactly, is it there? The light passes through
+        // its cut-out, so it casts into the patch whole (a step's depth near
+        // the sprite's alone sliced it into bands)
         float zp = texture(u_spr, uv).r;
-        if (zp > 0.0 && zp < 50000.0 && abs(zp - X.z) < 22.0) { vis = 0.0; break; }
+        if (zp <= 0.0 || zp >= 50000.0) continue;
+        vec3 S, nS;
+        if (!spr_plane(uv, zp, S, nS)) {
+            if (abs(zp - X.z) < 22.0) { vis = 0.0; break; }
+            continue;
+        }
+        float dn = dot(D, nS);
+        if (abs(dn) < 1e-3) continue;   // the light along its plane
+        float sc = dot(P - S, nS) / dn;
+        if (sc <= 6.0 || sc >= t) continue;
+        vec3 Y = P - D * sc;
+        vec2 uy = Y.xy * u_proj.x / (Y.z * g_nat) + 0.5;
+        float zq = texture(u_spr, uy).r;
+        if (zq > 0.0 && zq < 50000.0 && abs(zq - Y.z) < 12.0) { vis = 0.0; break; }
     }
     return inside * bars * face * vis * (0.65 + 0.35 * exp(-t / 900.0));
 }
