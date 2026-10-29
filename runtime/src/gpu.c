@@ -1322,8 +1322,9 @@ static void shadow_vblank(void) {
     /* an area with no sun (sun_areas "off": a cave, a room) is as if no chain
      * read the shadow map: the game's own blob shadows are drawn there */
     const int wanted = chain && !gpu_shadow_area_off();
-    /* our shadows stand in for the game's blobs: under the sun, or a fire's */
-    const int ours = wanted || (track && gl_renderer_fire_casting());
+    /* our shadows stand in for the game's blobs: under the sun, a fire's or
+     * the light of the windows placed by hand */
+    const int ours = wanted || (track && (gl_renderer_fire_casting() || gl_renderer_windows_casting()));
     sh_hide_on = ours && sh_hide_n > 0;
     sh_disc_on = ours;
     if (wanted != sh_od_on && (sh_od_x || sh_od_y)) {
@@ -1332,7 +1333,7 @@ static void shadow_vblank(void) {
     }
     sh_bf_on = wanted && sh_camera;
     sh_anc_live = track && sh_camera == 2 && sh_anc_n > 0 && gl_renderer_shadow_sprites_wanted();
-    sh_blob_on = sh_anc_live && ours;   /* the game's blobs hidden: only under our sun or a fire */
+    sh_blob_on = sh_anc_live && ours;   /* the game's blobs hidden: only under our sun, a fire or the windows */
     if (sh_bf_on) shadow_backfaces_flush();   /* this frame's culled faces, before the camera takes the frame in */
     if (!track) return;
     if (sh_camera == 2) {   /* the camera met lately (a 30 fps game projects every other VBlank) */

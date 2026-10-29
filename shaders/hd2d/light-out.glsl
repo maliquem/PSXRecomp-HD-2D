@@ -169,10 +169,13 @@ vec2 quad_uv(vec2 p, int i)
     vec2 fg = f + g * u;
     return vec2(u, dot(h - e * u, fg) / max(dot(fg, fg), 1e-8));
 }
-// The plane of the sprite seen at uv (its depth zp there): a point on it and
-// its normal, from its depth a few pixels across and down (the side that
+// A sprite's depth at uv: c 0 as it stands (the nearest), 1 with its feet
+// bent down to the floor (the `sprite` input's g)
+float spr_z(vec2 uv, int c) { vec2 z = texture(u_spr, uv).rg; return c == 0 ? z.x : z.y; }
+// The plane of the sprite seen at uv (its depth zp there, by c): a point on it
+// and its normal, from its depth a few pixels across and down (the side that
 // stays on the same piece). False: too small a piece to tell.
-bool spr_plane(vec2 uv, float zp, out vec3 S, out vec3 nS)
+bool spr_plane(vec2 uv, float zp, int c, out vec3 S, out vec3 nS)
 {
     S = pos_at(uv, zp);
     nS = vec3(0.0, 0.0, 1.0);
@@ -180,14 +183,14 @@ bool spr_plane(vec2 uv, float zp, out vec3 S, out vec3 nS)
     vec3 a = vec3(0.0), b = vec3(0.0);
     for (int k = 0; k < 2; k++) {
         float sg = k == 0 ? 1.0 : -1.0;
-        float zx = texture(u_spr, uv + vec2(sg * e.x, 0.0)).r;
+        float zx = spr_z(uv + vec2(sg * e.x, 0.0), c);
         if (a == vec3(0.0) && zx > 0.0 && abs(zx - zp) < 8.0) a = (pos_at(uv + vec2(sg * e.x, 0.0), zx) - S) * sg;
-        float zy = texture(u_spr, uv + vec2(0.0, sg * e.y)).r;
+        float zy = spr_z(uv + vec2(0.0, sg * e.y), c);
         if (b == vec3(0.0) && zy > 0.0 && abs(zy - zp) < 8.0) b = (pos_at(uv + vec2(0.0, sg * e.y), zy) - S) * sg;
     }
-    vec3 c = cross(a, b);
-    if (dot(c, c) < 1e-8) return false;
-    nS = normalize(c);
+    vec3 ab = cross(a, b);
+    if (dot(ab, ab) < 1e-8) return false;
+    nS = normalize(ab);
     return true;
 }
 float window_light(vec3 P, vec3 n, int i)
@@ -211,8 +214,14 @@ float window_light(vec3 P, vec3 n, int i)
     float bars = min(u_wu[i].w > 1.5 ? smoothstep(bw, bw + soft, bu) : 1.0, u_wv[i].w > 1.5 ? smoothstep(bw, bw + soft, bv) : 1.0);
     float face = dot(n, n) > 0.0 ? clamp(dot(n, -D), 0.0, 1.0) : 0.6;
     if (face <= 0.0) return 0.0;
-    // something between: steps back toward the window over the depth
+    // something between: steps back toward the window over the depth. On the
+    // floor the sprites' feet bent down to it (a 3/4 pose's back foot, drawn
+    // higher, stands there: its shadow meets it); a sprite's own point takes
+    // them as they stand (its legs bent back would shade itself)
     float vis = 1.0;
+    bool own = dot(n, n) == 0.0;
+    int ch = own ? 0 : 1;
+    vec2 px = vec2(1.0 / u_size.x, 0.0);
     for (int k = 1; k <= 16; k++) {
         if (u_lightview.w > 0.5) break;
         vec3 X = P - D * (t * float(k) / 17.0);
@@ -225,21 +234,28 @@ float window_light(vec3 P, vec3 n, int i)
         // its depth around uv), exactly, is it there? The light passes through
         // its cut-out, so it casts into the patch whole (a step's depth near
         // the sprite's alone sliced it into bands)
-        float zp = texture(u_spr, uv).r;
+        float zp = spr_z(uv, ch);
         if (zp <= 0.0 || zp >= 50000.0) continue;
         vec3 S, nS;
-        if (!spr_plane(uv, zp, S, nS)) {
+        if (!spr_plane(uv, zp, ch, S, nS)) {
             if (abs(zp - X.z) < 22.0) { vis = 0.0; break; }
             continue;
         }
         float dn = dot(D, nS);
         if (abs(dn) < 1e-3) continue;   // the light along its plane
         float sc = dot(P - S, nS) / dn;
-        if (sc <= 6.0 || sc >= t) continue;
+        // a sprite's own point: not itself; a floor's: up to the foot standing on it
+        if (sc <= (own ? 6.0 : 0.5) || sc >= t) continue;
         vec3 Y = P - D * sc;
         vec2 uy = Y.xy * u_proj.x / (Y.z * g_nat) + 0.5;
-        float zq = texture(u_spr, uy).r;
-        if (zq > 0.0 && zq < 50000.0 && abs(zq - Y.z) < 12.0) { vis = 0.0; break; }
+        // there, or a pixel to a side (a column bent apart from its neighbour
+        // let a thread of light through)
+        float hit = 1e9;
+        for (int j = -1; j <= 1; j++) {
+            float zq = spr_z(uy + px * float(j), ch);
+            if (zq > 0.0 && zq < 50000.0) hit = min(hit, abs(zq - Y.z));
+        }
+        if (hit < 12.0) { vis = 0.0; break; }
     }
     return inside * bars * face * vis * (0.65 + 0.35 * exp(-t / 900.0));
 }

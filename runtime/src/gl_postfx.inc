@@ -803,8 +803,9 @@ static float *s_sm_pos = NULL; static int s_sm_pcap = 0;   /* each caster vertex
 static float  s_sm_world[3][4];   /* u_world, u_worldup, u_shadowdir (view space, y up; w 1 = set) */
 static float *s_sm_buf = NULL; static int s_sm_cap = 0;
 /* Sprites standing in the scene (gl_renderer_shadow_anchor): their pieces as
- * casters (view space) and their view depth on the picture (`sprite`, R32F,
- * SPR_NONE where no sprite is). */
+ * casters (view space) and their view depth on the picture (`sprite`, RG32F:
+ * r the nearest, g the same with their feet bent down to the floor where a
+ * bent foot is drawn; SPR_NONE where no sprite is). */
 enum { SPR_NONE = 60000 };
 static GLuint s_spr_tex = 0, s_spr_fbo = 0, s_spr_prog = 0;
 static GLint  s_spr_uvram = -1, s_sm_uatl = -1, s_spr_uatl = -1;
@@ -1376,7 +1377,7 @@ static void pfx_sprites_depth(int lw, int lh) {
     if (!s_spr_tex || s_spr_w != lw || s_spr_h != lh) {
         if (!s_spr_tex) { glGenTextures(1, &s_spr_tex); p_glGenFramebuffers(1, &s_spr_fbo); }
         glBindTexture(GL_TEXTURE_2D, s_spr_tex);
-        glTexImage2D(GL_TEXTURE_2D, 0, 0x822E /*R32F*/, lw, lh, 0, 0x1903 /*RED*/, GL_FLOAT, NULL);
+        glTexImage2D(GL_TEXTURE_2D, 0, 0x8230 /*RG32F*/, lw, lh, 0, 0x8227 /*RG*/, GL_FLOAT, NULL);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
@@ -1390,7 +1391,7 @@ static void pfx_sprites_depth(int lw, int lh) {
     glViewport(0, 0, lw, lh);
     GLfloat cc[4];
     glGetFloatv(GL_COLOR_CLEAR_VALUE, cc);
-    glClearColor((float)SPR_NONE, 0.0f, 0.0f, 1.0f);
+    glClearColor((float)SPR_NONE, (float)SPR_NONE, 0.0f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
     glClearColor(cc[0], cc[1], cc[2], cc[3]);
     if (s_spr_n > 0) {
@@ -1416,12 +1417,20 @@ static void pfx_sprites_depth(int lw, int lh) {
         p_glBlendEquationSeparate(0x8007 /*MIN*/, 0x8007);
         glBlendFunc(GL_ONE, GL_ONE);
         if (s_spr_nord <= 0) glDrawArrays(GL_TRIANGLES, 0, s_spr_n);
-        /* the bent feet too, the nearest still winning: written over, a
+        /* the bent feet too, the nearest still winning in r: written over, a
          * sprite's bent feet behind another (Ryu's behind Nina) gave her
-         * pixels their place, in a shadow she is not in */
+         * pixels their place, in a shadow she is not in. In g they are
+         * written over the sprite's own standing pieces: a 3/4 pose's back
+         * foot, drawn higher, stands back on the floor there (the nearest
+         * kept its plane, in the air: the windows' light cast it apart) */
         if (s_spr_nx > 0) {
             p_glBufferData(PSXGL_ARRAY_BUFFER, (GLsizeiptr)((size_t)s_spr_nx * SC_V * sizeof(float)), s_spr_xs, PSXGL_STREAM_DRAW);
+            glColorMask(GL_TRUE, GL_FALSE, GL_FALSE, GL_FALSE);
             glDrawArrays(GL_TRIANGLES, 0, s_spr_nx);
+            glDisable(GL_BLEND);
+            glColorMask(GL_FALSE, GL_TRUE, GL_FALSE, GL_FALSE);
+            glDrawArrays(GL_TRIANGLES, 0, s_spr_nx);
+            glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
         }
         p_glBlendEquationSeparate(PSXGL_FUNC_ADD, PSXGL_FUNC_ADD);
         glDisable(GL_BLEND);
@@ -1500,7 +1509,7 @@ static void pfx_sm_init(void) {
     /* The sprites' view depth on the picture (the `sprite` input): the
      * nearest one wins (min blending), transparent texels leave none. */
     s_spr_prog = build_program(SM_VS_HEAD "  gl_Position = vec4(a_p.xy, 0.0, 1.0); }\n",
-                               SM_FS_HEAD "  o = vec4(v_z, 0.0, 0.0, 1.0);\n" SM_FS_TEXEL);
+                               SM_FS_HEAD "  o = vec4(v_z, v_z, 0.0, 1.0);\n" SM_FS_TEXEL);
     /* The fire lights' shadow map (pfx_fire_build): a cube round each light,
      * its six faces side by side; a_p is a view-space point, drawn from the
      * light (u_lp) along the face's axes (u_ff forward, u_fr right, u_fu up,
@@ -2210,6 +2219,9 @@ int gl_renderer_area_windows_json(char *out, int cap) {
  * shadows are hidden then, as under the sun). */
 /* a fire light cast in the last presents (the chain may be gone since) */
 int gl_renderer_fire_casting(void) { return s_fl_nfire > 0 && s_pfx_presents - s_fire_built <= 2u; }
+/* the area's windows (placed by hand) shone in the last presents: the
+ * sprites cast into their light, so the game's blob shadows are hidden too */
+int gl_renderer_windows_casting(void) { return s_alw_n > 0 && s_pfx_presents - s_fire_built <= 2u; }
 /* world -> view space (y up) by the presented picture's camera */
 static void al_view(const float *w, float *P) {
     const float *r = s_cam_r;
