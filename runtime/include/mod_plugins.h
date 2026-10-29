@@ -1320,11 +1320,14 @@ int  psx_mod_request_screenshot(const char* path);
  *
  * A title may add its own bug types (listed first, before the framework's),
  * members for the report's "game" object, files to copy into its config/
- * folder (paths relative to the working directory), and its own look for the
- * form: `render` draws the form from `v` like a page's renderer (canvas of
- * 240 x scale lines, ARGB, blended over the frozen game) and returns 0 to have
- * the framework's panel this time. The input stays the framework's. All of it
- * is cleared at each session's activation; main thread. */
+ * folder (paths relative to the working directory), the form's words in the
+ * player's language, and its own look for the canvas form: `render` draws the
+ * form from `v` like a page's renderer (canvas of 240 x scale lines, ARGB,
+ * blended over the frozen game) and returns 0 to have the framework's panel
+ * this time. A build with recomp-ui's Dear ImGui on an OpenGL window draws the
+ * form there instead (Unicode text, drop-down lists, mouse) and never calls
+ * `render`. The input stays the framework's. All of it is cleared at each
+ * session's activation; main thread. */
 enum {
     PSX_MOD_BUG_ROW_TYPE = 0, PSX_MOD_BUG_ROW_SEVERITY, PSX_MOD_BUG_ROW_FREQUENCY,
     PSX_MOD_BUG_ROW_TEXT, PSX_MOD_BUG_ROW_SAVE, PSX_MOD_BUG_ROW_DISCARD, PSX_MOD_BUG_ROWS
@@ -1352,6 +1355,13 @@ void psx_mod_bug_report_add_type(const char *name);
 typedef int (*PSXModBugReportInfo)(char *json, int cap);
 void psx_mod_set_bug_report_info(PSXModBugReportInfo info);
 void psx_mod_bug_report_add_file(const char *path);
+/* The ImGui form shows `shown` (UTF-8) where it would show `english`: its
+ * labels and buttons ("Report a bug", "Type", "Severity", "Frequency",
+ * "Description", "Type here what happened.", "Photo", "State", "Clip",
+ * "Save report", "Discard", "Discard? Press again", "Ctrl+Enter saves \xC2\xB7 Esc
+ * discards"), the notices "Bug report saved" / "Bug report discarded", and the
+ * types', severities' and frequencies' names. report.json keeps the English. */
+void psx_mod_bug_report_translate(const char *english, const char *shown);
 int  psx_mod_bug_report_open(void);
 int  psx_mod_bug_report_active(void);
 /* A title's mouse pointer (OpenGL): `argb` (straight alpha, at most 64 x 64,
