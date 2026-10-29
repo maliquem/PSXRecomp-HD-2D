@@ -487,10 +487,20 @@ int  gpu_shadow_light_set(uint32_t area, int which, int mode, float az, float el
 int  gpu_shadow_light_get(uint32_t area, int which, int layer, float *az, float *el);
 int  gpu_shadow_moon_area(float *az, float *el);
 uint32_t gpu_shadow_current_area(void);
+/* Day or night forced per area (live layer, a tuning tool's), for a title
+ * whose own detector (it sets gl_renderer_set_night) guessed wrong there:
+ * GPU_TIME_AUTO = the title's detector, DAY / NIGHT = that, whatever it
+ * measures. The framework only keeps it; the title reads the current area's
+ * (gpu_shadow_time_now) and applies it where it would set the night. */
+enum { GPU_TIME_AUTO = 0, GPU_TIME_DAY = 1, GPU_TIME_NIGHT = 2 };
+int  gpu_shadow_time_set(uint32_t area, int time);
+int  gpu_shadow_time_get(uint32_t area);
+int  gpu_shadow_time_now(void);
 /* The live lights from a file (the runtime reads sun_areas.txt next to the
  * exe at start, after the config; tools/sun_tool writes it), one area per
- * line: "0xAREA sun AZ EL moon AZ EL", "off" for either, '#' a comment.
- * Returns the lights set, -1 with no file. */
+ * line: "0xAREA sun AZ EL moon AZ EL time night", "off" for either light,
+ * time day|night (none = the title's detector), '#' a comment.
+ * Returns the entries set, -1 with no file. */
 int  gpu_shadow_lights_load(const char *path);
 /* Signed-funnel variants (min/max + center±halfwidth idioms — see
  * ws_cull_detect.h): right-edge widen for `slti v, minSX, W` and left-edge

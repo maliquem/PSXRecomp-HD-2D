@@ -845,7 +845,7 @@ int gpu_shadow_off_active(void) {
  * elevation in tenths of a degree): the render thread reads it whole while
  * the emulation thread changes it. */
 enum { SH_SUN_MAX = 256 };
-typedef struct { uint32_t area; _Atomic uint64_t light[2]; } ShLight;
+typedef struct { uint32_t area; _Atomic uint64_t light[2]; _Atomic int time; } ShLight;
 static ShLight          sh_cfg[SH_SUN_MAX], sh_live[SH_SUN_MAX];
 static _Atomic int      sh_cfg_n = 0, sh_live_n = 0;
 static _Atomic uint32_t sh_area = 0;
@@ -872,21 +872,37 @@ void gpu_set_shadow_sun_areas(const uint32_t *area, const float *az, const float
     }
     atomic_store(&sh_cfg_n, n);
 }
-int gpu_shadow_light_set(uint32_t area, int which, int mode, float az, float el) {
-    if (which < 0 || which > 1 || mode < GPU_LIGHT_NONE || mode > GPU_LIGHT_OFF) return 0;
+/* the area's live entry, made when asked (NULL: none, or the table is full) */
+static ShLight *sh_live_entry(uint32_t area, int make) {
     const int n = atomic_load(&sh_live_n);
     ShLight *l = sh_light_find(sh_live, n, area);
-    if (!l) {
-        if (mode == GPU_LIGHT_NONE) return 1;
-        if (n >= SH_SUN_MAX) return 0;
-        l = &sh_live[n];
-        l->area = area;
-        atomic_store(&l->light[0], 0); atomic_store(&l->light[1], 0);
-        atomic_store(&sh_live_n, n + 1);
-    }
+    if (l || !make || n >= SH_SUN_MAX) return l;
+    l = &sh_live[n];
+    l->area = area;
+    atomic_store(&l->light[0], 0); atomic_store(&l->light[1], 0);
+    atomic_store(&l->time, GPU_TIME_AUTO);
+    atomic_store(&sh_live_n, n + 1);
+    return l;
+}
+int gpu_shadow_light_set(uint32_t area, int which, int mode, float az, float el) {
+    if (which < 0 || which > 1 || mode < GPU_LIGHT_NONE || mode > GPU_LIGHT_OFF) return 0;
+    ShLight *l = sh_live_entry(area, mode != GPU_LIGHT_NONE);
+    if (!l) return mode == GPU_LIGHT_NONE;
     atomic_store(&l->light[which], mode == GPU_LIGHT_NONE ? 0 : sh_light_pack(mode, az, el));
     return 1;
 }
+int gpu_shadow_time_set(uint32_t area, int time) {
+    if (time < GPU_TIME_AUTO || time > GPU_TIME_NIGHT) return 0;
+    ShLight *l = sh_live_entry(area, time != GPU_TIME_AUTO);
+    if (!l) return time == GPU_TIME_AUTO;
+    atomic_store(&l->time, time);
+    return 1;
+}
+int gpu_shadow_time_get(uint32_t area) {
+    ShLight *l = sh_light_find(sh_live, atomic_load(&sh_live_n), area);
+    return l ? atomic_load(&l->time) : GPU_TIME_AUTO;
+}
+int gpu_shadow_time_now(void) { return gpu_shadow_time_get(atomic_load(&sh_area)); }
 int gpu_shadow_light_get(uint32_t area, int which, int layer, float *az, float *el) {
     if (which < 0 || which > 1) return GPU_LIGHT_NONE;
     ShLight *l = layer ? sh_light_find(sh_cfg, atomic_load(&sh_cfg_n), area)
@@ -895,7 +911,8 @@ int gpu_shadow_light_get(uint32_t area, int which, int layer, float *az, float *
 }
 uint32_t gpu_shadow_current_area(void) { return atomic_load(&sh_area); }
 /* gpu_shadow_lights_load: a lights file (a tuning tool's), one area per line:
- *   0xAREA sun AZ EL moon AZ EL      ("off" for either; '#' starts a comment) */
+ *   0xAREA sun AZ EL moon AZ EL time night  ("off" for either light; time day|night;
+ *                                             '#' starts a comment) */
 static int sh_is_space(char c) { return c == ' ' || c == '\t' || c == '\r' || c == '\n'; }
 static char *sh_next_word(char **p) {
     char *s = *p;
@@ -920,6 +937,14 @@ int gpu_shadow_lights_load(const char *path) {
         const uint32_t area = (uint32_t)strtoul(t, NULL, 0);
         if (!area) continue;
         while ((t = sh_next_word(&p)) != NULL) {
+            if (strcmp(t, "time") == 0) {
+                char *v = sh_next_word(&p);
+                if (!v) break;
+                const int tm = strcmp(v, "night") == 0 ? GPU_TIME_NIGHT : strcmp(v, "day") == 0 ? GPU_TIME_DAY : -1;
+                if (tm < 0) break;
+                n += gpu_shadow_time_set(area, tm);
+                continue;
+            }
             const int which = strcmp(t, "moon") == 0 ? 1 : strcmp(t, "sun") == 0 ? 0 : -1;
             char *a = which < 0 ? NULL : sh_next_word(&p);
             if (!a) break;

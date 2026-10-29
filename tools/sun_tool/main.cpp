@@ -45,6 +45,8 @@ namespace {
 
 constexpr float k_pi = 3.14159265f, k_deg = k_pi / 180.0f;
 enum { L_NONE = 0, L_AT = 1, L_OFF = 2 };   // the framework's GPU_LIGHT_*
+enum { T_AUTO = 0, T_DAY = 1, T_NIGHT = 2 };  // GPU_TIME_*: day or night forced per area
+const char* const k_time_word[] = {"auto", "day", "night"};
 
 struct Light {
     int mode = L_NONE;
@@ -60,6 +62,7 @@ struct GameState {
     bool ok = false;
     unsigned area = 0;
     float night = 0.0f;
+    int time = T_AUTO;     // the area's forced day / night (live)
     Light live[2], config[2];
     int off = 0;
     float used_az = 0, used_el = 0;
@@ -107,6 +110,8 @@ bool parse_state(const std::string& r, GameState& g) {
     while (*a == '"' || *a == ' ') a++;
     g.area = (unsigned)strtoul(a, nullptr, 16);
     read_nums(find_key(s, "night"), &g.night, 1);
+    if (const char* t = find_key(s, "time"))
+        g.time = !strncmp(t, "\"night\"", 7) ? T_NIGHT : !strncmp(t, "\"day\"", 5) ? T_DAY : T_AUTO;
     const char* sun = find_key(s, "sun");
     const char* moon = find_key(s, "moon");
     g.live[0] = read_light(sun, "live");
@@ -159,6 +164,19 @@ public:
                 return;
             }
         pending_.push_back({area, which, req});
+    }
+    // the area's day / night (which 2 in the queue)
+    void send_time(unsigned area, int time) {
+        char req[160];
+        snprintf(req, sizeof req, "{\"cmd\":\"sun_area\",\"area\":\"0x%08x\",\"set\":\"time\",\"v\":\"%s\"}", area,
+                 k_time_word[time]);
+        std::lock_guard<std::mutex> lk(mu_);
+        for (auto& p : pending_)
+            if (p.area == area && p.which == 2) {
+                p.req = req;
+                return;
+            }
+        pending_.push_back({area, 2, req});
     }
     bool state(GameState& out) {
         std::lock_guard<std::mutex> lk(mu_);
@@ -264,7 +282,9 @@ private:
 struct Entry {
     unsigned area = 0;
     Light light[2];
+    int time = T_AUTO;
     std::string note;
+    bool empty() const { return light[0].mode == L_NONE && light[1].mode == L_NONE && time == T_AUTO; }
 };
 struct SunFile {
     std::string path;
@@ -296,6 +316,12 @@ struct SunFile {
             x.area = (unsigned)strtoul(t, nullptr, 0);
             if (!x.area) continue;
             while ((t = strtok(nullptr, " \t\r\n"))) {
+                if (!strcmp(t, "time")) {
+                    char* v = strtok(nullptr, " \t\r\n");
+                    if (!v) break;
+                    x.time = !strcmp(v, "night") ? T_NIGHT : !strcmp(v, "day") ? T_DAY : T_AUTO;
+                    continue;
+                }
                 const int w = !strcmp(t, "moon") ? 1 : !strcmp(t, "sun") ? 0 : -1;
                 if (w < 0) break;
                 char* v = strtok(nullptr, " \t\r\n");
@@ -322,15 +348,17 @@ struct SunFile {
         }
         fprintf(f, "# sun_areas.txt: o sol e a lua de cada area (psx_sun_tool). O jogo le ao abrir;\n"
                    "# vence o [video.shadow] sun_areas do game.toml.\n"
-                   "# 0xAREA sun AZ EL|off moon AZ EL|off   # nota\n");
+                   "# 0xAREA sun AZ EL|off moon AZ EL|off time day|night   # nota\n"
+                   "# (time: dia ou noite forcado na area; sem ele, o detector do jogo)\n");
         for (const auto& x : e) {
-            if (x.light[0].mode == L_NONE && x.light[1].mode == L_NONE) continue;
+            if (x.empty()) continue;
             fprintf(f, "0x%08x", x.area);
             for (int w = 0; w < 2; w++) {
                 const Light& l = x.light[w];
                 if (l.mode == L_AT) fprintf(f, " %s %.1f %.1f", w ? "moon" : "sun", l.az, l.el);
                 else if (l.mode == L_OFF) fprintf(f, " %s off", w ? "moon" : "sun");
             }
+            if (x.time != T_AUTO) fprintf(f, " time %s", k_time_word[x.time]);
             if (!x.note.empty()) fprintf(f, "   # %s", x.note.c_str());
             fprintf(f, "\n");
         }
@@ -554,6 +582,7 @@ struct Tool {
     bool connected = false;
     unsigned area = 0;     // the area being edited
     Light edit[2];         // what the game is shown for it
+    int edit_time = T_AUTO;   // its day / night as shown
     char note[96] = "";
     int which = 0;         // 0 sun, 1 moon
     bool follow_night = true, follow_cam = true, dragging = false;
@@ -582,14 +611,23 @@ struct Tool {
     }
     Light shown(int w) const { return edit[w].mode == L_NONE ? fallback(w) : edit[w]; }
     bool dirty(int w) { return edit[w] != saved(area, w); }
+    int saved_time(unsigned a) {
+        Entry* x = file.find(a);
+        return x ? x->time : T_AUTO;
+    }
+    bool dirty_time() { return edit_time != saved_time(area); }
+    bool any_dirty() { return dirty(0) || dirty(1) || dirty_time(); }
 
     void switch_area(unsigned a) {
         // what was not applied goes back to the file's in the area left
-        if (area)
+        if (area) {
             for (int w = 0; w < 2; w++)
                 if (dirty(w)) link.send_set(area, w, saved(area, w));
+            if (dirty_time()) link.send_time(area, saved_time(area));
+        }
         area = a;
         for (int w = 0; w < 2; w++) edit[w] = saved(a, w);
+        edit_time = saved_time(a);
         Entry* x = file.find(a);
         snprintf(note, sizeof note, "%s", x ? x->note.c_str() : "");
         msg.clear();
@@ -604,16 +642,23 @@ struct Tool {
         edit[w] = l;
         link.send_set(area, w, l);
     }
+    void change_time(int t) {
+        if (!area || t == edit_time) return;
+        edit_time = t;
+        link.send_time(area, t);
+    }
     void apply() {
         Entry* x = file.find(area);
         if (!x) {
-            file.e.push_back(Entry{area, {}, ""});
+            file.e.push_back(Entry{});
             x = &file.e.back();
+            x->area = area;
         }
         x->light[0] = edit[0];
         x->light[1] = edit[1];
+        x->time = edit_time;
         x->note = note;
-        if (x->light[0].mode == L_NONE && x->light[1].mode == L_NONE && !note[0])
+        if (x->empty() && !note[0])
             file.e.erase(file.e.begin() + (x - file.e.data()));
         msg = file.save() ? "Gravado em " + file.path : file.error;
     }
@@ -622,7 +667,7 @@ struct Tool {
         Entry* x = file.find(area);
         if (x) {
             x->light[w] = Light{};
-            if (x->light[0].mode == L_NONE && x->light[1].mode == L_NONE && x->note.empty())
+            if (x->empty() && x->note.empty())
                 file.e.erase(file.e.begin() + (x - file.e.data()));
             msg = file.save() ? "Padrão gravado" : file.error;
         }
@@ -630,6 +675,7 @@ struct Tool {
     void revert() {
         for (int w = 0; w < 2; w++)
             if (dirty(w)) change(w, saved(area, w));
+        if (dirty_time()) change_time(saved_time(area));
         Entry* x = file.find(area);
         snprintf(note, sizeof note, "%s", x ? x->note.c_str() : "");
     }
@@ -756,6 +802,20 @@ struct Tool {
             else ImGui::Text("Valendo: %.1f° / %.1f°", g.used_az, g.used_el);
             ImGui::TextDisabled("A lua só vale onde o jogo detecta noite (no BoF4: Config > Lights > Night).");
         }
+        // day or night forced in this area (the game's detector guessed wrong)
+        ImGui::BeginDisabled(!area);
+        ImGui::TextUnformatted("Nesta área:");
+        ImGui::SameLine();
+        if (ImGui::RadioButton("Automático", edit_time == T_AUTO)) change_time(T_AUTO);
+        if (ImGui::IsItemHovered()) ImGui::SetTooltip("O jogo decide pela cor da cena (o detector de noite).");
+        ImGui::SameLine();
+        if (ImGui::RadioButton("Sempre dia", edit_time == T_DAY)) change_time(T_DAY);
+        ImGui::SameLine();
+        if (ImGui::RadioButton("Sempre noite", edit_time == T_NIGHT)) change_time(T_NIGHT);
+        if (dirty_time()) ImGui::SameLine(), ImGui::TextColored(ImVec4(1, 0.8f, 0.3f, 1), "(não aplicado)");
+        if (edit_time != T_AUTO)
+            ImGui::TextDisabled("Vale a área inteira (a abertura toda é uma área só) e precisa de Night ligado.");
+        ImGui::EndDisabled();
         ImGui::BeginDisabled(!area);
         ImGui::SetNextItemWidth(-ImGui::CalcTextSize("Elevação  ").x);
         ImGui::InputText("Nota", note, sizeof note);
@@ -774,7 +834,7 @@ struct Tool {
         ImGui::BeginDisabled(!area);
         if (ImGui::Button("Aplicar (gravar)")) apply();
         ImGui::SameLine();
-        ImGui::BeginDisabled(!dirty(0) && !dirty(1));
+        ImGui::BeginDisabled(!any_dirty());
         if (ImGui::Button("Descartar")) revert();
         ImGui::EndDisabled();
         ImGui::EndDisabled();
@@ -782,11 +842,12 @@ struct Tool {
         ImGui::Checkbox("Seguir a câmera do jogo", &follow_cam);
         ImGui::Separator();
         ImGui::Text("Áreas gravadas (%d)", (int)file.e.size());
-        if (ImGui::BeginTable("##areas", 4, ImGuiTableFlags_RowBg | ImGuiTableFlags_ScrollY | ImGuiTableFlags_BordersInnerV,
+        if (ImGui::BeginTable("##areas", 5, ImGuiTableFlags_RowBg | ImGuiTableFlags_ScrollY | ImGuiTableFlags_BordersInnerV,
                               ImVec2(0, std::max(80.0f, ImGui::GetContentRegionAvail().y)))) {
             ImGui::TableSetupColumn("Área");
             ImGui::TableSetupColumn("Sol");
             ImGui::TableSetupColumn("Lua");
+            ImGui::TableSetupColumn("Hora");
             ImGui::TableSetupColumn("Nota");
             ImGui::TableHeadersRow();
             for (const Entry& x : file.e) {
@@ -801,6 +862,9 @@ struct Tool {
                     else if (l.mode == L_OFF) ImGui::Text("off");
                     else ImGui::TextDisabled("-");
                 }
+                ImGui::TableNextColumn();
+                if (x.time == T_AUTO) ImGui::TextDisabled("auto");
+                else ImGui::Text("%s", x.time == T_NIGHT ? "noite" : "dia");
                 ImGui::TableNextColumn();
                 ImGui::TextUnformatted(x.note.c_str());
             }
@@ -979,7 +1043,8 @@ int main(int argc, char** argv) {
                 const int which = strcmp(w, "moon") == 0;
                 t->follow_night = false;
                 t->which = which;
-                if (!strcmp(v, "off")) t->change(which, Light{L_OFF, 0, 0});
+                if (!strcmp(w, "time")) t->change_time(!strcmp(v, "night") ? T_NIGHT : !strcmp(v, "day") ? T_DAY : T_AUTO);
+                else if (!strcmp(v, "off")) t->change(which, Light{L_OFF, 0, 0});
                 else if (!strcmp(v, "none")) t->default_light(which);
                 else if (n == 3) az = strtof(v, nullptr), t->change(which, Light{L_AT, az, el});
                 printf("test-set %s on 0x%08x\n", test_set.c_str(), t->area);

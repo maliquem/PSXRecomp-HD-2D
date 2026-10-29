@@ -8821,8 +8821,10 @@ static void handle_shadow_cache(int id, const char *json)
  * "camera": the heading the camera looks along, in the sun's azimuths, and
  * how far it looks down).
  * {"set":"sun"|"moon","v":"AZ EL"|"off"|"none"} changes the live one first
- * ("area":"0x..." another area; "none" = the config's again). Allowed in the
- * restricted mode: it only moves the light. */
+ * ("area":"0x..." another area; "none" = the config's again);
+ * {"set":"time","v":"auto"|"day"|"night"} forces the area's day or night
+ * ("time" in the answer). Allowed in the restricted mode: it only moves the
+ * light. */
 static int sun_area_json(char *out, int cap, uint32_t area, int which)
 {
     float az = 0.0f, el = 0.0f, caz = 0.0f, cel = 0.0f;
@@ -8836,9 +8838,15 @@ static void handle_sun_area(int id, const char *json)
     char buf[64], v[64];
     const uint32_t cur = gpu_shadow_current_area();
     const uint32_t area = json_get_str(json, "area", buf, sizeof buf) ? hex_to_u32(buf) : cur;
-    if (json_get_str(json, "set", buf, sizeof buf)) {
+    if (json_get_str(json, "set", buf, sizeof buf) && strcmp(buf, "time") == 0) {
+        const int tm = !json_get_str(json, "v", v, sizeof v) ? -1 : strcmp(v, "night") == 0 ? GPU_TIME_NIGHT
+                       : strcmp(v, "day") == 0 ? GPU_TIME_DAY : strcmp(v, "auto") == 0 ? GPU_TIME_AUTO : -1;
+        if (tm < 0) { send_err(id, "set time with v auto|day|night"); return; }
+        if (!area) { send_err(id, "no area"); return; }
+        if (!gpu_shadow_time_set(area, tm)) { send_err(id, "light table full"); return; }
+    } else if (json_get_str(json, "set", buf, sizeof buf)) {
         const int which = strcmp(buf, "moon") == 0 ? 1 : strcmp(buf, "sun") == 0 ? 0 : -1;
-        if (which < 0 || !json_get_str(json, "v", v, sizeof v)) { send_err(id, "set sun|moon with v"); return; }
+        if (which < 0 || !json_get_str(json, "v", v, sizeof v)) { send_err(id, "set sun|moon|time with v"); return; }
         int mode = GPU_LIGHT_AT;
         float az = 0.0f, el = 0.0f;
         if (strcmp(v, "off") == 0) mode = GPU_LIGHT_OFF;
@@ -8859,10 +8867,12 @@ static void handle_sun_area(int id, const char *json)
     char sun[128], moon[128];
     sun_area_json(sun, sizeof sun, area, 0);
     sun_area_json(moon, sizeof moon, area, 1);
-    send_fmt("{\"id\":%d,\"ok\":true,\"area\":\"0x%08x\",\"current\":\"0x%08x\",\"night\":%.3f,"
+    static const char *const k_time[] = { "auto", "day", "night" };
+    send_fmt("{\"id\":%d,\"ok\":true,\"area\":\"0x%08x\",\"current\":\"0x%08x\",\"night\":%.3f,\"time\":\"%s\","
              "\"sun\":%s,\"moon\":%s,\"off\":%d,\"used\":[%.2f,%.2f,%d],\"pass\":[%.2f,%.2f,%.2f,%.2f],"
              "\"camera\":[%.2f,%.2f]}",
-             id, (unsigned)area, (unsigned)cur, gl_renderer_night(), sun, moon, gpu_shadow_area_off(),
+             id, (unsigned)area, (unsigned)cur, gl_renderer_night(), k_time[gpu_shadow_time_get(area)], sun, moon,
+             gpu_shadow_area_off(),
              info[0], info[1], age, info[2], info[3], info[4], info[5], info[6], info[7]);
 }
 
