@@ -6567,15 +6567,26 @@ static void scopy_note(int sx, int sy, int dx, int dy, int w, int h) {
     int *r = s_scopy[s_scopy_n++];
     r[0] = dx; r[1] = dy; r[2] = dx + w - 1; r[3] = dy + h - 1;
 }
-/* A 15-bit triangle's texels all inside one picture copy. */
+/* A 15-bit triangle's texels all inside one picture copy, or reaching into
+ * a picture itself: the drawing area, or one a frame's scenery was drawn into
+ * lately (a slot's area: the other buffer, the one shown). The dragon over
+ * the crater, seen from below against the sky, is textured straight from the
+ * shown picture, no copy: taken as scenery it stayed in the casters' memory
+ * and laid a long shadow across the crater's floor after the cut. */
 static int scopy_holds(int base_x, int base_y, const int *us, const int *vs) {
-    if (!s_scopy_n) return 0;
     int u0 = 255, u1 = 0, v0 = 255, v1 = 0;
     for (int i = 0; i < 3; i++) {
         if (us[i] < u0) u0 = us[i]; if (us[i] > u1) u1 = us[i];
         if (vs[i] < v0) v0 = vs[i]; if (vs[i] > v1) v1 = vs[i];
     }
     const int x0 = base_x + u0, x1 = base_x + u1, y0 = base_y + v0, y1 = base_y + v1;
+    if (x0 <= s_area_x2 && x1 >= s_area_x1 && y0 <= s_area_y2 && y1 >= s_area_y1) return 1;
+    for (int i = 0; i < SC_SLOTS; i++) {
+        const int *a = s_sc[i].area;
+        if (s_sc[i].use && a[2] - a[0] >= 255 && a[3] - a[1] >= 191 &&
+            x0 <= a[2] && x1 >= a[0] && y0 <= a[3] && y1 >= a[1]) return 1;
+    }
+    if (!s_scopy_n) return 0;
     for (int i = 0; i < s_scopy_n; i++) {
         const int *r = s_scopy[i];
         if (x0 >= r[0] && x1 <= r[2] && y0 >= r[1] && y1 <= r[3]) return 1;
