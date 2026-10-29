@@ -2250,15 +2250,17 @@ static int pfx_area_lights_prep(const PfxPass *ps, int nl, float *mapd) {
     s_al_n = 0;
     s_al_amb[3] = 0.0f;
     s_alw_n = 0;
-    const float *on = pfx_pass_uniform(ps, "u_placed");
+    /* the lamps and the ambient by u_placed.x, the windows by u_shaft.x (1 Low,
+     * 2 High); both while a tool edits them */
+    const float *on = pfx_pass_uniform(ps, "u_placed"), *sh = pfx_pass_uniform(ps, "u_shaft");
     const int force = atomic_load(&s_al_force);
-    if ((!on || on[0] <= 0.0f) && !force) return nl;
+    const int placed = force || (on && on[0] > 0.0f);
+    s_alw_q = force ? 2 : sh ? (int)(sh[0] + 0.5f) : 0;
+    if (!placed && s_alw_q <= 0) return nl;
     static AreaLightSet set;
     if (!area_lights_get(gpu_shadow_current_area(), &set)) return nl;
     const float n = s_night_f;
-    {   /* the windows: their light comes in when shafts are on (u_shaft.x 1 Low, 2 High) */
-        const float *sh = pfx_pass_uniform(ps, "u_shaft");
-        s_alw_q = force ? 2 : sh ? (int)(sh[0] + 0.5f) : 0;
+    {   /* the windows */
         float up[3], hmin = 1e30f;
         al_up(up);
         const ScSlot *sc = sc_presented();
@@ -2317,6 +2319,7 @@ static int pfx_area_lights_prep(const PfxPass *ps, int nl, float *mapd) {
             s_alw_n++;
         }
     }
+    if (!placed) return nl;
     if (set.has_amb)
         for (int c = 0; c < 3; c++) s_al_amb[c] = set.amb[c] + (set.amb_night[c] - set.amb[c]) * n;
     s_al_amb[3] = set.has_amb ? 1.0f : 0.0f;
@@ -2361,8 +2364,8 @@ static void pfx_fire_build(const PfxPass *ps, float aspect, int lw, int lh) {
     s_alw_n = 0;
     const float *fcol = pfx_pass_uniform(ps, "u_firecol");
     const int fire_on = !(fcol && fcol[3] <= 0.0f);   /* the fire lights off (menu) */
-    const float *pon = pfx_pass_uniform(ps, "u_placed");
-    if (!fire_on && !(pon && pon[0] > 0.0f) && !atomic_load(&s_al_force)) return;
+    const float *pon = pfx_pass_uniform(ps, "u_placed"), *psh = pfx_pass_uniform(ps, "u_shaft");
+    if (!fire_on && !(pon && pon[0] > 0.0f) && !(psh && psh[0] > 0.0f) && !atomic_load(&s_al_force)) return;
     if (!s_sm_tex) pfx_sm_init();
     if (!s_fm_prog) return;
     const float *cfg = pfx_pass_uniform(ps, "u_firecfg");
