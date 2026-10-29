@@ -21,6 +21,7 @@ set_property(CACHE PSX_PGO PROPERTY STRINGS "" generate use)
 set(PSX_TARGET_ARCH "" CACHE STRING "-march for the runtime and generated code (empty: default)")
 include("${PSXRECOMP_ROOT}/cmake/psx_runtime_ipo.cmake")
 include("${PSXRECOMP_ROOT}/cmake/psx_execution_profile.cmake")
+include("${PSXRECOMP_ROOT}/cmake/psx_host_pacing.cmake")
 include("${PSXRECOMP_ROOT}/cmake/psx_sha256_file.cmake")
 include("${PSXRECOMP_ROOT}/cmake/psx_build_revision.cmake")
 
@@ -1669,6 +1670,7 @@ function(psxrecomp_add_runtime_target target)
     else()
         psxrecomp_execution_profile(${target} CONTRACT_FILES ${_execution_contract})
     endif()
+    psxrecomp_host_pacing(${target})
     # audio_trace.c uses C11 atomics. Make the runtime's actual language
     # requirement explicit instead of relying on a parent project's global
     # CMAKE_C_STANDARD setting. cxx_std_17 likewise — game CMakeLists may omit

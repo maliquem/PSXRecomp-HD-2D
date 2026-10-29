@@ -23,6 +23,17 @@ psxrecomp_add_runtime_target(psx-runtime
 # (docs/ENHANCEMENTS.md G1.10). Titles get their <exe>_pgxp the same way.
 
 if(BUILD_TESTING)
+    foreach(_native IN ITEMS 0 1)
+        add_executable(host_deadline_${_native}_test tests/test_host_deadline.c)
+        target_include_directories(host_deadline_${_native}_test PRIVATE include)
+        target_compile_definitions(host_deadline_${_native}_test PRIVATE PSX_NATIVE_HOST_PACING=${_native})
+        if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+            target_compile_options(host_deadline_${_native}_test PRIVATE -UNDEBUG)
+        elseif(MSVC)
+            target_compile_options(host_deadline_${_native}_test PRIVATE /UNDEBUG)
+        endif()
+        add_test(NAME host_deadline_${_native}_test COMMAND host_deadline_${_native}_test)
+    endforeach()
     if(WIN32)
         add_executable(host_time_threads_test tests/test_host_time_threads.c src/host_time.c)
         target_include_directories(host_time_threads_test PRIVATE include)
@@ -1989,6 +2000,12 @@ if(BUILD_TESTING)
         add_test(NAME frame_interpolation_context_ownership_test
                  COMMAND ${Python3_EXECUTABLE}
                          ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_frame_interpolation_context_ownership.py)
+        add_test(NAME host_pacing_policy_test
+                 COMMAND ${Python3_EXECUTABLE}
+                         ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_host_pacing_policy.py
+                         --cmake ${CMAKE_COMMAND} --cc ${CMAKE_C_COMPILER}
+                         --generator "${CMAKE_GENERATOR}"
+                         --make-program "${CMAKE_MAKE_PROGRAM}")
         add_test(NAME present_skip_cadence_guard_test
                  COMMAND ${Python3_EXECUTABLE}
                          ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_present_skip_cadence_guard.py)
