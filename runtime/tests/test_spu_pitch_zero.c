@@ -50,6 +50,7 @@ uint32_t crc32_update(uint32_t crc, const uint8_t *data, size_t len) {
 }
 
 bool spu_shadow_enabled(void) { return false; }
+bool spu_shadow_active(void) { return false; }
 void spu_shadow_reset(void) {}
 void spu_shadow_process(int16_t *canon, int frames) {
     (void)canon;

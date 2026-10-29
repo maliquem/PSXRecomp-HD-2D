@@ -1305,8 +1305,8 @@ static void spu_render_block(int16_t* out_stereo, int frames) {
 
     /* Shadow tap: arm recording for this block if the float SPU shadow is on.
      * Off by default => s_shadow_tap_on stays 0 and the mix loop is unchanged
-     * and byte-identical to upstream. */
-    s_shadow_tap_on = spu_shadow_enabled() ? 1 : 0;
+     * and byte-identical to upstream (also once the shadow gave up). */
+    s_shadow_tap_on = spu_shadow_active() ? 1 : 0;
     s_shadow_tap_frame = 0;
     if (s_shadow_tap_on) {
         int cap = frames < SPU_SHADOW_TAP_FRAMES ? frames : SPU_SHADOW_TAP_FRAMES;

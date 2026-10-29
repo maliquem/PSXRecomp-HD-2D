@@ -38,6 +38,7 @@ void audio_trace_event(uint16_t kind, uint32_t a, uint32_t b) {
     (void)kind; (void)a; (void)b;
 }
 bool spu_shadow_enabled(void) { return false; }
+bool spu_shadow_active(void) { return false; }
 void spu_shadow_reset(void) {}
 void spu_shadow_process(int16_t *canon, int frames) { (void)canon; (void)frames; }
 

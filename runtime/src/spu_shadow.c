@@ -30,6 +30,20 @@ static int            s_cfg     = 0;    /* config/launcher gate (env overrides) 
 static ShadowVerifier s_verifier;
 static SpuShadowInfo  s_info;
 
+/* A shadow that never proves itself never substitutes: the output stays the
+ * canon mix, so rendering, tapping and judging it is pure cost (the canon's
+ * silent-block shortcut is off too while the tap runs). After this many judged
+ * windows (~1.5 s of audible audio each) without a single proof, stop until
+ * the next spu_init() (a savestate load keeps it off). Exact by construction
+ * for a title whose shadow never proved before this point; one that proves even
+ * once keeps it for good. As of 2026-10-29 no title proves: the float mix is
+ * built from raw int16 samples and judged against the canon normalized by
+ * 1/32768, so every window fails the level gate (ratio ~32768). */
+#define SPU_SHADOW_GIVE_UP_WINDOWS 8u
+static uint32_t       s_judged;         /* windows with a verdict since reset */
+static int            s_ever_proven;
+static int            s_gave_up;
+
 void spu_shadow_set_enabled(int on) {
     s_cfg     = on ? 1 : 0;
     s_enabled = -1;  /* force re-resolution against env + new config */
@@ -50,9 +64,16 @@ bool spu_shadow_enabled(void) {
     return s_enabled != 0;
 }
 
+bool spu_shadow_active(void) {
+    return !s_gave_up && spu_shadow_enabled();
+}
+
 void spu_shadow_reset(void) {
     shadow_verifier_init(&s_verifier);
     memset(&s_info, 0, sizeof(s_info));
+    s_judged = 0;
+    s_ever_proven = 0;
+    s_gave_up = 0;
     s_info.enabled = spu_shadow_enabled() ? 1 : 0;
     s_info.gain = 1.0f;
 }
@@ -68,7 +89,7 @@ static float catmull_rom(const int16_t s[4], float t) {
 }
 
 void spu_shadow_process(int16_t* canon, int frames) {
-    if (!spu_shadow_enabled() || !canon || frames <= 0) return;
+    if (!spu_shadow_active() || !canon || frames <= 0) return;
 
     const SpuShadowFrameTapPub* tap =
         (const SpuShadowFrameTapPub*)spu_shadow_tap_buffer();
@@ -112,11 +133,21 @@ void spu_shadow_process(int16_t* canon, int frames) {
     for (int f = 0; f < tap_n; ++f) {
         float cl = (float)canon[f * 2 + 0] * SHADOW_NORM;
         float cr = (float)canon[f * 2 + 1] * SHADOW_NORM;
-        shadow_verifier_judge(&s_verifier, cl, cr, shadow_l[f], shadow_r[f]);
+        if (shadow_verifier_judge(&s_verifier, cl, cr, shadow_l[f], shadow_r[f]) !=
+            SHADOW_JUDGE_NONE)
+            ++s_judged;
     }
 
     s_info.enabled    = 1;
     s_info.proven     = shadow_verifier_proven(&s_verifier) ? 1 : 0;
+    s_info.judged     = s_judged;
+    if (s_info.proven) s_ever_proven = 1;
+    if (!s_ever_proven && s_judged >= SPU_SHADOW_GIVE_UP_WINDOWS) {
+        s_gave_up = 1;
+        s_info.gave_up = 1;
+        fprintf(stderr, "[spu_shadow] never proven in %u windows: off until the next reset "
+                        "(the output was and stays the canon mix)\n", (unsigned)s_judged);
+    }
     s_info.pauses     = s_verifier.pauses;
     s_info.last_r     = s_verifier.last_r;
     s_info.last_ratio = s_verifier.last_ratio;

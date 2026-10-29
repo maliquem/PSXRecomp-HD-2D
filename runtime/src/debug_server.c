@@ -54,6 +54,7 @@
 #include "sio.h"
 #include "memcard.h"
 #include "spu.h"
+#include "spu_shadow.h"
 #include "audio_trace.h"
 #include "mdec.h"
 #include "interrupts.h"
@@ -6050,6 +6051,21 @@ static void handle_core_rates(int id, const char *json)
              H(0), H(1), H(2), H(3), H(4), H(5), H(6), H(7),
              H(8), H(9), H(10), H(11), H(12), H(13), H(14), H(15));
 #undef H
+}
+
+/* spu_shadow: the float SPU shadow's verifier (spu_shadow.h): whether it ever
+ * substitutes (proven) and whether it gave up (never proven in time). */
+static void handle_spu_shadow(int id, const char *json)
+{
+    (void)json;
+    SpuShadowInfo s;
+    spu_shadow_get_info(&s);
+    send_fmt("{\"id\":%d,\"ok\":true,\"enabled\":%d,\"active\":%d,\"proven\":%d,"
+             "\"pauses\":%llu,\"judged\":%u,\"gave_up\":%d,\"gain\":%.4f,"
+             "\"last_r\":%.4f,\"last_ratio\":%.4f}",
+             id, spu_shadow_enabled() ? 1 : 0, spu_shadow_active() ? 1 : 0, s.proven,
+             (unsigned long long)s.pauses, (unsigned)s.judged, s.gave_up, (double)s.gain,
+             (double)s.last_r, (double)s.last_ratio);
 }
 
 /* vram_drawn_check: gpu_vram_peek's cells against a renderer read (gpu.h). */
@@ -16593,6 +16609,7 @@ static const CmdEntry s_commands[] = {
     { "gl_vram_diff",      handle_gl_vram_diff },
     { "irq_state",         handle_irq_state },
     { "vram_drawn_check",  handle_vram_drawn_check },
+    { "spu_shadow",        handle_spu_shadow },
     { "core_rates",        handle_core_rates },
     { "vblank_rate",       handle_vblank_rate },
     { "cycles_to_next_event", handle_cycles_to_next_event },

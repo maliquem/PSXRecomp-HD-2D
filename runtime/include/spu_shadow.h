@@ -44,6 +44,11 @@ void spu_shadow_set_enabled(int on);
  * (if set) overrides the config value set via spu_shadow_set_enabled(). */
 bool spu_shadow_enabled(void);
 
+/* Enabled and still running: false once the shadow gave up (never proven in
+ * its first windows since the last reset; spu_shadow.c). The SPU arms its tap
+ * only while this holds. */
+bool spu_shadow_active(void);
+
 /* Called once per spu_init() to (re)create verifier + per-voice resampler
  * state. Cheap; safe to call when disabled (no-op). */
 void spu_shadow_reset(void);
@@ -66,6 +71,8 @@ typedef struct {
     float    last_r;       /* last window correlation */
     float    last_ratio;   /* last window level ratio */
     float    gain;         /* calibrated shadow gain */
+    uint32_t judged;       /* windows with a verdict since reset */
+    int      gave_up;      /* never proven in time: off until reset */
     char     last_revert[160];
 } SpuShadowInfo;
 void spu_shadow_get_info(SpuShadowInfo* out);
