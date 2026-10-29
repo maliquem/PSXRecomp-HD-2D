@@ -114,6 +114,20 @@ else()
     option(PSX_STATIC_RUNTIME "Statically link SDL + libgcc/libstdc++ for a self-contained exe" OFF)
 endif()
 
+# Direct data access on MinGW (clang): by default every extern global is read
+# through a .refptr pointer, in case a DLL provides it (auto-import) — one more
+# load per access, 2856 of them in one hot generated BoF4 function. With the
+# static runtime no data the exe reads comes from a DLL, so the indirection is
+# pure cost: BoF4 turbo +2.6..4.2%, execution identical (8 scenes, cold boot).
+if(MINGW AND CMAKE_C_COMPILER_ID MATCHES "Clang" AND PSX_STATIC_RUNTIME)
+    option(PSX_DIRECT_DATA "MinGW: read extern globals directly (-fno-auto-import)" ON)
+else()
+    option(PSX_DIRECT_DATA "MinGW: read extern globals directly (-fno-auto-import)" OFF)
+endif()
+if(PSX_DIRECT_DATA)
+    add_compile_options(-fno-auto-import)
+endif()
+
 # SDL backend selection. SDL3 is fetched from an integrity-pinned stable
 # release when no system package is available, so a default build does not
 # silently fall back to SDL2. SDL2 remains an explicit, fully supported A/B
