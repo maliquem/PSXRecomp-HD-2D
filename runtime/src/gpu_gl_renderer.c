@@ -945,6 +945,7 @@ static unsigned s_anc_in = 0, s_anc_full = 0;
 enum { SCOPY_MAX = 8 };
 static int s_scopy[SCOPY_MAX][4], s_scopy_n = 0;
 static unsigned s_scopy_glass = 0;   /* TCP shadow_cache "glass": triangles drawn as glass */
+static unsigned s_wide_copy_cols = 0;   /* ... "wide_copy_cols": copied columns taken from a wide margin */
 static int scopy_holds(int base_x, int base_y, const int *us, const int *vs);
 /* A new frame in this list: it starts over and takes the foot points. */
 static void sc_restart(ScSlot *sl, int why) {
@@ -1619,8 +1620,8 @@ static int scc_log_json(char *out, int cap) {   /* appended to the stats */
 }
 static int rs_log_json(char *out, int cap) {   /* appended to the stats */
     const int at = (int)strlen(out);
-    int k = snprintf(out + at, (size_t)(cap - at), ",\"glass\":%u,\"screen_copies\":%d,\"anc_in\":%u,\"anc_full\":%u,\"anc_pend\":%d,\"restarts\":[",
-                     s_scopy_glass, s_scopy_n, s_anc_in, s_anc_full, s_anc_pend_n);
+    int k = snprintf(out + at, (size_t)(cap - at), ",\"glass\":%u,\"wide_copy_cols\":%u,\"screen_copies\":%d,\"anc_in\":%u,\"anc_full\":%u,\"anc_pend\":%d,\"restarts\":[",
+                     s_scopy_glass, s_wide_copy_cols, s_scopy_n, s_anc_in, s_anc_full, s_anc_pend_n);
     for (int i = 0; i < 8; i++) {
         const int *L = s_rs_log[(s_rs_at - 1 - i) & 7];
         k += snprintf(out + at + k, (size_t)(cap - at - k), "%s[%d,%d,%d,%d]", i ? "," : "", L[0], L[1], L[2], L[3]);
@@ -6649,6 +6650,51 @@ static void gpu_copy_seg(int sx,int sy,int dx,int dy,int w,int h) {
     coh_record(GL_COH_COPY,     dx, dy, dx + w - 1, dy + h - 1);
 }
 
+/* Native wide: a copy of the picture being drawn (its source rows in the
+ * drawing area) whose columns reach past the 4:3 picture's sides takes those
+ * columns from the wide surface's margins, the picture really there. The
+ * hardware reads other VRAM (a source left of x 0 wraps to x 1023 and
+ * below), off screen in 4:3: BoF4's invisible dragon (textured with the screen
+ * behind it, copied from x -126) showed the font page's glyphs on its faces
+ * in the left margin. Only the GL surfaces; columns past the margins keep the
+ * hardware's. */
+static void wide_copy_margins(int sx, int sy, int dx, int dy, int w, int h) {
+    const int iw = wide_index(g_wide_cur);
+    const int native_w = g_wide_w - 2 * g_wide_off;
+    if (iw < 0 || g_wide_off <= 0 || native_w <= 0 || h <= 0 || dy + h > VRAM_H || dx + w > VRAM_W ||
+        sy + h - 1 < s_area_y1 || sy > s_area_y2)
+        return;
+    /* the copy on the picture's row (x from its left edge, past the end of
+     * VRAM read as left of x 0): it must reach the picture, from a side */
+    const int base = g_wide_cur_base, Sw = s_wide_as[iw] > 0 ? s_wide_as[iw] : s_out_scale, S = s_hr_scale;
+    int a = sx - base;
+    if (base == 0 && sx >= VRAM_W / 2 && sx + w >= VRAM_W) a -= VRAM_W;   /* up to VRAM's end: left of x 0 */
+    if (base != 0 && a < 0) return;
+    if (!((a < 0 && a + w >= 0) || (a <= native_w && a + w > native_w))) return;
+    int flushed = 0;
+    for (int c = 0; c < w; ) {
+        const int xu = a + c;
+        const int in_margin = (xu >= -g_wide_off && xu < 0) || (xu >= native_w && xu < native_w + g_wide_off);
+        if (!in_margin) { c++; continue; }
+        int n = 1;
+        while (c + n < w && (xu + n < 0 ? xu + n >= -g_wide_off : (xu + n >= native_w && xu + n < native_w + g_wide_off)) &&
+               ((xu < 0) == (xu + n < 0)))
+            n++;
+        if (!flushed) { hiw_flush_queue(); flushed = 1; }
+        const int wx = xu + g_wide_off;
+        p_glBindFramebuffer(PSXGL_READ_FRAMEBUFFER, g_wide_cur);
+        p_glBindFramebuffer(PSXGL_DRAW_FRAMEBUFFER, s_hr_fbo);
+        glDisable(GL_SCISSOR_TEST);
+        p_glBlitFramebuffer(wx * Sw, sy * Sw, (wx + n) * Sw, (sy + h) * Sw,
+                            (dx + c) * S, dy * S, (dx + c + n) * S, (dy + h) * S,
+                            GL_COLOR_BUFFER_BIT, Sw == S ? GL_NEAREST : GL_LINEAR);
+        p_glBindFramebuffer(PSXGL_READ_FRAMEBUFFER, 0);
+        p_glBindFramebuffer(PSXGL_DRAW_FRAMEBUFFER, 0);
+        s_wide_copy_cols += (unsigned)n;
+        c += n;
+    }
+}
+
 /* GP0(80h): source and destination addresses wrap at 1024x512 on their own,
  * per pixel (sw_copy_rect: (x + col) & 1023, (y + row) & 511). Cut the rect
  * where either side crosses an edge; each piece is a plain copy. */
@@ -6657,6 +6703,7 @@ static void gpu_copy_rect(int sx,int sy,int dx,int dy,int w,int h) {
     sx &= VRAM_W - 1; dx &= VRAM_W - 1;
     sy &= VRAM_H - 1; dy &= VRAM_H - 1;
     scopy_note(sx, sy, dx, dy, w, h);
+    struct { int sx, sy, dx, dy, w, h; } wm = { sx, sy, dx, dy, w, h };
     for (int r = 0; r < h; ) {
         const int ys = (sy + r) & (VRAM_H - 1), yd = (dy + r) & (VRAM_H - 1);
         int hh = h - r;
@@ -6672,6 +6719,7 @@ static void gpu_copy_rect(int sx,int sy,int dx,int dy,int w,int h) {
         }
         r += hh;
     }
+    if (g_wide_cur && g_wide_w > 0) wide_copy_margins(wm.sx, wm.sy, wm.dx, wm.dy, wm.w, wm.h);
 }
 
 /* ---- backend vtable wrappers ------------------------------------------- */
