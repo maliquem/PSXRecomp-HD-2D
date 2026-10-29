@@ -31,6 +31,11 @@
 // ambient (rgb; w 1 = set): what the 3D scenery and the sprites keep where
 // no light reaches (an indoor room under no sun). u_aln.y = 1 draws a marker
 // on each placed light, u_aln.z the picked one (a tuning tool).
+// The windows placed by hand (u_win.. as shaft.glsl; u_wn.y > 0: shafts on):
+// the patch each one's light lands on (back along the light to the window's
+// rectangle: inside it, its panes' bars dark, edges softer the farther it
+// goes; what stands between, from the depth, shades it), and the lit air and
+// dust of the shaft pass (u_sh, blurred) over the scenery and the sprites.
 // u_lightview.x = 1 shows the light alone; .y = 1 the fire lights alone
 // (white lit, black in their shadow or out of reach).
 
@@ -41,6 +46,7 @@ uniform vec4 u_flicker;
 uniform vec4 u_proj;
 uniform vec4 u_fl[4], u_fls[4], u_flc[4], u_flx[4], u_fld[4], u_flmap;
 uniform vec4 u_al[8], u_alc[8], u_ald[8], u_alx[8], u_aln, u_alamb;
+uniform vec4 u_win[4], u_wu[4], u_wv[4], u_wd[4], u_wc[4], u_wn;
 uniform vec4 u_firecol, u_firecfg;
 
 float flicker_by(float t, float amount)
@@ -140,6 +146,47 @@ vec2 fire_light(vec3 P, vec3 n, vec4 fl, int li, float k, vec4 s)
     float vis = fire_vis(P, fl, li);
     return vec2(a * vis, a * (1.0 - vis));
 }
+// window i's light on P (normal n; 0: a sprite): inside its rectangle seen
+// back along the light, the panes' bars dark, the edges softer far from it;
+// shaded where the depth shows something between P and the window, or a
+// sprite stands in the way
+float window_light(vec3 P, vec3 n, int i)
+{
+    vec3 O = u_win[i].xyz, U = u_wu[i].xyz, V = u_wv[i].xyz, D = u_wd[i].xyz;
+    vec3 Nw = normalize(cross(U, V));
+    float dn = dot(D, Nw);
+    if (abs(dn) < 1e-4) return 0.0;
+    float t = dot(P - O, Nw) / dn;
+    if (t <= 0.0) return 0.0;
+    vec3 Q = P - D * t - O;
+    float uu = dot(U, U), vv = dot(V, V), lu = sqrt(uu), lv = sqrt(vv);
+    float s = dot(Q, U) / uu, r = dot(Q, V) / vv;
+    float soft = 1.5 + 0.012 * t;   // world units
+    float es = soft / lu, er = soft / lv;
+    float inside = smoothstep(-es, es, s) * smoothstep(1.0 + es, 1.0 - es, s) * smoothstep(-er, er, r) * smoothstep(1.0 + er, 1.0 - er, r);
+    if (inside <= 0.0) return 0.0;
+    float bu = abs(fract(s * u_wu[i].w + 0.5) - 0.5) * lu / u_wu[i].w;
+    float bv = abs(fract(r * u_wv[i].w + 0.5) - 0.5) * lv / u_wv[i].w;
+    float bw = 1.6 + 0.004 * t;
+    float bars = min(u_wu[i].w > 1.5 ? smoothstep(bw, bw + soft, bu) : 1.0, u_wv[i].w > 1.5 ? smoothstep(bw, bw + soft, bv) : 1.0);
+    float face = dot(n, n) > 0.0 ? clamp(dot(n, -D), 0.0, 1.0) : 0.6;
+    if (face <= 0.0) return 0.0;
+    // something between: steps back toward the window over the depth
+    float vis = 1.0;
+    for (int k = 1; k <= 10; k++) {
+        if (u_lightview.w > 0.5) break;
+        vec3 X = P - D * (t * float(k) / 11.0);
+        vec2 uv = X.xy * u_proj.x / (X.z * g_nat) + 0.5;
+        if (any(lessThan(uv, vec2(0.0))) || any(greaterThan(uv, vec2(1.0)))) continue;
+        float zs = sz_at(uv);
+        if (zs > 0.0 && zs < X.z - (8.0 + 0.004 * X.z)) { vis = 0.0; break; }
+        // a sprite standing there (its upright plane at that depth): the light
+        // passes through its cut-out, so it casts into the patch
+        float zp = texture(u_spr, uv).r;
+        if (zp > 0.0 && zp < 50000.0 && abs(zp - X.z) < 22.0) { vis = 0.0; break; }
+    }
+    return inside * bars * face * vis * (0.65 + 0.35 * exp(-t / 900.0));
+}
 // a marker on the placed light at L (view space): 1 on its ring, picked bigger
 float marker(vec3 L, bool picked)
 {
@@ -163,9 +210,10 @@ void main()
     vec2 fire = vec2(0.0);
     vec3 firec = vec3(0.0);   // the lights' colours, each by how much of it reaches here
     vec3 placed = vec3(0.0);  // the lights placed by hand, coloured
+    vec3 wpatch = vec3(0.0);   // the windows' light where it lands
     g_nat = vec2(u_proj.y * u_size.x / u_size.y, u_proj.y);
     g_grid = g_nat * max(u_proj.z, 1.0);
-    if ((u_flmap.y > 0.0 || u_aln.x > 0.0) && (m > 0.5 || is_spr)) {
+    if ((u_flmap.y > 0.0 || u_aln.x > 0.0 || u_wn.y * u_wn.x > 0.0) && (m > 0.5 || is_spr)) {
         float z = zs;
         if (!is_spr) {
             float dd = texelFetch(u_d, p, 0).r;
@@ -191,6 +239,11 @@ void main()
                 placed += u_alc[i].rgb * u_alc[i].w * light_flicker(u_alx[i])
                         * light_reach(P, n, u_al[i].xyz, u_al[i].w, u_ald[i]);
             }
+            if (u_wn.y > 0.5)
+                for (int i = 0; i < 4; i++) {
+                    if (float(i) >= u_wn.x) break;
+                    wpatch += u_wc[i].rgb * window_light(P, n, i);
+                }
         }
     }
     float mk = 0.0, mkp = 0.0;   // the tool's markers: the lights, the picked one
@@ -210,6 +263,7 @@ void main()
         }
     }
     if (u_lightview.y > 0.5) { o = vec4(src * 0.15 + vec3(min(fire.x, 1.0)) + placed, 1.0); return; }
+    if (u_lightview.z > 0.5) { o = vec4(src * 0.15 + wpatch, 1.0); return; }
 
     if (u_lightview.x > 0.5) { o = vec4(src * 0.25 + l * max(m, spr), 1.0); return; }
     // the area's ambient: the scenery and the sprites darker where no light
@@ -225,7 +279,14 @@ void main()
     add += src * fc + 0.15 * fc;
     vec3 pc = placed * (m > 0.5 ? 1.0 : spr);
     add += src0 * pc + 0.08 * pc;
+    vec3 wp = wpatch * (m > 0.5 ? 1.0 : 0.5 * spr);
+    add += src0 * wp * 1.7 + 0.10 * wp;
     vec3 c = src + add * (1.0 - src);
+    if (u_wn.y > 0.5 && (m > 0.5 || is_spr)) {   // the shafts' lit air and dust, screened over
+        vec4 sh = texture(u_sh, v_uv);
+        vec3 air = sh.rgb + sh.a * (u_wn.x > 0.5 ? u_wc[0].rgb : vec3(1.0)) * 1.5;
+        c = 1.0 - (1.0 - c) * (1.0 - clamp(air, 0.0, 1.0));
+    }
     c = mix(c, vec3(1.0), mk * 0.85);
     c = mix(c, vec3(1.0, 0.75, 0.2), mkp);
     o = vec4(c, 1.0);

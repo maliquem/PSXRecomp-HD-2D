@@ -36,7 +36,7 @@
 extern "C" {
 #endif
 
-enum { PFX_MAX_PASSES = 16, PFX_MAX_INPUTS = 6, PFX_MAX_UNIFORMS = 12, PFX_NAME = 32 };
+enum { PFX_MAX_PASSES = 16, PFX_MAX_INPUTS = 8, PFX_MAX_UNIFORMS = 12, PFX_NAME = 32 };
 /* Input sources; a value >= 0 is an earlier pass's index. */
 enum { PFX_IN_SOURCE = -1, PFX_IN_MASK = -2, PFX_IN_SOURCE_DOWN = -3, PFX_IN_MASK3D = -4, PFX_IN_DEPTH = -5,
        PFX_IN_SHADOW = -6, PFX_IN_SPRITE = -7, PFX_IN_SPRSHADOW = -8, PFX_IN_FIREMAP = -9 };

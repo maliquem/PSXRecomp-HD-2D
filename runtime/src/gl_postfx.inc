@@ -2170,9 +2170,16 @@ static int   s_fl_n = 0, s_fl_nfire = 0;
  * places in view space (y up), colours, spots and flickers, as the fire
  * lights'; the area's ambient (rgb, w 1 = set); the markers (TCP area_lights
  * "mark": the picked light, -1 none, -2 off). */
-enum { AL_CAST_MAX = 2, AL_FREE_MAX = 8 };
+enum { AL_CAST_MAX = 2, AL_FREE_MAX = 8, AL_WIN_MAX = 4 };
 static float s_al_view[AL_FREE_MAX][4], s_al_col[AL_FREE_MAX][4], s_al_dir[AL_FREE_MAX][4], s_al_ext[AL_FREE_MAX][4];
 static int   s_al_n = 0;
+/* The area's windows (view space, y up): a corner (w: how far the light goes
+ * in, down to the scene's lowest point), its width and height edges (w: its
+ * panes across and down), the way the light travels (w 1), its colour now
+ * (day's toward moonlight by the night's share; w: its dust); u_wn: count,
+ * quality (u_shaft.x, or 2 while a tool edits). */
+static float s_alw[AL_WIN_MAX][5][4];
+static int   s_alw_n = 0, s_alw_q = 0;
 static float s_al_amb[4];
 static _Atomic int s_al_mark = -2;
 static _Atomic int s_al_force = 0;   /* a tool edits them: on whatever u_placed says */
@@ -2181,6 +2188,18 @@ void gl_renderer_area_lights_force(int on) { atomic_store(&s_al_force, on ? 1 : 
 /* the light chain (a pass reading `firemap`) ran in the last presents: the
  * placed lights can show */
 int gl_renderer_area_lights_running(void) { return s_pfx_presents - s_fire_built <= 4u; }
+/* TCP area_lights: the windows as last drawn (view space), for checks */
+int gl_renderer_area_windows_json(char *out, int cap) {
+    int k = snprintf(out, (size_t)cap, "\"windows\":{\"n\":%d,\"q\":%d,\"lights\":%d,\"w\":[", s_alw_n, s_alw_q, s_al_n);
+    for (int i = 0; i < s_alw_n && k < cap - 400; i++) {
+        k += snprintf(out + k, (size_t)(cap - k), "%s[", i ? "," : "");
+        for (int j = 0; j < 5; j++)
+            k += snprintf(out + k, (size_t)(cap - k), "%s%.1f,%.1f,%.1f,%.2f", j ? "," : "", s_alw[i][j][0], s_alw[i][j][1],
+                          s_alw[i][j][2], s_alw[i][j][3]);
+        k += snprintf(out + k, (size_t)(cap - k), "]");
+    }
+    return k + snprintf(out + k, (size_t)(cap - k), "]}");
+}
 /* A fire light cast shadows in the last present (gpu.c: the game's own blob
  * shadows are hidden then, as under the sun). */
 /* a fire light cast in the last presents (the chain may be gone since) */
@@ -2190,6 +2209,35 @@ static void al_view(const float *w, float *P) {
     const float *r = s_cam_r;
     for (int c = 0; c < 3; c++) P[c] = r[c * 3] * w[0] + r[c * 3 + 1] * w[1] + r[c * 3 + 2] * w[2] + s_cam_t[c];
     P[1] = -P[1];
+}
+/* world way -> view space (y up) */
+static void al_view_dir(const float *d, float *o) {
+    const float *r = s_cam_r;
+    for (int c = 0; c < 3; c++) o[c] = r[c * 3] * d[0] + r[c * 3 + 1] * d[1] + r[c * 3 + 2] * d[2];
+    o[1] = -o[1];
+}
+/* the presented picture's world up (view space, y up) and the sun's way at
+ * (az, el) as the sun passes place it (toward the light) */
+static void al_up(float *u) {
+    const float *r = s_cam_r;
+    u[0] = r[1]; u[1] = -r[4]; u[2] = r[7];
+    if (u[1] < 0.0f) { u[0] = -u[0]; u[1] = -u[1]; u[2] = -u[2]; }
+}
+static void al_sun_way(float az, float el, float *L) {
+    const float *r = s_cam_r;
+    float e[3] = {r[0], -r[3], r[6]}, u[3];
+    al_up(u);
+    const float eu = e[0] * u[0] + e[1] * u[1] + e[2] * u[2];
+    float rt[3] = {e[0] - u[0] * eu, e[1] - u[1] * eu, e[2] - u[2] * eu};
+    const float rl = sqrtf(rt[0] * rt[0] + rt[1] * rt[1] + rt[2] * rt[2]);
+    if (rl > 1e-4f) for (int i = 0; i < 3; i++) rt[i] /= rl;
+    const float fw[3] = {rt[1] * u[2] - rt[2] * u[1], rt[2] * u[0] - rt[0] * u[2], rt[0] * u[1] - rt[1] * u[0]};
+    const float a = az * 0.01745329f, b = el * 0.01745329f;
+    for (int i = 0; i < 3; i++) L[i] = u[i] * sinf(b) + (rt[i] * cosf(a) + fw[i] * sinf(a)) * cosf(b);
+}
+static void al_norm(float *v) {
+    const float l = sqrtf(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
+    if (l > 1e-6f) for (int i = 0; i < 3; i++) v[i] /= l;
 }
 /* how much of a light shows by the night's share (its "when") */
 static float al_when(int when) {
@@ -2201,11 +2249,74 @@ static float al_when(int when) {
 static int pfx_area_lights_prep(const PfxPass *ps, int nl, float *mapd) {
     s_al_n = 0;
     s_al_amb[3] = 0.0f;
+    s_alw_n = 0;
     const float *on = pfx_pass_uniform(ps, "u_placed");
-    if ((!on || on[0] <= 0.0f) && !atomic_load(&s_al_force)) return nl;
+    const int force = atomic_load(&s_al_force);
+    if ((!on || on[0] <= 0.0f) && !force) return nl;
     static AreaLightSet set;
     if (!area_lights_get(gpu_shadow_current_area(), &set)) return nl;
     const float n = s_night_f;
+    {   /* the windows: their light comes in when shafts are on (u_shaft.x 1 Low, 2 High) */
+        const float *sh = pfx_pass_uniform(ps, "u_shaft");
+        s_alw_q = force ? 2 : sh ? (int)(sh[0] + 0.5f) : 0;
+        float up[3], hmin = 1e30f;
+        al_up(up);
+        const ScSlot *sc = sc_presented();
+        const float h = s_cam_h, k = h > 0.0f ? 1.0f / h : 0.0f;
+        for (int t = 0; sc && s_alw_q > 0 && t < sc->n * 3; t++) {   /* the scene's lowest point (its floor) */
+            const float *v = sc->v + (size_t)t * SC_V;
+            if (v[2] < 1.0f) continue;
+            const float P[3] = {(v[0] - s_sc_cx) * v[2] * k, -(v[1] - s_sc_cy) * v[2] * k, v[2]};
+            const float hh = P[0] * up[0] + P[1] * up[1] + P[2] * up[2];
+            if (hh < hmin) hmin = hh;
+        }
+        for (int i = 0; i < set.n && s_alw_q > 0 && s_alw_n < AL_WIN_MAX; i++) {
+            const AreaLight *l = &set.l[i];
+            if (l->kind != AREA_LIGHT_WINDOW) continue;
+            const float kw = l->power * al_when(l->when);
+            if (kw <= 0.0f) continue;
+            float O[3], A[3], B[3], U[3], V[3], D[3], N[3];
+            al_view(l->p, O); al_view(l->a, A); al_view(l->b, B);
+            for (int c = 0; c < 3; c++) { U[c] = A[c] - O[c]; V[c] = B[c] - O[c]; }
+            N[0] = U[1] * V[2] - U[2] * V[1]; N[1] = U[2] * V[0] - U[0] * V[2]; N[2] = U[0] * V[1] - U[1] * V[0];
+            al_norm(N);
+            if (N[0] * O[0] + N[1] * O[1] + N[2] * O[2] > 0.0f) for (int c = 0; c < 3; c++) N[c] = -N[c];   /* into the room: toward the camera */
+            float az = l->az, el = l->el;
+            const int moon_now = l->src == AREA_SRC_MOON || (l->src == AREA_SRC_SUN && n > 0.5f);
+            if (l->has_dir) al_view_dir(l->dir, D);
+            else if (l->own_dir || (moon_now && gpu_shadow_moon_area(&az, &el)) ||
+                     (l->src != AREA_SRC_MOON && gpu_shadow_sun_area(&az, &el))) {
+                float L[3];
+                al_sun_way(az, el, L);
+                for (int c = 0; c < 3; c++) D[c] = -L[c];
+            } else {
+                for (int c = 0; c < 3; c++) D[c] = N[c] * 0.8f - up[c] * 0.6f;   /* straight in and down */
+            }
+            al_norm(D);
+            const float dn = D[0] * N[0] + D[1] * N[1] + D[2] * N[2];
+            if (dn < 0.05f) continue;   /* the light from the room's side: none comes in */
+            /* how far in: from its highest corner down to the scene's lowest point */
+            float top = -1e30f;
+            for (int c = 0; c < 4; c++) {
+                const float X[3] = {O[0] + (c & 1 ? U[0] : 0.0f) + (c & 2 ? V[0] : 0.0f), O[1] + (c & 1 ? U[1] : 0.0f) + (c & 2 ? V[1] : 0.0f),
+                                    O[2] + (c & 1 ? U[2] : 0.0f) + (c & 2 ? V[2] : 0.0f)};
+                top = fmaxf(top, X[0] * up[0] + X[1] * up[1] + X[2] * up[2]);
+            }
+            const float down = -(D[0] * up[0] + D[1] * up[1] + D[2] * up[2]);
+            float tmax = 3000.0f;
+            if (hmin < 1e29f && down > 0.05f) tmax = fminf(3000.0f, (top - hmin) / down + 20.0f);
+            /* the day's colour, toward moonlight by the night's share (a moon window: moonlight) */
+            static const float moon[3] = {0.55f, 0.68f, 1.0f};
+            const float nn = l->src == AREA_SRC_MOON ? 1.0f : l->src == AREA_SRC_FIXED ? 0.0f : n;
+            float (*w)[4] = s_alw[s_alw_n];
+            for (int c = 0; c < 3; c++) {
+                w[0][c] = O[c]; w[1][c] = U[c]; w[2][c] = V[c]; w[3][c] = D[c];
+                w[4][c] = kw * (l->col[c] + (moon[c] * 0.45f - l->col[c]) * nn);
+            }
+            w[0][3] = tmax; w[1][3] = (float)l->cols; w[2][3] = (float)l->rows; w[3][3] = 1.0f; w[4][3] = l->dust;
+            s_alw_n++;
+        }
+    }
     if (set.has_amb)
         for (int c = 0; c < 3; c++) s_al_amb[c] = set.amb[c] + (set.amb_night[c] - set.amb[c]) * n;
     s_al_amb[3] = set.has_amb ? 1.0f : 0.0f;
@@ -2247,6 +2358,7 @@ static void pfx_fire_build(const PfxPass *ps, float aspect, int lw, int lh) {
     s_fl_n = s_fl_nfire = 0;
     s_al_n = 0;
     s_al_amb[3] = 0.0f;
+    s_alw_n = 0;
     const float *fcol = pfx_pass_uniform(ps, "u_firecol");
     const int fire_on = !(fcol && fcol[3] <= 0.0f);   /* the fire lights off (menu) */
     const float *pon = pfx_pass_uniform(ps, "u_placed");
@@ -2450,6 +2562,19 @@ static void pfx_fire_uniforms(GLuint prog) {
     if ((loc = p_glGetUniformLocation(prog, "u_aln")) >= 0)
         p_glUniform4f(loc, (float)s_al_n, mark >= -1 ? 1.0f : 0.0f, (float)mark, 0.0f);
     if ((loc = p_glGetUniformLocation(prog, "u_alamb")) >= 0) p_glUniform4fv(loc, 1, s_al_amb);
+    {   /* the windows (u_win, u_wu, u_wv, u_wd, u_wc; u_wn count and quality) */
+        static const char *const wn[5] = {"u_win", "u_wu", "u_wv", "u_wd", "u_wc"};
+        float wv[5][AL_WIN_MAX][4];
+        for (int i = 0; i < s_alw_n; i++)
+            for (int k = 0; k < 5; k++) {
+                memcpy(wv[k][i], s_alw[i][k], sizeof wv[k][i]);
+                if (s_pfx_vx_on && k == 0) pfx_vx_point(s_alw[i][k], wv[k][i]);
+                else if (s_pfx_vx_on && k < 4) pfx_vx_dir(s_alw[i][k], wv[k][i]);
+            }
+        for (int k = 0; k < 5 && s_alw_n > 0; k++)
+            if ((loc = p_glGetUniformLocation(prog, wn[k])) >= 0) p_glUniform4fv(loc, s_alw_n, &wv[k][0][0]);
+        if ((loc = p_glGetUniformLocation(prog, "u_wn")) >= 0) p_glUniform4f(loc, (float)s_alw_n, (float)s_alw_q, 0.0f, 0.0f);
+    }
 }
 /* The window's (fx, fy: 0..1 of its client area from the top left; aspect:
  * its height over its width) place on the presented picture (0..1), from the

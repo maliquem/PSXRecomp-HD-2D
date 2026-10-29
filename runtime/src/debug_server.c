@@ -8950,12 +8950,15 @@ static void handle_area_lights(int id, const char *json)
     for (int i = 0; i < na; i++) kl += snprintf(list + kl, sizeof list - (size_t)kl, "%s\"0x%08x\"", i ? "," : "", (unsigned)areas[i]);
     float cam[9] = {0.0f};
     const int cam_ok = gl_renderer_area_camera(cam);
+    extern int gl_renderer_area_windows_json(char *out, int cap);
+    static char wins[2048];
+    gl_renderer_area_windows_json(wins, (int)sizeof wins);
     send_fmt("{\"id\":%d,\"ok\":true,\"area\":\"0x%08x\",\"current\":\"0x%08x\",\"night\":%.3f,\"version\":%u,"
              "\"running\":%d,\"camera\":[%d,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.0f,%.0f,%.0f],"
-             "\"areas\":[%s],\"text\":\"%s\"}",
+             "\"areas\":[%s],%s,\"text\":\"%s\"}",
              id, (unsigned)area, (unsigned)cur, gl_renderer_night(), area_lights_version(),
              gl_renderer_area_lights_running(), cam_ok, cam[0], cam[1], cam[2], cam[3], cam[4], cam[5], cam[6], cam[7], cam[8],
-             list, esc);
+             list, wins, esc);
 }
 
 /* sprite_dump: the foot points and 2D pieces of the picture on screen

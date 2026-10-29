@@ -13,11 +13,14 @@
  *   0xAREA amb R G B [night R G B]
  *   0xAREA point X Y Z [color R G B] [power F] [reach A] [shadow] [flicker F] [when day|night|always]
  *   0xAREA spot X Y Z at X Y Z [cone DEG] (then as point)
- *   0xAREA window X Y Z  X Y Z  X Y Z [panes C R] [light sun|moon|fixed [AZ EL]] [color R G B]
- *                [power F] [dust F] [when ...]
+ *   0xAREA window X Y Z  X Y Z  X Y Z [panes C R] [light sun|moon|fixed [AZ EL]] [dir X Y Z]
+ *                [color R G B] [power F] [dust F] [when ...]
  *
  * A window is the corner X Y Z, the corner along its width, the corner along
- * its height. '#' starts a note, kept with the light. */
+ * its height; the light goes through it along dir (the world way it travels),
+ * else from the area's sun (or moon), else straight in and down. Its colour
+ * is the day's; at night (the night's share) it turns to moonlight. '#'
+ * starts a note, kept with the light. */
 #include <stdint.h>
 
 #ifdef __cplusplus
@@ -41,6 +44,8 @@ typedef struct {
     int   src;            /* window: sun, moon or a fixed direction */
     int   own_dir;        /* its own direction (az, el, degrees as sun_areas'), over the area's sun or moon */
     float az, el, dust;
+    int   has_dir;        /* window: dir set */
+    float dir[3];         /* window: the way its light travels (world) */
     char  note[AREA_LIGHT_NOTE];
 } AreaLight;
 

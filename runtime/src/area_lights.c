@@ -126,6 +126,7 @@ static int al_parse_line(char *line, AreaLightSet *set, uint32_t *area_out, char
         else if (strcmp(t, "cone") == 0) ok = al_num(&w, &l.cone);
         else if (strcmp(t, "shadow") == 0) l.shadow = 1;
         else if (strcmp(t, "at") == 0) ok = al_nums(&w, l.a, 3);
+        else if (strcmp(t, "dir") == 0) { ok = al_nums(&w, l.dir, 3); l.has_dir = ok; }
         else if (strcmp(t, "panes") == 0) {
             float c[2];
             ok = al_nums(&w, c, 2);
@@ -145,10 +146,15 @@ static int al_parse_line(char *line, AreaLightSet *set, uint32_t *area_out, char
             ok = ok && l.src >= 0;
             /* a direction of its own (a fixed light's, or one over the area's sun) */
             if (ok) {
-                Words save = w;
+                const char *q = w.p;   /* looked at without cutting it: a number next? */
+                while (*q && isspace((unsigned char)*q)) q++;
+                char *e;
+                (void)strtof(q, &e);
                 float d[2];
-                if (al_nums(&w, d, 2)) { l.az = d[0]; l.el = d[1]; l.own_dir = 1; }
-                else { w = save; ok = l.src != AREA_SRC_FIXED; }
+                if (e != q && (*e == '\0' || isspace((unsigned char)*e))) {
+                    ok = al_nums(&w, d, 2);
+                    if (ok) { l.az = d[0]; l.el = d[1]; l.own_dir = 1; }
+                } else ok = l.src != AREA_SRC_FIXED;
             }
         } else ok = 0;
         if (!ok) { snprintf(err, (size_t)errcap, "%s: bad or unknown '%s'", kind == AREA_LIGHT_WINDOW ? "window" : "light", t); return 0; }
@@ -241,6 +247,7 @@ static int al_put_light(char *out, int cap, int k, uint32_t area, const AreaLigh
                    l->b[0], l->b[1], l->b[2], l->cols, l->rows, sn[l->src]);
     if (l->kind == AREA_LIGHT_WINDOW && l->own_dir)
         k = al_put(out, cap, k, " %.1f %.1f", l->az, l->el);
+    if (l->kind == AREA_LIGHT_WINDOW && l->has_dir) k = al_put(out, cap, k, " dir %.3f %.3f %.3f", l->dir[0], l->dir[1], l->dir[2]);
     if (l->kind == AREA_LIGHT_SPOT)
         k = al_put(out, cap, k, " at %.1f %.1f %.1f cone %.1f", l->a[0], l->a[1], l->a[2], l->cone);
     k = al_put(out, cap, k, " color %.2f %.2f %.2f power %.2f", l->col[0], l->col[1], l->col[2], l->power);
