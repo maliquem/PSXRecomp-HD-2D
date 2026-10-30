@@ -79,9 +79,15 @@ static inline int psx_edge_idle_site(uint32_t pc) {
     return 0;
 }
 
+/* The edge publishes the batched cycles first, in every case (it takes over the
+ * emitters' psx_cyc_bb_defer_flush, below). flatten: the publish is inline here
+ * (it was a call of its own per edge, ~3% of the game thread). */
+#if defined(__clang__) || defined(__GNUC__)
+__attribute__((flatten))
+#endif
 static inline void psx_check_interrupts_at_inline(CPUState* cpu, uint32_t resume_pc) {
+    psx_cyc_batch_flush();
     if (!g_psx_guest_time_frozen) {
-        psx_cyc_batch_flush();
         const uint32_t sw = cpu->cop0[13] & cpu->cop0[12] & 0x0300u;
         if (((i_stat & i_mask) | sw) == 0u &&
             !(g_psx_in_exception | g_psx_defer_switch_pending | g_psx_netplay_seen |
@@ -124,6 +130,11 @@ static inline void psx_check_interrupts_at_inline(CPUState* cpu, uint32_t resume
 
 #if !defined(PSX_EDGE_IMPL)
 #define psx_check_interrupts_at(cpu, pc) psx_check_interrupts_at_inline((cpu), (pc))
+/* The emitters write psx_cyc_bb_defer_flush() right before every
+ * psx_check_interrupts_at (BoF4: 11968 of 11968 in the generated code), and
+ * the edge above publishes the same batch first thing: one call per edge.
+ * (The publish used to repeat inside the check, then a no-op.) */
+#define psx_cyc_bb_defer_flush() ((void)0)
 #endif
 
 /* The emitters' cycle charge, about one for every two guest instructions.
