@@ -96,6 +96,21 @@ static PGXPValue  s_gpr[34];                  /* 32 GPRs + HI + LO            */
 static PGXPValue  s_gte[32];                  /* GTE data registers           */
 static PGXPValue  s_gtc[32];                  /* GTE control registers (CTC2) */
 
+/* Light memory mode ([video] pgxp_mem = "live", PSX_PGXP_MEM=live; stage C2.3
+ * of the game's performance plan). Not exact: one bit per shadow slot (RAM +
+ * mod regions, then the scratchpad) that may carry a tracked half, set
+ * wherever a slot can gain one and cleared only with the generation outside
+ * render passes. A word load from an unmarked slot resets the register's
+ * shadow without touching the slot (the engine would copy a slot with no
+ * tracked half, or reset), and a word store of a register with no tracked half
+ * into an unmarked slot leaves the slot alone (the engine would write a "known
+ * word, no precision" slot). Nothing with a tracked half is ever skipped; what
+ * differs is only the untracked bookkeeping, so the store ring and the value
+ * the untracked slots remember. */
+static uint8_t *s_live_bits = nullptr;
+static int      s_mem_live = 0;
+static void live_clear(void);
+
 /* Scalar tier (cpu-mode). Engines also use the GTE as a multiplier for
  * vertex arithmetic: Ape Escape's terrain subdivider packs two projected X
  * (or Y) halves into a light-matrix row with CTC2, weights them with MVMVA
@@ -147,6 +162,8 @@ extern "C" void pgxp_invalidate_all(void) {
         ck_wrapped();
         /* generation wrapped: physically clear so stale slots can't revive */
         if (s_ram) std::memset(s_ram, 0, PGXP_SHADOW_WORDS * sizeof(PGXPValue));
+        if (s_live_bits)
+            std::memset(s_live_bits, 0, ((size_t)PGXP_SHADOW_WORDS + PGXP_SCRATCH_WORDS + 7u) / 8u);
         std::memset(s_scratch, 0, sizeof(s_scratch));
         std::memset(s_gpr, 0, sizeof(s_gpr));
         std::memset(s_gte, 0, sizeof(s_gte));
@@ -156,6 +173,7 @@ extern "C" void pgxp_invalidate_all(void) {
         std::memset(s_gtc_s, 0, sizeof(s_gtc_s));
         s_gen = 1;
     }
+    live_clear();
 }
 
 extern "C" void pgxp_set_enabled(int enabled) {
@@ -165,6 +183,9 @@ extern "C" void pgxp_set_enabled(int enabled) {
                                                       sizeof(PGXPStoreRecord));
     if (enabled && !s_ram) {
         s_ram = (PGXPValue *)std::calloc(PGXP_SHADOW_WORDS, sizeof(PGXPValue));
+        if (!s_live_bits)
+            s_live_bits = (uint8_t *)std::calloc(
+                ((size_t)PGXP_SHADOW_WORDS + PGXP_SCRATCH_WORDS + 7u) / 8u, 1);
         if (s_ram)
             resized = 1;
         else
@@ -410,6 +431,26 @@ static void ck_wrapped(void) {
 
 static int ck_in_pass(void) { return s_ck_depth != 0; }
 
+/* Light mode bits (see s_live_bits). A pass rolls the generation back, so
+ * the bits outlive it; stale bits only route an access to the full path. */
+static void live_clear(void) {
+    if (s_live_bits && s_ck_depth == 0)
+        std::memset(s_live_bits, 0, ((size_t)PGXP_SHADOW_WORDS + PGXP_SCRATCH_WORDS + 7u) / 8u);
+}
+static inline void live_mark(const PGXPValue *pv) {
+    if (!s_live_bits || !pv || !(pv->flags & PGXP_F_VXY)) return;
+    const size_t i = ck_index(pv);
+    s_live_bits[i >> 3] |= (uint8_t)(1u << (i & 7u));
+}
+static inline int live_marked(const PGXPValue *pv) {
+    if (!pv) return 0;
+    if (!s_live_bits) return 1;
+    const size_t i = ck_index(pv);
+    return (s_live_bits[i >> 3] >> (i & 7u)) & 1u;
+}
+extern "C" void pgxp_set_mem_live(int enabled) { s_mem_live = enabled ? 1 : 0; }
+extern "C" int  pgxp_mem_live(void) { return s_mem_live; }
+
 static inline PGXPValue *pgxp_ptr_w(uint32_t addr) {
     PGXPValue *pv = pgxp_ptr(addr);
     ck_note(pv, addr);
@@ -480,6 +521,7 @@ static int restore_word_shadow(uint32_t addr, uint32_t expected,
         restored.projection = in->projection;
     }
     *destination = restored;
+    live_mark(destination);
     return 1;
 }
 
@@ -520,6 +562,7 @@ extern "C" void pgxp_checkpoint_rollback(void) {
     for (size_t i = s_ck_n; i-- > 0;) {
         PGXPJournalEntry *e = &s_ck_log[i];
         *e->slot = e->old;
+        live_mark(e->slot);
         size_t k = e->index;
         s_ck_bits[k >> 3] &= (uint8_t)~(1u << (k & 7u));
     }
@@ -666,6 +709,11 @@ extern "C" void psx_pgxp_load(struct CPUState *cpu, uint32_t instr,
     if (!g_pgxp_active) return;
     uint32_t rt = f_rt(instr);
     if (rt == 0) return;
+    if (s_mem_live && f_op(instr) == 0x23 && !live_marked(pgxp_ptr(addr))) {
+        gpr_written(rt);                       /* memory carries no scalars   */
+        pv_reset(&s_gpr[rt], value);
+        return;
+    }
     PGXPValue *dst = &s_gpr[rt];
     gpr_written(rt);                           /* memory carries no scalars   */
 
@@ -715,10 +763,24 @@ extern "C" void psx_pgxp_load(struct CPUState *cpu, uint32_t instr,
     }
 }
 
+static void pgxp_store_impl(uint32_t instr, uint32_t addr, uint32_t value);
+
 extern "C" void psx_pgxp_store(struct CPUState *cpu, uint32_t instr,
                                uint32_t addr, uint32_t value) {
     (void)cpu;
     if (!g_pgxp_active) return;
+    if (s_mem_live && f_op(instr) == 0x2B && !s_cpu_mode) {
+        const uint32_t rt = f_rt(instr);
+        const PGXPValue *src = rt ? &s_gpr[rt] : nullptr;
+        if (!(src && src->gen == s_gen && (src->flags & PGXP_F_VXY)) &&
+            !live_marked(pgxp_ptr(addr)))
+            return;
+    }
+    pgxp_store_impl(instr, addr, value);
+    live_mark(pgxp_ptr(addr));
+}
+
+static void pgxp_store_impl(uint32_t instr, uint32_t addr, uint32_t value) {
     PGXPValue *dst = pgxp_ptr_w(addr);
     if (!dst) return;
     uint32_t rt = f_rt(instr);
@@ -811,10 +873,17 @@ extern "C" void psx_pgxp_store(struct CPUState *cpu, uint32_t instr,
 /* Memory-mode hooks: COP2 transfers                                          */
 /* ------------------------------------------------------------------------- */
 
+static void pgxp_cop2_impl(uint32_t instr, uint32_t value, uint32_t addr);
+
 extern "C" void psx_pgxp_cop2(struct CPUState *cpu, uint32_t instr,
                               uint32_t value, uint32_t addr) {
     (void)cpu;
     if (!g_pgxp_active) return;
+    pgxp_cop2_impl(instr, value, addr);
+    if (f_op(instr) == 0x3A) live_mark(pgxp_ptr(addr));   /* SWC2 */
+}
+
+static void pgxp_cop2_impl(uint32_t instr, uint32_t value, uint32_t addr) {
 
     switch (f_op(instr)) {
     case 0x32: {                               /* LWC2: gte[rt] <- [addr]     */
@@ -1840,6 +1909,7 @@ extern "C" void pgxp_store_gte_reg(uint32_t addr, uint8_t reg) {
     if (src->gen != s_gen) return;
     s_stats.swc2_stores++;
     *dst = *src;
+    live_mark(dst);
 }
 
 extern "C" int pgxp_store_flagged_gte_sxy(uint32_t addr, uint8_t reg,
@@ -1860,6 +1930,7 @@ extern "C" int pgxp_store_flagged_gte_sxy(uint32_t addr, uint8_t reg,
     dst->value = stored_word;
     dst->x16 = (int32_t)x;
     dst->y16 = (int32_t)y;
+    live_mark(dst);
     return 1;
 }
 

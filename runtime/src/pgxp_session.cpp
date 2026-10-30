@@ -41,10 +41,13 @@ extern "C" void psx_pgxp_store_masked(struct CPUState* cpu, uint32_t instr, uint
     if (PGXP_MEM_ON(instr)) psx_pgxp_store(cpu, instr, addr, value);
 }
 
+extern "C" void pgxp_set_mem_live(int enabled);   /* pgxp.cpp, stage C2.3 */
+
 static uint32_t pgxp_mem_skip_from(const char* e, int mem_words) {
     if (e && *e) {
         if (std::strcmp(e, "all") == 0) return 0u;
         if (std::strcmp(e, "words") == 0) return PGXP_MEM_SKIP_WORDS;
+        if (std::strcmp(e, "live") == 0) return PGXP_MEM_SKIP_WORDS;   /* + light mode */
         return (uint32_t)std::strtoul(e, nullptr, 0);
     }
     return mem_words ? PGXP_MEM_SKIP_WORDS : 0u;
@@ -101,6 +104,10 @@ extern "C" PSXPgxpSessionArm psx_pgxp_session_arm(
     pgxp_set_cpu_mode(arm.cpu_mode);
     s_pgxp_alu_configured = pgxp_alu_mask_from(std::getenv("PSX_PGXP_ALU"), config->alu_light);
     s_pgxp_mem_configured = pgxp_mem_skip_from(std::getenv("PSX_PGXP_MEM"), config->mem_words);
+    {
+        const char* m = std::getenv("PSX_PGXP_MEM");
+        pgxp_set_mem_live(m && std::strcmp(m, "live") == 0);
+    }
     psx_pgxp_alu_cpu_mode(arm.cpu_mode);
     if (used) *used = in;
     return arm;
