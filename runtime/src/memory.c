@@ -569,9 +569,17 @@ static inline int text_line_marked(uint32_t off) {
     const uint32_t l = off >> TEXT_LINE_SHIFT;
     return (text_line_bitmap[l >> 5] >> (l & 31u)) & 1u;
 }
+/* Validation generation (dirty_ram_text_native_ok_ranges_from's cache): bumped
+ * whenever a range that compared equal could stop doing so — a line newly
+ * marked, a page newly modified, the marks rebuilt. (A page turning dirty bumps
+ * g_dirty_ram_code_gen.) Unmarking a line that compared equal needs nothing. */
+static uint32_t s_text_ok_gen = 1;
 static inline void text_line_mark(uint32_t off) {
-    const uint32_t l = off >> TEXT_LINE_SHIFT;
-    text_line_bitmap[l >> 5] |= 1u << (l & 31u);
+    const uint32_t l = off >> TEXT_LINE_SHIFT, m = 1u << (l & 31u);
+    if (!(text_line_bitmap[l >> 5] & m)) {
+        text_line_bitmap[l >> 5] |= m;
+        s_text_ok_gen++;
+    }
 }
 static void text_lines_mark_range(uint32_t lo, uint32_t len) {
     if (!text_ref_image || len == 0 || lo >= text_ref_hi || lo + len <= text_ref_lo) return;
@@ -583,6 +591,7 @@ static void text_lines_mark_range(uint32_t lo, uint32_t len) {
 }
 /* Every line of the reference range that differs, from the bytes. */
 static void text_lines_recompute(void) {
+    s_text_ok_gen++;
     memset(text_line_bitmap, 0, sizeof(text_line_bitmap));
     if (!text_ref_image || text_ref_hi <= text_ref_lo) return;
     for (uint32_t a = text_ref_lo & ~(TEXT_LINE_BYTES - 1u); a < text_ref_hi; a += TEXT_LINE_BYTES) {
@@ -632,6 +641,7 @@ static inline void text_guard_note_write(uint32_t phys, uint32_t val, int size) 
                        (uint8_t)(val >> 16), (uint8_t)(val >> 24) };
     if (memcmp(ref, buf, (size_t)size) != 0) {
         uint32_t page = phys >> DIRTY_RAM_PAGE_SHIFT;
+        if (!(text_modified_bitmap[page >> 5] & (1u << (page & 31u)))) s_text_ok_gen++;
         text_modified_bitmap[page >> 5] |= (1u << (page & 31u));
         text_line_mark(phys);
     }
@@ -703,6 +713,11 @@ uint64_t g_text_ok_cmp_calls, g_text_ok_cmp_bytes;
 static const uint32_t *s_text_ok_pairs;
 static uint32_t s_text_ok_count, s_text_ok_batch, s_text_ok_codegen;
 static uint64_t s_text_ok_cycle, s_text_ok_stores;
+/* Entries that passed, by their range list (direct-mapped). */
+#define TEXT_OK_CACHE_N 1024u
+typedef struct { const uint32_t *pairs; uint32_t count, text_gen, code_gen; } TextOkCache;
+static TextOkCache s_text_ok_cache[TEXT_OK_CACHE_N];
+uint64_t g_text_ok_cache_hits;   /* TCP core_rates */
 extern uint64_t g_guest_store_count;   /* below: every guest and host store */
 
 int dirty_ram_text_native_ok_ranges_from(const uint32_t *lo_len_pairs,
@@ -716,6 +731,15 @@ int dirty_ram_text_native_ok_ranges_from(const uint32_t *lo_len_pairs,
         g_guest_store_count == s_text_ok_stores && g_dirty_ram_code_gen == s_text_ok_codegen &&
         !(g_psx_cyc_local_acc && *g_psx_cyc_local_acc))
         return 1;
+    /* An entry that passed keeps passing while no line, page mark or dirty page
+     * changed since (both generations). Only passes are remembered. */
+    TextOkCache *const ce = &s_text_ok_cache[((uintptr_t)lo_len_pairs >> 3) & (TEXT_OK_CACHE_N - 1u)];
+    if (ce->pairs == lo_len_pairs && ce->count == count &&
+        ce->text_gen == s_text_ok_gen && ce->code_gen == g_dirty_ram_code_gen) {
+        g_text_ok_cache_hits++;
+        return 1;
+    }
+    const uint32_t gen_text = s_text_ok_gen, gen_code = g_dirty_ram_code_gen;
     int any = 0;
     for (uint32_t i = 0; i < count; i++) {
         uint32_t phys = lo_len_pairs[i * 2u] & 0x1FFFFFFFu;
@@ -784,6 +808,14 @@ int dirty_ram_text_native_ok_ranges_from(const uint32_t *lo_len_pairs,
     if (!any) {
         g_text_native_blocked++;
         return 0;
+    }
+    /* The generations as they were before this pass: a line this pass found
+     * equal and unmarked does not bump; one it marked cannot (it only unmarks). */
+    if (gen_text == s_text_ok_gen && gen_code == g_dirty_ram_code_gen) {
+        ce->pairs = lo_len_pairs;
+        ce->count = count;
+        ce->text_gen = gen_text;
+        ce->code_gen = gen_code;
     }
     s_text_ok_pairs = lo_len_pairs;
     s_text_ok_count = count;
