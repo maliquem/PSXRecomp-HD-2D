@@ -15,6 +15,7 @@
 #elif !defined(_POSIX_C_SOURCE)
 #  define _POSIX_C_SOURCE 200809L
 #endif
+#include "golden_hash.h"
 #include <time.h>
 #include "debug_server.h"
 #include "psx_mem_gate.h"
@@ -5079,11 +5080,43 @@ static void handle_frame(int id, const char *json)
 static int s_fp_reset_on_load = 0;
 void debug_server_note_savestate_loaded(void)
 {
+    golden_note_savestate_loaded();
     if (!s_fp_reset_on_load) return;
     s_fp_reset_on_load = 0;
     s_fp = (PsxFrameFingerprint)PSX_FRAME_FINGERPRINT_INIT;
     s_fp_head = 0;
     s_fp_total = 0;
+}
+
+/* golden — tools/golden.py: {"on":1|0} arms/disarms now, {"arm_on_load":1} from the next savestate
+ * load (frame 0 = the first frame after it), {"dump":1,"from":F,"count":N} returns the per-frame
+ * hashes (golden_hash.h). */
+static void handle_golden(int id, const char *json)
+{
+    if (json_get_int(json, "arm_on_load", 0)) { golden_arm(0, 1); send_fmt("{\"id\":%d,\"ok\":true}", id); return; }
+    int on = json_get_int(json, "on", -1);
+    if (on >= 0) { golden_arm(on, 0); send_fmt("{\"id\":%d,\"ok\":true,\"on\":%d}", id, g_golden_on); return; }
+    const GoldenEntry *ring; uint32_t cap, start;
+    int avail = golden_entries(0, 0, &ring, &cap, &start);
+    int from = json_get_int(json, "from", 0), count = json_get_int(json, "count", 1024);
+    size_t BUF = 256 + (size_t)(count > 0 ? count : 1) * 320;
+    char *out = (char *)malloc(BUF);
+    if (!out) { send_err(id, "oom"); return; }
+    size_t pos = (size_t)snprintf(out, BUF, "{\"id\":%d,\"ok\":true,\"on\":%d,\"total\":%llu,\"entries\":[",
+                                  id, g_golden_on, (unsigned long long)golden_total());
+    int k = 0;
+    for (int i = 0; i < avail && k < count && pos < BUF - 330; i++) {
+        const GoldenEntry *e = &ring[(start + (uint32_t)i) % cap];
+        if ((int)e->frame < from) continue;
+        pos += (size_t)snprintf(out + pos, BUF - pos,
+            "%s[%u,%llu,%u,%u,\"%016llx\",\"%016llx\",\"%016llx\",\"%016llx\",\"%016llx\",\"%016llx\"]",
+            k++ ? "," : "", e->frame, (unsigned long long)e->cycles, e->gpu_words, e->spu_samples,
+            (unsigned long long)e->ram, (unsigned long long)e->scratch, (unsigned long long)e->cpu,
+            (unsigned long long)e->gte, (unsigned long long)e->gpu, (unsigned long long)e->spu);
+    }
+    snprintf(out + pos, BUF - pos, "]}");
+    send_fmt("%s", out);
+    free(out);
 }
 
 static void handle_frame_fingerprint(int id, const char *json)
@@ -16613,6 +16646,7 @@ static const CmdEntry s_commands[] = {
     { "vram_drawn_check",  handle_vram_drawn_check },
     { "spu_shadow",        handle_spu_shadow },
     { "core_rates",        handle_core_rates },
+    { "golden",            handle_golden },   /* tools/golden.py */
     { "vblank_rate",       handle_vblank_rate },
     { "cycles_to_next_event", handle_cycles_to_next_event },
     { "timers_state",      handle_timers_state },
@@ -17701,6 +17735,7 @@ void debug_server_poll(void)
 
 void debug_server_record_frame(void)
 {
+    golden_frame(s_cpu);   /* tools/golden.py: no-op unless armed */
     if (s_fmv_quiet) {
         s_history_count = s_frame_count + 1;
         s_frame_count++;

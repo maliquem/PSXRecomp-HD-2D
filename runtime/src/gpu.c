@@ -10,6 +10,7 @@
  * Reference: nocash PSX specs, DuckStation src/core/gpu.cpp
  */
 
+#include "golden_hash.h"
 #include "gpu.h"
 #include "gpu_gl_renderer.h"
 #include "mod_texture_banks.h"
@@ -9466,6 +9467,7 @@ static void gpu_write_gp0_body(uint32_t val) {
  * own phase so it is separable from the guest code that issued the write.
  * Covers both the MMIO store chokepoint and DMA channel-2 feeds. */
 void gpu_write_gp0(uint32_t val) {
+    if (g_golden_on) golden_gpu_word(val, 0);   /* tools/golden.py (off by default) */
     extern int g_exec_phase;
     int prev_phase = g_exec_phase;
     g_exec_phase = 4;
@@ -9621,6 +9623,7 @@ static void gp1_get_info(uint32_t val) {
 }
 
 void gpu_write_gp1(uint32_t val) {
+    if (g_golden_on) golden_gpu_word(val, 1);   /* tools/golden.py (off by default) */
     uint32_t cmd = (val >> 24) & 0x3F;
 
     switch (cmd) {

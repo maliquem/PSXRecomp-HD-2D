@@ -16,6 +16,7 @@
  * oracle comparison can quantify them from OUTPUT, not source.
  */
 
+#include "golden_hash.h"
 #include "spu.h"
 #include "spu_gauss.h"
 #include "spu_shadow.h"
@@ -1677,6 +1678,7 @@ void spu_catch_up(void) {
     while (frames) {
         const int n = frames > 2048u ? 2048 : (int)frames;
         spu_render_block(block, n);
+        if (g_golden_on) golden_spu_block(block, (uint32_t)n);   /* tools/golden.py */
         if (keep) spu_out_push(block, (uint32_t)n);
         frames -= (uint64_t)n;
     }
