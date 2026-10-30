@@ -106,7 +106,7 @@ extern "C" PSXPgxpSessionArm psx_pgxp_session_arm(
     s_pgxp_mem_configured = pgxp_mem_skip_from(std::getenv("PSX_PGXP_MEM"), config->mem_words);
     {
         const char* m = std::getenv("PSX_PGXP_MEM");
-        pgxp_set_mem_live(m && std::strcmp(m, "live") == 0);
+        pgxp_set_mem_live((m && *m) ? std::strcmp(m, "live") == 0 : config->mem_live);
     }
     psx_pgxp_alu_cpu_mode(arm.cpu_mode);
     if (used) *used = in;

@@ -1553,6 +1553,7 @@ static int           g_video_perspective_texturing = 0;
 static int           g_video_pgxp_cpu_mode         = 0;
 static int           g_video_pgxp_alu_light        = 0;   /* [video] pgxp_alu = "moves" */
 static int           g_video_pgxp_mem_words        = 0;   /* [video] pgxp_mem = "words" */
+static int           g_video_pgxp_mem_live         = 0;   /* [video] pgxp_mem = "live" */
 static float         g_video_pgxp_tolerance        = 0.5f;
 /* game.toml [video] tuning. Session arming selects dataflow-only/no-clamp
  * defaults in hook builds unless the title supplied an explicit value. */
@@ -18638,6 +18639,7 @@ int main(int argc, char** argv) {
             g_video_pgxp_cpu_mode = gc.runtime.video_pgxp_cpu_mode ? 1 : 0;
             g_video_pgxp_alu_light = gc.runtime.video_pgxp_alu_light ? 1 : 0;
             g_video_pgxp_mem_words = gc.runtime.video_pgxp_mem_words ? 1 : 0;
+            g_video_pgxp_mem_live = gc.runtime.video_pgxp_mem_live ? 1 : 0;
             g_video_pgxp_tolerance = (float)gc.runtime.video_pgxp_tolerance;
             g_video_pgxp_tolerance_set = gc.runtime.video_pgxp_tolerance_set;
             g_video_pgxp_position_fallback_set =
@@ -21163,6 +21165,7 @@ session_reboot:
     pgxp_cfg.video_cpu_mode = g_video_pgxp_cpu_mode;
     pgxp_cfg.alu_light = g_video_pgxp_alu_light;
     pgxp_cfg.mem_words = g_video_pgxp_mem_words;
+    pgxp_cfg.mem_live = g_video_pgxp_mem_live;
     pgxp_cfg.tolerance = g_video_pgxp_tolerance;
     pgxp_cfg.position_fallback = g_video_pgxp_position_fallback;
     pgxp_cfg.tolerance_set = g_video_pgxp_tolerance_set;

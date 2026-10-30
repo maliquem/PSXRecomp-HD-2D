@@ -12,7 +12,7 @@ mode" below). A game that misbehaves with one simply leaves it off.
 | `[recompiler] ram_fast_path` | `false` (default) / `true` | yes | yes | the full memory path for plain main-RAM stores and byte loads |
 | `[video] pgxp_alu` | `"full"` (default) / `"moves"` | no (sub-pixel only) | no (runtime) | the PGXP engine call on most ALU instructions |
 | `[recompiler] cpu_timing` | `"pipeline"` (default) / `"block"` | no (block edges) | yes | the per-instruction pipeline bookkeeping at run time |
-| `[video] pgxp_mem` | `"all"` (default) / `"words"` | no (sub-pixel only) | no (runtime) | the PGXP engine call on byte and halfword loads/stores |
+| `[video] pgxp_mem` | `"all"` (default) / `"words"` / `"live"` | no (sub-pixel only) | no (runtime) | the PGXP engine call on byte and halfword loads/stores; `"live"` also the RAM shadow work of word accesses that carry no vertex |
 | `[runtime] overlay_precompile` | `false` (default) / `true` | yes | no | nothing: compiles the captured overlays at boot instead of at first visit |
 
 All three change the generator's output, so the codegen hash moves once when
@@ -113,6 +113,21 @@ recompiler gives (its PGXP hooks words, LWC2/SWC2 and moves). Word accesses,
 LWL/LWR/SWL/SWR and the GTE transfers keep theirs. CPU mode always takes every
 hook. `PSX_PGXP_MEM` (`all`, `words` or a skip mask) overrides the key for a
 run.
+
+## `[video] pgxp_mem = "live"` (sub-pixel only)
+
+`"words"` plus a liveness filter (`pgxp.cpp` `s_live_bits`): one bit per shadow
+slot that may carry a tracked half, set wherever a slot can gain one (stores,
+SWC2, the GTE store helpers, packet-word restore, render-pass rollback) and
+cleared with the generation outside render passes. A word load from an
+unmarked slot resets the register's shadow without reading the slot; a word
+store of a register with no tracked half into an unmarked slot is skipped.
+Nothing with a tracked half ever takes the short path; what differs from
+`"words"` is the bookkeeping of words with no precision (their remembered
+value, the debug store ring), so it is not exact by construction. Breath of
+Fire IV: same PGXP coverage and frame-identical in 8 scenes and the cold boot,
++1.5..3.6% in turbo (same exe, `PSX_PGXP_MEM=live` against `words`).
+`PSX_PGXP_MEM=live` turns it on for a run, any other value off.
 
 ## `[runtime] overlay_precompile` (exact)
 

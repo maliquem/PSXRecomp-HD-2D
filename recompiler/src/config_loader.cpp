@@ -972,10 +972,11 @@ static RuntimeConfig parse_runtime_block(const toml::value& cfg, const fs::path&
         }
         if (video.contains("pgxp_mem")) {
             const std::string m = toml::find<std::string>(video, "pgxp_mem");
-            if (m != "all" && m != "words")
+            if (m != "all" && m != "words" && m != "live")
                 throw std::runtime_error(fmt::format(
-                    "[video] pgxp_mem must be 'all' or 'words', got '{}'", m));
-            rt.video_pgxp_mem_words = (m == "words");
+                    "[video] pgxp_mem must be 'all', 'words' or 'live', got '{}'", m));
+            rt.video_pgxp_mem_words = (m == "words" || m == "live");
+            rt.video_pgxp_mem_live = (m == "live");
         }
         if (video.contains("pgxp_tolerance")) {
             rt.video_pgxp_tolerance =

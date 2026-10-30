@@ -120,6 +120,10 @@ typedef struct PSXPgxpSessionConfig {
      * or halfword hooks). PSX_PGXP_MEM overrides: all, words or a skip mask
      * (pgxp_hooks.h g_pgxp_mem_skip). */
     int mem_words;
+    /* [video] pgxp_mem = "live": mem_words plus the light memory mode
+     * (pgxp.cpp s_live_bits). PSX_PGXP_MEM=live turns it on, any other
+     * PSX_PGXP_MEM value off. */
+    int mem_live;
 } PSXPgxpSessionConfig;
 
 /* The ALU hook class mask in force (pgxp_hooks.h g_pgxp_alu_mask): the

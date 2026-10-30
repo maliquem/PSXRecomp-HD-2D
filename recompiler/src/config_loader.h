@@ -631,6 +631,10 @@ struct RuntimeConfig {
     // [video] pgxp_mem = "all" (default) | "words": the byte and halfword
     // load/store hooks left out (docs/PERFORMANCE_MODES.md, pgxp_hooks.h).
     bool                  video_pgxp_mem_words = false;
+    // [video] pgxp_mem = "live": "words" plus the light memory mode (pgxp.cpp
+    // s_live_bits): word loads/stores that carry no tracked half skip the RAM
+    // shadow. Not exact by construction; docs/PERFORMANCE_MODES.md.
+    bool                  video_pgxp_mem_live = false;
 
     // pgxp_tolerance: reject a corrected vertex whose sub-pixel offset from
     // the native integer position exceeds this many pixels (the truncation-
