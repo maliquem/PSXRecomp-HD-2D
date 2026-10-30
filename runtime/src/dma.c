@@ -13,6 +13,7 @@
  */
 
 #include "dma.h"
+#include "psx_mem_gate.h"
 #include "cdrom.h"
 #include "crash_trace.h"
 #include "dirty_ram_interp.h"
@@ -540,7 +541,7 @@ int dma_host_cdrom_write(uint32_t dest, const uint8_t *src, uint32_t bytes, int 
     const int capture = addr < 0x1C0000u || addr >= PSX_MAIN_RAM_RETAIL_BYTES;
     const int saved_ch = g_dma_cur_ch;
     const uint32_t saved_madr = g_dma_cur_madr, saved_bcr = g_dma_cur_bcr;
-    g_dma_exec_depth++;
+    g_dma_exec_depth++; PSX_MEM_GATE_RAISE();
     g_dma_cur_ch = 3;
     g_dma_cur_bcr = bytes / 4u;
     if (capture) overlay_capture_before_dma(addr, bytes);
@@ -635,7 +636,7 @@ static void advance_mdec_channel(int ch, uint32_t cycles) {
      * (ch0 only reads RAM, so it needs no marking). Mirrors the CDROM async. */
     int mdec_writes_ram = (ch == 1);
     if (mdec_writes_ram) {
-        g_dma_exec_depth++;
+        g_dma_exec_depth++; PSX_MEM_GATE_RAISE();
         g_dma_cur_ch = 1; g_dma_cur_bcr = channels[1].bcr;
         g_dma_initiator_pc = s_dma_ch_initiator_pc[1];
     }
@@ -1121,7 +1122,7 @@ static void try_execute(int ch) {
      * below and any deferred async writes for this channel attribute to it. */
     s_dma_ch_initiator_pc[ch] = g_debug_last_store_pc;
     g_dma_initiator_pc        = g_debug_last_store_pc;
-    g_dma_exec_depth++;
+    g_dma_exec_depth++; PSX_MEM_GATE_RAISE();
     g_dma_cur_ch = ch; g_dma_cur_madr = channels[ch].madr; g_dma_cur_bcr = channels[ch].bcr;
     switch (ch) {
         case 0:
@@ -1299,7 +1300,7 @@ uint32_t dma_cycles_to_deliverable_irq(uint32_t i_mask) {
 
 void dma_advance(uint32_t cycles) {
     if (cycles == 0) return;
-    g_dma_exec_depth++;   /* async to-RAM DMA writes below run through psx_write_word */
+    g_dma_exec_depth++; PSX_MEM_GATE_RAISE();   /* async to-RAM DMA writes below run through psx_write_word */
     advance_mdec_channel(0, cycles);
     advance_mdec_channel(1, cycles);
     if (gpu_linked_list.active && ((channels[2].chcr >> 24) & 1u) &&

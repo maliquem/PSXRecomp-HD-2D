@@ -1,6 +1,7 @@
 /* psx_cycles.c — PSX guest CPU cycle clock. */
 
 #include "psx_cycles.h"
+#include "psx_mem_gate.h"
 #include "psx_cycle_freeze.h"
 #include "cpu_state.h"
 #include <stdlib.h>
@@ -44,6 +45,18 @@ static uint32_t (*s_psx_gcs_ram_read)(uint32_t phys, uint32_t size) = NULL;
  * TCP core_rates counts the times a device service found it stale. */
 uint32_t g_psx_cyc_gate = 0;
 uint64_t g_psx_cyc_gate_stale = 0;
+
+/* psx_mem_gate.h: the stores' gate. Starts raised (the debug write trace
+ * starts live); memory.c lowers it and registers the reader of its flags. */
+uint32_t g_psx_mem_gate = 1u;
+uint64_t g_psx_mem_gate_stale = 0;
+uint32_t (*g_psx_mem_gate_value)(void) = NULL;
+void psx_mem_gate_check(void) {
+    if (!g_psx_mem_gate && g_psx_mem_gate_value && g_psx_mem_gate_value()) {
+        g_psx_mem_gate_stale++;
+        g_psx_mem_gate = 1u;
+    }
+}
 static inline uint32_t psx_cyc_gate_value(void) {
     return (g_psx_gcs_recip_q16 != 65536u ? 1u : 0u) | (g_ls_replay_active ? 2u : 0u) |
            (g_event_step_conservative ? 4u : 0u) | (psx_in_device_service ? 8u : 0u);
@@ -377,6 +390,7 @@ void psx_devices_service_to_now(void) {
     if (g_plp_cycle_diag) g_plp_svc_calls++;
     g_psx_cycle_fast_limit = 0;
     if (g_psx_cyc_gate != psx_cyc_gate_value()) g_psx_cyc_gate_stale++;
+    psx_mem_gate_check();
     s_in_device_service = 1;
     g_psx_cyc_gate |= 8u;
     uint64_t target = psx_cycle_count;
@@ -1215,6 +1229,7 @@ int psx_cycle_freeze_begin(PsxCycleFreeze *save, uint64_t watchdog_cycles,
     s_freeze_limit = watchdog_cycles;
     s_freeze_overrun = overrun;
     g_psx_render_pass_active = 1;
+    PSX_MEM_GATE_RAISE();
     g_psx_guest_time_frozen = 1;
     psx_cycle_freeze_tick();
     return 1;

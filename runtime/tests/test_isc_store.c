@@ -27,6 +27,7 @@
  *  7. A non-isolated store never touches the I-cache.
  *  8. Lockstep replay does not move the shared tags. */
 #include "cpu_state.h"
+#include "psx_mem_gate.h"
 #include "psx_icache.h"
 #include "psx_memory.h"
 
@@ -188,7 +189,7 @@ int main(void) {
     warm(0x80000900u);
     set_biu(BIU_FLUSH_TAGS);
     sr = SR_ISC;
-    g_dma_exec_depth = 1;
+    g_dma_exec_depth = 1; PSX_MEM_GATE_RAISE();
     psx_write_word(0x80000900u, 0x12345678u);
     g_dma_exec_depth = 0;
     sr = 0;

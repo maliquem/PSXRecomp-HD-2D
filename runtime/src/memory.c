@@ -31,6 +31,7 @@
 #include "render_pass.h"
 #include "render_pass_plan.h"
 #include "starvation_ring.h"
+#include "psx_mem_gate.h"
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -1301,7 +1302,9 @@ uint32_t memory_get_sr(void) { return sr_ptr ? *sr_ptr : 0; }
 static uint32_t s_bios_checksum = 0;
 uint32_t memory_get_bios_checksum(void) { return s_bios_checksum; }
 
+static uint32_t psx_mem_gate_flags(void);   /* below, with psx_store_fast_ptr */
 void memory_init(const char* bios_path) {
+    g_psx_mem_gate_value = psx_mem_gate_flags;
     psx_ram_apply_size_request();
     memset(ram, 0, sizeof(ram));
     memset(scratchpad, 0, sizeof(scratchpad));
@@ -1947,7 +1950,7 @@ uint64_t g_render_pass_dropped_writes[RENDER_PASS_DROP_CLASSES];
  * writes RAM directly, so IsC does not apply while a transfer moves data.
  * Neither is a host store (psx_host_write_*: mods, FMV skip, debug pokes,
  * enhancement fills); like DMA it reaches memory whatever SR says. */
-int g_host_store_depth;   /* >0 inside psx_host_write_* */
+int g_host_store_depth;   /* >0 inside psx_host_write_* (raises psx_mem_gate.h) */
 
 /* DMA and host stores have no instruction hook to carry or reset a PGXP
  * shadow. Validation on read cannot catch one that rewrites the identical
@@ -2695,16 +2698,19 @@ void psx_write_byte(uint32_t addr, uint8_t val) {
  * (cpu_store_isolated). */
 void psx_host_write_word(uint32_t addr, uint32_t val) {
     g_host_store_depth++;
+    PSX_MEM_GATE_RAISE();
     psx_write_word(addr, val);
     g_host_store_depth--;
 }
 void psx_host_write_half(uint32_t addr, uint16_t val) {
     g_host_store_depth++;
+    PSX_MEM_GATE_RAISE();
     psx_write_half(addr, val);
     g_host_store_depth--;
 }
 void psx_host_write_byte(uint32_t addr, uint8_t val) {
     g_host_store_depth++;
+    PSX_MEM_GATE_RAISE();
     psx_write_byte(addr, val);
     g_host_store_depth--;
 }
@@ -2790,6 +2796,30 @@ uint64_t g_psx_store_slow[4];
  * anything else (I/O, scratchpad, BIOS). */
 uint64_t g_psx_store_raw[3];
 
+/* psx_mem_gate.h (g_psx_mem_gate lives in psx_cycles.c): raised by every
+ * writer that sets one of the stores' global gates; lowered here once all are
+ * clear. */
+static inline uint32_t psx_mem_gate_value(void) {
+    uint32_t v = (uint32_t)(g_psx_render_pass_active | g_ls_mode | g_ds_recording |
+                            g_dma_exec_depth | g_host_store_depth |
+                            g_parity_trace_armed | g_card_data_writes_armed);
+#ifndef PSX_NO_DEBUG_TOOLS
+    v |= (uint32_t)g_debug_write_trace_live;
+#endif
+    return v;
+}
+/* The gate was raised: lower it if every flag is clear (1: the short path may go
+ * on). A flag set by another thread (the debug server arms the write trace) right
+ * before this store of 0 would lose its raise: look again after the store. */
+static __attribute__((noinline)) int psx_mem_gate_lower(void) {
+    if (psx_mem_gate_value()) return 0;
+    g_psx_mem_gate = 0u;
+    __atomic_thread_fence(__ATOMIC_SEQ_CST);
+    if (psx_mem_gate_value()) { g_psx_mem_gate = 1u; return 0; }
+    return 1;
+}
+static uint32_t psx_mem_gate_flags(void) { return psx_mem_gate_value(); }
+
 /* Where a plain store may go directly: main RAM (above the kernel window, on
  * a page no code watcher acts on) or the scratchpad, which the full path
  * writes with nothing else to do (no mod aperture reaches 0x1F800000; the
@@ -2800,14 +2830,8 @@ static inline uint8_t *psx_store_fast_ptr(uint32_t addr, uint32_t size, uint32_t
     const uint32_t phys = addr & 0x1FFFFFFFu;
     const uint32_t so = phys - 0x1F800000u;
     if (phys >= PSX_MAIN_RAM_WINDOW_BYTES && so > (uint32_t)SCRATCHPAD_SIZE - size) return NULL;
-    if (g_psx_render_pass_active || g_ls_mode != 0 ||
-        g_ds_recording || g_dma_exec_depth > 0 || g_host_store_depth > 0 ||
-        g_parity_trace_armed || g_card_data_writes_armed ||
-        (sr_ptr && (*sr_ptr & 0x10000u)))
-        return NULL;
-#ifndef PSX_NO_DEBUG_TOOLS
-    if (g_debug_write_trace_live) return NULL;
-#endif
+    if (__builtin_expect(g_psx_mem_gate != 0u, 0) && !psx_mem_gate_lower()) return NULL;
+    if (sr_ptr && (*sr_ptr & 0x10000u)) return NULL;
 #ifdef PSX_COSIM
     return NULL;
 #endif

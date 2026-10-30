@@ -17,6 +17,7 @@
  * (psx_mod_render_pass_status says which). */
 
 #include "render_pass.h"
+#include "psx_mem_gate.h"
 
 #include <setjmp.h>
 #include <stdio.h>
@@ -155,6 +156,7 @@ static void nesting_restore(const RenderPassNesting *n) {
     g_call_unit_depth = n->call_unit_depth;
     g_dma_exec_depth = n->dma_exec_depth;
     g_host_store_depth = n->host_store_depth;
+    PSX_MEM_GATE_RAISE();
     g_dma_cur_ch = n->dma_cur_ch;
     g_dma_cur_madr = n->dma_cur_madr;
     g_dma_cur_bcr = n->dma_cur_bcr;

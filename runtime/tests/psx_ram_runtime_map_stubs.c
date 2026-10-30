@@ -185,3 +185,7 @@ void gr_vram_transfer_in(int x, int y, int w, int h, const uint16_t *d) {
 void gr_vram_upload_begin(int x,int y,int w,int h) { (void)x; (void)y; (void)w; (void)h; }
 void gr_vram_upload_commit(int x,int y,int w,int h,const uint16_t *d) { gr_vram_transfer_in(x,y,w,h,d); }
 void gr_vram_upload_set_open(int open) { (void)open; }
+
+/* psx_mem_gate.h (psx_cycles.c is not linked here) */
+uint32_t g_psx_mem_gate = 1u;
+uint32_t (*g_psx_mem_gate_value)(void) = 0;

@@ -30,6 +30,7 @@
  *    functions are data transforms; a GTE-using function must not be listed).
  */
 #include "data_shards.h"
+#include "psx_mem_gate.h"
 #include "psx_memory.h"
 #include "psx_cycles.h"
 #include "interrupts.h"
@@ -465,7 +466,7 @@ int psx_datashard_enter(CPUState* cpu, uint32_t key) {
     s_arm_args[0] = cpu->gpr[4]; s_arm_args[1] = cpu->gpr[5];
     s_arm_args[2] = cpu->gpr[6]; s_arm_args[3] = cpu->gpr[7];
     s_arm_cyc0 = psx_get_cycle_count();
-    g_ds_recording = 1;
+    g_ds_recording = 1; PSX_MEM_GATE_RAISE();
     s_st.captures_armed++;
     return 0;
 }

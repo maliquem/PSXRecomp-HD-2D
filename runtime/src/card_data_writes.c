@@ -1,6 +1,7 @@
 /* card_data_writes.c — capture BIOS RAM destination of card data bytes. */
 
 #include "card_data_writes.h"
+#include "psx_mem_gate.h"
 #include "psx_cycles.h"
 #include <string.h>
 
@@ -27,7 +28,7 @@ void card_data_writes_arm(uint8_t value, uint16_t mc_state,
     s_armed_state = mc_state;
     s_armed_idx   = mc_data_idx;
     s_armed_slot  = slot;
-    g_card_data_writes_armed = 1;
+    g_card_data_writes_armed = 1; PSX_MEM_GATE_RAISE();
 }
 
 int card_data_writes_check(uint32_t phys, uint32_t value, uint8_t width) {

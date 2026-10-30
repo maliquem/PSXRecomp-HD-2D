@@ -13,6 +13,7 @@
  *
  * Build/run: ctest -R pgxp_untracked_store_test */
 #include "pgxp.h"
+#include "psx_mem_gate.h"
 #include "pgxp_hooks.h"
 #include "psx_memory.h"
 
@@ -75,7 +76,7 @@ int main(void) {
                             : "RAM: CPU store keeps the hooked shadow");
 
         /* The identical word written by DMA is not the projected vertex. */
-        g_dma_exec_depth = 1;
+        g_dma_exec_depth = 1; PSX_MEM_GATE_RAISE();
         psx_write_word(a, PACKED);
         g_dma_exec_depth = 0;
         check(!precise(a), i ? "scratchpad: DMA word store drops the shadow"
@@ -100,7 +101,7 @@ int main(void) {
 
     /* A mirror address names the same word and the same shadow. */
     produce(0x80100000u);
-    g_dma_exec_depth = 1;
+    g_dma_exec_depth = 1; PSX_MEM_GATE_RAISE();
     psx_write_word(0x00100000u, PACKED);
     g_dma_exec_depth = 0;
     check(!precise(0x80100000u), "DMA store through a mirror drops the shadow");

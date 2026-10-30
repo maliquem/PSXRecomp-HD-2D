@@ -24,6 +24,7 @@
  */
 
 #include "dirty_ram_interp.h"
+#include "psx_mem_gate.h"
 #include "cpu_state.h"
 #include "debug_server.h"
 #include "interrupts.h"
@@ -3785,7 +3786,7 @@ int ls_shadow_record_begin(void) {
     s_ls_replay_done = 0;
     s_ls_shadow_saw_exception = 0;
     s_ls_shadow_owner = 1;
-    g_ls_mode = 1;
+    g_ls_mode = 1; PSX_MEM_GATE_RAISE();
     return 1;
 }
 
@@ -3813,7 +3814,7 @@ int ls_shadow_replay_begin(void) {
     s_ls_shadow_owner = 2;
     g_ls_replay_active = 1;
     psx_cyc_gate_refresh();
-    g_ls_mode = 2;
+    g_ls_mode = 2; PSX_MEM_GATE_RAISE();
     return 1;
 }
 
@@ -3920,7 +3921,7 @@ static void ls_replay_and_compare(CPUState *cpu, uint32_t frame, uint32_t target
     const char *sav_unsup_reason = g_unsupported_reason;
     g_ls_replay_active = 1;
     psx_cyc_gate_refresh();
-    g_ls_mode = 2;
+    g_ls_mode = 2; PSX_MEM_GATE_RAISE();
     uint32_t pc = rep.pc;
     int cap = 512, steps = 0;
     for (;;) {
@@ -4041,7 +4042,7 @@ static void lsf_replay_and_compare(CPUState *native_post, uint32_t frame,
     g_ls_replay_active = 1;
 
     psx_cyc_gate_refresh();
-    g_ls_mode = 2;
+    g_ls_mode = 2; PSX_MEM_GATE_RAISE();
 
     uint32_t pc = entry_pc;
     uint32_t steps = 0;
@@ -4185,7 +4186,7 @@ void ls_at_leader(uint32_t leader_phys, CPUState *cpu) {
             s_ls_mismatch = 0;
             s_ls_m_kind = 0;
             s_lsf_recording = 1;
-            g_ls_mode = 1;
+            g_ls_mode = 1; PSX_MEM_GATE_RAISE();
         }
         return;                           /* function-scope recording owns g_ls_mode */
     }
@@ -4218,7 +4219,7 @@ void ls_at_leader(uint32_t leader_phys, CPUState *cpu) {
         s_ls_block = leader_phys;
         s_ls_trace_n = 0; s_ls_trace_idx = 0; s_ls_overflow = 0; s_ls_mismatch = 0;
         s_ls_prev_valid = 1;
-        g_ls_mode = 1;
+        g_ls_mode = 1; PSX_MEM_GATE_RAISE();
     }
 }
 
