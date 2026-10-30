@@ -1969,6 +1969,16 @@ void FullFunctionEmitter::emit_dispatch(
     out += "} DispatchEntry;\n\n";
 
     const size_t total_entries = emitted_normalized.size() + vec_handlers.size();
+    // The table's keys sit in two groups: low RAM (vectors, kernel, shell copy) and the BIOS ROM.
+    // A normalized PC strictly between them (the game's own text) cannot equal any key, so the
+    // dispatcher skips the binary search there (docs/perf_study/PLANO.md R2): same result.
+    uint32_t key_ram_max = 0, key_rom_min = 0xFFFFFFFFu;
+    for (const auto& vh : vec_handlers)
+        if (vh.ram_addr < 0x1F000000u && vh.ram_addr > key_ram_max) key_ram_max = vh.ram_addr;
+    for (uint32_t norm : emitted_normalized) {
+        if (norm < 0x1F000000u) { if (norm > key_ram_max) key_ram_max = norm; }
+        else if (norm < key_rom_min) key_rom_min = norm;
+    }
     out += fmt::format("static const DispatchEntry dispatch_table[{}] = {{\n",
                        total_entries);
 
@@ -2345,6 +2355,11 @@ void FullFunctionEmitter::emit_dispatch(
     out += "#endif\n";
     out += "        uint32_t phys = normalize(addr);\n";
     out += "        if (!found) {\n";
+    out += fmt::format(
+        "        /* No key lies strictly between 0x{:X} and 0x{:X}: a PC there cannot hit\n"
+        "         * this table (the game's own text), so the search is skipped. */\n"
+        "        if (phys <= 0x{:X}u || phys >= 0x{:X}u)\n",
+        key_ram_max, key_rom_min, key_ram_max, key_rom_min);
     out += "        while (lo <= hi) {\n";
     out += "            int mid = (lo + hi) / 2;\n";
     out += "            if (dispatch_table[mid].addr == phys) {\n";

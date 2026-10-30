@@ -9157,6 +9157,9 @@ static void psx_dispatch_impl(CPUState* cpu, uint32_t addr, uint32_t stop_addr) 
 #endif
         uint32_t phys = normalize(addr);
         if (!found) {
+        /* No key lies strictly between 0x4810 and 0x1FC00000: a PC there cannot hit
+         * this table (the game's own text), so the search is skipped. */
+        if (phys <= 0x4810u || phys >= 0x1FC00000u)
         while (lo <= hi) {
             int mid = (lo + hi) / 2;
             if (dispatch_table[mid].addr == phys) {
