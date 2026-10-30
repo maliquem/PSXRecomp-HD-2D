@@ -2924,7 +2924,9 @@ static inline int psx_store_try_byte(uint32_t addr, uint8_t val) {
 
 /* The generated code's stores: the CPU's own store pointer takes the short
  * path above without the call through it (overlay cycles published first). */
-void psx_store_word(CPUState *cpu, uint32_t addr, uint32_t val) {
+/* noinline: inlined by the ThinLTO link into every guest store site of the generated
+ * functions (10% of the largest one's code; perf study M1). */
+__attribute__((noinline)) void psx_store_word(CPUState *cpu, uint32_t addr, uint32_t val) {
     if (cpu->write_word == psx_write_word) {
         extern void (*g_overlay_flush_pending_cycles)(void);
         if (g_overlay_flush_pending_cycles) g_overlay_flush_pending_cycles();
@@ -2933,7 +2935,7 @@ void psx_store_word(CPUState *cpu, uint32_t addr, uint32_t val) {
     cpu->write_word(addr, val);
 }
 
-void psx_store_half(CPUState *cpu, uint32_t addr, uint16_t val) {
+__attribute__((noinline)) void psx_store_half(CPUState *cpu, uint32_t addr, uint16_t val) {
     if (cpu->write_half == psx_write_half) {
         extern void (*g_overlay_flush_pending_cycles)(void);
         if (g_overlay_flush_pending_cycles) g_overlay_flush_pending_cycles();
@@ -2942,7 +2944,7 @@ void psx_store_half(CPUState *cpu, uint32_t addr, uint16_t val) {
     cpu->write_half(addr, val);
 }
 
-void psx_store_byte(CPUState *cpu, uint32_t addr, uint8_t val) {
+__attribute__((noinline)) void psx_store_byte(CPUState *cpu, uint32_t addr, uint8_t val) {
     if (cpu->write_byte == psx_write_byte) {
         extern void (*g_overlay_flush_pending_cycles)(void);
         if (g_overlay_flush_pending_cycles) g_overlay_flush_pending_cycles();

@@ -703,7 +703,9 @@ static inline void gte_sxy2_mirror(uint32_t reg) {
     else if (reg == 15) s_gte[14] = s_gte[15];
 }
 
-extern "C" void psx_pgxp_load(struct CPUState *cpu, uint32_t instr,
+/* noinline: the ThinLTO link inlined every hook body (with the render-pass journal) into the
+ * generated functions: 44% of the largest one's code (perf study M1). */
+extern "C" __attribute__((noinline)) void psx_pgxp_load(struct CPUState *cpu, uint32_t instr,
                               uint32_t addr, uint32_t value) {
     (void)cpu;
     if (!g_pgxp_active) return;
@@ -765,7 +767,7 @@ extern "C" void psx_pgxp_load(struct CPUState *cpu, uint32_t instr,
 
 static void pgxp_store_impl(uint32_t instr, uint32_t addr, uint32_t value);
 
-extern "C" void psx_pgxp_store(struct CPUState *cpu, uint32_t instr,
+extern "C" __attribute__((noinline)) void psx_pgxp_store(struct CPUState *cpu, uint32_t instr,
                                uint32_t addr, uint32_t value) {
     (void)cpu;
     if (!g_pgxp_active) return;
@@ -875,7 +877,7 @@ static void pgxp_store_impl(uint32_t instr, uint32_t addr, uint32_t value) {
 
 static void pgxp_cop2_impl(uint32_t instr, uint32_t value, uint32_t addr);
 
-extern "C" void psx_pgxp_cop2(struct CPUState *cpu, uint32_t instr,
+extern "C" __attribute__((noinline)) void psx_pgxp_cop2(struct CPUState *cpu, uint32_t instr,
                               uint32_t value, uint32_t addr) {
     (void)cpu;
     if (!g_pgxp_active) return;
@@ -1236,7 +1238,7 @@ static int alu_scalar(uint32_t instr, uint32_t result, uint32_t s1, uint32_t s2,
 
 static void alu_halves(uint32_t instr, uint32_t result, uint32_t s1, uint32_t s2);
 
-extern "C" void psx_pgxp_alu(struct CPUState *cpu, uint32_t instr,
+extern "C" __attribute__((noinline)) void psx_pgxp_alu(struct CPUState *cpu, uint32_t instr,
                              uint32_t result, uint32_t s1, uint32_t s2) {
     (void)cpu;
     if (!g_pgxp_active) return;
@@ -1422,7 +1424,7 @@ static void alu_halves(uint32_t instr, uint32_t result, uint32_t s1, uint32_t s2
     }
 }
 
-extern "C" void psx_pgxp_muldiv(struct CPUState *cpu, uint32_t instr,
+extern "C" __attribute__((noinline)) void psx_pgxp_muldiv(struct CPUState *cpu, uint32_t instr,
                                 uint32_t hi, uint32_t lo,
                                 uint32_t s1, uint32_t s2) {
     (void)cpu;
