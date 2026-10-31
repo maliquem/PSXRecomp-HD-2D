@@ -101,4 +101,21 @@ static inline int16_t spu_gaussian_interpolate(const int16_t previous[3],
 
     return (int16_t)(accumulator >> 15);
 }
+
+/* The same filter over one window: window[0..2] the preceding block's final
+ * three samples, window[3..] the current block's, so the four taps of sample
+ * sample_index are window[sample_index .. sample_index + 3], oldest first. */
+static inline int16_t spu_gaussian_interpolate_window(const int16_t window[3 + 28],
+                                                      int sample_index,
+                                                      uint32_t phase)
+{
+    const int gaussian_index = (int)((phase >> 4) & 0xFFu);
+    const int16_t *s = window + sample_index;
+    const int32_t accumulator =
+        (int32_t)spu_gauss_table[0x0FF - gaussian_index] * s[0] +
+        (int32_t)spu_gauss_table[0x1FF - gaussian_index] * s[1] +
+        (int32_t)spu_gauss_table[0x100 + gaussian_index] * s[2] +
+        (int32_t)spu_gauss_table[gaussian_index] * s[3];
+    return (int16_t)(accumulator >> 15);
+}
 #endif /* PSX_SPU_GAUSS_H */

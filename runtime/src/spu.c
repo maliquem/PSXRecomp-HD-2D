@@ -162,8 +162,15 @@ typedef struct {
     uint32_t cur_addr;
     uint32_t repeat_addr;
     uint32_t sample_bank, pending_bank;
-    int16_t samples[SPU_BLOCK_SAMPLES];
-    int16_t previous_samples[3];
+    /* The preceding block's last three samples sit right before the current
+     * block's, so the Gaussian taps read one window (spu_gauss.h). */
+    union {
+        int16_t window[3 + SPU_BLOCK_SAMPLES];
+        struct {
+            int16_t previous_samples[3];
+            int16_t samples[SPU_BLOCK_SAMPLES];
+        };
+    };
     int sample_idx;
     uint32_t phase;
     int16_t hist1;
@@ -175,6 +182,10 @@ typedef struct {
     uint32_t adsr_divider;  /* fixed-point counter; level updates on overflow */
     uint8_t  adsr_phase;    /* ADSR_ATTACK / DECAY / SUSTAIN / RELEASE */
 } SpuVoice;
+
+typedef char spu_voice_window_check[
+    (sizeof(((SpuVoice *)0)->window) ==
+     sizeof(((SpuVoice *)0)->previous_samples) + sizeof(((SpuVoice *)0)->samples)) ? 1 : -1];
 
 static SpuVoice voices[SPU_MIX_VOICES];
 
@@ -971,10 +982,7 @@ static inline int16_t voice_step(int idx, SpuVoice *v, uint32_t adsr_raw,
     if (noise) {
         raw_s = (int16_t)noise_val;
     } else {
-        raw_s = spu_gaussian_interpolate(v->previous_samples,
-                                         v->samples,
-                                         v->sample_idx,
-                                         v->phase);
+        raw_s = spu_gaussian_interpolate_window(v->window, v->sample_idx, v->phase);
     }
     /* Apply envelope (0..0x7FFF as a 15-bit gain). */
     int32_t shaped = ((int32_t)raw_s * (int32_t)v->env_level) >> 15;
