@@ -7,6 +7,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+/* gl_api.h asks the renderer whether HDR is wanted; no renderer here. */
+int gl_renderer_hdr_wanted(void);
+int gl_renderer_hdr_wanted(void) { return 0; }
 #include "gl_api.h"
 
 typedef GLuint (APIENTRY *F_CreateShader)(GLenum);

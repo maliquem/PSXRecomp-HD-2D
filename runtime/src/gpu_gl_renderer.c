@@ -4852,6 +4852,35 @@ static void wide_clear_bd_scale(GLint uScale, GLint uCenter) {
 static float s_tb[TEXBATCH_MAXV * TEXV];
 static int   s_tb_n = 0;                    /* verts queued */
 static int   s_tb_semi = -2;
+/* No dual-source blending (sgl): a semi-transparent batch takes another prim
+ * only when it overlaps none already in it — the batch's two passes (STP=0
+ * texels, then STP=1) then reorder no pixel, the same as drawing them one by
+ * one. Triangles that only share an edge (a quad's halves) do not overlap. */
+#define NODUAL_TRI_MAX 64
+static float s_nd_tri[NODUAL_TRI_MAX][6];
+static int   s_nd_n = 0;
+static int nd_axis_apart(const float *a, const float *b, float nx, float ny) {
+    float a0 = a[0] * nx + a[1] * ny, a1 = a0, b0 = b[0] * nx + b[1] * ny, b1 = b0;
+    for (int i = 1; i < 3; i++) {
+        float pa = a[i * 2] * nx + a[i * 2 + 1] * ny, pb = b[i * 2] * nx + b[i * 2 + 1] * ny;
+        if (pa < a0) a0 = pa; if (pa > a1) a1 = pa;
+        if (pb < b0) b0 = pb; if (pb > b1) b1 = pb;
+    }
+    const float eps = 1e-4f * (fabsf(nx) + fabsf(ny) + 1.0f);
+    return a1 <= b0 + eps || b1 <= a0 + eps;
+}
+/* Two triangles overlap with some area (separating axes: the six edge normals). */
+static int nd_tris_overlap(const float *a, const float *b) {
+    const float *t[2] = {a, b};
+    for (int k = 0; k < 2; k++)
+        for (int e = 0; e < 3; e++) {
+            const float *p = t[k];
+            float ex = p[((e + 1) % 3) * 2] - p[e * 2], ey = p[((e + 1) % 3) * 2 + 1] - p[e * 2 + 1];
+            if (ex == 0.0f && ey == 0.0f) continue;
+            if (nd_axis_apart(a, b, -ey, ex)) return 0;
+        }
+    return 1;
+}
 static int   s_tb_depth = 0;                /* PGXP depth mode (batch key) */
 static int   s_tb_b3d = 0;                  /* bloom on: 3D (bloom source) batch (key) */
 static int   s_tb_mask = 0, s_tb_filter = 0;
@@ -5580,6 +5609,7 @@ static void flush_tex_batch_impl(void) {
     wide_stencil_ready();   /* before any of this batch's GL state */
     int nverts = s_tb_n, semi = s_tb_semi, dmode = s_tb_depth;
     s_tb_n = 0;                             /* clear first: re-entrancy safe */
+    s_nd_n = 0;
     double cw_t0 = cw_ms();
     s_cw_batches++; s_batch_total++; s_cw_flush_depth++;
 
@@ -6314,10 +6344,22 @@ static void gpu_textured_triangle(const int *xs, const int *ys,
          * painter-ordered opaque + modes 0/1/3 runs in one dual-source draw. */
         GlBatchClass batch_class = gl_batch_classify(semi, s_mask_check,
             mod_texture_bank_batchable(s_selected_bank_tex != 0, s_mask_check, semi));
+        float nd_tri[6];
+        int nd_overlap = 0;
         if (!s_gl_dual_src && batch_class.key == 4) {
-            /* no dual-source blending: the prim alone, in its own mode */
+            /* no dual-source blending: in its own mode, alone unless it
+             * overlaps nothing in the open batch (s_nd_tri) */
             batch_class.key = semi;
-            batch_class.isolate = 1;
+            batch_class.isolate = 0;
+            for (int i = 0; i < 3; i++) {
+                nd_tri[i * 2] = s_pc_valid ? s_pc_x[i] : (float)xs[i];
+                nd_tri[i * 2 + 1] = s_pc_valid ? s_pc_y[i] : (float)ys[i];
+            }
+            if (s_tb_n > 0 && s_tb_semi == semi) {
+                if (s_nd_n >= NODUAL_TRI_MAX) nd_overlap = 1;
+                for (int i = 0; i < s_nd_n && !nd_overlap; i++)
+                    nd_overlap = nd_tris_overlap(nd_tri, s_nd_tri[i]);
+            }
         }
         const int batch_semi = batch_class.key;
         const int isolate = batch_class.isolate;
@@ -6376,6 +6418,7 @@ static void gpu_textured_triangle(const int *xs, const int *ys,
             /* Bloom marks a batch in two passes (clear, then sources), so
              * one batch holds either 3D sources or not: painter order. */
             else if ((s_bcls_on || s_b3d_on) && tex_b3d != s_tb_b3d) reason = 7;
+            else if (nd_overlap) reason = 0;
         }
         if (reason >= 0) {
             s_batch_reason[reason]++;
@@ -6390,6 +6433,13 @@ static void gpu_textured_triangle(const int *xs, const int *ys,
             s_tb_bank_live_clut = s_selected_bank_live_clut;
             s_tb_hd_tex = hd_tex;
             s_tb_twin[0] = twx; s_tb_twin[1] = twy; s_tb_twin[2] = tox; s_tb_twin[3] = toy;
+        }
+        if (!s_gl_dual_src && batch_semi >= 0 && s_nd_n < NODUAL_TRI_MAX) {
+            for (int i = 0; i < 3; i++) {
+                s_nd_tri[s_nd_n][i * 2] = s_pc_valid ? s_pc_x[i] : (float)xs[i];
+                s_nd_tri[s_nd_n][i * 2 + 1] = s_pc_valid ? s_pc_y[i] : (float)ys[i];
+            }
+            s_nd_n++;
         }
         /* The prim's window, exact as a float (20 bits). */
         float twin = (float)(twx | (twy << 5) | (tox << 10) | (toy << 15));

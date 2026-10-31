@@ -358,6 +358,11 @@ int link_common(SglObj *prog, const char *vs_src, const char *fs_src, bool gl_ru
     prog->u = (SglUniform *)calloc(us.size() ? us.size() : 1, sizeof(SglUniform));
     if (!prog->u) return 0;
     if (!us.empty()) memcpy(prog->u, us.data(), us.size() * sizeof(SglUniform));
+    free(prog->loc_u);
+    prog->loc_u = (uint16_t *)calloc(loc ? (size_t)loc : 1, sizeof(uint16_t));
+    if (!prog->loc_u) return 0;
+    for (size_t i = 0; i < us.size(); i++)
+        for (int e = 0; e < us[i].count; e++) prog->loc_u[us[i].loc + e] = (uint16_t)i;
     for (int s = 0; s < 2; s++) {
         free(prog->block[s]);
         prog->block[s] = prog->block_size[s] > 0 ? (uint8_t *)calloc(1, (size_t)prog->block_size[s]) : nullptr;

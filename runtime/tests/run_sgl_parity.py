@@ -62,7 +62,7 @@ def main():
     # asks the window sgl needs instead when PSX_GL_IMPL=sgl.
     fixture = fw / "runtime/tests" / a.fixture
     text = fixture.read_text(encoding="utf-8")
-    if "SDL_WINDOW_OPENGL" in text and "gl_renderer_impl_window_flags" not in text:
+    if "SDL_WINDOW_OPENGL" in text and "impl_window_flags" not in text and "sgl_window_flags" not in text:
         text = text.replace("SDL_WINDOW_OPENGL", "PSX_TEST_WINDOW_FLAGS")
         text = ("#define PSX_TEST_WINDOW_FLAGS (gl_api_impl() == 1 ? "
                 "(Uint32)gl_renderer_impl_window_flags() : SDL_WINDOW_OPENGL)\n" + text)

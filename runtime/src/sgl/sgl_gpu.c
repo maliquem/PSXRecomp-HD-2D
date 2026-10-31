@@ -247,9 +247,16 @@ static int s_pipe_nrelease, s_pipe_cap_release;
 
 static uint32_t key_hash(const SglPipeKey *k) {
     const uint8_t *p = (const uint8_t *)k;
-    uint32_t h = 2166136261u;
-    for (size_t i = 0; i < sizeof(*k); i++) h = (h ^ p[i]) * 16777619u;
-    return h;
+    uint64_t h = 0x9E3779B97F4A7C15ull;
+    size_t i = 0;
+    for (; i + 8 <= sizeof(*k); i += 8) {
+        uint64_t w;
+        memcpy(&w, p + i, 8);
+        h = (h ^ w) * 0xFF51AFD7ED558CCDull;
+        h ^= h >> 32;
+    }
+    for (; i < sizeof(*k); i++) h = (h ^ p[i]) * 0x100000001B3ull;
+    return (uint32_t)(h ^ (h >> 29));
 }
 
 static uint8_t blendf(GLenum f) {
@@ -914,18 +921,22 @@ int sgl_flush(int wait, int present) {
     SglTarget cur;
     memset(&cur, 0, sizeof(cur));
     SDL_GPUGraphicsPipeline *bound_pipe = NULL;
-    uint32_t pushed[2] = {UINT32_MAX, UINT32_MAX};
+    uint32_t pushed[2] = {UINT32_MAX, UINT32_MAX}, pushed_size[2] = {0, 0};
     int vp[4] = {-1, -1, -1, -1}, sc[4] = {-1, -1, -1, -1};
     int ref = -1;
     float bc[4] = {-1, -1, -1, -1};
     uint32_t vb_bound[4] = {UINT32_MAX - 1, UINT32_MAX - 1, UINT32_MAX - 1, UINT32_MAX - 1};
     int nvb_bound = -1;
+    /* Textures bound per stage: SDL_GPU's Vulkan driver writes a new
+     * descriptor set at the next draw after every bind, so same = skip. */
+    SDL_GPUTextureSamplerBinding samp_bound[2][SGL_MAX_SAMPLERS];
+    int nsamp_bound[2] = {-1, -1};
 
 #define END_RP() do { if (rp) { SDL_EndGPURenderPass(rp); rp = NULL; } } while (0)
 #define END_CP() do { if (cp) { SDL_EndGPUCopyPass(cp); cp = NULL; } } while (0)
 #define RESET_BOUND() do { bound_pipe = NULL; pushed[0] = pushed[1] = UINT32_MAX; \
     vp[0] = vp[1] = vp[2] = vp[3] = -1; sc[0] = sc[1] = sc[2] = sc[3] = -1; ref = -1; \
-    bc[0] = bc[1] = bc[2] = bc[3] = -1; nvb_bound = -1; } while (0)
+    bc[0] = bc[1] = bc[2] = bc[3] = -1; nvb_bound = -1; nsamp_bound[0] = nsamp_bound[1] = -1; } while (0)
 
     for (int i = 0; i < s->nops; i++) {
         SglOp *op = &s->ops[i];
@@ -949,6 +960,7 @@ int sgl_flush(int wait, int present) {
             if (op->u.draw.pipe != bound_pipe) {
                 SDL_BindGPUGraphicsPipeline(rp, op->u.draw.pipe);
                 bound_pipe = op->u.draw.pipe;
+                sgl_stats_note(SGL_ST_PIPE_BIND);
             }
             if (memcmp(vp, op->u.draw.vp, sizeof(vp)) != 0) {
                 SDL_GPUViewport v = { (float)op->u.draw.vp[0], (float)op->u.draw.vp[1],
@@ -981,17 +993,32 @@ int sgl_flush(int wait, int present) {
                     nvb_bound = op->u.draw.nvb;
                 }
             }
-            if (op->u.draw.nsamp[0])
-                SDL_BindGPUVertexSamplers(rp, 0, s->bind + op->u.draw.samp_off[0], op->u.draw.nsamp[0]);
-            if (op->u.draw.nsamp[1])
-                SDL_BindGPUFragmentSamplers(rp, 0, s->bind + op->u.draw.samp_off[1], op->u.draw.nsamp[1]);
-            if (op->u.draw.u_size[0] && pushed[0] != op->u.draw.u_off[0]) {
-                SDL_PushGPUVertexUniformData(cmd, 0, s->uni.p + op->u.draw.u_off[0], op->u.draw.u_size[0]);
-                pushed[0] = op->u.draw.u_off[0];
+            for (int st = 0; st < 2; st++) {
+                const int n = op->u.draw.nsamp[st];
+                const SDL_GPUTextureSamplerBinding *b = s->bind + op->u.draw.samp_off[st];
+                if (!n || (nsamp_bound[st] == n && memcmp(samp_bound[st], b, sizeof(*b) * (size_t)n) == 0))
+                    continue;
+                if (st == 0) SDL_BindGPUVertexSamplers(rp, 0, b, (Uint32)n);
+                else SDL_BindGPUFragmentSamplers(rp, 0, b, (Uint32)n);
+                memcpy(samp_bound[st], b, sizeof(*b) * (size_t)n);
+                nsamp_bound[st] = n;
+                sgl_stats_note(SGL_ST_SAMP_BIND);
             }
-            if (op->u.draw.u_size[1] && pushed[1] != op->u.draw.u_off[1]) {
-                SDL_PushGPUFragmentUniformData(cmd, 0, s->uni.p + op->u.draw.u_off[1], op->u.draw.u_size[1]);
-                pushed[1] = op->u.draw.u_off[1];
+            /* Uniforms: pushed when the block differs from the last one
+             * pushed (a new arena copy of the same values is not pushed). */
+            for (int st = 0; st < 2; st++) {
+                const uint32_t off = op->u.draw.u_off[st], size = op->u.draw.u_size[st];
+                if (!size || pushed[st] == off) continue;
+                if (pushed[st] != UINT32_MAX && pushed_size[st] == size &&
+                    memcmp(s->uni.p + pushed[st], s->uni.p + off, size) == 0) {
+                    pushed[st] = off;
+                    continue;
+                }
+                if (st == 0) SDL_PushGPUVertexUniformData(cmd, 0, s->uni.p + off, size);
+                else SDL_PushGPUFragmentUniformData(cmd, 0, s->uni.p + off, size);
+                pushed[st] = off;
+                pushed_size[st] = size;
+                sgl_stats_note(SGL_ST_UNI_PUSH);
             }
             SDL_DrawGPUPrimitives(rp, (Uint32)op->u.draw.count, 1, (Uint32)op->u.draw.first, 0);
             break;
@@ -1071,6 +1098,7 @@ int sgl_flush(int wait, int present) {
             bi.flip_mode = SDL_FLIP_VERTICAL;     /* GL's row 0 is the bottom one */
             bi.filter = SDL_GPU_FILTER_NEAREST;
             SDL_BlitGPUTexture(cmd, &bi);
+            sgl_stats_note(SGL_ST_PRESENT);
         }
     }
 
@@ -1150,7 +1178,9 @@ bool sgl_get_swap_interval(int *interval) {
 
 int sgl_stats_json(char *out, int cap) {
     static const char *names[SGL_ST_COUNT] = {"draws", "passes", "uploads", "copies", "blits",
-                                              "downloads", "submits", "waits", "pipelines", "warnings"};
+                                              "downloads", "submits", "waits", "pipelines", "warnings",
+                                              "pipeline_binds", "sampler_binds", "uniform_pushes",
+                                              "presents"};
     int n = snprintf(out, (size_t)cap, "{\"impl\":\"%s\",\"device\":\"%s\",\"pipelines_cached\":%d",
                      sgl_impl_name(), g_sgl.name, s_pipe_n);
     for (int i = 0; i < SGL_ST_COUNT && n < cap; i++)

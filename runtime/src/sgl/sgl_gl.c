@@ -57,6 +57,10 @@ static SglVao    *vao_get(GLuint n) { return (SglVao *)tab_get(&s_vao, n); }
 
 void sgl_set_error(GLenum e) { if (g_sgls.error == GL_NO_ERROR) g_sgls.error = e; }
 
+/* Set a state field that goes into the pipeline (sgl_glDrawArrays keys its
+ * pipeline memory by these fields; pipe_epoch only follows the VAO layout). */
+#define PSET(field, v) do { (field) = (v); } while (0)
+
 /* ---- half floats -------------------------------------------------------- */
 uint16_t sgl_f2h(float f) {
     union { float f; uint32_t u; } v = { f };
@@ -774,9 +778,10 @@ static void APIENTRY sgl_glDeleteVertexArrays(GLsizei n, const GLuint *names) {
         SglVao *v = vao_get(names[i]);
         if (v) v->used = 0;
         if (g_sgls.vao == names[i]) g_sgls.vao = 0;
+        g_sgls.pipe_epoch++;
     }
 }
-static void APIENTRY sgl_glBindVertexArray(GLuint name) { g_sgls.vao = name; }
+static void APIENTRY sgl_glBindVertexArray(GLuint name) { PSET(g_sgls.vao, name); }
 static SglVao s_vao0;     /* VAO 0: core GL forbids drawing with it, but keep one */
 static SglVao *cur_vao(void) {
     SglVao *v = vao_get(g_sgls.vao);
@@ -788,9 +793,13 @@ static void APIENTRY sgl_glVertexAttribPointer(GLuint index, GLint size, GLenum 
     SglAttrib *a = &cur_vao()->a[index];
     a->buffer = g_sgls.array_buffer; a->size = size; a->type = type; a->normalized = norm;
     a->stride = stride; a->offset = (size_t)(uintptr_t)ptr;
+    g_sgls.pipe_epoch++;
 }
 static void APIENTRY sgl_glEnableVertexAttribArray(GLuint index) {
-    if (index < SGL_MAX_ATTRIBS) cur_vao()->a[index].enabled = 1;
+    if (index < SGL_MAX_ATTRIBS && !cur_vao()->a[index].enabled) {
+        cur_vao()->a[index].enabled = 1;
+        g_sgls.pipe_epoch++;
+    }
 }
 
 /* ---- shaders and programs ----------------------------------------------- */
@@ -837,6 +846,7 @@ static void free_program_link(SglObj *o) {
     extern void sgl_gpu_forget_program(SglObj *prog);
     sgl_gpu_forget_program(o);
     free(o->u); o->u = NULL; o->nu = 0; o->nlocs = 0;
+    free(o->loc_u); o->loc_u = NULL;
     free(o->block[0]); free(o->block[1]); o->block[0] = o->block[1] = NULL;
     o->block_size[0] = o->block_size[1] = 0;
     free(o->log); o->log = NULL;
@@ -922,16 +932,14 @@ static void APIENTRY sgl_glGetProgramInfoLog(GLuint p, GLsizei max, GLsizei *len
     if (log) { memcpy(log, s, (size_t)n); log[n] = 0; }
     if (len) *len = n;
 }
-static void APIENTRY sgl_glUseProgram(GLuint p) { g_sgls.program = p; }
+static void APIENTRY sgl_glUseProgram(GLuint p) { PSET(g_sgls.program, p); }
 
 /* Location -> (uniform, element). */
 static SglUniform *uniform_at(SglObj *o, GLint loc, int *elem) {
-    if (!o || loc < 0) return NULL;
-    for (int i = 0; i < o->nu; i++) {
-        SglUniform *u = &o->u[i];
-        if (loc >= u->loc && loc < u->loc + u->count) { *elem = loc - u->loc; return u; }
-    }
-    return NULL;
+    if (!o || loc < 0 || loc >= o->nlocs || !o->loc_u) return NULL;
+    SglUniform *u = &o->u[o->loc_u[loc]];
+    *elem = loc - u->loc;
+    return u;
 }
 static GLint APIENTRY sgl_glGetUniformLocation(GLuint p, const char *name) {
     SglObj *o = sgl_obj(p);
@@ -1082,26 +1090,27 @@ static void APIENTRY sgl_glEnable(GLenum cap) { int *s = cap_slot(cap); if (s) *
 static void APIENTRY sgl_glDisable(GLenum cap) { int *s = cap_slot(cap); if (s) *s = 0; }
 static GLboolean APIENTRY sgl_glIsEnabled(GLenum cap) { int *s = cap_slot(cap); return s && *s ? GL_TRUE : GL_FALSE; }
 static void APIENTRY sgl_glBlendFunc(GLenum s, GLenum d) {
-    g_sgls.bsrc_rgb = g_sgls.bsrc_a = s; g_sgls.bdst_rgb = g_sgls.bdst_a = d;
+    PSET(g_sgls.bsrc_rgb, s); PSET(g_sgls.bsrc_a, s); PSET(g_sgls.bdst_rgb, d); PSET(g_sgls.bdst_a, d);
 }
 static void APIENTRY sgl_glBlendFuncSeparate(GLenum sr, GLenum dr, GLenum sa, GLenum da) {
-    g_sgls.bsrc_rgb = sr; g_sgls.bdst_rgb = dr; g_sgls.bsrc_a = sa; g_sgls.bdst_a = da;
+    PSET(g_sgls.bsrc_rgb, sr); PSET(g_sgls.bdst_rgb, dr); PSET(g_sgls.bsrc_a, sa); PSET(g_sgls.bdst_a, da);
 }
-static void APIENTRY sgl_glBlendEquationSeparate(GLenum rgb, GLenum a) { g_sgls.beq_rgb = rgb; g_sgls.beq_a = a; }
+static void APIENTRY sgl_glBlendEquationSeparate(GLenum rgb, GLenum a) { PSET(g_sgls.beq_rgb, rgb); PSET(g_sgls.beq_a, a); }
 static void APIENTRY sgl_glBlendColor(GLfloat r, GLfloat g, GLfloat b, GLfloat a) {
     g_sgls.blend_color[0] = r; g_sgls.blend_color[1] = g; g_sgls.blend_color[2] = b; g_sgls.blend_color[3] = a;
 }
 static void APIENTRY sgl_glColorMask(GLboolean r, GLboolean g, GLboolean b, GLboolean a) {
-    g_sgls.cmask[0] = r != 0; g_sgls.cmask[1] = g != 0; g_sgls.cmask[2] = b != 0; g_sgls.cmask[3] = a != 0;
+    PSET(g_sgls.cmask[0], (uint8_t)(r != 0)); PSET(g_sgls.cmask[1], (uint8_t)(g != 0));
+    PSET(g_sgls.cmask[2], (uint8_t)(b != 0)); PSET(g_sgls.cmask[3], (uint8_t)(a != 0));
 }
-static void APIENTRY sgl_glDepthMask(GLboolean m) { g_sgls.depth_mask = m != 0; }
-static void APIENTRY sgl_glDepthFunc(GLenum f) { g_sgls.depth_func = f; }
-static void APIENTRY sgl_glStencilMask(GLuint m) { g_sgls.st_wmask = m; }
+static void APIENTRY sgl_glDepthMask(GLboolean m) { PSET(g_sgls.depth_mask, m != 0); }
+static void APIENTRY sgl_glDepthFunc(GLenum f) { PSET(g_sgls.depth_func, f); }
+static void APIENTRY sgl_glStencilMask(GLuint m) { PSET(g_sgls.st_wmask, m); }
 static void APIENTRY sgl_glStencilFunc(GLenum f, GLint ref, GLuint mask) {
-    g_sgls.st_func = f; g_sgls.st_ref = ref; g_sgls.st_vmask = mask;
+    PSET(g_sgls.st_func, f); g_sgls.st_ref = ref; PSET(g_sgls.st_vmask, mask);   /* ref is dynamic */
 }
 static void APIENTRY sgl_glStencilOp(GLenum sf, GLenum zf, GLenum zp) {
-    g_sgls.st_fail = sf; g_sgls.st_zfail = zf; g_sgls.st_zpass = zp;
+    PSET(g_sgls.st_fail, sf); PSET(g_sgls.st_zfail, zf); PSET(g_sgls.st_zpass, zp);
 }
 static void APIENTRY sgl_glClearColor(GLfloat r, GLfloat g, GLfloat b, GLfloat a) {
     g_sgls.clear_color[0] = r; g_sgls.clear_color[1] = g; g_sgls.clear_color[2] = b; g_sgls.clear_color[3] = a;
@@ -1235,11 +1244,51 @@ static void APIENTRY sgl_glDrawArrays(GLenum mode, GLint first, GLsizei count) {
     SglTarget t;
     if (!resolve_target(&t)) return;
     SglVao *vao = cur_vao();
+    /* The last pipelines by the state that went into them: the renderer
+     * alternates a few states per batch (colour pass, mark passes), so a
+     * short memory saves building and hashing the full key each draw. */
+    const SglState *gs = &g_sgls;
+    const uint64_t sig[6] = {
+        (uint64_t)gs->bsrc_rgb | (uint64_t)gs->bdst_rgb << 16 | (uint64_t)gs->bsrc_a << 32 |
+            (uint64_t)gs->bdst_a << 48,
+        (uint64_t)gs->beq_rgb | (uint64_t)gs->beq_a << 16 | (uint64_t)gs->depth_func << 32 |
+            (uint64_t)((gs->blend ? 1 : 0) | (gs->depth_test ? 2 : 0) | (gs->depth_mask ? 4 : 0) |
+                       (gs->stencil_test ? 8 : 0) | gs->cmask[0] << 4 | gs->cmask[1] << 5 |
+                       gs->cmask[2] << 6 | gs->cmask[3] << 7) << 48,
+        (uint64_t)gs->st_func | (uint64_t)gs->st_fail << 16 | (uint64_t)gs->st_zfail << 32 |
+            (uint64_t)gs->st_zpass << 48,
+        (uint64_t)(gs->st_vmask & 0xFF) | (uint64_t)(gs->st_wmask & 0xFF) << 8 | (uint64_t)mode << 16 |
+            (uint64_t)gs->vao << 32,
+        (uint64_t)p->id | (uint64_t)gs->pipe_epoch << 32,
+        (uint64_t)(t.color ? t.color_fmt + 1 : 0) | (uint64_t)(t.ds ? t.ds_fmt + 1 : 0) << 16 |
+            (uint64_t)t.ds_has_stencil << 32,
+    };
+    enum { PC_N = 16 };
+    static struct { uint64_t sig[6]; SDL_GPUGraphicsPipeline *pipe; GLuint bufs[4]; uint32_t bases[4]; int nbuf; } pc[PC_N];
+    static int pc_next;
     GLuint bufs[4];
     uint32_t bases[4];
     int nbuf = 0;
-    SDL_GPUGraphicsPipeline *pipe = sgl_pipeline(p, vao, mode, &t, bufs, bases, &nbuf);
-    if (!pipe) return;
+    SDL_GPUGraphicsPipeline *pipe = NULL;
+    for (int i = 0; i < PC_N; i++) {
+        if (pc[i].pipe && memcmp(pc[i].sig, sig, sizeof(sig)) == 0) {
+            pipe = pc[i].pipe;
+            nbuf = pc[i].nbuf;
+            memcpy(bufs, pc[i].bufs, sizeof(bufs));
+            memcpy(bases, pc[i].bases, sizeof(bases));
+            break;
+        }
+    }
+    if (!pipe) {
+        pipe = sgl_pipeline(p, vao, mode, &t, bufs, bases, &nbuf);
+        if (!pipe) return;
+        int i = pc_next;
+        pc_next = (pc_next + 1) % PC_N;
+        memcpy(pc[i].sig, sig, sizeof(sig));
+        pc[i].pipe = pipe; pc[i].nbuf = nbuf;
+        memcpy(pc[i].bufs, bufs, sizeof(bufs));
+        memcpy(pc[i].bases, bases, sizeof(bases));
+    }
 
     /* The textures the program samples: the shader's slots in order. */
     SDL_GPUTextureSamplerBinding tb[2][SGL_MAX_SAMPLERS];

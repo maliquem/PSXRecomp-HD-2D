@@ -134,6 +134,7 @@ typedef struct SglObj {        /* shaders and programs share one name space */
     SglUniform *u;
     int nu;
     int nlocs;                 /* locations handed out */
+    uint16_t *loc_u;           /* location -> uniform index (nlocs entries) */
     uint8_t *block[2];
     int block_size[2];
     int block_dirty[2];
@@ -174,6 +175,7 @@ typedef struct SglState {
     int pack_align, pack_row_len, pack_skip_px, pack_skip_rows;
     int unpack_align, unpack_row_len, unpack_skip_px, unpack_skip_rows;
     GLenum error;
+    uint32_t pipe_epoch;       /* bumps when a VAO's vertex layout changes */
 } SglState;
 
 /* ---- the recorded stream ------------------------------------------------ */
@@ -313,7 +315,8 @@ SDL_GPUGraphicsPipeline *sgl_internal_pipeline(int which, const SglTarget *t,
 void sgl_stats_note(int what);
 enum { SGL_ST_DRAW, SGL_ST_PASS, SGL_ST_UPLOAD, SGL_ST_COPY, SGL_ST_BLIT,
        SGL_ST_DOWNLOAD, SGL_ST_SUBMIT, SGL_ST_WAIT, SGL_ST_PIPELINE,
-       SGL_ST_FEEDBACK, SGL_ST_COUNT };
+       SGL_ST_FEEDBACK, SGL_ST_PIPE_BIND, SGL_ST_SAMP_BIND, SGL_ST_UNI_PUSH, SGL_ST_PRESENT,
+       SGL_ST_COUNT };
 
 /* sgl_shader.cpp */
 /* Compile + link vs/fs GLSL into prog (SPIR-V, reflection, SDL shaders).
