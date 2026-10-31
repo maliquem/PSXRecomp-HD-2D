@@ -17259,6 +17259,7 @@ void debug_server_init(int port)
         const char *e = getenv("PSX_DEBUG_PASSIVE");
         if (e && e[0]) s_passive_policy = !strcmp(e, "connect") ? 2 : !strcmp(e, "sampler") ? 3 : (e[0] != '0');
         s_passive = s_passive_policy == 1;
+        g_psx_debug_rings = s_passive;
     }
     if (!s_wtrace_all && s_passive) {
         s_wtrace_all = (WriteTraceAllEntry *)calloc(WRITE_TRACE_ALL_CAP,
@@ -17684,6 +17685,7 @@ static void passive_on_first_request(void) {
     s_wtrace_all_seq = 0;
     s_wtrace_all_head = 0;
     s_passive = 1;
+    g_psx_debug_rings = 1;
     if (s_wtrace_held) {   /* the built-in ranges, held back since init */
         s_wtrace_held = 0;
         if (!s_wtrace_range_count) s_wtrace_range_count = s_wtrace_held_n[0];

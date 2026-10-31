@@ -425,6 +425,12 @@ typedef struct PGXPStoreRecord {
     int32_t  dst_x16, dst_y16;
 } PGXPStoreRecord;
 uint64_t pgxp_store_ring(const PGXPStoreRecord **ring, uint32_t *cap);
+
+/* Whether the debug rings record: this store ring and gte.cpp's projection /
+ * INTPL rings. The debug server keeps it equal to its passive recorders (on
+ * from the start, or from the first request under the "connect" policy); 0
+ * in builds without it. Only its TCP commands read the rings. */
+extern int g_psx_debug_rings;
 /* The host's store-PC breadcrumb and frame counter, for the rings above. */
 void pgxp_set_trace_sources(const uint32_t *store_pc, const uint64_t *frame);
 

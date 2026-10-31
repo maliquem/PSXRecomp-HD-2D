@@ -2374,8 +2374,10 @@ static void gte_execute_impl(CPUState* cpu, uint32_t cmd, bool charge_latency) {
         fgsrc_record(&gte, cmd, cpu->gpr[31]);
 
 #ifndef PSX_NO_DEBUG_TOOLS
-    if (func == 0x01 || func == 0x30) gte_rtp_record(&gte, cmd);
-    if (func == 0x11) gte_intpl_record(&gte, intpl_pre_ir, intpl_pre_fc);
+    if (g_psx_debug_rings) {   /* pgxp.h: with the passive recorders */
+        if (func == 0x01 || func == 0x30) gte_rtp_record(&gte, cmd);
+        if (func == 0x11) gte_intpl_record(&gte, intpl_pre_ir, intpl_pre_fc);
+    }
 #endif
 
     gte_export_cpu_state(cpu, &gte);

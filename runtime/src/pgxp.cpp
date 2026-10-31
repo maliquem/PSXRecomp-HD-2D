@@ -314,8 +314,10 @@ extern "C" void pgxp_set_trace_sources(const uint32_t *store_pc,
     s_trace_frame = frame;
 }
 
-static void note_store(uint32_t op, uint32_t reg, const PGXPValue *src,
-                       uint32_t addr, uint32_t value, const PGXPValue *dst) {
+int g_psx_debug_rings = 0;   /* pgxp.h */
+
+static void note_store_record(uint32_t op, uint32_t reg, const PGXPValue *src,
+                              uint32_t addr, uint32_t value, const PGXPValue *dst) {
     if (!s_store_ring) return;
     PGXPStoreRecord *r = &s_store_ring[s_store_seq % PGXP_STORE_RING_CAP];
     r->seq = s_store_seq++;
@@ -331,6 +333,11 @@ static void note_store(uint32_t op, uint32_t reg, const PGXPValue *src,
     r->dst_flags = (dst && dst->gen == s_gen) ? dst->flags : 0u;
     r->dst_x16 = dst ? dst->x16 : 0;
     r->dst_y16 = dst ? dst->y16 : 0;
+}
+
+static inline void note_store(uint32_t op, uint32_t reg, const PGXPValue *src,
+                              uint32_t addr, uint32_t value, const PGXPValue *dst) {
+    if (g_psx_debug_rings) note_store_record(op, reg, src, addr, value, dst);
 }
 
 extern "C" uint64_t pgxp_store_ring(const PGXPStoreRecord **ring, uint32_t *cap) {
