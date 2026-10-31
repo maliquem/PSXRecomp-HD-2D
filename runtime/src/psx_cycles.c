@@ -25,6 +25,11 @@
 #endif
 
 uint64_t psx_cycle_count = 0;
+
+#if !defined(PSX_COSIM)
+/* psx_edge.h psx_cyc_charge_edge's uncommon case, kept out of the generated code. */
+__attribute__((noinline)) void psx_cyc_charge_edge_slow(uint32_t cycles) { psx_cyc_charge(cycles); }
+#endif
 uint32_t g_psx_gcs_recip_q16 = 65536u;
 uint32_t g_psx_gcs_frac = 0u;
 int g_psx_gcs_batch = 0;   /* [timing] guest_cycle_scale_batch */

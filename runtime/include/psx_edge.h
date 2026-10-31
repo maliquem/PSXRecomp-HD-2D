@@ -144,6 +144,9 @@ static inline void psx_check_interrupts_at_inline(CPUState* cpu, uint32_t resume
  * takes psx_cyc_charge itself, which decides exactly as before. */
 #if !defined(PSX_COSIM)
 extern uint32_t g_psx_cyc_gate;
+/* psx_cyc_charge, out of line (psx_cycles.c): the uncommon case below used to inline a second copy
+ * of its checks at every charge site, 12.5% of the largest generated function (perf study M1). */
+void psx_cyc_charge_edge_slow(uint32_t cycles);
 static inline void psx_cyc_charge_edge(uint32_t cycles) {
     const uint32_t prior = g_psx_cyc_batch, sum = prior + cycles;
 #if defined(__GNUC__) || defined(__clang__)
@@ -156,7 +159,7 @@ static inline void psx_cyc_charge_edge(uint32_t cycles) {
         g_psx_cyc_batch = sum;
         return;
     }
-    psx_cyc_charge(cycles);
+    psx_cyc_charge_edge_slow(cycles);
 }
 #if !defined(PSX_EDGE_IMPL)
 #define psx_cyc_charge(c) psx_cyc_charge_edge(c)
