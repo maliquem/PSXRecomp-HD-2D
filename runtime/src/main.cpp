@@ -10060,8 +10060,8 @@ static NetplayVblankEpilogue sdl_vblank_present_body(void) {
             }
             /* Present skip: the turbo never waits for the screen. A frame is
              * shown only when the render thread has finished every frame
-             * before it and one host refresh has passed since the last one
-             * shown; the others are still drawn (VRAM stays right), just not
+             * before it (or 50 ms passed) and one host refresh has passed since
+             * the last one shown; the others are still drawn (VRAM stays right), just not
              * shown, and the swap runs without vsync while the turbo lasts.
              * PSX_TURBO_PRESENT_SKIP=0: the fixed 1-in-2 / 1-in-4 cadence,
              * every shown frame waiting for the screen. */
@@ -10082,11 +10082,17 @@ static NetplayVblankEpilogue sdl_vblank_present_body(void) {
                 latency_ring_mark(LAT_PACED);
             }
             if (s_present_skip) {
+                /* After 50 ms without one, a frame is shown with frames still in
+                 * flight (it queues behind them): a render thread slower than the
+                 * turbo's frames never empties (BoF4's battles at 7x showed 0-2
+                 * frames a second, the screen stuck while the turbo lasted). */
                 static uint64_t s_turbo_last_present = 0;
                 const uint64_t now = SDL_GetPerformanceCounter();
                 const double hz = g_host_refresh_hz > 0.0 ? g_host_refresh_hz : 60.0;
                 const uint64_t gap = (uint64_t)((double)SDL_GetPerformanceFrequency() / hz);
-                if (now - s_turbo_last_present < gap || rt_frames_in_flight() > 0) {
+                const uint64_t starved = SDL_GetPerformanceFrequency() / 20u;
+                const uint64_t since = now - s_turbo_last_present;
+                if (since < gap || (rt_frames_in_flight() > 0 && since < starved)) {
                     ep.skip_pace = 1;
                     return ep;  /* drawn, not shown */
                 }
