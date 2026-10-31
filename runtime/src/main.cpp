@@ -2029,8 +2029,8 @@ extern "C" int psx_presentation_fast_forward(void) {
  * the turbo is not showing on the clock (sdl_vblank_present_body). */
 static uint64_t      s_turbo_next_present = 0;
 static int           s_turbo_clock_present = 0;
-/* Turbo draw skip (experiment, PSX_TURBO_DRAW_SKIP=1): asked by gpu.c at each
- * flip. The frame starting now (t) is on screen from its own flip, about one
+/* Turbo draw skip (on by default; PSX_TURBO_DRAW_SKIP=0 draws every frame):
+ * asked by gpu.c at each flip. The frame starting now (t) is on screen from its own flip, about one
  * game frame (d) later, until the next one: [t+d, t+2d). It is drawn when the
  * turbo's next shown frame falls in that window (a fifth of a frame early
  * too, for the error in d), else its drawing is dropped (gpu.c). Never more
@@ -2039,7 +2039,7 @@ extern "C" int psx_turbo_skip_next_frame(void) {
     static int s_on = -1;
     if (s_on < 0) {
         const char *e = std::getenv("PSX_TURBO_DRAW_SKIP");
-        s_on = (e && e[0] == '1') ? 1 : 0;
+        s_on = (e && e[0] == '0') ? 0 : 1;
     }
     static uint64_t s_last_flip = 0;
     static double s_frame_ticks = 0.0;

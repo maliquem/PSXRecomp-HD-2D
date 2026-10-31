@@ -8944,7 +8944,7 @@ uint64_t gpu_ws_census_seq(void) { return ws_census_seq; }
 /* Execute a fully-collected GP0 command */
 static void gp0_dispatch_command(uint8_t opcode);
 
-/* Turbo draw skip (main.cpp psx_turbo_skip_next_frame, PSX_TURBO_DRAW_SKIP=1):
+/* Turbo draw skip (main.cpp psx_turbo_skip_next_frame; PSX_TURBO_DRAW_SKIP=0 off):
  * a game frame the turbo will not show draws no polygon, rectangle or line.
  * Fills, copies, uploads and the drawing state still run, so VRAM transfers
  * and every register stay as on the console; the PS1's own timing never
