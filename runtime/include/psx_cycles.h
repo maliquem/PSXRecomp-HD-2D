@@ -66,6 +66,15 @@ extern int g_psx_cyc_bb_defer;
  * via psx_cyc_local_publish / psx_cyc_batch_flush before IRQ/MMIO barriers. */
 extern uint32_t *g_psx_cyc_local_acc;
 
+/* psx_edge.h's charge tests one word (psx_cycles.c): nonzero while a charge
+ * must take psx_cyc_charge's own checks. Besides the mode flags it carries
+ * the two states above (plan M3a): LOCAL while a local sink is installed,
+ * NODEFER while no generated function defers (depth 0). Whoever sets either
+ * sets its bit; psx_cyc_gate_refresh recomputes the whole word. */
+enum { PSX_CYC_GATE_LOCAL = 16u, PSX_CYC_GATE_NODEFER = 32u };
+extern uint32_t g_psx_cyc_gate;
+void psx_cyc_gate_refresh(void);
+
 /* [timing] guest_cycle_scale — a title constant, not a player setting.
  * No CPU is emulated: recompiled code charges the guest clock a fixed number
  * of cycles per MIPS instruction it runs, and that clock is what VBlank,
@@ -241,6 +250,7 @@ static inline void psx_cyc_local_publish(void) {
     g_psx_cyc_local_acc = NULL;
     psx_advance_cycles(v);
     g_psx_cyc_local_acc = acc;
+    g_psx_cyc_gate |= PSX_CYC_GATE_LOCAL;   /* a service inside may have refreshed it */
 #endif
 }
 

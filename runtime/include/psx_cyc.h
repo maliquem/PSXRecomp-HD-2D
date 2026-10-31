@@ -54,10 +54,15 @@ static inline void psx_cyc_bb_defer_flush(void) { overlay_flush_cycles(); }
 static inline void psx_cyc_local_begin(uint32_t *acc) { (void)acc; }
 static inline void psx_cyc_local_end(void) { }
 #else
-static inline void psx_cyc_bb_defer_begin(void) { g_psx_cyc_bb_defer++; }
+static inline void psx_cyc_bb_defer_begin(void) {
+    if (g_psx_cyc_bb_defer++ == 0) g_psx_cyc_gate &= ~(uint32_t)PSX_CYC_GATE_NODEFER;
+}
 static inline void psx_cyc_bb_defer_end(void) {
     if (g_psx_cyc_bb_defer > 0) g_psx_cyc_bb_defer--;
-    if (g_psx_cyc_bb_defer == 0) psx_cyc_batch_flush();
+    if (g_psx_cyc_bb_defer == 0) {
+        g_psx_cyc_gate |= PSX_CYC_GATE_NODEFER;
+        psx_cyc_batch_flush();
+    }
 }
 static inline void psx_cyc_bb_defer_flush(void) { psx_cyc_batch_flush(); }
 
@@ -67,6 +72,7 @@ static inline void psx_cyc_local_begin(uint32_t *acc) {
 #if !defined(PSX_COSIM)
     if (acc) *acc = 0;
     g_psx_cyc_local_acc = acc;
+    psx_cyc_gate_refresh();
 #else
     (void)acc;
 #endif
@@ -75,6 +81,7 @@ static inline void psx_cyc_local_end(void) {
 #if !defined(PSX_COSIM)
     psx_cyc_local_publish();
     g_psx_cyc_local_acc = NULL;
+    psx_cyc_gate_refresh();
 #endif
 }
 #endif
@@ -176,6 +183,7 @@ static inline void psx_cyc_charge_full(uint32_t cycles) {
             g_psx_cyc_local_acc = NULL;
             if (prior) psx_advance_cycles(prior);
             g_psx_cyc_local_acc = saved;
+            g_psx_cyc_gate |= PSX_CYC_GATE_LOCAL;
         }
         *g_psx_cyc_local_acc = cycles;
         return;

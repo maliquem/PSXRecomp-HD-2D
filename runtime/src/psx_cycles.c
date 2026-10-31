@@ -48,7 +48,7 @@ static uint32_t (*s_psx_gcs_ram_read)(uint32_t phys, uint32_t size) = NULL;
  * own checks (guest cycle scale, lockstep replay, conservative stepping,
  * device service). Every writer of those calls psx_cyc_gate_refresh;
  * TCP core_rates counts the times a device service found it stale. */
-uint32_t g_psx_cyc_gate = 0;
+uint32_t g_psx_cyc_gate = PSX_CYC_GATE_NODEFER;   /* depth 0 at start */
 uint64_t g_psx_cyc_gate_stale = 0;
 
 /* psx_mem_gate.h: the stores' gate. Starts raised (the debug write trace
@@ -64,7 +64,9 @@ void psx_mem_gate_check(void) {
 }
 static inline uint32_t psx_cyc_gate_value(void) {
     return (g_psx_gcs_recip_q16 != 65536u ? 1u : 0u) | (g_ls_replay_active ? 2u : 0u) |
-           (g_event_step_conservative ? 4u : 0u) | (psx_in_device_service ? 8u : 0u);
+           (g_event_step_conservative ? 4u : 0u) | (psx_in_device_service ? 8u : 0u) |
+           (g_psx_cyc_local_acc ? (uint32_t)PSX_CYC_GATE_LOCAL : 0u) |
+           (g_psx_cyc_bb_defer <= 0 ? (uint32_t)PSX_CYC_GATE_NODEFER : 0u);
 }
 void psx_cyc_gate_refresh(void) { g_psx_cyc_gate = psx_cyc_gate_value(); }
 
@@ -1216,8 +1218,8 @@ static void freeze_restore_deferred(const PsxCycleFreeze *save) {
     g_psx_cyc_local_acc = save->local_acc;
     if (save->local_acc) *save->local_acc = save->local_acc_value;
     psx_in_device_service = save->in_device_service;
-    psx_cyc_gate_refresh();
     g_psx_cyc_bb_defer = save->bb_defer;
+    psx_cyc_gate_refresh();
 }
 
 static void freeze_restore_clock(const PsxCycleFreeze *save) {

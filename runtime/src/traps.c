@@ -854,6 +854,7 @@ void psx_scheduler_run(CPUState* cpu)
                 g_psx_cyc_local_acc = NULL;
                 g_psx_cyc_bb_defer = 0;
                 g_psx_cyc_batch = 0;
+                extern void psx_cyc_gate_refresh(void); psx_cyc_gate_refresh();
             }
         }
 
