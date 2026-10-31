@@ -431,3 +431,15 @@ sem a aprovação dela; nada de push.
   falham até no software), `render_thread`/`frame_gen` caem nas duas (stubs). Falta: o jogo
   (precisa da permissão dela), render thread e troca de tela fora da thread da janela (R6),
   cache de SPIR-V em disco, D3D12/Metal.
+- 2026-10-31, no jogo (permissão dela; build-test/sgl_game, porta 4421): o sdl_gpu roda campo,
+  masmorra, noite, fogueira, batalha, magia e menu. OpenGL × sdl_gpu (present_shot, mesmo
+  estado e quadro; `PSX_PFX_TIME` congela o u_time — GL × GL dá 0%): sem efeitos e com 3D Fix,
+  16:9 e Res 7, cliff/deserto/noite/menu idênticos; batalha 1% e fogueira 2% com 1–2 níveis
+  (degradê da janela e o blend sem duas fontes); com os efeitos dela 0,01–3,7% dos pixels com
+  1–3 níveis, nas arestas do cenário (profundidade arredondada diferente) e folhagem.
+  Desempenho (perf_walk, 8x, turbo sem teto): no início, com efeitos, o sdl_gpu ia a metade
+  do OpenGL (~4.400 desenhos e ~3.900 trocas de pipeline por quadro; o SDL grava descriptor
+  sets a cada troca). Agora (3fe1983e: memória estado→pipeline, location→uniform, ligações só
+  quando mudam, e peças semitransparentes que não se sobrepõem num lote só): campo 6,61× (GL
+  6,63×), masmorra 2,82× (2,81×), batalha 6,73× (6,09×), magia 4,49× (4,37×), menu 9,75×
+  (7,26×); sem efeitos igual. Os tempos de GPU dos efeitos não existem no sdl_gpu (R12).
