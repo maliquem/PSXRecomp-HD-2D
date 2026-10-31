@@ -34,6 +34,8 @@
 
 #include "pgxp.h"
 #include "pgxp_hooks.h"
+#define PGXP_ENGINE_IMPL
+#include "pgxp_fast.h"
 #include "cpu_state.h"
 #include "psx_memory.h"
 #include "mod_memory.h"
@@ -67,14 +69,9 @@ enum {
     PGXP_F_VXY = PGXP_F_VX | PGXP_F_VY,
 };
 
-struct PGXPValue {
-    int32_t  x16, y16;   /* sub-pixel screen coords, 16.16                    */
-    uint16_t z;          /* projected SZ depth (perspective source), 0 = none */
-    uint16_t flags;
-    uint32_t value;      /* the guest word this shadow describes              */
-    uint32_t gen;        /* valid iff == s_gen (O(1) invalidate-all)          */
-    PGXPProjection projection;
-};
+/* struct PGXPValue / PGXPScalar: pgxp_fast.h, whose inline light-mode loads
+ * and stores read the state marked "pgxp_fast.h" below. */
+static_assert(PGXP_FAST_F_VXY == PGXP_F_VXY, "pgxp_fast.h flag mirror");
 
 /* Shadow covers the host RAM backing so the opt-in 8 MB map tracks its high
  * banks; retail sessions only ever touch the low 2 MiB of it. The same array
@@ -91,9 +88,20 @@ struct PGXPValue {
 #define PGXP_REG_HI        32
 #define PGXP_REG_LO        33
 
-static PGXPValue *s_ram = nullptr;            /* lazily allocated: RAM + mod regions */
+/* pgxp_fast.h: the generation, the gate, the modes, the RAM shadow and its
+ * live bits, and the GPR shadows live in g_pgxp_fast / g_pgxp_gpr(_s). */
+PGXPFast   g_pgxp_fast = { 0, 0, 0, 1u, nullptr, nullptr };
+PGXPValue  g_pgxp_gpr[34];
+PGXPScalar g_pgxp_gpr_s[34];
+#define s_ram         g_pgxp_fast.ram          /* lazily allocated: RAM + mod regions */
+#define s_live_bits   g_pgxp_fast.live_bits
+#define s_mem_live    g_pgxp_fast.mem_live
+#define s_cpu_mode    g_pgxp_fast.cpu_mode
+#define s_gen         g_pgxp_fast.gen
+#define g_pgxp_active g_pgxp_fast.active
+#define s_gpr         g_pgxp_gpr
+#define s_gpr_s       g_pgxp_gpr_s
 static PGXPValue  s_scratch[PGXP_SCRATCH_WORDS];
-static PGXPValue  s_gpr[34];                  /* 32 GPRs + HI + LO            */
 static PGXPValue  s_gte[32];                  /* GTE data registers           */
 static PGXPValue  s_gtc[32];                  /* GTE control registers (CTC2) */
 
@@ -108,8 +116,6 @@ static PGXPValue  s_gtc[32];                  /* GTE control registers (CTC2) */
  * word, no precision" slot). Nothing with a tracked half is ever skipped; what
  * differs is only the untracked bookkeeping, so the store ring and the value
  * the untracked slots remember. */
-static uint8_t *s_live_bits = nullptr;
-static int      s_mem_live = 0;
 static void live_clear(void);
 
 /* Scalar tier (cpu-mode). Engines also use the GTE as a multiplier for
@@ -122,18 +128,10 @@ static void live_clear(void);
  * still equals the register, killed by every hooked write that does not
  * produce one. It turns back into a half shadow only when stored (SH / SW)
  * as a 16-bit coordinate. */
-struct PGXPScalar {
-    double   v;          /* precise value of the 32-bit register              */
-    uint32_t value;      /* the register value it describes                   */
-    uint32_t gen;
-};
-static PGXPScalar s_gpr_s[34];                /* GPRs + HI + LO               */
 static PGXPScalar s_gte_s[32];                /* GTE data registers (IR, MAC) */
 static PGXPScalar s_gtc_s[32];                /* GTE control (TR / BK words)  */
 
-static uint32_t s_gen = 1;
 static int      s_enabled = 0;
-static int      s_cpu_mode = 0;
 static int      s_projection_tracking = 0;
 static float    s_tolerance = 0.5f;   /* user-validated seam clamp (G1.10) */
 static int      s_position_fallback = 1;   /* G1.4 cache tier (G1.11 switch) */
@@ -143,7 +141,6 @@ static uint32_t s_suppress = 0;
 static int      s_deferred_invalidate = 0;
 
 /* Single hot-path gate for every hook. */
-static int g_pgxp_active = 0;
 static inline void recompute_active(void) {
     g_pgxp_active = (s_enabled && s_suppress == 0) ? 1 : 0;
 }

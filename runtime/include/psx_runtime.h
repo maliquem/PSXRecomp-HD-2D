@@ -6,6 +6,7 @@
 #include "interrupts.h"
 #include "psx_cycles.h"
 #include "psx_edge.h"   /* last: makes psx_check_interrupts_at the inline edge */
+#include "pgxp_fast.h"   /* after pgxp_hooks.h: the light mode's inline loads/stores */
 
 #ifdef __cplusplus
 extern "C" {
