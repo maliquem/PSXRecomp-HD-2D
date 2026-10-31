@@ -696,6 +696,8 @@ int main(int argc, char** argv) {
     psx_mod_function_entry(&entry_cpu, 0x80003000u);
     check(g_psx_mod_function_entry_hooks == 0 && active_entry_hits == 0,
           "function-entry hooks must not run before plugin activation");
+    check(!psx_mod_function_entry_has_hook(0x80003000u),
+          "native overlay routing has no hook guard before activation");
     mod_runtime_activate_plugins();
     check(activation_calls == 1,
           "resolved trusted plugin must activate before runtime startup");
@@ -714,6 +716,10 @@ int main(int argc, char** argv) {
           "resolved trusted plugin must run on guest VBlank");
     check(g_psx_mod_function_entry_hooks == 1,
           "activation must flatten exactly the active plan's entry hooks");
+    check(psx_mod_function_entry_has_hook(0x80003000u) &&
+              psx_mod_function_entry_has_hook(0xA0003000u) &&
+              !psx_mod_function_entry_has_hook(0x80003004u),
+          "native overlay routing guards every active hook alias, not other addresses");
     psx_mod_function_entry(&entry_cpu, 0x80003000u);
     check(active_entry_hits == 1 && active_entry_last == 0x80003000u,
           "active plan's function-entry hook must run at its address");
@@ -729,6 +735,8 @@ int main(int argc, char** argv) {
           "hooks of plugins the plan does not activate must never run");
     /* A replaced plan drops every hook until its own activation. */
     check(PSXRecompV4::mod_runtime_clear_for_netplay(&error), error.c_str());
+    check(!psx_mod_function_entry_has_hook(0x80003000u),
+          "clearing the active plan releases native overlay hook guards");
     psx_mod_instruction(&entry_cpu, 0x80003004u, 0x90A30014u);
     check(instruction_hits == 2 && !g_psx_mod_instruction_hooks, "clearing removes instruction hooks");
     check(!psx_mod_dispatch_guest_function(&entry_cpu, 0x8FFF0000u) &&

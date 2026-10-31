@@ -66,6 +66,9 @@ extern uint32_t g_psx_mod_instruction_hooks;
 int psx_mod_register_function_filter_plugin(
     const char* id, uint32_t address, PSXModFunctionFilterCallback callback);
 int psx_mod_function_entry(struct CPUState* cpu, uint32_t address);
+/* Backend routing guard for hooks above. Native overlay candidates must leave
+ * these entries to the interpreter so the hook runs exactly once. */
+int psx_mod_function_entry_has_hook(uint32_t address);
 /* Trusted game code (not a mod package) may hook guest functions for netplay
  * only. These are independent of the mod package plan, which every online
  * match clears, and run only while netplay is active; offline execution stays
