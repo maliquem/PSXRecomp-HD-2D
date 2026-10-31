@@ -1910,34 +1910,49 @@ extern "C" int pgxp_probe_precise_vertex(uint32_t addr, uint32_t packet_word,
 
 void (*g_golden_pgxp_note)(uint64_t, uint64_t) = nullptr;   /* golden_hash.h */
 
-/* golden_hash.h: the engine's whole state, frame by frame (golden verification). The RAM
- * shadow and its light-mode bits are hashed over the retail 2 MiB only (nothing else is
- * touched in a retail session; the rest is the opt-in 8 MB map and mod regions). */
+/* golden_hash.h: the engine's state, frame by frame (golden verification). Only what is
+ * live counts: a slot or scalar of the current generation, its projection only when flagged.
+ * Dead slots keep whatever the session did before the savestate load (the load advances the
+ * generation), so they and the generation number itself differ between runs; the light mode's
+ * live bits too (stale bits only route an access to the full path). The RAM shadow over the
+ * retail 2 MiB (nothing else is touched in a retail session). */
 extern "C" uint64_t pgxp_golden_hash(void) {
     uint64_t h = 0xCBF29CE484222325ull;
-    auto add = [&h](const void *p, size_t n) {
-        const uint8_t *b = static_cast<const uint8_t *>(p);
-        size_t i = 0;
-        for (; i + 8 <= n; i += 8) {
-            uint64_t v;
-            std::memcpy(&v, b + i, 8);
-            h = (h ^ v) * 0x100000001B3ull;
+    auto mix = [&h](uint64_t v) { h = (h ^ v) * 0x100000001B3ull; };
+    auto values = [&](const PGXPValue *a, size_t n, uint64_t tag) {
+        for (size_t i = 0; i < n; i++) {
+            const PGXPValue &v = a[i];
+            if (v.gen != s_gen) continue;
+            mix(tag | i);
+            mix((uint64_t)(uint32_t)v.x16 << 32 | (uint32_t)v.y16);
+            mix((uint64_t)v.value << 32 | (uint32_t)v.flags << 16 | v.z);
+            if (v.flags & PGXP_F_PROJECTION) {
+                uint64_t p[2];
+                std::memcpy(p, &v.projection, sizeof p);
+                mix(p[0]);
+                mix(p[1]);
+            }
         }
-        for (; i < n; i++) h = (h ^ b[i]) * 0x100000001B3ull;
     };
-    const uint32_t mode[4] = {s_gen, (uint32_t)g_pgxp_active, (uint32_t)s_cpu_mode,
-                              (uint32_t)s_mem_live};
-    add(mode, sizeof mode);
-    add(s_gpr, sizeof s_gpr);
-    add(s_gte, sizeof s_gte);
-    add(s_gtc, sizeof s_gtc);
-    add(s_gpr_s, sizeof s_gpr_s);
-    add(s_gte_s, sizeof s_gte_s);
-    add(s_gtc_s, sizeof s_gtc_s);
-    add(s_scratch, sizeof s_scratch);
-    const size_t words = (size_t)(2u * 1024u * 1024u) >> 2;
-    if (s_ram) add(s_ram, words * sizeof *s_ram);
-    if (s_live_bits) add(s_live_bits, words / 8u);
+    auto scalars = [&](const PGXPScalar *a, size_t n, uint64_t tag) {
+        for (size_t i = 0; i < n; i++) {
+            if (a[i].gen != s_gen) continue;
+            uint64_t v;
+            std::memcpy(&v, &a[i].v, sizeof v);
+            mix(tag | i);
+            mix(v);
+            mix(a[i].value);
+        }
+    };
+    mix((uint64_t)g_pgxp_active | (uint64_t)s_cpu_mode << 8 | (uint64_t)s_mem_live << 16);
+    values(s_gpr, 34, 1ull << 56);
+    values(s_gte, 32, 2ull << 56);
+    values(s_gtc, 32, 3ull << 56);
+    values(s_scratch, PGXP_SCRATCH_WORDS, 4ull << 56);
+    if (s_ram) values(s_ram, (size_t)(2u * 1024u * 1024u) >> 2, 5ull << 56);
+    scalars(s_gpr_s, 34, 6ull << 56);
+    scalars(s_gte_s, 32, 7ull << 56);
+    scalars(s_gtc_s, 32, 8ull << 56);
     return h;
 }
 
