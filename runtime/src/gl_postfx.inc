@@ -47,9 +47,18 @@
  * driver round trip on a threaded GL). */
 enum { PFX_LOC_RCP, PFX_LOC_SIZE, PFX_LOC_ORG, PFX_LOC_UV, PFX_LOC_TIME, PFX_LOC_FIXED };
 /* u_time: seconds since the first present (wall clock, so flickers and other
- * motion keep their pace whatever the frame rate), wrapped at an hour. */
+ * motion keep their pace whatever the frame rate), wrapped at an hour.
+ * PSX_PFX_TIME=<seconds> holds it still (tests that compare two runs). */
 static float pfx_time_now(void) {
     static double t0 = -1.0;
+    static int fixed_read = 0;
+    static float fixed = -1.0f;
+    if (!fixed_read) {
+        const char *e = getenv("PSX_PFX_TIME");
+        if (e && e[0]) fixed = (float)atof(e);
+        fixed_read = 1;
+    }
+    if (fixed >= 0.0f) return fixed;
     struct timespec ts;
     if (!timespec_get(&ts, TIME_UTC)) return 0.0f;
     const double t = (double)ts.tv_sec + (double)ts.tv_nsec * 1e-9;
