@@ -13203,9 +13203,11 @@ static int rth_record_present(uint16_t op, int n, const int32_t *v) {
 }
 
 static void rth_present_payload(uint16_t op, const uint8_t *p);
+extern int psx_presentation_fast_forward(void);   /* main.cpp */
 static void rth_replay_present(const RtCmd *c, const uint8_t *p) {
     static int skipped_last = 0;
-    const int stale = rt_frames_ahead() >= 2 && !skipped_last;
+    /* The turbo already shows only 30 frames a second (main.cpp): none stale. */
+    const int stale = rt_frames_ahead() >= 2 && !skipped_last && !psx_presentation_fast_forward();
     /* Frame generation schedules (or drops) presents itself. */
     if (s_fg_on && fg_on_present(c->op, p, c->payload, stale)) { skipped_last = 0; return; }
     if (stale) {
