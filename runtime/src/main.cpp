@@ -51,6 +51,7 @@ extern "C" void psx_event_step_conservative_env_init(void);
 static int g_overlay_precompile = 0;
 /* memory.c's last-word-store record for the idle-loop detector. */
 extern "C" int g_psx_track_last_store;
+extern "C" void gpu_draw_skip_vblank(int fast_forward);
 extern "C" uint32_t g_guest_last_store_addr, g_guest_last_store_val;
 #include "overlay_backend.h"
 #include "gpu.h"
@@ -2023,6 +2024,42 @@ static int           g_frame_interpolation_blend_default =
 static int           s_presentation_fast_forward = 0;
 extern "C" int psx_presentation_fast_forward(void) {
     return s_presentation_fast_forward;
+}
+/* The turbo's next shown frame (wall clock, SDL performance counter); 0 when
+ * the turbo is not showing on the clock (sdl_vblank_present_body). */
+static uint64_t      s_turbo_next_present = 0;
+static int           s_turbo_clock_present = 0;
+/* Turbo draw skip (experiment, PSX_TURBO_DRAW_SKIP=1): asked by gpu.c at each
+ * flip. The frame starting now (t) is on screen from its own flip, about one
+ * game frame (d) later, until the next one: [t+d, t+2d). It is drawn when the
+ * turbo's next shown frame falls in that window (a fifth of a frame early
+ * too, for the error in d), else its drawing is dropped (gpu.c). Never more
+ * than 30 dropped in a row. */
+extern "C" int psx_turbo_skip_next_frame(void) {
+    static int s_on = -1;
+    if (s_on < 0) {
+        const char *e = std::getenv("PSX_TURBO_DRAW_SKIP");
+        s_on = (e && e[0] == '1') ? 1 : 0;
+    }
+    static uint64_t s_last_flip = 0;
+    static double s_frame_ticks = 0.0;
+    static int s_run = 0;
+    const uint64_t now = SDL_GetPerformanceCounter();
+    const double freq = (double)SDL_GetPerformanceFrequency();
+    if (s_last_flip) {
+        const double d = (double)(now - s_last_flip);
+        if (d < freq / 10.0) s_frame_ticks = s_frame_ticks > 0.0 ? s_frame_ticks * 0.75 + d * 0.25 : d;
+    }
+    s_last_flip = now;
+    if (!s_on || !s_presentation_fast_forward || !s_turbo_clock_present || s_frame_ticks <= 0.0) {
+        s_run = 0;
+        return 0;
+    }
+    const double next = (double)s_turbo_next_present, t = (double)now;
+    const int shown = next >= t + 0.8 * s_frame_ticks && next < t + 2.0 * s_frame_ticks;
+    const int skip = !shown && s_run < 30;
+    s_run = skip ? s_run + 1 : 0;
+    return skip;
 }
 /* Mod-owned blend source; reset_mod_owned_presentation() sets VBLANK. */
 static int           g_frame_interpolation_source =
@@ -10106,7 +10143,7 @@ static NetplayVblankEpilogue sdl_vblank_present_body(void) {
                 /* Not "when the render thread has emptied": one as slow as the
                  * turbo's frames never empties (BoF4's battles at 7x showed 0-2
                  * frames a second, the screen stuck while the turbo lasted). */
-                static uint64_t s_turbo_next_present = 0;
+                s_turbo_clock_present = 1;
                 const uint64_t now = SDL_GetPerformanceCounter();
                 const uint64_t period = SDL_GetPerformanceFrequency() / 30u;
                 if (now < s_turbo_next_present) {
@@ -10124,6 +10161,7 @@ static NetplayVblankEpilogue sdl_vblank_present_body(void) {
             }
         } else {
             turbo_skip = 0;
+            s_turbo_clock_present = 0;
             if (turbo_was_down)
                 apply_present_cadence();   /* the screen's own swap interval again */
             turbo_was_down = 0;
@@ -11606,6 +11644,8 @@ static void sdl_vblank_present(void) {
 static void sdl_vblank_present_(void) {
     sync_guest_cadence_to_video_standard();
     NetplayVblankEpilogue ep = sdl_vblank_present_body();
+    /* turbo draw skip (gpu.c): off with the turbo, and after a few VBlanks with no flip */
+    gpu_draw_skip_vblank(s_presentation_fast_forward);
     PERF_BEGIN(PM_PRESENT);
     render_thread_vblank();
     PERF_END(PM_PRESENT);

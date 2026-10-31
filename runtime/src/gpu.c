@@ -8944,6 +8944,26 @@ uint64_t gpu_ws_census_seq(void) { return ws_census_seq; }
 /* Execute a fully-collected GP0 command */
 static void gp0_dispatch_command(uint8_t opcode);
 
+/* Turbo draw skip (main.cpp psx_turbo_skip_next_frame, PSX_TURBO_DRAW_SKIP=1):
+ * a game frame the turbo will not show draws no polygon, rectangle or line.
+ * Fills, copies, uploads and the drawing state still run, so VRAM transfers
+ * and every register stay as on the console; the PS1's own timing never
+ * depended on drawing here (no rasterization cost is emulated). Decided at
+ * each flip (GP1(05h)); a game that stops flipping draws again within a few
+ * VBlanks (gpu_draw_skip_vblank). */
+static int s_draw_skip;
+static int s_draw_skip_vblanks;
+static uint64_t s_draw_skip_frames, s_draw_skip_drawn, s_draw_skip_prims;
+void gpu_draw_skip_vblank(int fast_forward) {
+    if (!fast_forward) { s_draw_skip = 0; return; }
+    if (s_draw_skip && ++s_draw_skip_vblanks > 4) s_draw_skip = 0;
+}
+void gpu_draw_skip_counts(uint64_t *skipped, uint64_t *drawn, uint64_t *prims) {
+    if (skipped) *skipped = s_draw_skip_frames;
+    if (drawn) *drawn = s_draw_skip_drawn;
+    if (prims) *prims = s_draw_skip_prims;
+}
+
 static void gp0_execute_command(void) {
     uint8_t opcode = (gp0_cmd_buf[0] >> 24) & 0xFF;
     gp0_opcode_count[opcode]++;
@@ -8996,6 +9016,11 @@ static void gp0_execute_command(void) {
     else if (opcode >= 0x20 && opcode <= 0x7F) gp0_draw_count++;
     else if (opcode >= 0x80 && opcode <= 0xDF) gp0_copy_count++;
     else if (opcode >= 0xE1 && opcode <= 0xE6) gp0_env_count++;
+
+    if (s_draw_skip && opcode >= 0x20 && opcode <= 0x7F) {
+        s_draw_skip_prims++;
+        return;   /* a frame the turbo does not show */
+    }
 
     if (opcode >= 0x20 && opcode <= 0x7F && ws_shared_ui_packet()) {
         for (ws_shared_ui_copy = 0; ws_shared_ui_copy < 2; ws_shared_ui_copy++)
@@ -9526,7 +9551,13 @@ static void gp1_display_area_start(uint32_t val) {
     /* GP1(05h): Start of display area in VRAM
      * bits 0-9: X (in halfwords, 0-1023)
      * bits 10-18: Y (0-511) */
-    if ((val & 0x3FFu) != display_area_x || ((val >> 10) & 0x1FFu) != display_area_y) s_display_flips++;
+    if ((val & 0x3FFu) != display_area_x || ((val >> 10) & 0x1FFu) != display_area_y) {
+        extern int psx_turbo_skip_next_frame(void);   /* main.cpp */
+        s_display_flips++;
+        s_draw_skip = psx_turbo_skip_next_frame();
+        s_draw_skip_vblanks = 0;
+        if (s_draw_skip) s_draw_skip_frames++; else s_draw_skip_drawn++;
+    }
     display_area_x = val & 0x3FF;
     display_area_y = (val >> 10) & 0x1FF;
     ws_note_display_base(display_area_x);  /* learn the display buffer set (native-wide) */

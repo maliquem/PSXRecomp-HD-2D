@@ -11350,7 +11350,12 @@ static void handle_sgl(int id, const char *json)
     char buf[1024];
     if (gl_renderer_sgl_json(buf, sizeof buf) <= 0)
         snprintf(buf, sizeof buf, "{\"impl\":\"%s\"}", gl_renderer_impl_name());
-    send_fmt("{\"id\":%d,\"ok\":true,\"sgl\":%s}", id, buf);
+    extern void gpu_draw_skip_counts(uint64_t *skipped, uint64_t *drawn, uint64_t *prims);
+    uint64_t sk = 0, dr = 0, pr = 0;
+    gpu_draw_skip_counts(&sk, &dr, &pr);
+    send_fmt("{\"id\":%d,\"ok\":true,\"sgl\":%s,\"turbo_draw_skip\":{\"frames_skipped\":%llu,"
+             "\"frames_drawn\":%llu,\"prims_dropped\":%llu}}", id, buf,
+             (unsigned long long)sk, (unsigned long long)dr, (unsigned long long)pr);
 }
 
 /* Smooth motion (frame generation; [video] frame_generation, docs/FRAME_GENERATION.md):
