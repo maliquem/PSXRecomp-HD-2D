@@ -49,6 +49,8 @@ static void verify(const char *label){
  check(gl_renderer_fbo_peek(0,0,1024,512,oracle),"oracle read");
  int n=0;for(int i=0;i<1024*512;i++)n+=image[i]!=oracle[i];
  if(n)fprintf(stderr,"%s: %d native words differ\n",label,n);
+ if(n&&getenv("PSX_TEST_DIFF"))for(int i=0,k=0;i<1024*512&&k<6;i++)if(image[i]!=oracle[i]){
+  fprintf(stderr,"  (%d,%d) cpu %04x gpu %04x\n",i%1024,i/1024,image[i],oracle[i]);k++;}
  check(n==0,label);check(glGetError()==GL_NO_ERROR,"GL error");
 }
 static void verify_bank_batching(void) {
@@ -78,7 +80,8 @@ static void verify_bank_batching(void) {
    check(gl_renderer_fbo_peek(400,300,96,96,enabled?result:baseline),"batch pixel read");
   }
   check(memcmp(baseline,result,sizeof baseline)==0,"ordered semi batching pixel equivalence");
-  check(mask?counts[1]==counts[0]:counts[1]<counts[0],"batch reduction only on supported path");
+  /* Without dual-source blending (sgl) every semi prim draws alone: no reduction. */
+  check(mask||!s_gl_dual_src?counts[1]==counts[0]:counts[1]<counts[0],"batch reduction only on supported path");
  }
  psx_mod_set_texture_bank_batching(0);s_tex_filter=0;
  glb_set_mask_bits(0,0);glb_set_semi_transparency(0,0);
@@ -169,7 +172,7 @@ static void verify_tier_batching(void){
   if(n)fprintf(stderr,"%s: %zu hr pixels differ\n",label,n);
   check(n==0,label);
   snprintf(label,sizeof label,"HLE batch reduction filter=%d mask_set=%d mask_check=%d (%d vs %d)",filter,mset,mcheck,batches[1],batches[0]);
-  check(mcheck?batches[1]<=batches[0]:batches[1]*2<batches[0],label);
+  check(mcheck||!s_gl_dual_src?batches[1]<=batches[0]:batches[1]*2<batches[0],label);
   printf("tier batches filter=%d mask_set=%d mask_check=%d: LLE %d HLE %d\n",filter,mset,mcheck,batches[0],batches[1]);
  }
  free(ref);free(got);
@@ -489,7 +492,9 @@ static void verify_presentation_capture(void) {
 int main(int argc,char **argv){
  int scale=argc>1?atoi(argv[1]):1;
  if(SDL_Init(SDL_INIT_VIDEO)!=0)return 2;
- SDL_Window *win=SDL_CreateWindow("Readback coherence hidden test",0,0,128,128,SDL_WINDOW_OPENGL|SDL_WINDOW_HIDDEN);
+ /* PSX_GL_IMPL=sgl: the same checks on the SDL_GPU implementation (sgl). */
+ const Uint32 wflags=gl_api_impl()==1?(Uint32)gl_renderer_impl_window_flags():SDL_WINDOW_OPENGL;
+ SDL_Window *win=SDL_CreateWindow("Readback coherence hidden test",0,0,128,128,wflags|SDL_WINDOW_HIDDEN);
  if(!win)return 2;
  for(int i=0;i<1024*512;i++)image[i]=(uint16_t)((i*17)&0x7fff);
  glb_init(image);glb_set_scale(scale);gl_renderer_set_swap_interval(0);

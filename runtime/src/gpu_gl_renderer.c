@@ -119,6 +119,7 @@
 #include <time.h>
 #include <stdatomic.h>
 #include "png_write.h"   /* png_write_rgb — present_shot readback */
+#include "gl_api.h"      /* every GL call below: the driver's OpenGL or sgl */
 static uint64_t s_fg_flips;   /* frame generation (below): game frames seen */
 
 #ifndef GL_BGRA
@@ -1983,6 +1984,10 @@ static int s_tex_filter = 0;
  * where a texel is fully covered). */
 static int s_tf_class[3] = {-1, -1, -1}, s_tf_edge[3] = {0, 0, 0};
 static int s_tf_eff[3] = {0, 0, 0}, s_tf_soft = 0;
+/* Dual-source blending (GL_SRC1_ALPHA): the driver's OpenGL has it; sgl
+ * (renderer = "sdl_gpu") does not, so semi-transparent prims there take the
+ * isolated two-pass path (same pixels) and Blend edges draw Clean. */
+static int s_gl_dual_src = 1;
 static uint64_t s_tf_prims[3];   /* textured triangles drawn per class (TCP texture_filter) */
 static void tf_update(void) {
     s_tf_soft = 0;
@@ -1990,7 +1995,7 @@ static void tf_update(void) {
         int f = s_tf_class[c];
         if (f < 0) f = (c == 0 || s_tex_filter != PSX_TEXTURE_FILTER_STABLE_WORLD) ? s_tex_filter : 0;
         s_tf_eff[c] = f;
-        if (f && s_tf_class[c] >= 0 && s_tf_edge[c] == PSX_TEXTURE_EDGE_SOFT) s_tf_soft = 1;
+        if (f && s_tf_class[c] >= 0 && s_tf_edge[c] == PSX_TEXTURE_EDGE_SOFT && s_gl_dual_src) s_tf_soft = 1;
     }
 }
 /* The a_filter bits of a primitive of class c (sampler | edge << 5). */
@@ -6307,8 +6312,13 @@ static void gpu_textured_triangle(const int *xs, const int *ys,
         /* Batch key and isolation come from the build's tier
          * (gl_batch_policy.h): LLE draws every semi prim alone; HLE keeps
          * painter-ordered opaque + modes 0/1/3 runs in one dual-source draw. */
-        const GlBatchClass batch_class = gl_batch_classify(semi, s_mask_check,
+        GlBatchClass batch_class = gl_batch_classify(semi, s_mask_check,
             mod_texture_bank_batchable(s_selected_bank_tex != 0, s_mask_check, semi));
+        if (!s_gl_dual_src && batch_class.key == 4) {
+            /* no dual-source blending: the prim alone, in its own mode */
+            batch_class.key = semi;
+            batch_class.isolate = 1;
+        }
         const int batch_semi = batch_class.key;
         const int isolate = batch_class.isolate;
         /* glass: a 3D face textured with a copy of the picture (scopy_note) */
@@ -8119,6 +8129,46 @@ int gl_renderer_select_texture_bank_live_clut(uint16_t id) {
     return 1;
 }
 
+int gl_renderer_set_impl(int impl) {
+    const char *e = getenv("PSX_GL_IMPL");
+    if (e && e[0]) { (void)gl_api_impl(); return 1; }   /* the environment wins */
+#if defined(PSX_HAVE_SGL)
+    s_gl_impl = impl ? 1 : 0;
+    return 1;
+#else
+    s_gl_impl = 0;
+    return impl ? 0 : 1;
+#endif
+}
+int gl_renderer_impl(void) { return gl_api_impl(); }
+const char *gl_renderer_impl_name(void) {
+#if defined(PSX_HAVE_SGL)
+    if (gl_api_impl() == 1) return sgl_impl_name();
+#endif
+    return "opengl";
+}
+unsigned long long gl_renderer_impl_window_flags(void) {
+#if defined(PSX_HAVE_SGL)
+    return (unsigned long long)sgl_window_flags();
+#else
+    return 0;
+#endif
+}
+void gl_renderer_set_sgl_driver(const char *name) {
+#if defined(PSX_HAVE_SGL)
+    sgl_set_driver(name);
+#else
+    (void)name;
+#endif
+}
+int gl_renderer_sgl_json(char *out, int cap) {
+#if defined(PSX_HAVE_SGL)
+    if (gl_api_impl() == 1) return sgl_stats_json(out, cap);
+#endif
+    (void)out; (void)cap;
+    return 0;
+}
+
 int gl_renderer_init_context(SDL_Window *win) {
     s_win = win;
     s_present_w = 0;
@@ -8146,6 +8196,10 @@ int gl_renderer_init_context(SDL_Window *win) {
      * software path — no half-GL hybrid (that mixed mode is what produced
      * the alternating-present menu jitter). */
     int ok = load_modern_gl();
+#if defined(PSX_HAVE_SGL)
+    s_gl_dual_src = gl_api_impl() == 1 ? sgl_caps()->dual_source_blend : 1;
+#endif
+    tf_update();
     if (ok) {
         glGenTextures(1, &s_present_tex);
         glBindTexture(GL_TEXTURE_2D, s_present_tex);

@@ -67,7 +67,7 @@ stencil) e o `tools/embed_spirv.py`. Ele continua no código, escondido, sem mud
 | `runtime/src/sgl/sgl_record.c` | gravação e codificação: passes de render, passadas de cópia, cache de pipelines e samplers, uniformes por desenho, arena de vértices, leituras síncronas e assíncronas |
 | `runtime/src/sgl/sgl_shader.cpp` | GLSL 330 → SPIR-V (glslang, em tempo de execução, com cache em disco), reflexão dos uniformes; SPIR-V → HLSL (D3D12) / MSL (Metal) pelo SPIRV-Cross |
 | `runtime/src/sgl/sgl_window.c` | dispositivo, janela reivindicada, swapchain (VSync/HDR), "framebuffer padrão" emulado, troca de tela |
-| `runtime/src/gpu_render.h` | `GR_BACKEND_SDL_GPU = 3` (o backend em si é o do GL: `gl_backend_get()`) |
+| `gpu_gl_renderer.h` | `gl_renderer_set_impl(0/1)`, `gl_renderer_impl()`, `gl_renderer_impl_name()`, `gl_renderer_impl_window_flags()`, `gl_renderer_sgl_json()`: o backend do emulador continua `GR_BACKEND_OPENGL` (é o mesmo código), só a implementação do GL muda |
 | `recompiler/src/config_loader.cpp`, `main.cpp`, settings | `[video] renderer = "sdl_gpu"`, `[video] sdl_gpu_driver = "auto" \| "vulkan" \| "direct3d12" \| "metal"`, CLI `--renderer sdl_gpu` |
 
 Nada muda para quem usa OpenGL: mesma tela, mesmas medidas (a etapa (a) confere).
@@ -149,9 +149,8 @@ depth_triangle, fill_rect, copy_rect, flat/gouraud/textured/shaded-textured tria
 flat/textured/textured-scaled rects, lines (flat/shaded), render_display(_hires),
 vram_write/read/transfer_in/out, vram_upload_begin/commit/open, draw_area/offset, wide_*
 (configure, set_view, set_target, disable_target, clear, clear_margins, render_wide_display,
-wide_dump_full), hd_texture_note. `gr_backend()` passa a informar `GR_BACKEND_SDL_GPU` e os
-lugares que testam `GR_BACKEND_OPENGL` (gpu.c, gpu_render.c `hd_observe_*`, debug_server)
-tratam os dois como "GL".
+wide_dump_full), hd_texture_note. `gr_backend()` continua `GR_BACKEND_OPENGL` com `sdl_gpu`
+(o mesmo renderizador); quem precisa saber qual GL usa `gl_renderer_impl()`.
 
 ### 3.2 Modelo de VRAM e coerência — (a)
 - Superfície autoritativa `s_hr_tex` RGBA8 1024·S × 512·S + depth/stencil D24S8 (bit 0 = bit de
