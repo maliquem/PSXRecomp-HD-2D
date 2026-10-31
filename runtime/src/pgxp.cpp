@@ -37,6 +37,7 @@
 #include "cpu_state.h"
 #include "psx_memory.h"
 #include "mod_memory.h"
+#include "golden_hash.h"
 
 #include <cmath>
 #include <cstdlib>
@@ -1667,6 +1668,8 @@ extern "C" int pgxp_get_gte_sxy_checked(uint32_t index, uint32_t expect,
         return 0;
     if (x16) *x16 = pv->x16;
     if (y16) *y16 = pv->y16;
+    if (g_golden_pgxp_note)
+        g_golden_pgxp_note(0x535859ull << 8 | index, (uint64_t)(uint32_t)pv->x16 << 32 | (uint32_t)pv->y16);
     return 1;
 }
 
@@ -1696,6 +1699,7 @@ extern "C" int pgxp_gte_nclip_precise(const uint32_t sxy[3], int64_t *cross) {
      * clamp), so every product fits in 64 bits. */
     *cross = (x[1] - x[0]) * (y[2] - y[0]) - (y[1] - y[0]) * (x[2] - x[0]);
     s_stats.nclip_precise++;
+    if (g_golden_pgxp_note) g_golden_pgxp_note(0x4E434C4950ull, (uint64_t)*cross);
     return 1;
 }
 
@@ -1884,16 +1888,57 @@ extern "C" int pgxp_get_precise_vertex(uint32_t addr, uint32_t packet_word,
                                        int32_t int_x, int32_t int_y,
                                        int32_t *x16, int32_t *y16,
                                        uint16_t *sz) {
-    return pgxp_get_precise_vertex_impl(addr, packet_word, int_x, int_y,
-                                        x16, y16, sz, 0);
+    const int r = pgxp_get_precise_vertex_impl(addr, packet_word, int_x, int_y,
+                                               x16, y16, sz, 0);
+    if (g_golden_pgxp_note)
+        g_golden_pgxp_note(((uint64_t)addr << 32) | packet_word,
+                         ((uint64_t)(uint32_t)*x16 << 32 | (uint32_t)*y16) ^
+                         ((uint64_t)*sz << 16) ^ (uint64_t)(uint32_t)r);
+    return r;
 }
 
 extern "C" int pgxp_probe_precise_vertex(uint32_t addr, uint32_t packet_word,
                                          int32_t int_x, int32_t int_y) {
     int32_t x16, y16;
     uint16_t sz;
-    return pgxp_get_precise_vertex_impl(addr, packet_word, int_x, int_y,
-                                        &x16, &y16, &sz, 1);
+    const int r = pgxp_get_precise_vertex_impl(addr, packet_word, int_x, int_y,
+                                               &x16, &y16, &sz, 1);
+    if (g_golden_pgxp_note)
+        g_golden_pgxp_note(((uint64_t)addr << 32) | packet_word, 0x100000000ull | (uint32_t)r);
+    return r;
+}
+
+void (*g_golden_pgxp_note)(uint64_t, uint64_t) = nullptr;   /* golden_hash.h */
+
+/* golden_hash.h: the engine's whole state, frame by frame (golden verification). The RAM
+ * shadow and its light-mode bits are hashed over the retail 2 MiB only (nothing else is
+ * touched in a retail session; the rest is the opt-in 8 MB map and mod regions). */
+extern "C" uint64_t pgxp_golden_hash(void) {
+    uint64_t h = 0xCBF29CE484222325ull;
+    auto add = [&h](const void *p, size_t n) {
+        const uint8_t *b = static_cast<const uint8_t *>(p);
+        size_t i = 0;
+        for (; i + 8 <= n; i += 8) {
+            uint64_t v;
+            std::memcpy(&v, b + i, 8);
+            h = (h ^ v) * 0x100000001B3ull;
+        }
+        for (; i < n; i++) h = (h ^ b[i]) * 0x100000001B3ull;
+    };
+    const uint32_t mode[4] = {s_gen, (uint32_t)g_pgxp_active, (uint32_t)s_cpu_mode,
+                              (uint32_t)s_mem_live};
+    add(mode, sizeof mode);
+    add(s_gpr, sizeof s_gpr);
+    add(s_gte, sizeof s_gte);
+    add(s_gtc, sizeof s_gtc);
+    add(s_gpr_s, sizeof s_gpr_s);
+    add(s_gte_s, sizeof s_gte_s);
+    add(s_gtc_s, sizeof s_gtc_s);
+    add(s_scratch, sizeof s_scratch);
+    const size_t words = (size_t)(2u * 1024u * 1024u) >> 2;
+    if (s_ram) add(s_ram, words * sizeof *s_ram);
+    if (s_live_bits) add(s_live_bits, words / 8u);
+    return h;
 }
 
 /* ------------------------------------------------------------------------- */

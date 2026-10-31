@@ -18,7 +18,7 @@ static int s_arm_on_load = 0;
 #define GOLDEN_MUL  0x100000001B3ull
 #define GOLDEN_CAP  16384u
 
-static uint64_t s_gpu = GOLDEN_SEED, s_spu = GOLDEN_SEED;
+static uint64_t s_gpu = GOLDEN_SEED, s_spu = GOLDEN_SEED, s_pgxp = GOLDEN_SEED;
 static uint32_t s_gpu_n, s_spu_n, s_frame;
 static GoldenEntry *s_ring;
 static uint64_t s_total;
@@ -43,18 +43,23 @@ void golden_spu_block(const int16_t *stereo, uint32_t frames) {
     s_spu_n += frames;
 }
 
+static void golden_pgxp_note(uint64_t a, uint64_t b) {
+    s_pgxp = mix(mix(s_pgxp, a), b);
+}
+
 static void reset_frame_hashes(void) {
-    s_gpu = GOLDEN_SEED; s_spu = GOLDEN_SEED; s_gpu_n = 0; s_spu_n = 0;
+    s_gpu = GOLDEN_SEED; s_spu = GOLDEN_SEED; s_pgxp = GOLDEN_SEED; s_gpu_n = 0; s_spu_n = 0;
 }
 
 void golden_arm(int on, int on_load) {
     if (on_load) { s_arm_on_load = 1; g_golden_on = 0; return; }
     g_golden_on = on ? 1 : 0;
+    g_golden_pgxp_note = on ? golden_pgxp_note : NULL;
     if (on) {
         if (!s_ring) s_ring = (GoldenEntry *)calloc(GOLDEN_CAP, sizeof *s_ring);
         s_total = 0; s_frame = 0;
         reset_frame_hashes();
-        if (!s_ring) g_golden_on = 0;
+        if (!s_ring) { g_golden_on = 0; g_golden_pgxp_note = NULL; }
     }
 }
 
@@ -85,6 +90,7 @@ void golden_frame(const struct CPUState *cpu) {
     }
     e->gpu = s_gpu;
     e->spu = s_spu;
+    e->pgxp = mix(s_pgxp, pgxp_golden_hash());
     s_total++;
     reset_frame_hashes();
 }

@@ -5109,10 +5109,11 @@ static void handle_golden(int id, const char *json)
         const GoldenEntry *e = &ring[(start + (uint32_t)i) % cap];
         if ((int)e->frame < from) continue;
         pos += (size_t)snprintf(out + pos, BUF - pos,
-            "%s[%u,%llu,%u,%u,\"%016llx\",\"%016llx\",\"%016llx\",\"%016llx\",\"%016llx\",\"%016llx\"]",
+            "%s[%u,%llu,%u,%u,\"%016llx\",\"%016llx\",\"%016llx\",\"%016llx\",\"%016llx\",\"%016llx\",\"%016llx\"]",
             k++ ? "," : "", e->frame, (unsigned long long)e->cycles, e->gpu_words, e->spu_samples,
             (unsigned long long)e->ram, (unsigned long long)e->scratch, (unsigned long long)e->cpu,
-            (unsigned long long)e->gte, (unsigned long long)e->gpu, (unsigned long long)e->spu);
+            (unsigned long long)e->gte, (unsigned long long)e->gpu, (unsigned long long)e->spu,
+            (unsigned long long)e->pgxp);
     }
     snprintf(out + pos, BUF - pos, "]}");
     send_fmt("%s", out);
