@@ -11340,6 +11340,19 @@ static void handle_render_thread(int id, const char *json)
     send_fmt("{\"id\":%d,\"ok\":true,%s}", id, buf[0] ? buf : "\"active\":0");
 }
 
+/* The renderer on SDL_GPU ([video] renderer = "sdl_gpu", docs/SDL_GPU_RENDERER_PLAN.md):
+ *   {"cmd":"sgl"} -> implementation, device, cached pipelines and counters
+ *   (draws, render passes, uploads, copies, blits, downloads, submits, waits,
+ *   pipelines made, warnings). "impl":"opengl" when the renderer is on GL. */
+static void handle_sgl(int id, const char *json)
+{
+    (void)json;
+    char buf[1024];
+    if (gl_renderer_sgl_json(buf, sizeof buf) <= 0)
+        snprintf(buf, sizeof buf, "{\"impl\":\"%s\"}", gl_renderer_impl_name());
+    send_fmt("{\"id\":%d,\"ok\":true,\"sgl\":%s}", id, buf);
+}
+
 /* Smooth motion (frame generation; [video] frame_generation, docs/FRAME_GENERATION.md):
  *   {"cmd":"frame_gen"} -> enabled, active, generated / real presents, flips,
  *   the last plan (in-between frames per game frame, display slots), costs,
@@ -16568,6 +16581,7 @@ static const CmdEntry s_commands[] = {
     { "present_image_ring_stats", handle_present_image_ring_stats },
     { "render_thread",     handle_render_thread },
     { "frame_gen",         handle_frame_gen },
+    { "sgl",               handle_sgl },
     { "perf_summary",      handle_perf_summary },
     { "perf_frames",       handle_perf_frames },
     { "present_image_ring_get",   handle_present_image_ring_get },

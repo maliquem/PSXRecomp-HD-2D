@@ -54,10 +54,21 @@ def main():
     sdl_lib = tc / "deps" / "lib" / "libSDL3.a"
     env = os.environ.copy()
     env["PATH"] = str(bin_) + os.pathsep + env.get("PATH", "")
-    inc = ["-I", str(fw / "runtime/include"), "-I", str(fw / "runtime/src"), "-I", str(sdl_inc)]
+    inc = ["-I", str(fw / "runtime/include"), "-I", str(fw / "runtime/src"),
+           "-I", str(fw / "runtime/tests"), "-I", str(sdl_inc)]
     defs = ["-DPSX_SDL3=1", "-DPSX_NO_DEBUG_TOOLS=1", "-DPSX_HAVE_SGL=1"]
     src = fw / "runtime/src"
-    c_sources = [("probe", fw / "runtime/tests" / a.fixture), ("sw", src / "gpu_sw_renderer.c"),
+    # The GL fixtures open an SDL_WINDOW_OPENGL window: a copy of the fixture
+    # asks the window sgl needs instead when PSX_GL_IMPL=sgl.
+    fixture = fw / "runtime/tests" / a.fixture
+    text = fixture.read_text(encoding="utf-8")
+    if "SDL_WINDOW_OPENGL" in text and "gl_renderer_impl_window_flags" not in text:
+        text = text.replace("SDL_WINDOW_OPENGL", "PSX_TEST_WINDOW_FLAGS")
+        text = ("#define PSX_TEST_WINDOW_FLAGS (gl_api_impl() == 1 ? "
+                "(Uint32)gl_renderer_impl_window_flags() : SDL_WINDOW_OPENGL)\n" + text)
+        fixture = out / ("fixture_" + a.fixture)
+        fixture.write_text(text, encoding="utf-8")
+    c_sources = [("probe", fixture), ("sw", src / "gpu_sw_renderer.c"),
                  ("rp", src / "render_pass_plan.c"), ("xr", src / "psx_openxr.c"),
                  ("rth", src / "render_thread.c"), ("pth", src / "present_thread.c"),
                  ("fg", src / "frame_gen.c"), ("hov", src / "host_overlay.c"),

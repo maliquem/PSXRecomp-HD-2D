@@ -15,6 +15,8 @@
 
 SglContext g_sgl;
 static char s_driver[32];
+static int s_hdr_req = -1;
+void sgl_set_hdr(int on) { s_hdr_req = on ? 1 : 0; }
 static uint64_t s_stats[SGL_ST_COUNT];
 
 void sgl_state_reset(void);
@@ -707,7 +709,9 @@ int sgl_gpu_init(SDL_Window *win) {
     }
     g_sgl.claimed = 1;
     g_sgl.swap_interval = 1;
-    {
+    if (s_hdr_req >= 0) {
+        g_sgl.hdr = s_hdr_req;
+    } else {
         const char *h = getenv("PSX_HDR");
         g_sgl.hdr = h && h[0] == '1';
     }

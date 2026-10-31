@@ -50,6 +50,10 @@ typedef struct SglCaps {
 } SglCaps;
 const SglCaps *sgl_caps(void);
 
+/* HDR for the next context: a float16 default framebuffer, shown as scRGB
+ * (HDR_EXTENDED_LINEAR) where the window supports it (gl_hdr.inc). */
+void sgl_set_hdr(int on);
+
 /* "sdl_gpu (vulkan)" etc.; "sdl_gpu" before a context exists. */
 const char *sgl_impl_name(void);
 

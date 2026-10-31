@@ -80,8 +80,10 @@ static void gl_api_load_gl11(void) {
 static SDL_GLContext gl_api_create_context(SDL_Window *w) {
     SDL_GLContext c;
 #if defined(PSX_HAVE_SGL)
-    if (gl_api_impl() == 1) c = (SDL_GLContext)sgl_create_context(w);
-    else
+    if (gl_api_impl() == 1) {
+        sgl_set_hdr(gl_renderer_hdr_wanted());   /* the float16 window GL would ask for */
+        c = (SDL_GLContext)sgl_create_context(w);
+    } else
 #endif
     c = SDL_GL_CreateContext(w);
     if (c) gl_api_load_gl11();
