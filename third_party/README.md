@@ -11,9 +11,13 @@ downloaded one; nothing here is trusted because it is local.
 
 ## What is committed, and why only that
 
-Only **libchdr** (`libchdr-<sha>.tar.gz`, ~520 KB, BSD-3-Clause) and
-**libjuice** (`libjuice-v1.7.2.tar.gz`, ~110 KB, MPL-2.0) — see
-`../THIRD_PARTY_ATTRIBUTION.md`.
+Only **libchdr** (`libchdr-<sha>.tar.gz`, ~520 KB, BSD-3-Clause),
+**libjuice** (`libjuice-v1.7.2.tar.gz`, ~110 KB, MPL-2.0), and the two shader
+compilers of the sdl_gpu renderer, **glslang** (`glslang-16.6.0.tar.gz`,
+~4.6 MB, BSD-3-Clause/MIT/Apache-2.0) and **SPIRV-Cross**
+(`SPIRV-Cross-vulkan-sdk-1.4.357.0.tar.gz`, ~2 MB, Apache-2.0: the renderer
+compiles its shaders at run time, so a build must never need the network for
+them) — see `../THIRD_PARTY_ATTRIBUTION.md`.
 
 `runtime/runtime.cmake` includes `chd_dependency.cmake` unconditionally, and
 libchdr has no `find_package` path and ships in no toolchain pack — so it is

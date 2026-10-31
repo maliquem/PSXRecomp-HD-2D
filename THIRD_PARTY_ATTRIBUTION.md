@@ -13,6 +13,23 @@ Normal runtime builds stage it automatically so players supply only a disc;
 `bios/OpenBIOS.LICENSE` always rides alongside the shipped image.
 
 
+## glslang and SPIRV-Cross — shader compilers of the sdl_gpu renderer
+
+[glslang](https://github.com/KhronosGroup/glslang) 16.6.0 (Khronos Group and
+contributors; **BSD-3-Clause**, with MIT and Apache-2.0 parts — `LICENSE.txt`
+inside the archive; the GPL-3.0-with-Bison-exception text it still carries
+covers no file: Bison was removed from glslang) and
+[SPIRV-Cross](https://github.com/KhronosGroup/SPIRV-Cross) vulkan-sdk-1.4.357.0
+(Khronos Group and contributors; **Apache-2.0**). Vendored as the pinned source
+archives `third_party/glslang-16.6.0.tar.gz` and
+`third_party/SPIRV-Cross-vulkan-sdk-1.4.357.0.tar.gz` (digests and URLs in
+`third_party/deps.manifest`, checked by `runtime/sdl_gpu_dependency.cmake`).
+Built as static libraries into runtimes configured with `PSX_SDL_GPU=ON` (the
+default with SDL3): glslang compiles the GL renderer's GLSL to SPIR-V at run
+time for `[video] renderer = "sdl_gpu"`, SPIRV-Cross reads it back and
+translates it for Direct3D 12 / Metal. Notices: `runtime/licenses/glslang-NOTICES.txt`
+and `runtime/licenses/spirv-cross-NOTICES.txt`.
+
 ## libchdr — CHD disc-image decompressor
 
 [libchdr](https://github.com/rtissera/libchdr) by Romain Tisserand and
