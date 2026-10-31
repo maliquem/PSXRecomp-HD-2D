@@ -9,7 +9,7 @@
  * the same state, and calls the hook for everything else, which decides from
  * the start exactly as before: an inactive engine, CPU mode, a marked slot, a
  * register with a tracked half, any address outside the RAM window, another
- * opcode.
+ * opcode. Outside CPU mode the ALU hook's register moves and LUI too.
  *
  * The engine keeps the state these read here instead of in its own statics
  * (pgxp.cpp aliases them). Not in overlay DLLs (they call the host's hook
@@ -97,14 +97,74 @@ static inline int pgxp_fast_store(uint32_t instr, uint32_t addr) {
     return pgxp_fast_unmarked(addr) == 1;
 }
 
+/* The ALU hook outside CPU mode is pgxp.cpp alu_halves alone. Its register
+ * moves (OR / ADD(U) / SUB(U) with $zero, ADDI(U) with 0) copy the source's
+ * shadow and drop the halves the result no longer matches (pv_validate), or
+ * reset; LUI writes both halves exact. Every other op calls the hook. */
+static inline void pgxp_fast_move(uint32_t d, uint32_t s, uint32_t result) {
+    PGXPValue *dst = &g_pgxp_gpr[d];
+    if (s != 0u && g_pgxp_gpr[s].gen == g_pgxp_fast.gen) {
+        PGXPValue v = g_pgxp_gpr[s];             /* d may be s */
+        const uint32_t diff = v.value ^ result;
+        if (diff) v.flags &= (uint16_t)~8u;      /* PGXP_F_PROJECTION */
+        if ((v.flags & 1u) && (diff & 0x0000FFFFu)) v.flags &= (uint16_t)~(1u | 16u | 4u);
+        if ((v.flags & 2u) && (diff & 0xFFFF0000u)) v.flags &= (uint16_t)~(2u | 32u | 4u);
+        v.value = result;
+        *dst = v;
+        return;
+    }
+    dst->x16 = 0; dst->y16 = 0; dst->z = 0;
+    dst->flags = 0;
+    dst->value = result;
+    dst->gen = g_pgxp_fast.gen;
+}
+
+/* 1: done (psx_pgxp_alu would have done exactly this), 0: call it. */
+static inline int pgxp_fast_alu(uint32_t instr, uint32_t result) {
+    if (!g_pgxp_fast.active) return 1;
+    if (g_pgxp_fast.cpu_mode) return 0;          /* the scalar tier */
+    const uint32_t op = instr >> 26, rs = (instr >> 21) & 31u, rt = (instr >> 16) & 31u;
+    if (op == 0u) {
+        const uint32_t funct = instr & 63u, rd = (instr >> 11) & 31u;
+        if (funct == 0x11u || funct == 0x13u) return 0;   /* MTHI / MTLO */
+        if (rd == 0u) return 1;
+        if ((funct == 0x25u && (rs == 0u || rt == 0u)) ||
+            (funct >= 0x20u && funct <= 0x23u && (rt == 0u || (funct < 0x22u && rs == 0u)))) {
+            pgxp_fast_move(rd, rt == 0u ? rs : rt, result);
+            return 1;
+        }
+        return 0;
+    }
+    if (rt == 0u) return 1;
+    if (op == 0x0Fu) {                           /* LUI: both halves exact */
+        PGXPValue *dst = &g_pgxp_gpr[rt];
+        dst->x16 = 0;
+        dst->y16 = ((int32_t)result >> 16) << 16;
+        dst->z = 0;
+        dst->flags = PGXP_FAST_F_VXY;
+        dst->value = result;
+        dst->gen = g_pgxp_fast.gen;
+        return 1;
+    }
+    if ((op == 0x08u || op == 0x09u) && (instr & 0xFFFFu) == 0u) {
+        pgxp_fast_move(rt, rs, result);
+        return 1;
+    }
+    return 0;
+}
+
 #undef PGXP_LOAD
 #undef PGXP_STORE
+#undef PGXP_ALU_K
 #define PGXP_LOAD(instr, addr, val) \
     do { if (PGXP_MEM_ON(instr) && !pgxp_fast_load((instr), (addr), (val))) \
              psx_pgxp_load(cpu, (instr), (addr), (val)); } while (0)
 #define PGXP_STORE(instr, addr, val) \
     do { if (PGXP_MEM_ON(instr) && !pgxp_fast_store((instr), (addr))) \
              psx_pgxp_store(cpu, (instr), (addr), (val)); } while (0)
+#define PGXP_ALU_K(k, instr, res, s1, s2) \
+    do { if ((g_pgxp_alu_mask & (1u << (k))) && !pgxp_fast_alu((instr), (res))) \
+             PGXP_ALU(instr, res, s1, s2); } while (0)
 #endif
 
 #ifdef __cplusplus
