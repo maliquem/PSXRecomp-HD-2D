@@ -417,4 +417,17 @@ sem a aprovação dela; nada de push.
 ## 6. Diário
 
 - 2026-10-31: worktrees criadas; inventário; plano. Pedida a permissão para baixar glslang e
-  SPIRV-Cross.
+  SPIRV-Cross (concedida: glslang 16.6.0, SPIRV-Cross vulkan-sdk-1.4.357.0, no deps.manifest).
+- 2026-10-31, etapa (a) — fundação: `gl_api.h` (todo o GL do renderizador por uma tabela; com
+  OpenGL nada muda), camada `sgl` (sgl_gl.c, sgl_gpu.c, sgl_shader.cpp), `[video] renderer =
+  "sdl_gpu"` / `--renderer sdl_gpu`, TCP `sgl`. Achados: o SDL_GPU põe NDC y = +1 na linha 0 em
+  todos os drivers (o epílogo do VS inverte y); o glslang numera varyings por ordem de
+  declaração (a `sgl` numera pelo nome); um bloco de uniforms por estágio com nomes distintos.
+  Conferido sem abrir o jogo (`runtime/tests/run_sgl_parity.py`, janela escondida): o mesmo
+  teste nas duas implementações — `test_gl_readback_region` 331/340 checagens, 0 falhas em 1x e
+  4x (VRAM palavra a palavra contra o renderizador de software); `texture_filter` (509),
+  `post_aa`, `bloom` (146), `scale_invariance`, `fmv_chroma`, `fmv_enhance` passam nas duas;
+  `blend_accuracy`, `dithering`, `texture_lod`, `xbr` falham igual nas duas (testes defasados:
+  falham até no software), `render_thread`/`frame_gen` caem nas duas (stubs). Falta: o jogo
+  (precisa da permissão dela), render thread e troca de tela fora da thread da janela (R6),
+  cache de SPIR-V em disco, D3D12/Metal.
