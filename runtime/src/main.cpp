@@ -51,6 +51,7 @@ extern "C" void psx_event_step_conservative_env_init(void);
 static int g_overlay_precompile = 0;
 /* memory.c's last-word-store record for the idle-loop detector. */
 extern "C" int g_psx_track_last_store;
+extern "C" void gpu_draw_skip_vblank(int fast_forward);
 extern "C" uint32_t g_guest_last_store_addr, g_guest_last_store_val;
 #include "overlay_backend.h"
 #include "gpu.h"
@@ -62,6 +63,7 @@ extern "C" uint32_t g_guest_last_store_addr, g_guest_last_store_val;
 #include "interrupts.h"
 #include "psx_video_timing.h"
 #include "present_ring.h"
+#include "present_phase.h"
 #include "load_transition_ring.h"
 #include "gpu_sw_renderer.h"
 #include "gpu_render.h"
@@ -695,9 +697,20 @@ static PerfSummary s_perf;
 static int      s_perf_wanted = 0;   /* TCP perf_summary asked once: keep measuring */
 static int      s_pm_fast_forward = 0;   /* the manual turbo this VBlank (perf_meter) */
 /* The frame pacer's waits, as the perf meter's WAIT section. */
+/* The deadline the last paced wait released the guest at: the present that
+ * follows is that guest frame's, and present_phase.c holds its swap to the
+ * screen's refresh grid from there; the same module nudges the deadline to
+ * keep that grid's phase (only at the guest's own period, never the turbo's). */
+static uint64_t s_present_ref_ticks = 0;
+static double pm_guest_period_ms(void);
+extern "C" uint64_t psx_present_ref_ticks(void) { return s_present_ref_ticks; }
 static void pm_pacer_wait(FramePacer *p, double period_ms) {
     PERF_BEGIN(PM_WAIT);
+    const uint64_t period = (uint64_t)((double)SDL_GetPerformanceFrequency() * (period_ms / 1000.0));
+    if (p->next_deadline && period_ms == pm_guest_period_ms())
+        p->next_deadline += (uint64_t)present_phase_correction(period);
     frame_pacer_wait(p, period_ms);
+    s_present_ref_ticks = p->next_deadline - period;
     PERF_END(PM_WAIT);
 }
 static Uint64   s_perf_last_qpc = 0;
@@ -1579,6 +1592,26 @@ static float         g_video_pgxp_depth_tolerance = 0.02f;
  * applied and the launcher hides its Perspective textures row. */
 static int           g_video_pgxp_mod_only            = 0;
 static int           g_video_renderer = PSXRecompV4::DEFAULT_VIDEO_RENDERER;
+/* [video] renderer = "sdl_gpu" (3): the GL renderer drawn through sgl on
+ * SDL3's GPU API (docs/SDL_GPU_RENDERER_PLAN.md). From the point the renderer
+ * is settled on, it is renderer 1 everywhere, with this flag set. */
+static int           g_video_sdl_gpu = 0;
+static void video_renderer_settle() {
+    if (g_video_renderer == 3) { g_video_renderer = 1; g_video_sdl_gpu = 1; }
+    else if (g_video_renderer != 1) g_video_sdl_gpu = 0;
+    if (g_video_renderer == 1) {
+        if (!gl_renderer_set_impl(g_video_sdl_gpu)) {
+            std::fprintf(stdout, "psxrecomp: the sdl_gpu renderer is not in this build "
+                                 "(PSX_SDL_GPU=OFF); using OpenGL instead.\n");
+            g_video_sdl_gpu = 0;
+        }
+        g_video_sdl_gpu = gl_renderer_impl();   /* PSX_GL_IMPL wins for tests */
+    }
+}
+/* The renderer as settings store it (3 = sdl_gpu). */
+static int video_renderer_saved() {
+    return g_video_renderer == 1 && g_video_sdl_gpu ? 3 : g_video_renderer;
+}
 
 /* Settings -> Display -> Internal resolution (internal_resolution.h). The
  * preset supersedes the legacy supersampling factor once set; PSX_IR_UNSET
@@ -2004,6 +2037,50 @@ static int           s_presentation_fast_forward = 0;
 extern "C" int psx_presentation_fast_forward(void) {
     return s_presentation_fast_forward;
 }
+/* The turbo's next shown frame (wall clock, SDL performance counter); 0 when
+ * the turbo is not showing on the clock (sdl_vblank_present_body). */
+static uint64_t      s_turbo_next_present = 0;
+extern "C" int gpu_draw_skip_shown_partial(void);   /* gpu.c */
+/* The turbo's shown frames, those still partial (a tenth of a second waited)
+ * and the VBlanks a due present waited for a drawn frame (TCP sgl). */
+static uint64_t s_turbo_presents, s_turbo_partial_presents, s_turbo_present_waits;
+extern "C" void psx_turbo_present_counts(uint64_t *shown, uint64_t *partial, uint64_t *waits) {
+    *shown = s_turbo_presents; *partial = s_turbo_partial_presents; *waits = s_turbo_present_waits;
+}
+static int           s_turbo_clock_present = 0;
+/* Turbo draw skip (on by default; PSX_TURBO_DRAW_SKIP=0 draws every frame):
+ * asked by gpu.c at each flip. The frame starting now (t) is on screen from its own flip, about one
+ * game frame (d) later, until the next one: [t+d, t+2d). It is drawn when the
+ * turbo's next shown frame falls in that window (a fifth of a frame early
+ * too, for the error in d) or is already due (a late present waits for a
+ * drawn frame on screen: sdl_vblank_present_body), else its drawing is
+ * dropped (gpu.c). Never more than 30 dropped in a row. */
+extern "C" int psx_turbo_skip_next_frame(void) {
+    static int s_on = -1;
+    if (s_on < 0) {
+        const char *e = std::getenv("PSX_TURBO_DRAW_SKIP");
+        s_on = (e && e[0] == '0') ? 0 : 1;
+    }
+    static uint64_t s_last_flip = 0;
+    static double s_frame_ticks = 0.0;
+    static int s_run = 0;
+    const uint64_t now = SDL_GetPerformanceCounter();
+    const double freq = (double)SDL_GetPerformanceFrequency();
+    if (s_last_flip) {
+        const double d = (double)(now - s_last_flip);
+        if (d < freq / 10.0) s_frame_ticks = s_frame_ticks > 0.0 ? s_frame_ticks * 0.75 + d * 0.25 : d;
+    }
+    s_last_flip = now;
+    if (!s_on || !s_presentation_fast_forward || !s_turbo_clock_present || s_frame_ticks <= 0.0) {
+        s_run = 0;
+        return 0;
+    }
+    const double next = (double)s_turbo_next_present, t = (double)now;
+    const int shown = next < t || (next >= t + 0.8 * s_frame_ticks && next < t + 2.0 * s_frame_ticks);
+    const int skip = !shown && s_run < 30;
+    s_run = skip ? s_run + 1 : 0;
+    return skip;
+}
 /* Mod-owned blend source; reset_mod_owned_presentation() sets VBLANK. */
 static int           g_frame_interpolation_source =
     PSX_MOD_FRAME_SOURCE_VBLANK;
@@ -2029,6 +2106,7 @@ static double        g_host_refresh_max_hz = 0.0;   /* panel maximum (VRR) */
 static constexpr double PSX_FRAME_PERIOD_MS = 1000.0 / 59.94;
 static double        g_guest_frame_period_ms = PSX_FRAME_PERIOD_MS;
 static double        g_frame_period_ms = PSX_FRAME_PERIOD_MS;
+static double pm_guest_period_ms(void) { return g_frame_period_ms; }
 static int           g_host_refresh_display_idx = -2;
 static uint64_t      g_host_refresh_last_probe_ms = 0;
 static bool          g_mod_native_vblank_rate = false;
@@ -10086,13 +10164,25 @@ static NetplayVblankEpilogue sdl_vblank_present_body(void) {
                 /* Not "when the render thread has emptied": one as slow as the
                  * turbo's frames never empties (BoF4's battles at 7x showed 0-2
                  * frames a second, the screen stuck while the turbo lasted). */
-                static uint64_t s_turbo_next_present = 0;
+                s_turbo_clock_present = 1;
                 const uint64_t now = SDL_GetPerformanceCounter();
                 const uint64_t period = SDL_GetPerformanceFrequency() / 30u;
                 if (now < s_turbo_next_present) {
                     ep.skip_pace = 1;
                     return ep;  /* drawn, not shown */
                 }
+                /* Draw skip: never show a frame that dropped its drawing;
+                 * the next frames draw while the present is due (at most
+                 * a tenth of a second, a game that stopped flipping). */
+                if (gpu_draw_skip_shown_partial()) {
+                    if (now - s_turbo_next_present < SDL_GetPerformanceFrequency() / 10u) {
+                        s_turbo_present_waits++;
+                        ep.skip_pace = 1;
+                        return ep;
+                    }
+                    s_turbo_partial_presents++;
+                }
+                s_turbo_presents++;
                 s_turbo_next_present = (now - s_turbo_next_present < period)
                     ? s_turbo_next_present + period : now + period;
             } else {
@@ -10104,6 +10194,7 @@ static NetplayVblankEpilogue sdl_vblank_present_body(void) {
             }
         } else {
             turbo_skip = 0;
+            s_turbo_clock_present = 0;
             if (turbo_was_down)
                 apply_present_cadence();   /* the screen's own swap interval again */
             turbo_was_down = 0;
@@ -11586,6 +11677,8 @@ static void sdl_vblank_present(void) {
 static void sdl_vblank_present_(void) {
     sync_guest_cadence_to_video_standard();
     NetplayVblankEpilogue ep = sdl_vblank_present_body();
+    /* turbo draw skip (gpu.c): off with the turbo, and after a few VBlanks with no flip */
+    gpu_draw_skip_vblank(s_presentation_fast_forward);
     PERF_BEGIN(PM_PRESENT);
     render_thread_vblank();
     PERF_END(PM_PRESENT);
@@ -18251,6 +18344,7 @@ int main(int argc, char** argv) {
             if      (std::strcmp(r, "software") == 0) cli_renderer = 0;
             else if (std::strcmp(r, "opengl")   == 0) cli_renderer = 1;
             else if (std::strcmp(r, "vulkan")   == 0) cli_renderer = 2;
+            else if (std::strcmp(r, "sdl_gpu")  == 0) cli_renderer = 3;
         } else if (std::strcmp(argv[i], "--window-title") == 0 && i + 1 < argc) {
             cli_window_title = argv[++i];
         } else if (std::strcmp(argv[i], "--netplay-query") == 0 && i + 1 < argc) {
@@ -20985,7 +21079,8 @@ session_reboot:
         std::fflush(stdout);
     }
     memory_init(bios_path_str.c_str());
-    if (g_headless_opengl) g_video_renderer = 1;
+    if (g_headless_opengl && g_video_renderer != 3) g_video_renderer = 1;
+    video_renderer_settle();
     if (net_cfg.enabled && !psx_mod_netplay_renderer_allowed(g_video_renderer)) {
         std::fprintf(stderr, "psxrecomp: this title's netplay profile requires OpenGL "
                              "retained textures; select the OpenGL renderer\n");
@@ -21680,9 +21775,14 @@ session_reboot:
 #endif
 
     Uint32 win_flags = SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE;
-    if (g_video_renderer == 1) {
+    if (g_video_renderer == 1 && g_video_sdl_gpu) {
+        /* sgl: the window SDL_GPU's driver needs (Vulkan / Metal / none). */
+        win_flags |= (Uint32)gl_renderer_impl_window_flags();
+    } else if (g_video_renderer == 1) {
         configure_core_gl_context_attributes();
         win_flags |= SDL_WINDOW_OPENGL;
+    }
+    if (g_video_renderer == 1) {
         /* Opt-in high-pixel-density drawable: only when the player asked for
          * more than native resolution, so the default window, OSD and bezel
          * maths stay exactly as they were. */
@@ -21786,6 +21886,7 @@ session_reboot:
         dynres_setup();
         psx_video_current(&g_video_boot);  /* boot snapshot for restart-only rows */
         recomp_overlay_setup(argv[0], s_picker_game_name);
+        /* The ImGui form draws through the renderer's GL (driver or sgl). */
         bug_report_ui_set_window(g_gl_active && !g_headless ? sdl_window : nullptr);
         if (dbg_live_scale && g_gl_active) {
             if (!dynres_requested()) g_dynres.active = false;
@@ -23102,6 +23203,7 @@ soft_return_lobby:
                 (void)quality_save_user_settings(settings_path, us);
             }
             g_video_renderer = ls.renderer;
+            video_renderer_settle();
             g_video_internal_res = ir.preset;
             g_video_scale = ir.scale;
             g_video_aa = ls.antialiasing;

@@ -32,10 +32,10 @@
 #include "imgui_internal.h"   /* ClearActiveID: the controller leaves the description */
 #include "launcher_theme.h"
 
-#ifdef _WIN32
-#include <windows.h>
-#endif
-#include <GL/gl.h>
+/* GL through ImGui's own loader table (imgl3w): the driver's OpenGL, or the
+ * renderer's sgl layer (SDL_GPU) when [video] renderer = "sdl_gpu". */
+#include "imgui_impl_opengl3_loader.h"
+#include "gpu_gl_renderer.h"
 
 #include <algorithm>
 #include <cfloat>
@@ -48,6 +48,12 @@
 
 #ifndef GL_BGRA
 #define GL_BGRA 0x80E1
+#endif
+#ifndef GL_RGBA8
+#define GL_RGBA8 0x8058
+#endif
+#ifndef GL_UNPACK_ALIGNMENT
+#define GL_UNPACK_ALIGNMENT 0x0CF5
 #endif
 #ifndef GL_CLAMP_TO_EDGE
 #define GL_CLAMP_TO_EDGE 0x812F
@@ -185,9 +191,7 @@ void upload_thumb(void) {
     glGetIntegerv(BR_GL_PIXEL_UNPACK_BUFFER_BINDING, &prev_pbo);
     glGetIntegerv(GL_UNPACK_ALIGNMENT, &prev_align);
     glGetIntegerv(GL_UNPACK_ROW_LENGTH, &prev_row);
-    typedef void (APIENTRY *BindBufferFn)(GLenum, GLuint);
-    static BindBufferFn bind_buffer = (BindBufferFn)SDL_GL_GetProcAddress("glBindBuffer");
-    if (prev_pbo && bind_buffer) bind_buffer(BR_GL_PIXEL_UNPACK_BUFFER, 0);   /* pixels from memory */
+    if (prev_pbo) glBindBuffer(BR_GL_PIXEL_UNPACK_BUFFER, 0);   /* pixels from memory */
     if (!g_tex) glGenTextures(1, &g_tex);
     glBindTexture(GL_TEXTURE_2D, g_tex);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
@@ -200,7 +204,7 @@ void upload_thumb(void) {
     glPixelStorei(GL_UNPACK_ALIGNMENT, prev_align);
     glPixelStorei(GL_UNPACK_ROW_LENGTH, prev_row);
     glBindTexture(GL_TEXTURE_2D, (GLuint)prev_tex);
-    if (prev_pbo && bind_buffer) bind_buffer(BR_GL_PIXEL_UNPACK_BUFFER, (GLuint)prev_pbo);
+    if (prev_pbo) glBindBuffer(BR_GL_PIXEL_UNPACK_BUFFER, (GLuint)prev_pbo);
     g_thumb_new = false;
 }
 
@@ -718,7 +722,16 @@ int bug_report_ui_draw(int w, int h) {
         io.BackendFlags |= ImGuiBackendFlags_HasGamepad;
     }
     ImGui::SetCurrentContext(g_ctx);
-    if (!g_gl_ready) g_gl_ready = ImGui_ImplOpenGL3_Init(nullptr);
+    if (!g_gl_ready) {
+        /* sgl: ImGui's GL table from the layer (its GLSL 330 core shaders);
+         * the driver's OpenGL: ImGui loads it itself. */
+        const char *glsl = nullptr;
+        if (gl_renderer_impl() == 1) {
+            if (imgl3wInit2((GL3WGetProcAddressProc)gl_renderer_get_proc) == GL3W_OK) glsl = "#version 330 core";
+            else return 0;
+        }
+        g_gl_ready = ImGui_ImplOpenGL3_Init(glsl);
+    }
     if (!g_gl_ready) {
         ImGui::SetCurrentContext(prev);
         return 0;

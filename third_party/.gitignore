@@ -9,3 +9,5 @@
 *.zip
 !libchdr-*.tar.gz
 !libjuice-v*.tar.gz
+!glslang-*.tar.gz
+!SPIRV-Cross-*.tar.gz

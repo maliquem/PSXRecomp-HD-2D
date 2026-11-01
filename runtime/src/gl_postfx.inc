@@ -47,9 +47,18 @@
  * driver round trip on a threaded GL). */
 enum { PFX_LOC_RCP, PFX_LOC_SIZE, PFX_LOC_ORG, PFX_LOC_UV, PFX_LOC_TIME, PFX_LOC_FIXED };
 /* u_time: seconds since the first present (wall clock, so flickers and other
- * motion keep their pace whatever the frame rate), wrapped at an hour. */
+ * motion keep their pace whatever the frame rate), wrapped at an hour.
+ * PSX_PFX_TIME=<seconds> holds it still (tests that compare two runs). */
 static float pfx_time_now(void) {
     static double t0 = -1.0;
+    static int fixed_read = 0;
+    static float fixed = -1.0f;
+    if (!fixed_read) {
+        const char *e = getenv("PSX_PFX_TIME");
+        if (e && e[0]) fixed = (float)atof(e);
+        fixed_read = 1;
+    }
+    if (fixed >= 0.0f) return fixed;
     struct timespec ts;
     if (!timespec_get(&ts, TIME_UTC)) return 0.0f;
     const double t = (double)ts.tv_sec + (double)ts.tv_nsec * 1e-9;
@@ -71,9 +80,9 @@ typedef struct {
     int      dw[PFX_MAX_PASSES], dh[PFX_MAX_PASSES];
     int      tw[PFX_MAX_PASSES], th[PFX_MAX_PASSES];
 } PfxStage;
-/* EXTRA0..4: further file chains run, in order, before USER (e.g. a depth
+/* EXTRA0..5: further file chains run, in order, before USER (e.g. a depth
  * look, then a down-sample, under a CRT chain). */
-#define PFX_EXTRA 5
+#define PFX_EXTRA 6
 enum { PFX_STAGE_BLOOM, PFX_STAGE_EXTRA0, PFX_STAGE_USER = PFX_STAGE_EXTRA0 + PFX_EXTRA,
        PFX_STAGE_AA, PFX_STAGE_HQ, PFX_NSTAGES };
 #define PFX_IS_EXTRA(i)  ((i) >= PFX_STAGE_EXTRA0 && (i) < PFX_STAGE_EXTRA0 + PFX_EXTRA)

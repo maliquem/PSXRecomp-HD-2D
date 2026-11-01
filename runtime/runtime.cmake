@@ -420,6 +420,7 @@ set(PSXRECOMP_RUNTIME_SOURCES
     ${PSXRECOMP_ROOT}/runtime/src/interrupts.c
     ${PSXRECOMP_ROOT}/runtime/src/psx_video_timing.c
     ${PSXRECOMP_ROOT}/runtime/src/frame_pacing.c
+    ${PSXRECOMP_ROOT}/runtime/src/present_phase.c
     ${PSXRECOMP_ROOT}/runtime/src/perf_meter.c
     ${PSXRECOMP_ROOT}/runtime/src/frame_interpolation.c
     ${PSXRECOMP_ROOT}/runtime/src/render_pass.c
@@ -2512,6 +2513,23 @@ function(psxrecomp_add_runtime_target target)
     else()
         message(STATUS "Vulkan backend: disabled (PSX_ENABLE_VULKAN=OFF) - "
                        "gpu_vk_renderer.c builds as an inert stub")
+    endif()
+
+    # ---- sgl: the GL renderer on SDL3's GPU API ----------------------------
+    # [video] renderer = "sdl_gpu" (docs/SDL_GPU_RENDERER_PLAN.md): the same
+    # gpu_gl_renderer.c, its GL calls recorded and encoded on SDL_GPU (Vulkan /
+    # Direct3D 12 / Metal). glslang + SPIRV-Cross come from pinned archives
+    # (sdl_gpu_dependency.cmake). OFF: renderer = "sdl_gpu" falls back to OpenGL.
+    option(PSX_SDL_GPU "Build the SDL_GPU implementation of the GL renderer (sgl)" ON)
+    if(PSX_SDL_GPU AND _psx_sdl_backend STREQUAL "SDL3")
+        include("${PSXRECOMP_ROOT}/runtime/sdl_gpu_dependency.cmake")
+        target_sources(${target} PRIVATE
+            ${PSXRECOMP_ROOT}/runtime/src/sgl/sgl_gl.c
+            ${PSXRECOMP_ROOT}/runtime/src/sgl/sgl_gpu.c
+            ${PSXRECOMP_ROOT}/runtime/src/sgl/sgl_shader.cpp)
+        target_compile_definitions(${target} PRIVATE PSX_HAVE_SGL=1)
+        target_link_libraries(${target} PRIVATE psx_sgl_shadercomp)
+        message(STATUS "sgl (SDL_GPU) renderer: on for ${target}")
     endif()
 
     # Prefer BSS for zero-init data. MinGW+LTO has emitted multi‑MiB rings into

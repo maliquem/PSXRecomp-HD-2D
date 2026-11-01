@@ -946,8 +946,9 @@ static RuntimeConfig parse_runtime_block(const toml::value& cfg, const fs::path&
             if (mode == "software")     rt.video_renderer = 0;
             else if (mode == "opengl")  rt.video_renderer = 1;
             else if (mode == "vulkan")  rt.video_renderer = 2;
+            else if (mode == "sdl_gpu") rt.video_renderer = 3;
             else throw std::runtime_error(fmt::format(
-                "[video] renderer must be \"software\", \"opengl\" or \"vulkan\": {}", mode));
+                "[video] renderer must be \"software\", \"opengl\", \"vulkan\" or \"sdl_gpu\": {}", mode));
         }
         if (video.contains("offer_vulkan")) {
             rt.video_offer_vulkan = toml::find<bool>(video, "offer_vulkan");
@@ -3107,6 +3108,7 @@ UserSettings load_user_settings(const fs::path& path) {
             if (m == "software") { s.renderer = 0; s.has_renderer = true; }
             else if (m == "opengl") { s.renderer = 1; s.has_renderer = true; }
             else if (m == "vulkan") { s.renderer = 2; s.has_renderer = true; }
+            else if (m == "sdl_gpu") { s.renderer = 3; s.has_renderer = true; }
         });
         if (v.contains("supersampling")) try_get([&]{
             const auto n = toml::find<int64_t>(v, "supersampling");
@@ -3576,7 +3578,7 @@ bool save_user_settings(const fs::path& path, const UserSettings& s) {
     f << "[video]\n";
     if (s.has_renderer)
         f << "renderer          = \""
-          << (s.renderer == 2 ? "vulkan" : s.renderer == 1 ? "opengl" : "software")
+          << (s.renderer == 3 ? "sdl_gpu" : s.renderer == 2 ? "vulkan" : s.renderer == 1 ? "opengl" : "software")
           << "\"\n";
     if (s.has_supersampling)
         f << "supersampling     = " << s.supersampling << "\n";

@@ -20,6 +20,23 @@ extern "C" {
 /* Create the GL context on a window made with SDL_WINDOW_OPENGL.
  * Returns 1 on success, 0 to fall back to the SDL_Renderer present path. */
 int  gl_renderer_init_context(struct SDL_Window *win);
+/* Which GL the renderer calls ([video] renderer, before init_context):
+ * 0 = the driver's OpenGL, 1 = sgl on SDL3's GPU API ("sdl_gpu"; the window
+ * then is made without SDL_WINDOW_OPENGL). PSX_GL_IMPL=sgl|opengl wins.
+ * gl_renderer_set_impl returns 0 when sgl is not compiled in. */
+int  gl_renderer_set_impl(int impl);
+int  gl_renderer_impl(void);
+/* A GL entry point of the implementation in use (driver or sgl), for code
+ * that draws into the renderer's context with its own GL table (ImGui). */
+void *gl_renderer_get_proc(const char *name);
+/* "opengl" or "sdl_gpu (vulkan)" etc. — for the logs and the debug server. */
+const char *gl_renderer_impl_name(void);
+/* SDL window flags the sdl_gpu window needs ([video] sdl_gpu_driver /
+ * PSX_SGL_DRIVER: "vulkan", "direct3d12", "metal", "auto"); 0 without sgl. */
+unsigned long long gl_renderer_impl_window_flags(void);
+void gl_renderer_set_sgl_driver(const char *name);
+/* sgl counters as JSON (TCP "sgl"); 0 when the renderer is not on sgl. */
+int gl_renderer_sgl_json(char *out, int cap);
 /* Select a retained immutable bank for the next textured submission; zero
  * selects live VRAM. Emulation/GL owning thread only. Returns 0 if unavailable. */
 int gl_renderer_select_texture_bank(uint16_t id);
@@ -197,7 +214,7 @@ float gl_renderer_get_bloom(void);
  * ("" = none; PSX_POST_SHADER overrides). A preset that fails to load or
  * compile is logged and skipped. */
 void  gl_renderer_set_post_shader(const char *path);
-/* Further .pfx chains run in slot order (0..4) right before post_shader
+/* Further .pfx chains run in slot order (0..5) right before post_shader
  * ("" = none); live uniforms (gl_renderer_set_post_uniform) reach them all. */
 void  gl_renderer_set_extra_shader(int slot, const char *path);
 /* Pillarbox fill: a picture narrower than the window gets its side bars in

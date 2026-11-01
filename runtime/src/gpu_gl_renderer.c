@@ -99,6 +99,7 @@
 #include "latency_ring.h"
 #include "gpu_timeline.h"
 #include "frame_pacing.h"
+#include "present_phase.h"
 #include "psx_rewind.h"
 #include "psx_openxr.h"
 #include "openxr_color.h"
@@ -119,6 +120,7 @@
 #include <time.h>
 #include <stdatomic.h>
 #include "png_write.h"   /* png_write_rgb — present_shot readback */
+#include "gl_api.h"      /* every GL call below: the driver's OpenGL or sgl */
 static uint64_t s_fg_flips;   /* frame generation (below): game frames seen */
 
 #ifndef GL_BGRA
@@ -442,6 +444,10 @@ static int       s_rthx_prim = 0;         /* current record carries prim tags  *
 static int       s_rthx_tagged = 0, s_rthx_backdrop = 0, s_rthx_front = 0;
 static int       s_rths_flat_bd = 0, s_rths_vp_w = 0, s_rths_bg_full = 0;
 static inline int rth_replaying(void) { return s_rth_on && rt_on_render_thread(); }
+extern uint64_t psx_present_ref_ticks(void);      /* main.cpp: the pacer's last deadline */
+extern int psx_presentation_fast_forward(void);   /* main.cpp */
+static uint64_t s_present_ref_rth = 0;            /* the replayed present's deadline */
+static int      s_phase_vsync = 0;                /* this swap is held to the grid: interval 1 */
 /* Frame generation (defined with the render-thread code near the end). */
 static int       s_fg_on;
 static int       s_fg_drawing, s_fg_presenting, s_fg_broken, s_fg_capture_real;
@@ -1980,9 +1986,15 @@ static int s_tex_filter = 0;
  * which keeps them nearest. Edges: PSX_TEXTURE_EDGE_* (gl_texfilter.inc).
  * s_tf_eff: the filter each class draws with now; s_tf_soft: some class
  * blends its edges (opaque batches then draw with dual-source blending, exact
- * where a texel is fully covered). */
+ * where a texel is fully covered; without it, a colour pass blended by the
+ * coverage and an alpha pass for the mask bit: the same pixels). */
 static int s_tf_class[3] = {-1, -1, -1}, s_tf_edge[3] = {0, 0, 0};
 static int s_tf_eff[3] = {0, 0, 0}, s_tf_soft = 0;
+/* Dual-source blending (GL_SRC1_ALPHA): the driver's OpenGL has it; sgl
+ * (renderer = "sdl_gpu") does not, so semi-transparent prims there take the
+ * isolated two-pass path (same pixels), Blend edges of opaque prims take two
+ * passes (tex_soft_alpha_pass) and those of semi-transparent ones draw Clean. */
+static int s_gl_dual_src = 1;
 static uint64_t s_tf_prims[3];   /* textured triangles drawn per class (TCP texture_filter) */
 static void tf_update(void) {
     s_tf_soft = 0;
@@ -3420,6 +3432,9 @@ static const char *TEX_FS =
     "#endif\n"
     "  frag = vec4(rgb, (stp == 1 || u_maskset == 1) ? 1.0 : 0.0);\n"
     "  blend_factor = vec4(0.0, 0.0, 0.0, dst_factor);\n"
+    "#if TF_MASK != 0\n"
+    "  if (u_softok == 2) frag.a = tf_cov;   /* one source: the coverage blends, alpha kept */\n"
+    "#endif\n"
     "}\n";
 
 /* Quad blit: used for CPU->VRAM upload flushes and VRAM->VRAM copies.
@@ -4847,6 +4862,35 @@ static void wide_clear_bd_scale(GLint uScale, GLint uCenter) {
 static float s_tb[TEXBATCH_MAXV * TEXV];
 static int   s_tb_n = 0;                    /* verts queued */
 static int   s_tb_semi = -2;
+/* No dual-source blending (sgl): a semi-transparent batch takes another prim
+ * only when it overlaps none already in it — the batch's two passes (STP=0
+ * texels, then STP=1) then reorder no pixel, the same as drawing them one by
+ * one. Triangles that only share an edge (a quad's halves) do not overlap. */
+#define NODUAL_TRI_MAX 64
+static float s_nd_tri[NODUAL_TRI_MAX][6];
+static int   s_nd_n = 0;
+static int nd_axis_apart(const float *a, const float *b, float nx, float ny) {
+    float a0 = a[0] * nx + a[1] * ny, a1 = a0, b0 = b[0] * nx + b[1] * ny, b1 = b0;
+    for (int i = 1; i < 3; i++) {
+        float pa = a[i * 2] * nx + a[i * 2 + 1] * ny, pb = b[i * 2] * nx + b[i * 2 + 1] * ny;
+        if (pa < a0) a0 = pa; if (pa > a1) a1 = pa;
+        if (pb < b0) b0 = pb; if (pb > b1) b1 = pb;
+    }
+    const float eps = 1e-4f * (fabsf(nx) + fabsf(ny) + 1.0f);
+    return a1 <= b0 + eps || b1 <= a0 + eps;
+}
+/* Two triangles overlap with some area (separating axes: the six edge normals). */
+static int nd_tris_overlap(const float *a, const float *b) {
+    const float *t[2] = {a, b};
+    for (int k = 0; k < 2; k++)
+        for (int e = 0; e < 3; e++) {
+            const float *p = t[k];
+            float ex = p[((e + 1) % 3) * 2] - p[e * 2], ey = p[((e + 1) % 3) * 2 + 1] - p[e * 2 + 1];
+            if (ex == 0.0f && ey == 0.0f) continue;
+            if (nd_axis_apart(a, b, -ey, ex)) return 0;
+        }
+    return 1;
+}
 static int   s_tb_depth = 0;                /* PGXP depth mode (batch key) */
 static int   s_tb_b3d = 0;                  /* bloom on: 3D (bloom source) batch (key) */
 static int   s_tb_mask = 0, s_tb_filter = 0;
@@ -5111,14 +5155,34 @@ static int b3dm_passes(int semi, int b3d) {
  * texel gives dst factor 0: the same pixels), the semi batches of modes 0/1/3
  * already do; elsewhere the edge is cut (Clean). */
 static void tex_opaque_blend(void) {
-    if (s_tf_soft) {
+    if (s_tf_soft && s_gl_dual_src) {
         glEnable(GL_BLEND);
         p_glBlendEquationSeparate(PSXGL_FUNC_ADD, PSXGL_FUNC_ADD);
         p_glBlendFuncSeparate(GL_ONE, PSXGL_SRC1_ALPHA, GL_ONE, GL_ZERO);
+        p_glUniform1i(s_tex_uSoftok, 1);
+    } else if (s_tf_soft) {
+        /* one source: colour over what is under it by the coverage (the
+         * shader's alpha, u_softok 2), the destination alpha kept for the
+         * mask pass after it */
+        glEnable(GL_BLEND);
+        p_glBlendEquationSeparate(PSXGL_FUNC_ADD, PSXGL_FUNC_ADD);
+        p_glBlendFuncSeparate(GL_ONE, GL_ONE_MINUS_SRC_ALPHA, GL_ZERO, GL_ONE);
+        p_glUniform1i(s_tex_uSoftok, 2);
     } else {
         glDisable(GL_BLEND);
+        p_glUniform1i(s_tex_uSoftok, 0);
     }
-    p_glUniform1i(s_tex_uSoftok, s_tf_soft);
+}
+/* Without dual source: the mask bit of the soft-edged batch just drawn, into
+ * alpha only, from the same fragments (u_softok 3). */
+static void tex_soft_alpha_pass(int nverts) {
+    if (!s_tf_soft || s_gl_dual_src) return;
+    glDisable(GL_BLEND);
+    glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_TRUE);
+    p_glUniform1i(s_tex_uSoftok, 3);
+    glDrawArrays(GL_TRIANGLES, 0, nverts);
+    glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+    tex_opaque_blend();
 }
 static void tex_draw_passes_ex_(int nverts, int semi, int tb_mask, int check,
                                 int track_stencil, int b3d);
@@ -5137,6 +5201,7 @@ static void tex_draw_passes_ex_(int nverts, int semi, int tb_mask, int check,
         mask_stencil_ex(tb_mask, check);
         p_glUniform1i(s_uSemipass, 0);                 /* all texels, one ordered colour pass */
         glDrawArrays(GL_TRIANGLES, 0, nverts);
+        tex_soft_alpha_pass(nverts);
         if (check) {
             glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);  /* stencil-only fixup */
             mask_stencil_ex(1, check);
@@ -5575,6 +5640,7 @@ static void flush_tex_batch_impl(void) {
     wide_stencil_ready();   /* before any of this batch's GL state */
     int nverts = s_tb_n, semi = s_tb_semi, dmode = s_tb_depth;
     s_tb_n = 0;                             /* clear first: re-entrancy safe */
+    s_nd_n = 0;
     double cw_t0 = cw_ms();
     s_cw_batches++; s_batch_total++; s_cw_flush_depth++;
 
@@ -6307,8 +6373,25 @@ static void gpu_textured_triangle(const int *xs, const int *ys,
         /* Batch key and isolation come from the build's tier
          * (gl_batch_policy.h): LLE draws every semi prim alone; HLE keeps
          * painter-ordered opaque + modes 0/1/3 runs in one dual-source draw. */
-        const GlBatchClass batch_class = gl_batch_classify(semi, s_mask_check,
+        GlBatchClass batch_class = gl_batch_classify(semi, s_mask_check,
             mod_texture_bank_batchable(s_selected_bank_tex != 0, s_mask_check, semi));
+        float nd_tri[6];
+        int nd_overlap = 0;
+        if (!s_gl_dual_src && batch_class.key == 4) {
+            /* no dual-source blending: in its own mode, alone unless it
+             * overlaps nothing in the open batch (s_nd_tri) */
+            batch_class.key = semi;
+            batch_class.isolate = 0;
+            for (int i = 0; i < 3; i++) {
+                nd_tri[i * 2] = s_pc_valid ? s_pc_x[i] : (float)xs[i];
+                nd_tri[i * 2 + 1] = s_pc_valid ? s_pc_y[i] : (float)ys[i];
+            }
+            if (s_tb_n > 0 && s_tb_semi == semi) {
+                if (s_nd_n >= NODUAL_TRI_MAX) nd_overlap = 1;
+                for (int i = 0; i < s_nd_n && !nd_overlap; i++)
+                    nd_overlap = nd_tris_overlap(nd_tri, s_nd_tri[i]);
+            }
+        }
         const int batch_semi = batch_class.key;
         const int isolate = batch_class.isolate;
         /* glass: a 3D face textured with a copy of the picture (scopy_note) */
@@ -6366,6 +6449,7 @@ static void gpu_textured_triangle(const int *xs, const int *ys,
             /* Bloom marks a batch in two passes (clear, then sources), so
              * one batch holds either 3D sources or not: painter order. */
             else if ((s_bcls_on || s_b3d_on) && tex_b3d != s_tb_b3d) reason = 7;
+            else if (nd_overlap) reason = 0;
         }
         if (reason >= 0) {
             s_batch_reason[reason]++;
@@ -6380,6 +6464,13 @@ static void gpu_textured_triangle(const int *xs, const int *ys,
             s_tb_bank_live_clut = s_selected_bank_live_clut;
             s_tb_hd_tex = hd_tex;
             s_tb_twin[0] = twx; s_tb_twin[1] = twy; s_tb_twin[2] = tox; s_tb_twin[3] = toy;
+        }
+        if (!s_gl_dual_src && batch_semi >= 0 && s_nd_n < NODUAL_TRI_MAX) {
+            for (int i = 0; i < 3; i++) {
+                s_nd_tri[s_nd_n][i * 2] = s_pc_valid ? s_pc_x[i] : (float)xs[i];
+                s_nd_tri[s_nd_n][i * 2 + 1] = s_pc_valid ? s_pc_y[i] : (float)ys[i];
+            }
+            s_nd_n++;
         }
         /* The prim's window, exact as a float (20 bits). */
         float twin = (float)(twx | (twy << 5) | (tox << 10) | (toy << 15));
@@ -8119,6 +8210,48 @@ int gl_renderer_select_texture_bank_live_clut(uint16_t id) {
     return 1;
 }
 
+int gl_renderer_set_impl(int impl) {
+    const char *e = getenv("PSX_GL_IMPL");
+    if (e && e[0]) { (void)gl_api_impl(); return 1; }   /* the environment wins */
+#if defined(PSX_HAVE_SGL)
+    s_gl_impl = impl ? 1 : 0;
+    return 1;
+#else
+    s_gl_impl = 0;
+    return impl ? 0 : 1;
+#endif
+}
+void *gl_renderer_get_proc(const char *name) { return gl_api_get_proc(name); }
+
+int gl_renderer_impl(void) { return gl_api_impl(); }
+const char *gl_renderer_impl_name(void) {
+#if defined(PSX_HAVE_SGL)
+    if (gl_api_impl() == 1) return sgl_impl_name();
+#endif
+    return "opengl";
+}
+unsigned long long gl_renderer_impl_window_flags(void) {
+#if defined(PSX_HAVE_SGL)
+    return (unsigned long long)sgl_window_flags();
+#else
+    return 0;
+#endif
+}
+void gl_renderer_set_sgl_driver(const char *name) {
+#if defined(PSX_HAVE_SGL)
+    sgl_set_driver(name);
+#else
+    (void)name;
+#endif
+}
+int gl_renderer_sgl_json(char *out, int cap) {
+#if defined(PSX_HAVE_SGL)
+    if (gl_api_impl() == 1) return sgl_stats_json(out, cap);
+#endif
+    (void)out; (void)cap;
+    return 0;
+}
+
 int gl_renderer_init_context(SDL_Window *win) {
     s_win = win;
     s_present_w = 0;
@@ -8146,6 +8279,10 @@ int gl_renderer_init_context(SDL_Window *win) {
      * software path — no half-GL hybrid (that mixed mode is what produced
      * the alternating-present menu jitter). */
     int ok = load_modern_gl();
+#if defined(PSX_HAVE_SGL)
+    s_gl_dual_src = gl_api_impl() == 1 ? sgl_caps()->dual_source_blend : 1;
+#endif
+    tf_update();
     if (ok) {
         glGenTextures(1, &s_present_tex);
         glBindTexture(GL_TEXTURE_2D, s_present_tex);
@@ -11489,11 +11626,11 @@ static int pt_cb_ctx(void *user, int current) {
     return 1;
 }
 
-static void fg_hdr_vsync_sync(void);
+static void sgl_fg_fifo_sync(void);
 /* The one owned swap call: the composing thread's (direct) or the present
  * thread's. */
 static void gl_window_swap(void) {
-    fg_hdr_vsync_sync();
+    sgl_fg_fifo_sync();
 #if defined(PSX_SDL3)
     psx_video_telemetry_present(SDL_GL_SwapWindow(s_win) ? 1 : 0);
 #else
@@ -11883,6 +12020,78 @@ int gl_renderer_present_pacing(double window_s, GlPacing *out) {
 uint64_t gl_renderer_gl_thread_cpu_ns(void) { return atomic_load(&s_perf_gl_cpu_ns); }
 
 /* The swap itself (and its accounting). */
+/* A real present's swap held to the screen's refresh grid (present_phase.c):
+ * swapped with interval 1 when it was. Not for generated frames, frame
+ * generation, the turbo nor a swap interval the frontend already set. */
+static void phase_hold(int generated) {
+    s_phase_vsync = 0;
+    if (generated || s_fg_on || s_swap_interval != 0 || psx_presentation_fast_forward()) return;
+    void *hwnd = NULL;
+#if defined(PSX_SDL3) && defined(_WIN32)
+    hwnd = SDL_GetPointerProperty(SDL_GetWindowProperties(s_win), SDL_PROP_WINDOW_WIN32_HWND_POINTER, NULL);
+#endif
+    const uint64_t ref = rth_replaying() ? s_present_ref_rth : psx_present_ref_ticks();
+    /* the frame goes to the GPU before the wait: sdl_gpu records it and would
+     * only submit it at the swap, after the wait, and miss the refresh */
+    if (present_phase_active() || gl_api_impl() == 1) glFlush();
+    s_phase_vsync = present_phase_hold(ref, hwnd);
+}
+/* PSX_PRESENT_PHASE_PROBE=1: wait for the GPU after each real swap and note
+ * which refresh the frame lands on (measurement only: it costs the overlap). */
+/* OpenGL: a GL_TIMESTAMP query after the swap, read back when available (never
+ * waited on), on the performance counter by a calibration once a second;
+ * sdl_gpu (its timestamps count GPU busy time, not the wall clock): glFinish. */
+enum { PQ_N = 8 };
+static void phase_probe(int generated, uint64_t swap_t) {
+    static int on = -1;
+    static GLuint q[PQ_N];
+    static uint64_t q_swap[PQ_N], cal_at;
+    static unsigned head, tail;
+    static double off_ns;
+    typedef void (APIENTRY *PFN_gi64)(GLenum, GLint64 *);
+    static PFN_gi64 gi64;
+    if (on < 0) {
+        const char *e = getenv("PSX_PRESENT_PHASE_PROBE");
+        on = e && *e == '1';
+        if (on && gl_api_impl() != 1 && p_glGenQueries && p_glQueryCounter && p_glGetQueryObjectiv &&
+            p_glGetQueryObjectui64v && (gi64 = (PFN_gi64)SDL_GL_GetProcAddress("glGetInteger64v")) != NULL) {
+            p_glGenQueries(PQ_N, q);
+            on = 2;
+        }
+    }
+    if (!on || generated || s_fg_on || psx_presentation_fast_forward()) return;
+    void *hwnd = NULL;
+#if defined(PSX_SDL3) && defined(_WIN32)
+    hwnd = SDL_GetPointerProperty(SDL_GetWindowProperties(s_win), SDL_PROP_WINDOW_WIN32_HWND_POINTER, NULL);
+#endif
+    const double freq = (double)SDL_GetPerformanceFrequency();
+    if (on == 1) {
+        glFinish();
+        present_phase_note_done(swap_t, SDL_GetPerformanceCounter(), hwnd);
+        return;
+    }
+    const uint64_t now = SDL_GetPerformanceCounter();
+    if (!cal_at || (double)(now - cal_at) > freq) {
+        GLint64 gt = 0;
+        gi64(0x8E28 /* GL_TIMESTAMP */, &gt);
+        cal_at = SDL_GetPerformanceCounter();
+        off_ns = (double)cal_at * 1e9 / freq - (double)gt;
+    }
+    while (tail != head) {
+        GLint avail = 0;
+        p_glGetQueryObjectiv(q[tail % PQ_N], 0x8867 /* QUERY_RESULT_AVAILABLE */, &avail);
+        if (!avail) break;
+        GLuint64 v = 0;
+        p_glGetQueryObjectui64v(q[tail % PQ_N], 0x8866 /* QUERY_RESULT */, &v);
+        present_phase_note_done(q_swap[tail % PQ_N], (uint64_t)(((double)v + off_ns) * freq / 1e9), hwnd);
+        tail++;
+    }
+    if (head - tail < PQ_N) {
+        p_glQueryCounter(q[head % PQ_N], 0x8E28);
+        q_swap[head % PQ_N] = swap_t;
+        head++;
+    }
+}
 static void gl_swap_now(int generated) {
     (void)generated;
     /* Dynamic resolution's ledger: time blocked in the swap is the driver's
@@ -11891,10 +12100,13 @@ static void gl_swap_now(int generated) {
     GL_PRESENT_TEST_HOOK(generated);
 #endif
     hdr_finish();   /* PSX_HDR: the composed SDR picture -> scRGB, last step */
+    phase_hold(generated);
     s_swaps_total++;
     uint64_t t0 = s_dyn_on ? SDL_GetPerformanceCounter() : 0;
     const uint64_t rthf_t0 = rth_replaying() ? host_now_ns_rthf() : 0;
+    const uint64_t swap_t = SDL_GetPerformanceCounter();
     gl_present_swap();
+    phase_probe(generated, swap_t);
     perf_note_swap(generated);
     if (rthf_t0) {
         const uint64_t sw = host_now_ns_rthf() - rthf_t0;
@@ -13167,6 +13379,7 @@ typedef struct RthOvHdr {
     float   slide;
     int32_t args[8], nargs;
     int32_t blend3;
+    uint64_t ref;   /* the pacer deadline of this guest frame (present_phase) */
 } RthOvHdr;
 
 static int rth_record_present(uint16_t op, int n, const int32_t *v) {
@@ -13184,6 +13397,7 @@ static int rth_record_present(uint16_t op, int n, const int32_t *v) {
     hd.blend3 = psx_savestate_menu_overlay_blend();
     hd.nargs = n;
     for (int i = 0; i < n && i < 8; i++) hd.args[i] = v[i];
+    hd.ref = psx_present_ref_ticks();
     size_t bytes = sizeof hd;
     for (int i = 0; i < 4; i++)
         if (hd.has & (1 << i)) bytes += (size_t)hd.w[i] * hd.h[i] * 4u;
@@ -13235,6 +13449,7 @@ static void rth_present_payload(uint16_t op, const uint8_t *p) {
     const uint8_t *q = p + sizeof hd;
     memset(&s_rth_ov, 0, sizeof s_rth_ov);
     s_rth_ov.valid = 1;
+    s_present_ref_rth = hd.ref;
     s_rth_ov.needs_present = hd.needs_present;
     s_rth_ov.slide = hd.slide;
     s_rth_ov.blend3 = hd.blend3;
@@ -13465,22 +13680,33 @@ typedef struct { uint32_t rec, key0, vid[3]; float x[3], y[3], p[3][3], h[3]; in
 static int       s_fg_on = 0;                 /* configured (any thread reads) */
 static int       s_fg_force = 0;              /* PSX_FRAME_GEN_FORCE: tests */
 static _Atomic double s_fg_refresh_hz = 0.0, s_fg_guest_hz = 59.94;
-/* Smooth motion with HDR: the float16 window swapped without vsync flickered
- * on screen with generated frames (seen by the player, 2026-11-01; HDR alone
- * or Smooth motion alone did not), so with both on the swap waits for vsync,
- * from the first frame (the screen's rate not measured yet included), on a
- * screen at least as fast as the game. Not in the turbo. Without HDR the
- * swap interval stays main.cpp's. PSX_SGL_FG_FIFO=0: never forced. */
-static void fg_hdr_vsync_sync(void) {
+/* Smooth motion and the swap interval. sdl_gpu: the swapchain's FIFO queue
+ * paces the frames, one real or generated frame per screen refresh, whatever
+ * the clock's jitter (on a screen at least as fast as the game; the guest
+ * keeps its own pacer). The driver's OpenGL on Windows has no such queue (its
+ * swap does not wait), so there the frame clock places them with the swap
+ * interval main.cpp chose; except with HDR: the float16 window swapped
+ * without vsync flickered on screen with generated frames (seen by the
+ * player, 2026-11-01; HDR alone or Smooth motion alone did not), so it swaps
+ * with vsync too. Not in the turbo. PSX_SGL_FG_FIFO=0: never forced. */
+static void sgl_fg_fifo_sync(void) {
 #if defined(PSX_SDL3)
-    if (!s_hdr_on) return;
+    const int sgl = gl_api_impl() == 1;
+    static int phase_was = 0;
+    const int phase = s_phase_vsync;
+    if (!sgl && !s_hdr_on && !phase && !phase_was) return;
+    phase_was = phase;
     static int env = -1;
     if (env < 0) {
         const char *e = getenv("PSX_SGL_FG_FIFO");
         env = !(e && *e == '0');
     }
     const double rhz = atomic_load(&s_fg_refresh_hz), ghz = atomic_load(&s_fg_guest_hz);
-    const int want = env && s_fg_on && !psx_presentation_fast_forward() && (rhz <= 0.0 || rhz >= ghz - 0.5)
+    /* the screen not measured yet (the first frames): vsync as well; a swap
+     * held to the refresh grid (present_phase): vsync, so it shows at the
+     * next vblank */
+    const int want = phase || ((sgl || s_hdr_on) && env && s_fg_on && !psx_presentation_fast_forward() &&
+                               (rhz <= 0.0 || rhz >= ghz - 0.5))
                      ? 1 : s_swap_interval;
     int cur = -2;
     if (!SDL_GL_GetSwapInterval(&cur) || cur != want) (void)SDL_GL_SetSwapInterval(want);

@@ -47,6 +47,7 @@
 #include "gpu_hd_textures.h"
 #include "gpu_render.h"   /* gr_scale + gr_render_display_hires (screenshot_hires) */
 #include "present_ring.h"
+#include "present_phase.h"
 #include "gpu_timeline.h"
 #include "gte_nclip_stats.h"
 #include "present_image_ring.h"
@@ -11340,6 +11341,29 @@ static void handle_render_thread(int id, const char *json)
     send_fmt("{\"id\":%d,\"ok\":true,%s}", id, buf[0] ? buf : "\"active\":0");
 }
 
+/* The renderer on SDL_GPU ([video] renderer = "sdl_gpu", docs/SDL_GPU_RENDERER_PLAN.md):
+ *   {"cmd":"sgl"} -> implementation, device, cached pipelines and counters
+ *   (draws, render passes, uploads, copies, blits, downloads, submits, waits,
+ *   pipelines made, warnings). "impl":"opengl" when the renderer is on GL. */
+static void handle_sgl(int id, const char *json)
+{
+    (void)json;
+    char buf[2048];
+    if (gl_renderer_sgl_json(buf, sizeof buf) <= 0)
+        snprintf(buf, sizeof buf, "{\"impl\":\"%s\"}", gl_renderer_impl_name());
+    extern void gpu_draw_skip_counts(uint64_t *skipped, uint64_t *drawn, uint64_t *prims);
+    uint64_t sk = 0, dr = 0, pr = 0;
+    gpu_draw_skip_counts(&sk, &dr, &pr);
+    extern void psx_turbo_present_counts(uint64_t *shown, uint64_t *partial, uint64_t *waits);
+    uint64_t ts = 0, tp = 0, tw = 0;
+    psx_turbo_present_counts(&ts, &tp, &tw);
+    send_fmt("{\"id\":%d,\"ok\":true,\"sgl\":%s,\"turbo_draw_skip\":{\"frames_skipped\":%llu,"
+             "\"frames_drawn\":%llu,\"prims_dropped\":%llu,\"shown\":%llu,\"shown_partial\":%llu,"
+             "\"waits\":%llu}}", id, buf,
+             (unsigned long long)sk, (unsigned long long)dr, (unsigned long long)pr,
+             (unsigned long long)ts, (unsigned long long)tp, (unsigned long long)tw);
+}
+
 /* Smooth motion (frame generation; [video] frame_generation, docs/FRAME_GENERATION.md):
  *   {"cmd":"frame_gen"} -> enabled, active, generated / real presents, flips,
  *   the last plan (in-between frames per game frame, display slots), costs,
@@ -11705,6 +11729,16 @@ static void handle_gl_present_ring(int id, const char *json)
     pos += snprintf(buf + pos, bufsz - pos, "]}");
     send_fmt("%s", buf);
     free(buf);
+}
+
+/* Presents held to the screen's refresh grid (present_phase.h):
+ *   {"cmd":"present_phase"} */
+static void handle_present_phase(int id, const char *json)
+{
+    (void)json;
+    char body[1024];
+    present_phase_json(body, sizeof body);
+    send_fmt("{\"id\":%d,\"ok\":true,%s}", id, body);
 }
 
 /* Present-classification ring (all backends; see present_ring.h): how each
@@ -16568,6 +16602,7 @@ static const CmdEntry s_commands[] = {
     { "present_image_ring_stats", handle_present_image_ring_stats },
     { "render_thread",     handle_render_thread },
     { "frame_gen",         handle_frame_gen },
+    { "sgl",               handle_sgl },
     { "perf_summary",      handle_perf_summary },
     { "perf_frames",       handle_perf_frames },
     { "present_image_ring_get",   handle_present_image_ring_get },
@@ -16596,6 +16631,7 @@ static const CmdEntry s_commands[] = {
     { "vram_peek",         handle_vram_peek },
     { "gl_coh_ring",       handle_gl_coh_ring },
     { "gl_present_ring",   handle_gl_present_ring },
+    { "present_phase",     handle_present_phase },
     { "present_ring",      handle_present_ring },
     { "gpu_timeline",      handle_gpu_timeline },
     { "nclip_stats",       handle_nclip_stats },
