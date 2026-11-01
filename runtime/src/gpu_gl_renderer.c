@@ -99,6 +99,7 @@
 #include "latency_ring.h"
 #include "gpu_timeline.h"
 #include "frame_pacing.h"
+#include "present_phase.h"
 #include "psx_rewind.h"
 #include "psx_openxr.h"
 #include "openxr_color.h"
@@ -443,6 +444,10 @@ static int       s_rthx_prim = 0;         /* current record carries prim tags  *
 static int       s_rthx_tagged = 0, s_rthx_backdrop = 0, s_rthx_front = 0;
 static int       s_rths_flat_bd = 0, s_rths_vp_w = 0, s_rths_bg_full = 0;
 static inline int rth_replaying(void) { return s_rth_on && rt_on_render_thread(); }
+extern uint64_t psx_present_ref_ticks(void);      /* main.cpp: the pacer's last deadline */
+extern int psx_presentation_fast_forward(void);   /* main.cpp */
+static uint64_t s_present_ref_rth = 0;            /* the replayed present's deadline */
+static int      s_phase_vsync = 0;                /* this swap is held to the grid: interval 1 */
 /* Frame generation (defined with the render-thread code near the end). */
 static int       s_fg_on;
 static int       s_fg_drawing, s_fg_presenting, s_fg_broken, s_fg_capture_real;
@@ -12015,6 +12020,78 @@ int gl_renderer_present_pacing(double window_s, GlPacing *out) {
 uint64_t gl_renderer_gl_thread_cpu_ns(void) { return atomic_load(&s_perf_gl_cpu_ns); }
 
 /* The swap itself (and its accounting). */
+/* A real present's swap held to the screen's refresh grid (present_phase.c):
+ * swapped with interval 1 when it was. Not for generated frames, frame
+ * generation, the turbo nor a swap interval the frontend already set. */
+static void phase_hold(int generated) {
+    s_phase_vsync = 0;
+    if (generated || s_fg_on || s_swap_interval != 0 || psx_presentation_fast_forward()) return;
+    void *hwnd = NULL;
+#if defined(PSX_SDL3) && defined(_WIN32)
+    hwnd = SDL_GetPointerProperty(SDL_GetWindowProperties(s_win), SDL_PROP_WINDOW_WIN32_HWND_POINTER, NULL);
+#endif
+    const uint64_t ref = rth_replaying() ? s_present_ref_rth : psx_present_ref_ticks();
+    /* the frame goes to the GPU before the wait: sdl_gpu records it and would
+     * only submit it at the swap, after the wait, and miss the refresh */
+    if (present_phase_active() || gl_api_impl() == 1) glFlush();
+    s_phase_vsync = present_phase_hold(ref, hwnd);
+}
+/* PSX_PRESENT_PHASE_PROBE=1: wait for the GPU after each real swap and note
+ * which refresh the frame lands on (measurement only: it costs the overlap). */
+/* OpenGL: a GL_TIMESTAMP query after the swap, read back when available (never
+ * waited on), on the performance counter by a calibration once a second;
+ * sdl_gpu (its timestamps count GPU busy time, not the wall clock): glFinish. */
+enum { PQ_N = 8 };
+static void phase_probe(int generated, uint64_t swap_t) {
+    static int on = -1;
+    static GLuint q[PQ_N];
+    static uint64_t q_swap[PQ_N], cal_at;
+    static unsigned head, tail;
+    static double off_ns;
+    typedef void (APIENTRY *PFN_gi64)(GLenum, GLint64 *);
+    static PFN_gi64 gi64;
+    if (on < 0) {
+        const char *e = getenv("PSX_PRESENT_PHASE_PROBE");
+        on = e && *e == '1';
+        if (on && gl_api_impl() != 1 && p_glGenQueries && p_glQueryCounter && p_glGetQueryObjectiv &&
+            p_glGetQueryObjectui64v && (gi64 = (PFN_gi64)SDL_GL_GetProcAddress("glGetInteger64v")) != NULL) {
+            p_glGenQueries(PQ_N, q);
+            on = 2;
+        }
+    }
+    if (!on || generated || s_fg_on || psx_presentation_fast_forward()) return;
+    void *hwnd = NULL;
+#if defined(PSX_SDL3) && defined(_WIN32)
+    hwnd = SDL_GetPointerProperty(SDL_GetWindowProperties(s_win), SDL_PROP_WINDOW_WIN32_HWND_POINTER, NULL);
+#endif
+    const double freq = (double)SDL_GetPerformanceFrequency();
+    if (on == 1) {
+        glFinish();
+        present_phase_note_done(swap_t, SDL_GetPerformanceCounter(), hwnd);
+        return;
+    }
+    const uint64_t now = SDL_GetPerformanceCounter();
+    if (!cal_at || (double)(now - cal_at) > freq) {
+        GLint64 gt = 0;
+        gi64(0x8E28 /* GL_TIMESTAMP */, &gt);
+        cal_at = SDL_GetPerformanceCounter();
+        off_ns = (double)cal_at * 1e9 / freq - (double)gt;
+    }
+    while (tail != head) {
+        GLint avail = 0;
+        p_glGetQueryObjectiv(q[tail % PQ_N], 0x8867 /* QUERY_RESULT_AVAILABLE */, &avail);
+        if (!avail) break;
+        GLuint64 v = 0;
+        p_glGetQueryObjectui64v(q[tail % PQ_N], 0x8866 /* QUERY_RESULT */, &v);
+        present_phase_note_done(q_swap[tail % PQ_N], (uint64_t)(((double)v + off_ns) * freq / 1e9), hwnd);
+        tail++;
+    }
+    if (head - tail < PQ_N) {
+        p_glQueryCounter(q[head % PQ_N], 0x8E28);
+        q_swap[head % PQ_N] = swap_t;
+        head++;
+    }
+}
 static void gl_swap_now(int generated) {
     (void)generated;
     /* Dynamic resolution's ledger: time blocked in the swap is the driver's
@@ -12023,10 +12100,13 @@ static void gl_swap_now(int generated) {
     GL_PRESENT_TEST_HOOK(generated);
 #endif
     hdr_finish();   /* PSX_HDR: the composed SDR picture -> scRGB, last step */
+    phase_hold(generated);
     s_swaps_total++;
     uint64_t t0 = s_dyn_on ? SDL_GetPerformanceCounter() : 0;
     const uint64_t rthf_t0 = rth_replaying() ? host_now_ns_rthf() : 0;
+    const uint64_t swap_t = SDL_GetPerformanceCounter();
     gl_present_swap();
+    phase_probe(generated, swap_t);
     perf_note_swap(generated);
     if (rthf_t0) {
         const uint64_t sw = host_now_ns_rthf() - rthf_t0;
@@ -13299,6 +13379,7 @@ typedef struct RthOvHdr {
     float   slide;
     int32_t args[8], nargs;
     int32_t blend3;
+    uint64_t ref;   /* the pacer deadline of this guest frame (present_phase) */
 } RthOvHdr;
 
 static int rth_record_present(uint16_t op, int n, const int32_t *v) {
@@ -13316,6 +13397,7 @@ static int rth_record_present(uint16_t op, int n, const int32_t *v) {
     hd.blend3 = psx_savestate_menu_overlay_blend();
     hd.nargs = n;
     for (int i = 0; i < n && i < 8; i++) hd.args[i] = v[i];
+    hd.ref = psx_present_ref_ticks();
     size_t bytes = sizeof hd;
     for (int i = 0; i < 4; i++)
         if (hd.has & (1 << i)) bytes += (size_t)hd.w[i] * hd.h[i] * 4u;
@@ -13367,6 +13449,7 @@ static void rth_present_payload(uint16_t op, const uint8_t *p) {
     const uint8_t *q = p + sizeof hd;
     memset(&s_rth_ov, 0, sizeof s_rth_ov);
     s_rth_ov.valid = 1;
+    s_present_ref_rth = hd.ref;
     s_rth_ov.needs_present = hd.needs_present;
     s_rth_ov.slide = hd.slide;
     s_rth_ov.blend3 = hd.blend3;
@@ -13609,15 +13692,21 @@ static _Atomic double s_fg_refresh_hz = 0.0, s_fg_guest_hz = 59.94;
 static void sgl_fg_fifo_sync(void) {
 #if defined(PSX_SDL3)
     const int sgl = gl_api_impl() == 1;
-    if (!sgl && !s_hdr_on) return;
+    static int phase_was = 0;
+    const int phase = s_phase_vsync;
+    if (!sgl && !s_hdr_on && !phase && !phase_was) return;
+    phase_was = phase;
     static int env = -1;
     if (env < 0) {
         const char *e = getenv("PSX_SGL_FG_FIFO");
         env = !(e && *e == '0');
     }
     const double rhz = atomic_load(&s_fg_refresh_hz), ghz = atomic_load(&s_fg_guest_hz);
-    /* the screen not measured yet (the first frames): vsync as well */
-    const int want = env && s_fg_on && !psx_presentation_fast_forward() && (rhz <= 0.0 || rhz >= ghz - 0.5)
+    /* the screen not measured yet (the first frames): vsync as well; a swap
+     * held to the refresh grid (present_phase): vsync, so it shows at the
+     * next vblank */
+    const int want = phase || ((sgl || s_hdr_on) && env && s_fg_on && !psx_presentation_fast_forward() &&
+                               (rhz <= 0.0 || rhz >= ghz - 0.5))
                      ? 1 : s_swap_interval;
     int cur = -2;
     if (!SDL_GL_GetSwapInterval(&cur) || cur != want) (void)SDL_GL_SetSwapInterval(want);

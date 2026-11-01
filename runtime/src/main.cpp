@@ -63,6 +63,7 @@ extern "C" uint32_t g_guest_last_store_addr, g_guest_last_store_val;
 #include "interrupts.h"
 #include "psx_video_timing.h"
 #include "present_ring.h"
+#include "present_phase.h"
 #include "load_transition_ring.h"
 #include "gpu_sw_renderer.h"
 #include "gpu_render.h"
@@ -696,9 +697,20 @@ static PerfSummary s_perf;
 static int      s_perf_wanted = 0;   /* TCP perf_summary asked once: keep measuring */
 static int      s_pm_fast_forward = 0;   /* the manual turbo this VBlank (perf_meter) */
 /* The frame pacer's waits, as the perf meter's WAIT section. */
+/* The deadline the last paced wait released the guest at: the present that
+ * follows is that guest frame's, and present_phase.c holds its swap to the
+ * screen's refresh grid from there; the same module nudges the deadline to
+ * keep that grid's phase (only at the guest's own period, never the turbo's). */
+static uint64_t s_present_ref_ticks = 0;
+static double pm_guest_period_ms(void);
+extern "C" uint64_t psx_present_ref_ticks(void) { return s_present_ref_ticks; }
 static void pm_pacer_wait(FramePacer *p, double period_ms) {
     PERF_BEGIN(PM_WAIT);
+    const uint64_t period = (uint64_t)((double)SDL_GetPerformanceFrequency() * (period_ms / 1000.0));
+    if (p->next_deadline && period_ms == pm_guest_period_ms())
+        p->next_deadline += (uint64_t)present_phase_correction(period);
     frame_pacer_wait(p, period_ms);
+    s_present_ref_ticks = p->next_deadline - period;
     PERF_END(PM_WAIT);
 }
 static Uint64   s_perf_last_qpc = 0;
@@ -2094,6 +2106,7 @@ static double        g_host_refresh_max_hz = 0.0;   /* panel maximum (VRR) */
 static constexpr double PSX_FRAME_PERIOD_MS = 1000.0 / 59.94;
 static double        g_guest_frame_period_ms = PSX_FRAME_PERIOD_MS;
 static double        g_frame_period_ms = PSX_FRAME_PERIOD_MS;
+static double pm_guest_period_ms(void) { return g_frame_period_ms; }
 static int           g_host_refresh_display_idx = -2;
 static uint64_t      g_host_refresh_last_probe_ms = 0;
 static bool          g_mod_native_vblank_rate = false;

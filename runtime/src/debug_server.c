@@ -47,6 +47,7 @@
 #include "gpu_hd_textures.h"
 #include "gpu_render.h"   /* gr_scale + gr_render_display_hires (screenshot_hires) */
 #include "present_ring.h"
+#include "present_phase.h"
 #include "gpu_timeline.h"
 #include "gte_nclip_stats.h"
 #include "present_image_ring.h"
@@ -11730,6 +11731,16 @@ static void handle_gl_present_ring(int id, const char *json)
     free(buf);
 }
 
+/* Presents held to the screen's refresh grid (present_phase.h):
+ *   {"cmd":"present_phase"} */
+static void handle_present_phase(int id, const char *json)
+{
+    (void)json;
+    char body[1024];
+    present_phase_json(body, sizeof body);
+    send_fmt("{\"id\":%d,\"ok\":true,%s}", id, body);
+}
+
 /* Present-classification ring (all backends; see present_ring.h): how each
  * present was classified — 4:3 pillarbox / native-wide / canonical — and
  * whether a native-wide present fell back to the canonical width (the
@@ -16620,6 +16631,7 @@ static const CmdEntry s_commands[] = {
     { "vram_peek",         handle_vram_peek },
     { "gl_coh_ring",       handle_gl_coh_ring },
     { "gl_present_ring",   handle_gl_present_ring },
+    { "present_phase",     handle_present_phase },
     { "present_ring",      handle_present_ring },
     { "gpu_timeline",      handle_gpu_timeline },
     { "nclip_stats",       handle_nclip_stats },
