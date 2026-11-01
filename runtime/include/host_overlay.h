@@ -112,6 +112,9 @@ void     psx_video_current(PsxHostVideoSettings *out);
 /* Smooth motion (frame generation) on or off, live: on starts the render
  * thread at the next VBlank when it is not running; saved as apply_live saves. */
 void     psx_video_set_smooth_motion(int on);
+/* Smooth motion held on (1) or off (0) for a while, nothing saved; -1 gives
+ * the player's choice back. For a title's 30 fps stretches inside its own 60. */
+void     psx_video_hold_smooth_motion(int on);
 
 /* Replace this process with a fresh copy started with the same arguments
  * (the in-game menu's quick relaunch for restart-only settings). Returns only
