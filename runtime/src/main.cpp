@@ -2028,13 +2028,21 @@ extern "C" int psx_presentation_fast_forward(void) {
 /* The turbo's next shown frame (wall clock, SDL performance counter); 0 when
  * the turbo is not showing on the clock (sdl_vblank_present_body). */
 static uint64_t      s_turbo_next_present = 0;
+extern "C" int gpu_draw_skip_shown_partial(void);   /* gpu.c */
+/* The turbo's shown frames, those still partial (a tenth of a second waited)
+ * and the VBlanks a due present waited for a drawn frame (TCP sgl). */
+static uint64_t s_turbo_presents, s_turbo_partial_presents, s_turbo_present_waits;
+extern "C" void psx_turbo_present_counts(uint64_t *shown, uint64_t *partial, uint64_t *waits) {
+    *shown = s_turbo_presents; *partial = s_turbo_partial_presents; *waits = s_turbo_present_waits;
+}
 static int           s_turbo_clock_present = 0;
 /* Turbo draw skip (on by default; PSX_TURBO_DRAW_SKIP=0 draws every frame):
  * asked by gpu.c at each flip. The frame starting now (t) is on screen from its own flip, about one
  * game frame (d) later, until the next one: [t+d, t+2d). It is drawn when the
  * turbo's next shown frame falls in that window (a fifth of a frame early
- * too, for the error in d), else its drawing is dropped (gpu.c). Never more
- * than 30 dropped in a row. */
+ * too, for the error in d) or is already due (a late present waits for a
+ * drawn frame on screen: sdl_vblank_present_body), else its drawing is
+ * dropped (gpu.c). Never more than 30 dropped in a row. */
 extern "C" int psx_turbo_skip_next_frame(void) {
     static int s_on = -1;
     if (s_on < 0) {
@@ -2056,7 +2064,7 @@ extern "C" int psx_turbo_skip_next_frame(void) {
         return 0;
     }
     const double next = (double)s_turbo_next_present, t = (double)now;
-    const int shown = next >= t + 0.8 * s_frame_ticks && next < t + 2.0 * s_frame_ticks;
+    const int shown = next < t || (next >= t + 0.8 * s_frame_ticks && next < t + 2.0 * s_frame_ticks);
     const int skip = !shown && s_run < 30;
     s_run = skip ? s_run + 1 : 0;
     return skip;
@@ -10150,6 +10158,18 @@ static NetplayVblankEpilogue sdl_vblank_present_body(void) {
                     ep.skip_pace = 1;
                     return ep;  /* drawn, not shown */
                 }
+                /* Draw skip: never show a frame that dropped its drawing;
+                 * the next frames draw while the present is due (at most
+                 * a tenth of a second, a game that stopped flipping). */
+                if (gpu_draw_skip_shown_partial()) {
+                    if (now - s_turbo_next_present < SDL_GetPerformanceFrequency() / 10u) {
+                        s_turbo_present_waits++;
+                        ep.skip_pace = 1;
+                        return ep;
+                    }
+                    s_turbo_partial_presents++;
+                }
+                s_turbo_presents++;
                 s_turbo_next_present = (now - s_turbo_next_present < period)
                     ? s_turbo_next_present + period : now + period;
             } else {

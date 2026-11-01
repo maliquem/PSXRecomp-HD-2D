@@ -8950,12 +8950,16 @@ static void gp0_dispatch_command(uint8_t opcode);
  * and every register stay as on the console; the PS1's own timing never
  * depended on drawing here (no rasterization cost is emulated). Decided at
  * each flip (GP1(05h)); a game that stops flipping draws again within a few
- * VBlanks (gpu_draw_skip_vblank). */
+ * VBlanks (gpu_draw_skip_vblank). The turbo shows a frame only when the one
+ * on screen dropped nothing (gpu_draw_skip_shown_partial): a late present
+ * waits for the next drawn frame instead of showing a skipped one. */
 static int s_draw_skip;
 static int s_draw_skip_vblanks;
+static int s_draw_skip_dropped, s_draw_skip_shown_dropped;   /* this frame / the one on screen */
 static uint64_t s_draw_skip_frames, s_draw_skip_drawn, s_draw_skip_prims;
+int gpu_draw_skip_shown_partial(void) { return s_draw_skip_shown_dropped; }
 void gpu_draw_skip_vblank(int fast_forward) {
-    if (!fast_forward) { s_draw_skip = 0; return; }
+    if (!fast_forward) { s_draw_skip = 0; s_draw_skip_shown_dropped = 0; return; }
     if (s_draw_skip && ++s_draw_skip_vblanks > 4) s_draw_skip = 0;
 }
 void gpu_draw_skip_counts(uint64_t *skipped, uint64_t *drawn, uint64_t *prims) {
@@ -9019,6 +9023,7 @@ static void gp0_execute_command(void) {
 
     if (s_draw_skip && opcode >= 0x20 && opcode <= 0x7F) {
         s_draw_skip_prims++;
+        s_draw_skip_dropped = 1;
         return;   /* a frame the turbo does not show */
     }
 
@@ -9554,6 +9559,8 @@ static void gp1_display_area_start(uint32_t val) {
     if ((val & 0x3FFu) != display_area_x || ((val >> 10) & 0x1FFu) != display_area_y) {
         extern int psx_turbo_skip_next_frame(void);   /* main.cpp */
         s_display_flips++;
+        s_draw_skip_shown_dropped = s_draw_skip_dropped;   /* the frame this flip shows */
+        s_draw_skip_dropped = 0;
         s_draw_skip = psx_turbo_skip_next_frame();
         s_draw_skip_vblanks = 0;
         if (s_draw_skip) s_draw_skip_frames++; else s_draw_skip_drawn++;
