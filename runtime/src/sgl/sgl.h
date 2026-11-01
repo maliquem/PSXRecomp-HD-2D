@@ -53,8 +53,9 @@ const SglCaps *sgl_caps(void);
 /* HDR for the next context: a float16 default framebuffer, shown as scRGB
  * (HDR_EXTENDED_LINEAR) where the window supports it (gl_hdr.inc), else as
  * HDR10 (ST 2084 PQ, BT.2020: what gamescope / the Steam Deck take).
- * PSX_HDR_FORMAT=hdr10 prefers HDR10. On Windows the output follows the
- * display live: HDR while Windows shows the window in HDR, SDR otherwise. */
+ * PSX_HDR_FORMAT=hdr10 prefers HDR10 (not on Windows: composed by the
+ * desktop it washes out). On Windows the output follows the display live:
+ * HDR while Windows shows the window in HDR, SDR otherwise. */
 void sgl_set_hdr(int on);
 /* The output now: 0 SDR, 1 scRGB, 2 HDR10 (gl_hdr.inc runs its pass when
  * not 0; the swap encodes HDR10 itself). */

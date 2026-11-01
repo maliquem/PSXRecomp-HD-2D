@@ -700,6 +700,12 @@ static int hdr_output_wanted(void) {
                                                               SDL_GPU_SWAPCHAINCOMPOSITION_HDR_EXTENDED_LINEAR);
     const int pq = SDL_WindowSupportsGPUSwapchainComposition(g_sgl.dev, g_sgl.win,
                                                              SDL_GPU_SWAPCHAINCOMPOSITION_HDR10_ST2084);
+#ifdef _WIN32
+    /* Windows: never HDR10 while scRGB is there. Composed by the desktop
+     * (the window out of focus) the Vulkan HDR10 swapchain showed washed out
+     * colours, scRGB did not (seen by the player, 2026-10-31). */
+    pref = 1;
+#endif
     if (pref == 2 && pq) return 2;
     return lin ? 1 : pq ? 2 : 0;
 }
