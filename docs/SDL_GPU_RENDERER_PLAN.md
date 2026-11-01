@@ -443,3 +443,32 @@ sem a aprovação dela; nada de push.
   quando mudam, e peças semitransparentes que não se sobrepõem num lote só): campo 6,61× (GL
   6,63×), masmorra 2,82× (2,81×), batalha 6,73× (6,09×), magia 4,49× (4,37×), menu 9,75×
   (7,26×); sem efeitos igual. Os tempos de GPU dos efeitos não existem no sdl_gpu (R12).
+- 2026-10-31, etapa (f) no jogo (permissão dela; build-test/sgl_game, porta 4421;
+  `tools/local/sgl/stage_f.py` no repositório do jogo, fora do git). OpenGL × sdl_gpu:
+  menu de pausa e de savestates iguais; filtros (os 7, nas 3 classes) iguais; CRT (os 3)
+  iguais; vídeo de abertura com `fmv_enhance` igual (0,005–0,010%); ferramenta de Sol/Lua/Luzes
+  (sun_area, area_lights pick/mesh/mark/force) com respostas idênticas e marcadores iguais.
+  Corrigido no caminho:
+  - Ctrl+B: o formulário ImGui agora desenha pela `sgl` (a tabela GL do ImGui, imgl3w, vem de
+    `gl_renderer_get_proc`; `glDrawElements` reúne os vértices na ordem dos índices e desenha
+    como arrays); 0,09% de diferença.
+  - Bordas "Edge blending" sem duas fontes: passe de cor misturado pela cobertura + passe só do
+    alpha (máscara); bate com o OpenGL (cliff de 0,71% para 0,000% acima de 8 níveis). Em peças
+    semitransparentes segue Clean.
+  - Turbo com pulo de desenho: uma apresentação atrasada mostrava o quadro pulado (preto); agora
+    só se mostra quadro desenhado inteiro (0 de 227 fotos pretas; antes 6 de 72).
+  - Consultas de tempo (R12) por fences: uma thread espera os fences em ordem e conta o tempo
+    ocupado da GPU; o Smooth motion passou a planejar 2,7–2,9 gerados por real na batalha (antes
+    1), como o OpenGL.
+  - HDR: RGBA32F faltava (o tonemapping dinâmico nunca media: exposição presa em 0,85); agora
+    luz, exposição e nits iguais ao OpenGL com o HDR do Windows ligado (branco 280, pico 1000).
+  Vantagens do Vulkan (só no sdl_gpu):
+  - HDR segue a tela ao vivo (scRGB com o Windows em HDR, swapchain SDR de 8 bits sem passe fora
+    dele), saída HDR10 (PQ, BT.2020) onde o scRGB não existe (gamescope/Steam Deck: o HDR de lá
+    é só Vulkan) ou com `PSX_HDR_FORMAT=hdr10`; HDR fora do Windows liberado no sdl_gpu. HDR10
+    roda (188 trocas, sem avisos); as cores na tela ainda precisam do olho dela.
+  - Smooth motion pela fila FIFO do swapchain (cada quadro real ou gerado com a sua atualização
+    de tela; o GL do Windows não espera na troca). Batalha sem efeitos: trocas a ±25% da mediana
+    35% → 89%. TCP `sgl` "acquire". `PSX_SGL_FG_FIFO=0` volta ao jeito do OpenGL.
+  Falta: o olho dela no HDR10 e no ritmo; cache de shaders/pipelines (noite); (h) menu e launcher;
+  (i) D3D12/Metal e Linux.
