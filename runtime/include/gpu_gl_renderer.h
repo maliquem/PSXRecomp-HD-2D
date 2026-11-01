@@ -37,9 +37,13 @@ unsigned long long gl_renderer_impl_window_flags(void);
 /* sdl_gpu: 1 when its GPU device can be made (made now, before the window,
  * and kept); 0 = none here. Always 1 on the driver's OpenGL. */
 int gl_renderer_impl_probe(void);
-/* The marking passes a batch of known make can skip (default on; 0 = every
- * pass, TCP marks_lean A/B) and how many were skipped and drawn. */
+/* Lean marks: the marking passes a batch of known make can skip skipped and
+ * the surface marks a byte a pixel (pictures identical; less GPU work for a
+ * weak GPU). Off by default; PSX_MARKS_LEAN=1/0 overrides the game's call,
+ * _force (TCP marks_lean A/B) the env too. And how many passes were skipped
+ * and drawn. */
 void gl_renderer_marks_lean(int on);
+void gl_renderer_marks_lean_force(int on);
 void gl_renderer_marks_lean_counts(uint64_t out[2]);
 void gl_renderer_set_sgl_driver(const char *name);
 /* sgl counters as JSON (TCP "sgl"); 0 when the renderer is not on sgl. */

@@ -5122,15 +5122,27 @@ static int b3dm_passes(int semi, int b3d) {
  * (1) of a batch with no 3D primitive when only additive 3D feeds the bloom
  * (bloom_source "additive3d"), or an untextured one that does not add.
  * The semi-transparent batches (the opaque and see-through pieces drawn
- * together) took four passes each. s_marks_lean 0 (TCP marks_lean,
- * PSX_MARKS_LEAN=0): every pass, as before. */
+ * together) took four passes each. The same switch writes the surface
+ * marks a byte a pixel (gl_postfx.inc pfx_surf_mask). Both exact; off by
+ * default (a game turns them on for a weak GPU: gl_renderer_marks_lean;
+ * PSX_MARKS_LEAN=1/0 overrides it, TCP marks_lean both). Off: every pass
+ * and four bytes a pixel, as before. */
 static int s_marks_lean = -1;
+static int s_marks_lean_env = -1;   /* PSX_MARKS_LEAN: -1 unset */
 static uint64_t s_mlean_n[2];   /* passes skipped, drawn */
 static int marks_lean(void) {
-    if (s_marks_lean < 0) { const char *e = getenv("PSX_MARKS_LEAN"); s_marks_lean = !(e && e[0] == '0'); }
+    if (s_marks_lean < 0) {
+        const char *e = getenv("PSX_MARKS_LEAN");
+        s_marks_lean_env = e && e[0] ? e[0] != '0' : -1;
+        s_marks_lean = s_marks_lean_env > 0;
+    }
     return s_marks_lean;
 }
-void gl_renderer_marks_lean(int on) { s_marks_lean = on ? 1 : 0; }
+void gl_renderer_marks_lean(int on) {
+    (void)marks_lean();
+    if (s_marks_lean_env < 0) s_marks_lean = on ? 1 : 0;
+}
+void gl_renderer_marks_lean_force(int on) { (void)marks_lean(); s_marks_lean = on ? 1 : 0; }
 void gl_renderer_marks_lean_counts(uint64_t out[2]) { out[0] = s_mlean_n[0]; out[1] = s_mlean_n[1]; }
 static int b3dm_lean(int b3d, int bp) {
     if (!marks_lean()) return bp;

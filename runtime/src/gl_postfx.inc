@@ -127,15 +127,16 @@ static GLint  s_dfill_uMode = -1, s_dfill_uD = -1, s_dfill_uA = -1, s_dfill_uB =
 static int    s_dep2_w = 0, s_dep2_h = 0;
 static GLuint s_mask_tex = 0, s_mask_fbo = 0, s_mask_prog = 0, s_mask_map_prog = 0;
 static GLint  s_mask_uUv = -1, s_mask_uV = -1;
-static GLint  s_mmap_uUv = -1, s_mmap_uS = -1, s_mmap_uSrc = -1, s_mmap_uDst = -1;
-/* Marks resolved in the surfaces' own px: an R8 texture per surface,
+static GLint  s_mmap_uUv = -1, s_mmap_uS = -1, s_mmap_uSrc = -1, s_mmap_uDst = -1, s_mmap_uBits = -1;
+/* Marks resolved in the surfaces' own px: a texture per surface,
  * attached with that surface's own depth-stencil renderbuffer, so no
  * depth-stencil blit is needed (one costs the CPU milliseconds on macOS).
- * Each mark is a bit of its texel (1 glow, 2 3D, 4 cover, 8 a generated
- * frame's objects), added by blending, so the passes over the surface
- * write a byte a pixel, not four; pfx_mask_map spreads the bits over the
- * window mask's channels (r g b a = 1 2 4 8: the same 0/1 values). */
-typedef struct { GLuint rb, tex, fbo; int w, h; } PfxSurfMask;
+ * RGBA8, a channel a mark (r glow, g 3D, b cover, a a generated frame's
+ * objects); with lean marks (marks_lean) R8, each mark a bit of its texel
+ * (1 2 4 8) added by blending, so the passes over the surface write a byte
+ * a pixel, not four, and pfx_mask_map spreads the bits over the window
+ * mask's channels: the same 0/1 values. */
+typedef struct { GLuint rb, tex, fbo; int w, h, r8; } PfxSurfMask;
 static PfxSurfMask s_smask[2];
 static int    s_mask_w = 0, s_mask_h = 0;
 
@@ -357,16 +358,18 @@ static void pfx_fbo_attach(GLuint *f, GLuint tex) {
 
 /* Window-sized mask from the presented surface's marks (fresh) or the last. */
 /* The marks of rect r (surface px) of surface rb (tw x th px) into slot k's
- * RGBA8 texture: 0 over the rect, then red 1 where stencil bit 1 (may glow) is
- * set, green 1 where bit 2 (3D) is and blue 1 where bit 3 (see-through cover) is. */
+ * texture: 0 over the rect, then the glow mark where stencil bit 1 (may glow)
+ * is set, the 3D mark where bit 2 (3D) is and the cover mark where bit 3
+ * (see-through cover) is. */
 static int pfx_surf_mask(int k, GLuint rb, int tw, int th, const int r[4]) {
     PfxSurfMask *m = &s_smask[k];
-    if (m->rb != rb || m->w != tw || m->h != th) {
-        pfx_tex_alloc(&m->tex, tw, th, -1, 1);
+    const int r8 = marks_lean();
+    if (m->rb != rb || m->w != tw || m->h != th || m->r8 != r8) {
+        pfx_tex_alloc(&m->tex, tw, th, r8 ? -1 : 0, 1);
         pfx_fbo_attach(&m->fbo, m->tex);
         p_glFramebufferRenderbuffer(PSXGL_FRAMEBUFFER, PSXGL_DEPTH_STENCIL_ATTACHMENT,
                                     PSXGL_RENDERBUFFER, rb);
-        m->rb = rb; m->w = tw; m->h = th;
+        m->rb = rb; m->w = tw; m->h = th; m->r8 = r8;
     }
     p_glBindFramebuffer(PSXGL_FRAMEBUFFER, m->fbo);
     glViewport(r[0], r[1], r[2] - r[0], r[3] - r[1]);
@@ -375,28 +378,29 @@ static int pfx_surf_mask(int k, GLuint rb, int tw, int th, const int r[4]) {
     post_fullscreen(s_mask_prog, s_mask_uUv);
     glEnable(GL_STENCIL_TEST);
     glStencilOp(GL_KEEP, GL_KEEP, GL_KEEP);
-    glEnable(GL_BLEND);   /* each mark's bit added (exact in 8 bits: distinct bits) */
-    p_glBlendEquationSeparate(PSXGL_FUNC_ADD, PSXGL_FUNC_ADD);
-    p_glBlendFuncSeparate(GL_ONE, GL_ONE, GL_ONE, GL_ONE);
-    if (s_bcls_on) {
-        p_glUniform1f(s_mask_uV, 1.0f / 255.0f);
-        glStencilFunc(GL_EQUAL, 0x02, 0x02);
-        post_fullscreen(s_mask_prog, s_mask_uUv);
+    if (r8) {   /* each mark's bit added (exact in 8 bits: distinct bits) */
+        glEnable(GL_BLEND);
+        p_glBlendEquationSeparate(PSXGL_FUNC_ADD, PSXGL_FUNC_ADD);
+        p_glBlendFuncSeparate(GL_ONE, GL_ONE, GL_ONE, GL_ONE);
+    } else {
+        p_glUniform1f(s_mask_uV, 1.0f);
     }
+    /* mark `bit` (R8) or channel `ch` (RGBA8) where the stencil has `st` */
+#define MASK_MARK(bit, ch, st) do {                                                     \
+        if (r8) p_glUniform1f(s_mask_uV, (float)(bit) / 255.0f);                        \
+        else glColorMask((ch) == 0, (ch) == 1, (ch) == 2, (ch) == 3);                   \
+        glStencilFunc(GL_EQUAL, (st), (st));                                            \
+        post_fullscreen(s_mask_prog, s_mask_uUv);                                       \
+    } while (0)
+    if (s_bcls_on) MASK_MARK(1, 0, 0x02);
     if (s_b3d_on) {
-        p_glUniform1f(s_mask_uV, 2.0f / 255.0f);
-        glStencilFunc(GL_EQUAL, 0x04, 0x04);
-        post_fullscreen(s_mask_prog, s_mask_uUv);
-        p_glUniform1f(s_mask_uV, 4.0f / 255.0f);
-        glStencilFunc(GL_EQUAL, 0x08, 0x08);
-        post_fullscreen(s_mask_prog, s_mask_uUv);
-        if (s_pfx_vx_on) {   /* a generated frame's objects (s_fg_obj_mark) */
-            p_glUniform1f(s_mask_uV, 8.0f / 255.0f);
-            glStencilFunc(GL_EQUAL, 0x10, 0x10);
-            post_fullscreen(s_mask_prog, s_mask_uUv);
-        }
+        MASK_MARK(2, 1, 0x04);
+        MASK_MARK(4, 2, 0x08);
+        if (s_pfx_vx_on) MASK_MARK(8, 3, 0x10);   /* a generated frame's objects (s_fg_obj_mark) */
     }
-    glDisable(GL_BLEND);
+#undef MASK_MARK
+    if (r8) glDisable(GL_BLEND);
+    else glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
     glDisable(GL_STENCIL_TEST);
     return 1;
 }
@@ -411,6 +415,7 @@ static void pfx_mask_map(int k, const int r[4], int x0, int x1, int lh) {
     p_glUniform1i(s_mmap_uS, 0);
     p_glUniform4i(s_mmap_uSrc, r[0], r[1], r[2], r[3]);
     p_glUniform4f(s_mmap_uDst, (float)x0, (float)(x1 - x0), (float)lh, 0.0f);
+    p_glUniform1i(s_mmap_uBits, s_smask[k].r8);
     post_fullscreen(s_mask_map_prog, s_mmap_uUv);
 }
 
@@ -698,13 +703,16 @@ static int pfx_mask_build(int fresh, int lw, int lh) {
             "#version 330\nin vec2 v_uv; out vec4 o; uniform float u_v;\nvoid main(){ o = vec4(u_v); }\n");
         s_mask_map_prog = build_program(PRESENT_VS,
             "#version 330\nin vec2 v_uv; out vec4 o; uniform sampler2D u_s;\n"
-            "uniform ivec4 u_src; uniform vec4 u_dst;\n"   /* dst: x0, width, height */
+            "uniform ivec4 u_src; uniform vec4 u_dst; uniform int u_bits;\n"   /* dst: x0, width, height */
             "void main(){\n"
             "  vec2 f = gl_FragCoord.xy;\n"
             "  int sx = u_src.x + int(floor((f.x - u_dst.x) * float(u_src.z - u_src.x) / u_dst.y));\n"
             "  int sy = u_src.y + int(floor((u_dst.z - f.y) * float(u_src.w - u_src.y) / u_dst.z));\n"
-            "  int b = int(texelFetch(u_s, ivec2(sx, sy), 0).r * 255.0 + 0.5);\n"
-            "  o = vec4(float(b & 1), float((b >> 1) & 1), float((b >> 2) & 1), float((b >> 3) & 1));\n"
+            "  o = texelFetch(u_s, ivec2(sx, sy), 0);\n"
+            "  if (u_bits != 0) {\n"   /* R8: the marks as bits 1 2 4 8 */
+            "    int b = int(o.r * 255.0 + 0.5);\n"
+            "    o = vec4(float(b & 1), float((b >> 1) & 1), float((b >> 2) & 1), float((b >> 3) & 1));\n"
+            "  }\n"
             "}\n");
         if (!s_mask_prog || !s_mask_map_prog) { s_mask_prog = 0; return 0; }
         s_mask_uUv = p_glGetUniformLocation(s_mask_prog, "u_uv_rect");
@@ -713,6 +721,7 @@ static int pfx_mask_build(int fresh, int lw, int lh) {
         s_mmap_uS = p_glGetUniformLocation(s_mask_map_prog, "u_s");
         s_mmap_uSrc = p_glGetUniformLocation(s_mask_map_prog, "u_src");
         s_mmap_uDst = p_glGetUniformLocation(s_mask_map_prog, "u_dst");
+        s_mmap_uBits = p_glGetUniformLocation(s_mask_map_prog, "u_bits");
     }
     if (s_mask_w != lw || s_mask_h != lh) {
         pfx_tex_alloc(&s_mask_tex, lw, lh, 0, 1);
