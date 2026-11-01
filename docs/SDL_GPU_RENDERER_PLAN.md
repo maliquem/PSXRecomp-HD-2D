@@ -484,3 +484,9 @@ sem a aprovação dela; nada de push.
   submetia na troca). Andando no deserto (OpenGL): imagens fora das 4 atualizações 183/1072 →
   9/1070; sdl_gpu: trocas 32,9–33,8 ms. TCP `present_phase`; `PSX_PRESENT_PHASE=0` desliga,
   `PSX_PRESENT_PHASE_PROBE=1` mede em qual atualização cada imagem cai (GL_TIMESTAMP).
+- 2026-11-01 (manhã): etapa (h) feita e o `sdl_gpu` virou o padrão do BoF4, a pedido da usuária.
+  Launcher do jogo > Advanced graphics > Renderer (Vulkan/OpenGL, grava `[video] renderer`; sem a
+  chave = Vulkan), game.toml `renderer = "sdl_gpu"`. Juntado ao `feat/pgxp-depth-per-triangle`
+  (merge fc51fbaf) e ao build-dev do jogo (PGO antigo, não retreinado). Conferido no exe do
+  build-dev numa pasta de teste: SDL_GPU vulkan na RTX 4070 SUPER, 0 avisos, efeitos e sombras na
+  foto. Pendente: sem dispositivo Vulkan o jogo não volta sozinho ao OpenGL; etapa (i).
