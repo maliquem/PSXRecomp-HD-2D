@@ -1193,6 +1193,13 @@ void psx_mod_set_debug_passive_recorders(int policy);
  * speed in force (-1 unbounded). */
 int  psx_mod_set_fast_forward_speed(int multiplier);
 int  psx_mod_fast_forward_speed(void);
+/* The manual fast-forward's sound: 0 as it was (the audio bridge drops the
+ * excess in blocks: a click at every seam), 1 compressed in time
+ * (audio_turbo.h: the pitch kept, no seams, at any speed), 2 that plus the
+ * music at its own tempo (the SPU's music voices replayed at 1x; needs the
+ * title's music voices, psx_mod_set_music_voice_classifier). The bridge
+ * output only; PSX_TURBO_AUDIO=0/1/2 wins (tests). */
+void psx_mod_set_turbo_audio(int mode);
 
 /* A title's own page over the frozen game (e.g. an achievements list), run
  * like the save state menu: while it is open the guest is held at the vblank

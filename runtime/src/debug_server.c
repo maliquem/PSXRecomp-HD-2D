@@ -59,6 +59,7 @@
 #include "spu.h"
 #include "spu_shadow.h"
 #include "audio_trace.h"
+#include "audio_turbo.h"
 #include "mdec.h"
 #include "interrupts.h"
 #include "psx_cycles.h"
@@ -7436,6 +7437,23 @@ static void handle_audio_stats(int id, const char *json)
              correction,
              spu_output_available(),
              (unsigned long long)spu_output_overflow_drops());
+}
+
+/* audio_turbo: {"mode":0|1|2} sets the fast-forward's sound
+ * (psx_mod_set_turbo_audio); the reply: the compressor's grains, the ratio it
+ * measured, overflow jumps, its mode (0 direct, 1 compressing), frames held. */
+extern void psx_mod_set_turbo_audio(int mode);
+static void handle_audio_turbo(int id, const char *json)
+{
+    const int mode = json_get_int(json, "mode", -1);
+    if (mode >= 0) psx_mod_set_turbo_audio(mode);
+    uint64_t grains = 0, jumps = 0;
+    double ratio = 0.0;
+    int m = 0;
+    at_stats(&grains, &ratio, &jumps, &m);
+    send_fmt("{\"id\":%d,\"ok\":true,\"grains\":%llu,\"ratio\":%.3f,\"jumps\":%llu,"
+             "\"compressing\":%d,\"backlog\":%d}", id, (unsigned long long)grains, ratio,
+             (unsigned long long)jumps, m, at_backlog());
 }
 
 static void handle_audio_wav(int id, const char *json)
@@ -16725,6 +16743,7 @@ static const CmdEntry s_commands[] = {
     { "spu_events_reset",  handle_spu_events_reset },
     { "audio_stats",       handle_audio_stats },
     { "audio_wav",         handle_audio_wav },
+    { "audio_turbo",       handle_audio_turbo },
     { "audio_events",      handle_audio_events },
     { "card_buffer_dump",  handle_card_buffer_dump },
     { "sio_arm_audit",     handle_sio_arm_audit },

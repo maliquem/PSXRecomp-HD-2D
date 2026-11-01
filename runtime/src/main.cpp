@@ -106,6 +106,7 @@ extern "C" uint32_t g_guest_last_store_addr, g_guest_last_store_val;
 #endif
 #include "spu.h"
 #include "audio_trace.h"
+#include "audio_turbo.h"
 #include "spu_shadow.h"
 
 /* Shared clock-domain bridge: band-limited polyphase resampler + P-only DRC.
@@ -4697,6 +4698,21 @@ static void sdl_audio_gain_ramp(int16_t* buf, int frames, float g0, float g1) {
  * sdl_audio_fadein_left is declared with present_session_reset. */
 static const int sdl_audio_fade_samples = 44100 * 40 / 1000;  /* 40 ms */
 
+/* The manual fast-forward's sound (psx_mod_set_turbo_audio): 0 as it was, 1
+ * compressed in time (audio_turbo.h), 2 also the music at 1x. */
+static int g_turbo_audio_mode = 0;
+static int turbo_audio_mode(void) {
+    static int env = -2;
+    if (env == -2) {
+        const char *e = getenv("PSX_TURBO_AUDIO");
+        env = (e && e[0] >= '0' && e[0] <= '2') ? e[0] - '0' : -1;
+    }
+    return env >= 0 ? env : g_turbo_audio_mode;
+}
+extern "C" void psx_mod_set_turbo_audio(int mode) {
+    g_turbo_audio_mode = mode >= 0 && mode <= 2 ? mode : 0;
+}
+
 static void sdl_audio_pump(bool discard_output = false) {
     /* Guest-cycle SPU advance must not depend on host audio device/backpressure.
      * Win↔Linux rollback forked on aux/spu when one peer skipped spu_render
@@ -4757,6 +4773,7 @@ static void sdl_audio_pump(bool discard_output = false) {
     if (g_audio_cycle_resync) {
         /* Savestate/rewind load: queued output belongs to the old timeline. */
         spu_output_flush();
+        at_reset();
         g_audio_cycle_resync = 0;
         if (legacy && sdl_audio_device)
             psx_sdl_audio_clear(sdl_audio_device);
@@ -4789,13 +4806,43 @@ static void sdl_audio_pump(bool discard_output = false) {
         return;
 
     frames = host_frames;
+    int16_t *obuf = sdl_audio_buf;
+    if (!legacy && (turbo_audio_mode() > 0 || at_backlog() > 0)) {
+        /* The fast-forward's time compressor (audio_turbo.h): every frame goes
+         * through it; under the manual fast-forward it hands the bridge what
+         * the wall clock plays (the SPU made N times that), else the input as
+         * it came. Off (and drained) = this block never runs. */
+        static int16_t s_at_out[44100 * 2];
+        static uint64_t s_at_last = 0;
+        static double s_at_acc = 0.0;
+        at_push(sdl_audio_buf, frames);
+        const int compress = turbo_audio_mode() > 0 && s_pm_fast_forward;
+        int want = 0;
+        const uint64_t now = SDL_GetPerformanceCounter();
+        if (compress) {
+            double el = s_at_last ? (double)(now - s_at_last) / (double)SDL_GetPerformanceFrequency() : 0.0;
+            if (el > 0.25) el = 0.25;
+            /* the wall clock's frames, plus the bridge's fill error closed over ~0.5 s */
+            const double k = el / 0.5 > 1.0 ? 1.0 : el / 0.5;
+            s_at_acc += el * 44100.0 + (s_drc.cfg.target_ms - (double)queued) * 44.1 * k;
+            if (s_at_acc < -8820.0) s_at_acc = -8820.0;
+            want = s_at_acc > 0.0 ? (int)s_at_acc : 0;
+            s_at_acc -= want;
+        } else {
+            s_at_acc = 0.0;
+        }
+        s_at_last = now;
+        frames = at_pull(s_at_out, 44100, want, compress);
+        obuf = s_at_out;
+        if (frames <= 0) return;
+    }
     if (sdl_audio_fadein_left > 0) {
         const float g0 = 1.0f - (float)sdl_audio_fadein_left
                                 / (float)sdl_audio_fade_samples;
         int ramp = sdl_audio_fadein_left < frames ? sdl_audio_fadein_left : frames;
         const float g1 = 1.0f - (float)(sdl_audio_fadein_left - ramp)
                                 / (float)sdl_audio_fade_samples;
-        sdl_audio_gain_ramp(sdl_audio_buf, ramp, g0, g1);
+        sdl_audio_gain_ramp(obuf, ramp, g0, g1);
         sdl_audio_fadein_left -= ramp;
     }
     /* Host master volume (launcher / numpad +/-). Applied after fade so mute
@@ -4804,13 +4851,13 @@ static void sdl_audio_pump(bool discard_output = false) {
         const int vol = host_volume_get();
         if (vol < 100) {
             const float g = (float)vol / 100.0f;
-            sdl_audio_gain_ramp(sdl_audio_buf, frames, g, g);
+            sdl_audio_gain_ramp(obuf, frames, g, g);
         }
     }
     if (legacy) {
         /* T3 tap: the exact post-fade bytes handed to the host audio queue. */
-        audio_trace_pcm(AUDIO_TAP_HOST, sdl_audio_buf, frames);
-        psx_sdl_audio_queue(sdl_audio_device, sdl_audio_buf, (uint32_t)frames * bytes_per_frame);
+        audio_trace_pcm(AUDIO_TAP_HOST, obuf, frames);
+        psx_sdl_audio_queue(sdl_audio_device, obuf, (uint32_t)frames * bytes_per_frame);
         had_audio = 1;
     } else {
         /* Hand to the bridge (band-limited resample + DRC) instead of
@@ -4818,7 +4865,7 @@ static void sdl_audio_pump(bool discard_output = false) {
          * The T3 tap moves to sdl_drc_callback: what the device actually
          * receives is the bridge's device-rate output, not this buffer. */
         psx_sdl_audio_lock(sdl_audio_device);
-        rab_push(&s_drc, sdl_audio_buf, frames);
+        rab_push(&s_drc, obuf, frames);
         psx_sdl_audio_unlock(sdl_audio_device);
     }
 }
