@@ -11347,7 +11347,7 @@ static void handle_render_thread(int id, const char *json)
 static void handle_sgl(int id, const char *json)
 {
     (void)json;
-    char buf[1024];
+    char buf[2048];
     if (gl_renderer_sgl_json(buf, sizeof buf) <= 0)
         snprintf(buf, sizeof buf, "{\"impl\":\"%s\"}", gl_renderer_impl_name());
     extern void gpu_draw_skip_counts(uint64_t *skipped, uint64_t *drawn, uint64_t *prims);

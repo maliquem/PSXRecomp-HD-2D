@@ -11621,9 +11621,11 @@ static int pt_cb_ctx(void *user, int current) {
     return 1;
 }
 
+static void sgl_fg_fifo_sync(void);
 /* The one owned swap call: the composing thread's (direct) or the present
  * thread's. */
 static void gl_window_swap(void) {
+    sgl_fg_fifo_sync();
 #if defined(PSX_SDL3)
     psx_video_telemetry_present(SDL_GL_SwapWindow(s_win) ? 1 : 0);
 #else
@@ -13595,6 +13597,26 @@ typedef struct { uint32_t rec, key0, vid[3]; float x[3], y[3], p[3][3], h[3]; in
 static int       s_fg_on = 0;                 /* configured (any thread reads) */
 static int       s_fg_force = 0;              /* PSX_FRAME_GEN_FORCE: tests */
 static _Atomic double s_fg_refresh_hz = 0.0, s_fg_guest_hz = 59.94;
+/* sdl_gpu with Smooth motion: the swapchain's FIFO queue paces the frames,
+ * one real or generated frame per screen refresh, whatever the clock's jitter
+ * (on a screen at least as fast as the game; the guest keeps its own pacer).
+ * The driver's OpenGL has no such queue on Windows (its swap does not wait),
+ * so there the frame clock alone places them, as before. Not in the turbo.
+ * PSX_SGL_FG_FIFO=0: the swap interval as on OpenGL. */
+static void sgl_fg_fifo_sync(void) {
+#if defined(PSX_HAVE_SGL)
+    if (gl_api_impl() != 1) return;
+    static int env = -1;
+    if (env < 0) {
+        const char *e = getenv("PSX_SGL_FG_FIFO");
+        env = !(e && *e == '0');
+    }
+    const double rhz = atomic_load(&s_fg_refresh_hz), ghz = atomic_load(&s_fg_guest_hz);
+    const int want = env && s_fg_on && !psx_presentation_fast_forward() && rhz >= ghz - 0.5 ? 1 : s_swap_interval;
+    int cur = -2;
+    if (!SDL_GL_GetSwapInterval(&cur) || cur != want) (void)SDL_GL_SetSwapInterval(want);
+#endif
+}
 static _Atomic int s_fg_late = 0;             /* emulation thread: a late frame */
 static const char *_Atomic s_fg_hold_reason = NULL;
 static _Atomic uint64_t s_fg_hold_until = 0;  /* rt_now_ns: no generation before */

@@ -944,6 +944,41 @@ int sgl_gpu_clock_at(uint64_t id, uint64_t *ns, int wait) {
     return ok;
 }
 
+/* ---- the swapchain's rhythm (TCP sgl "acquire") ---------------------------
+ * When the swapchain hands an image back (vsync: as the screen flips) and
+ * how long the render thread waited for it: the last 256 presents. */
+#define SGL_ACQ 256
+static uint64_t s_acq_t[SGL_ACQ], s_acq_wait[SGL_ACQ];
+static unsigned s_acq_n;
+static int cmp_u64(const void *a, const void *b) {
+    const uint64_t x = *(const uint64_t *)a, y = *(const uint64_t *)b;
+    return x < y ? -1 : x > y;
+}
+static int acquire_json(char *out, int cap) {
+    const unsigned n = s_acq_n < SGL_ACQ ? s_acq_n : SGL_ACQ;
+    if (n < 3) return snprintf(out, (size_t)cap, ",\"acquire\":{\"n\":%u}", n);
+    uint64_t iv[SGL_ACQ], wsum = 0;
+    unsigned k = 0;
+    for (unsigned i = 1; i < n; i++) {
+        const unsigned a = (s_acq_n - n + i - 1) % SGL_ACQ, b = (s_acq_n - n + i) % SGL_ACQ;
+        iv[k++] = s_acq_t[b] - s_acq_t[a];
+        wsum += s_acq_wait[b];
+    }
+    qsort(iv, k, sizeof(iv[0]), cmp_u64);
+    const double med = (double)iv[k / 2] * 1e-6;
+    unsigned close_n = 0;
+    for (unsigned i = 0; i < k; i++) {
+        const double d = (double)iv[i] * 1e-6;
+        if (d > 0.75 * med && d < 1.25 * med) close_n++;
+    }
+    return snprintf(out, (size_t)cap,
+                    ",\"acquire\":{\"n\":%u,\"interval_med_ms\":%.3f,\"p01_ms\":%.3f,\"p99_ms\":%.3f,"
+                    "\"worst_ms\":%.3f,\"near_med\":%.3f,\"wait_avg_ms\":%.3f,\"present_mode\":%d}",
+                    n, med, (double)iv[k / 100] * 1e-6, (double)iv[k - 1 - k / 100] * 1e-6,
+                    (double)iv[k - 1] * 1e-6, (double)close_n / (double)k, (double)wsum / (double)k * 1e-6,
+                    (int)present_mode_for(g_sgl.swap_interval));
+}
+
 /* ---- fences of submitted streams ---------------------------------------- */
 typedef struct { uint64_t id; SDL_GPUFence *f; } SglFenceSlot;
 static SglFenceSlot s_fences[16];
@@ -1249,7 +1284,15 @@ int sgl_flush(int wait, int present) {
             pt.color_fmt = g_sgl.swap_fmt;
             pq = sgl_internal_pipeline(SGL_IP_PQ, &pt, 0xF, 0, 0);
         }
-        if (SDL_WaitAndAcquireGPUSwapchainTexture(cmd, g_sgl.win, &sw, &sw_w, &sw_h) && sw && pq) {
+        const uint64_t acq0 = SDL_GetTicksNS();
+        const int acq_ok = SDL_WaitAndAcquireGPUSwapchainTexture(cmd, g_sgl.win, &sw, &sw_w, &sw_h);
+        if (acq_ok && sw) {
+            const uint64_t acq1 = SDL_GetTicksNS();
+            s_acq_t[s_acq_n % SGL_ACQ] = acq1;
+            s_acq_wait[s_acq_n % SGL_ACQ] = acq1 - acq0;
+            s_acq_n++;
+        }
+        if (acq_ok && sw && pq) {
             /* HDR10: encoded on the way to the swapchain */
             SDL_GPUColorTargetInfo ci;
             memset(&ci, 0, sizeof(ci));
@@ -1378,6 +1421,7 @@ int sgl_stats_json(char *out, int cap) {
                      sgl_impl_name(), g_sgl.name, s_pipe_n);
     for (int i = 0; i < SGL_ST_COUNT && n < cap; i++)
         n += snprintf(out + n, (size_t)(cap - n), ",\"%s\":%llu", names[i], (unsigned long long)s_stats[i]);
+    if (n < cap) n += acquire_json(out + n, cap - n);
     if (n < cap) n += snprintf(out + n, (size_t)(cap - n), "}");
     return n;
 }
