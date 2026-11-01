@@ -22,6 +22,8 @@ static uint64_t s_stats[SGL_ST_COUNT];
 void sgl_state_reset(void);
 
 void sgl_stats_note(int what) { if (what >= 0 && what < SGL_ST_COUNT) s_stats[what]++; }
+uint64_t g_sgl_time_ns[SGL_T_COUNT];
+uint64_t g_sgl_spv_hits, g_sgl_spv_misses;
 
 const SglCaps *sgl_caps(void) { return &g_sgl.caps; }
 
@@ -427,7 +429,11 @@ static SDL_GPUGraphicsPipeline *pipe_lookup(const SglPipeKey *k, SDL_GPUShader *
         if (memcmp(&s_pipes[h].key, k, sizeof(*k)) == 0) return s_pipes[h].pipe;
         h = (h + 1) & (uint32_t)(s_pipe_cap - 1);
     }
+    const uint64_t t0 = SDL_GetTicksNS();
     SDL_GPUGraphicsPipeline *p = create_pipeline(k, vs, fs);
+    const uint64_t dt = SDL_GetTicksNS() - t0;
+    g_sgl_time_ns[SGL_T_PIPE] += dt;
+    if (dt > g_sgl_time_ns[SGL_T_PIPE_WORST]) g_sgl_time_ns[SGL_T_PIPE_WORST] = dt;
     if (!p) return NULL;
     s_pipes[h].used = 1;
     s_pipes[h].key = *k;
@@ -1427,6 +1433,13 @@ int sgl_stats_json(char *out, int cap) {
                      sgl_impl_name(), g_sgl.name, s_pipe_n);
     for (int i = 0; i < SGL_ST_COUNT && n < cap; i++)
         n += snprintf(out + n, (size_t)(cap - n), ",\"%s\":%llu", names[i], (unsigned long long)s_stats[i]);
+    if (n < cap)
+        n += snprintf(out + n, (size_t)(cap - n),
+                      ",\"glsl_ms\":%.1f,\"shader_ms\":%.1f,\"pipeline_ms\":%.1f,\"pipeline_worst_ms\":%.2f,"
+                      "\"spv_hits\":%llu,\"spv_misses\":%llu",
+                      g_sgl_time_ns[SGL_T_GLSL] * 1e-6, g_sgl_time_ns[SGL_T_SHADER] * 1e-6,
+                      g_sgl_time_ns[SGL_T_PIPE] * 1e-6, g_sgl_time_ns[SGL_T_PIPE_WORST] * 1e-6,
+                      (unsigned long long)g_sgl_spv_hits, (unsigned long long)g_sgl_spv_misses);
     if (n < cap) n += acquire_json(out + n, cap - n);
     if (n < cap) n += snprintf(out + n, (size_t)(cap - n), "}");
     return n;

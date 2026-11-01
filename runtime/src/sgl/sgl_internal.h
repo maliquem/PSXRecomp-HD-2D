@@ -323,6 +323,12 @@ SDL_GPUGraphicsPipeline *sgl_internal_pipeline(int which, const SglTarget *t,
                                                int color_mask, int depth_write,
                                                int stencil_mask);
 void sgl_stats_note(int what);
+/* Time spent making shaders and pipelines (ns), for the TCP sgl stats: GLSL to
+ * SPIR-V (glslang), SDL_CreateGPUShader, SDL_CreateGPUGraphicsPipeline (and
+ * the worst single one); SPIR-V disk cache hits and misses. */
+enum { SGL_T_GLSL, SGL_T_SHADER, SGL_T_PIPE, SGL_T_PIPE_WORST, SGL_T_COUNT };
+extern uint64_t g_sgl_time_ns[SGL_T_COUNT];
+extern uint64_t g_sgl_spv_hits, g_sgl_spv_misses;
 enum { SGL_ST_DRAW, SGL_ST_PASS, SGL_ST_UPLOAD, SGL_ST_COPY, SGL_ST_BLIT,
        SGL_ST_DOWNLOAD, SGL_ST_SUBMIT, SGL_ST_WAIT, SGL_ST_PIPELINE,
        SGL_ST_FEEDBACK, SGL_ST_PIPE_BIND, SGL_ST_SAMP_BIND, SGL_ST_UNI_PUSH, SGL_ST_PRESENT,

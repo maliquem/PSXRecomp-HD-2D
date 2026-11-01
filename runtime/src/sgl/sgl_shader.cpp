@@ -27,8 +27,11 @@
 
 #include <algorithm>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
+#include <filesystem>
 #include <string>
+#include <system_error>
 #include <vector>
 
 namespace {
@@ -113,6 +116,81 @@ bool compile_program(SglObj *prog, const char *vs_src, const char *fs_src, bool 
         if (spv[s].empty()) { set_log(prog, "spirv generation failed"); return false; }
     }
     return true;
+}
+
+/* ---- SPIR-V disk cache ----------------------------------------------------
+ * glslang is the slow part of a link (a few to tens of ms a program, and the
+ * renderer builds its texture-filter variants and the effects' chains as they
+ * are first used: hitches the first time). Its output is kept on disk, keyed
+ * by the two sources and the rules, under <exe>/cache/sgl_spirv (or
+ * PSX_SGL_SHADER_CACHE=<dir>; =0 off). The SPIR-V is placed and reflected
+ * after it as usual, so a hit gives the same program as a compile. */
+const uint32_t kSpvCacheVersion = 1;   /* bump with anything that changes compile_program's output */
+
+std::string spv_cache_dir() {
+    static std::string dir;
+    static bool done = false;
+    if (done) return dir;
+    done = true;
+    const char *e = getenv("PSX_SGL_SHADER_CACHE");
+    if (e && e[0] == '0' && e[1] == 0) return dir;
+    if (e && *e) {
+        dir = e;
+    } else {
+        const char *base = SDL_GetBasePath();
+        if (!base) return dir;
+        dir = std::string(base) + "cache/sgl_spirv";
+    }
+    std::error_code ec;
+    std::filesystem::create_directories(dir, ec);
+    if (ec) dir.clear();
+    return dir;
+}
+uint64_t fnv1a(uint64_t h, const void *p, size_t n) {
+    const unsigned char *b = (const unsigned char *)p;
+    for (size_t i = 0; i < n; i++) { h ^= b[i]; h *= 1099511628211ull; }
+    return h;
+}
+std::string spv_cache_path(const char *vs_src, const char *fs_src, bool gl_rules) {
+    const std::string dir = spv_cache_dir();
+    if (dir.empty()) return dir;
+    uint64_t h = 1469598103934665603ull;
+    const uint32_t tag[2] = {kSpvCacheVersion, gl_rules ? 1u : 0u};
+    h = fnv1a(h, tag, sizeof tag);
+    h = fnv1a(h, vs_src, strlen(vs_src) + 1);
+    h = fnv1a(h, fs_src, strlen(fs_src) + 1);
+    h = fnv1a(h, kVsPostamble, strlen(kVsPostamble));
+    char name[40];
+    snprintf(name, sizeof name, "/%016llx.spv", (unsigned long long)h);
+    return dir + name;
+}
+bool spv_cache_load(const std::string &path, std::vector<uint32_t> spv[2]) {
+    if (path.empty()) return false;
+    FILE *f = fopen(path.c_str(), "rb");
+    if (!f) return false;
+    uint32_t hd[4] = {0, 0, 0, 0};
+    bool ok = fread(hd, sizeof hd, 1, f) == 1 && hd[0] == 0x434C4753u /* SGLC */ && hd[1] == kSpvCacheVersion &&
+              hd[2] > 0 && hd[3] > 0 && hd[2] < (1u << 22) && hd[3] < (1u << 22);
+    for (int s = 0; ok && s < 2; s++) {
+        spv[s].resize(hd[2 + s]);
+        ok = fread(spv[s].data(), 4, spv[s].size(), f) == spv[s].size() && spv[s][0] == 0x07230203u;
+    }
+    fclose(f);
+    if (!ok) { spv[0].clear(); spv[1].clear(); }
+    return ok;
+}
+void spv_cache_store(const std::string &path, const std::vector<uint32_t> spv[2]) {
+    if (path.empty()) return;
+    const std::string tmp = path + ".tmp";
+    FILE *f = fopen(tmp.c_str(), "wb");
+    if (!f) return;
+    const uint32_t hd[4] = {0x434C4753u, kSpvCacheVersion, (uint32_t)spv[0].size(), (uint32_t)spv[1].size()};
+    bool ok = fwrite(hd, sizeof hd, 1, f) == 1;
+    for (int s = 0; ok && s < 2; s++) ok = fwrite(spv[s].data(), 4, spv[s].size(), f) == spv[s].size();
+    ok = fclose(f) == 0 && ok;
+    std::error_code ec;
+    if (ok) std::filesystem::rename(tmp, path, ec);
+    if (!ok || ec) std::filesystem::remove(tmp, ec);
 }
 
 /* ---- SPIR-V decoration patching ---------------------------------------- */
@@ -322,6 +400,8 @@ bool place_and_reflect(SglObj *prog, std::vector<uint32_t> spv[2], bool gl_rules
 }
 
 bool make_shaders(SglObj *prog, std::vector<uint32_t> spv[2]) {
+    const uint64_t t0 = SDL_GetTicksNS();
+    struct Tm { uint64_t t0; ~Tm() { g_sgl_time_ns[SGL_T_SHADER] += SDL_GetTicksNS() - t0; } } tm{t0};
     for (int s = 0; s < 2; s++) {
         SDL_GPUShaderCreateInfo ci;
         memset(&ci, 0, sizeof(ci));
@@ -345,7 +425,17 @@ int link_common(SglObj *prog, const char *vs_src, const char *fs_src, bool gl_ru
     std::vector<uint32_t> spv[2];
     std::vector<SglUniform> us;
     try {
-        if (!compile_program(prog, vs_src, fs_src, gl_rules, spv)) return 0;
+        const std::string cpath = spv_cache_path(vs_src, fs_src, gl_rules);
+        if (spv_cache_load(cpath, spv)) {
+            g_sgl_spv_hits++;
+        } else {
+            const uint64_t t0 = SDL_GetTicksNS();
+            const bool ok = compile_program(prog, vs_src, fs_src, gl_rules, spv);
+            g_sgl_time_ns[SGL_T_GLSL] += SDL_GetTicksNS() - t0;
+            if (!ok) return 0;
+            g_sgl_spv_misses++;
+            spv_cache_store(cpath, spv);
+        }
         if (!place_and_reflect(prog, spv, gl_rules, us)) return 0;
     } catch (const std::exception &e) {
         set_log(prog, std::string("reflection: ") + e.what());
