@@ -4839,8 +4839,8 @@ static void sdl_audio_pump(bool discard_output = false) {
         s_at_last = now;
         if ((turbo_audio_mode() == 2 && am_ready()) || am_active()) {
             /* mode 2: the music at its own tempo (audio_music.h) */
-            frames = am_pump(sdl_audio_buf, frames, s_at_out, 44100, want,
-                             turbo_audio_mode() == 2 && s_pm_fast_forward);
+            frames = am_pump(sdl_audio_buf, frames, s_at_out, 44100, want, s_pm_fast_forward,
+                             turbo_audio_mode() == 2);
         } else {
             at_push(sdl_audio_buf, frames);
             frames = at_pull(s_at_out, 44100, want, compress);

@@ -26,7 +26,9 @@ enum {
 typedef struct { uint64_t cycle; uint32_t addr, value; uint32_t kind; } AmEvent;
 
 static uint32_t (*s_classify)(void);
-static int s_state;                /* 0 idle, 1 running, 2 crossfading out */
+static int s_state;                /* 0 idle, 1 running (the fast-forward), 2 crossfading to the
+                                      guest's sound, 3 trailing (1x again, the music still late) */
+static int s_to_live;              /* trailing: a catch-up is due: crossfade to the guest's sound */
 static AmEvent *s_q;
 static uint32_t s_qh, s_qt;        /* head (next to apply), tail */
 static int s_q_over;
@@ -40,12 +42,16 @@ static int s_rs_phase;             /* 0 none, 1 fading out, 2 fading in */
 static int s_changed;
 static uint32_t s_resyncs, s_entries;
 uint32_t g_am_dbg[8];   /* TCP audio_turbo "dbg" (debug_server.c) */
+/* TCP audio_turbo "kons": the last key-ons seen while running, each the voice,
+ * whether the classifier gave it to the music and its start address (bytes). */
+uint32_t g_am_kon[256];
+uint32_t g_am_kon_n;
 static int16_t s_sfx[AM_BUF * 2], s_mus[AM_BUF * 2];
 
 void am_set_classifier(uint32_t (*music_voices)(void)) { s_classify = music_voices; }
 int  am_ready(void) { return s_classify != NULL; }
 int  am_active(void) { return s_state != 0; }
-void am_music_changed(void) { if (s_state == 1) s_changed = 1; }
+void am_music_changed(void) { if (s_state == 1 || s_state == 3) s_changed = 1; }
 
 static inline int16_t sat16(int32_t v) { return (int16_t)(v > 32767 ? 32767 : v < -32768 ? -32768 : v); }
 
@@ -109,6 +115,13 @@ static void tap(int kind, uint32_t addr, uint32_t value) {
             const uint32_t half = addr == 0x1F801D88u ? (m & 0xFFFFu) : ((m >> 16) & 0xFFu);
             spus_write(addr, value & ~half);
             mus = value & half;
+            const int base = addr == 0x1F801D88u ? 0 : 16;
+            for (int b = 0; b < 16; b++) {
+                if (!(value >> b & 1u) || base + b >= 24) continue;
+                const uint32_t v = (uint32_t)(base + b);
+                const uint32_t start = (spu_read(0x1F801C06u + 16u * v) & 0xFFFFu) << 3;
+                g_am_kon[g_am_kon_n++ & 255u] = v | ((mus >> b & 1u) << 7) | (start << 8);
+            }
             for (uint32_t b = mus; b; b &= b - 1) g_am_dbg[3]++;
         } else {
             spus_write(addr, value);
@@ -140,6 +153,7 @@ static int enter(void) {
     s_mgain = 1.0f;
     s_rs_phase = 0;
     s_changed = 0;
+    s_to_live = 0;
     s_entries++;
     spu_io_tap = tap;
     s_state = 1;
@@ -176,7 +190,10 @@ static void music_render(int16_t *out, int n) {
     if (got < n) memset(out + got * 2, 0, (size_t)(n - got) * 2 * sizeof(int16_t));
     /* a catch-up: fade out, take the guest's present, fade in */
     const uint64_t lag = psx_get_cycle_count() - s_mclock;
-    if (s_rs_phase == 0 && (s_changed || s_q_over || (double)lag > AM_MAX_LAG_S * AM_CPS)) s_rs_phase = 1;
+    if (s_rs_phase == 0 && (s_changed || s_q_over || (double)lag > AM_MAX_LAG_S * AM_CPS)) {
+        if (s_state == 3) { s_to_live = 1; s_changed = 0; }   /* trailing: to the guest's own music */
+        else s_rs_phase = 1;
+    }
     for (int i = 0; i < n; i++) {
         if (s_rs_phase == 1) {
             s_mgain -= 1.0f / AM_RS_FADE;
@@ -211,23 +228,30 @@ static int sfx_pull(void) {
     return n;
 }
 
-int am_pump(const int16_t *live, int n_live, int16_t *out, int out_cap, int want, int ff) {
+int am_pump(const int16_t *live, int n_live, int16_t *out, int out_cap, int want, int ff, int on) {
     if (out_cap > AM_BUF) out_cap = AM_BUF;
     if (s_state == 0) {
-        if (!(ff && s_classify && enter())) {
+        if (!(on && ff && s_classify && enter())) {
             at_push(live, n_live);
             return at_pull(out, out_cap, 0, 0);
         }
     }
-    if (s_state == 1 && !ff) {
-        at_jump_direct();
+    /* Released: the music goes on from the music SPU, late but whole (going
+     * back to the guest's would jump ahead in the song at every release); the
+     * effects SPU, in step, needs no compressing. Pressed again: compressing
+     * again, the same SPUs. To the guest's own sound only at a catch-up (a
+     * new song), or when mode 2 is turned off. */
+    if (s_state == 1 && !ff) { at_jump_direct(); s_state = 3; }
+    else if (s_state == 3 && ff && on) s_state = 1;
+    if ((s_state == 3 && (s_to_live || !on)) || (s_state == 1 && !on)) {
+        if (s_state == 1) at_jump_direct();
         s_xf_left = AM_XF;
         s_state = 2;
     }
     const int ns = sfx_pull();
     at_push(s_sfx, ns);
-    if (s_state == 1) {
-        const int n = at_pull(out, out_cap, want, 1);
+    if (s_state == 1 || s_state == 3) {
+        const int n = at_pull(out, out_cap, s_state == 1 ? want : 0, s_state == 1);
         music_render(s_mus, n);
         for (int i = 0; i < n * 2; i++) out[i] = sat16((int32_t)out[i] + s_mus[i]);
         return n;

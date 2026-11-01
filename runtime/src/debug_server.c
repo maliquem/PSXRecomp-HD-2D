@@ -7474,6 +7474,22 @@ static void handle_audio_turbo(int id, const char *json)
     g_am_dbg[0] = g_am_dbg[1] = 0;   /* peaks since the last read */
 }
 
+/* audio_turbo_kons: the last 256 key-ons mode 2 saw, each voice | music<<7 |
+ * start address (bytes) << 8 (audio_music.c g_am_kon). */
+static void handle_audio_turbo_kons(int id, const char *json)
+{
+    (void)json;
+    extern uint32_t g_am_kon[256], g_am_kon_n;
+    char buf[256 * 12 + 64];
+    int o = snprintf(buf, sizeof buf, "{\"id\":%d,\"ok\":true,\"n\":%u,\"kons\":[", id, g_am_kon_n);
+    const uint32_t n = g_am_kon_n < 256 ? g_am_kon_n : 256;
+    for (uint32_t i = 0; i < n; i++)
+        o += snprintf(buf + o, sizeof buf - (size_t)o, "%s%u", i ? "," : "",
+                      g_am_kon[(g_am_kon_n - n + i) & 255u]);
+    snprintf(buf + o, sizeof buf - (size_t)o, "]}");
+    send_fmt("%s", buf);
+}
+
 static void handle_audio_wav(int id, const char *json)
 {
     char path[512];
@@ -16762,6 +16778,7 @@ static const CmdEntry s_commands[] = {
     { "audio_stats",       handle_audio_stats },
     { "audio_wav",         handle_audio_wav },
     { "audio_turbo",       handle_audio_turbo },
+    { "audio_turbo_kons",  handle_audio_turbo_kons },
     { "audio_events",      handle_audio_events },
     { "card_buffer_dump",  handle_card_buffer_dump },
     { "sio_arm_audit",     handle_sio_arm_audit },
