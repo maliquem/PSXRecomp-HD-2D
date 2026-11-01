@@ -477,3 +477,10 @@ sem a aprovação dela; nada de push.
   (o driver guarda as suas), sem pré-criação. Também: AA só da geometria 3D (`hd2d/aa3d.pfx`,
   6º lugar de efeito), igual nos dois renderizadores. Relatório da noite no repositório do jogo
   (docs/NOITE_2026-11-01_RELATORIO.md).
+- 2026-11-01 (manhã): trocas presas à fase da tela (`present_phase.c`, os dois renderizadores):
+  numa tela múltipla do jogo (119,88 Hz) cada apresentação espera o meio da atualização certa
+  (grade lida das atualizações reais por D3DKMT) e troca com intervalo 1; o pacer é puxado de leve
+  (≤ 0,3% de um período) para manter a fase. O quadro vai à GPU antes da espera (o sdl_gpu só
+  submetia na troca). Andando no deserto (OpenGL): imagens fora das 4 atualizações 183/1072 →
+  9/1070; sdl_gpu: trocas 32,9–33,8 ms. TCP `present_phase`; `PSX_PRESENT_PHASE=0` desliga,
+  `PSX_PRESENT_PHASE_PROBE=1` mede em qual atualização cada imagem cai (GL_TIMESTAMP).
