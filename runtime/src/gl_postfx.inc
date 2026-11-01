@@ -130,7 +130,11 @@ static GLint  s_mask_uUv = -1, s_mask_uV = -1;
 static GLint  s_mmap_uUv = -1, s_mmap_uS = -1, s_mmap_uSrc = -1, s_mmap_uDst = -1;
 /* Marks resolved in the surfaces' own px: an R8 texture per surface,
  * attached with that surface's own depth-stencil renderbuffer, so no
- * depth-stencil blit is needed (one costs the CPU milliseconds on macOS). */
+ * depth-stencil blit is needed (one costs the CPU milliseconds on macOS).
+ * Each mark is a bit of its texel (1 glow, 2 3D, 4 cover, 8 a generated
+ * frame's objects), added by blending, so the passes over the surface
+ * write a byte a pixel, not four; pfx_mask_map spreads the bits over the
+ * window mask's channels (r g b a = 1 2 4 8: the same 0/1 values). */
 typedef struct { GLuint rb, tex, fbo; int w, h; } PfxSurfMask;
 static PfxSurfMask s_smask[2];
 static int    s_mask_w = 0, s_mask_h = 0;
@@ -358,7 +362,7 @@ static void pfx_fbo_attach(GLuint *f, GLuint tex) {
 static int pfx_surf_mask(int k, GLuint rb, int tw, int th, const int r[4]) {
     PfxSurfMask *m = &s_smask[k];
     if (m->rb != rb || m->w != tw || m->h != th) {
-        pfx_tex_alloc(&m->tex, tw, th, 0, 1);
+        pfx_tex_alloc(&m->tex, tw, th, -1, 1);
         pfx_fbo_attach(&m->fbo, m->tex);
         p_glFramebufferRenderbuffer(PSXGL_FRAMEBUFFER, PSXGL_DEPTH_STENCIL_ATTACHMENT,
                                     PSXGL_RENDERBUFFER, rb);
@@ -371,26 +375,28 @@ static int pfx_surf_mask(int k, GLuint rb, int tw, int th, const int r[4]) {
     post_fullscreen(s_mask_prog, s_mask_uUv);
     glEnable(GL_STENCIL_TEST);
     glStencilOp(GL_KEEP, GL_KEEP, GL_KEEP);
-    p_glUniform1f(s_mask_uV, 1.0f);
+    glEnable(GL_BLEND);   /* each mark's bit added (exact in 8 bits: distinct bits) */
+    p_glBlendEquationSeparate(PSXGL_FUNC_ADD, PSXGL_FUNC_ADD);
+    p_glBlendFuncSeparate(GL_ONE, GL_ONE, GL_ONE, GL_ONE);
     if (s_bcls_on) {
-        glColorMask(GL_TRUE, GL_FALSE, GL_FALSE, GL_FALSE);
+        p_glUniform1f(s_mask_uV, 1.0f / 255.0f);
         glStencilFunc(GL_EQUAL, 0x02, 0x02);
         post_fullscreen(s_mask_prog, s_mask_uUv);
     }
     if (s_b3d_on) {
-        glColorMask(GL_FALSE, GL_TRUE, GL_FALSE, GL_FALSE);
+        p_glUniform1f(s_mask_uV, 2.0f / 255.0f);
         glStencilFunc(GL_EQUAL, 0x04, 0x04);
         post_fullscreen(s_mask_prog, s_mask_uUv);
-        glColorMask(GL_FALSE, GL_FALSE, GL_TRUE, GL_FALSE);
+        p_glUniform1f(s_mask_uV, 4.0f / 255.0f);
         glStencilFunc(GL_EQUAL, 0x08, 0x08);
         post_fullscreen(s_mask_prog, s_mask_uUv);
-        if (s_pfx_vx_on) {   /* a generated frame's objects (s_fg_obj_mark), alpha */
-            glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_TRUE);
+        if (s_pfx_vx_on) {   /* a generated frame's objects (s_fg_obj_mark) */
+            p_glUniform1f(s_mask_uV, 8.0f / 255.0f);
             glStencilFunc(GL_EQUAL, 0x10, 0x10);
             post_fullscreen(s_mask_prog, s_mask_uUv);
         }
     }
-    glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+    glDisable(GL_BLEND);
     glDisable(GL_STENCIL_TEST);
     return 1;
 }
@@ -697,7 +703,8 @@ static int pfx_mask_build(int fresh, int lw, int lh) {
             "  vec2 f = gl_FragCoord.xy;\n"
             "  int sx = u_src.x + int(floor((f.x - u_dst.x) * float(u_src.z - u_src.x) / u_dst.y));\n"
             "  int sy = u_src.y + int(floor((u_dst.z - f.y) * float(u_src.w - u_src.y) / u_dst.z));\n"
-            "  o = texelFetch(u_s, ivec2(sx, sy), 0);\n"
+            "  int b = int(texelFetch(u_s, ivec2(sx, sy), 0).r * 255.0 + 0.5);\n"
+            "  o = vec4(float(b & 1), float((b >> 1) & 1), float((b >> 2) & 1), float((b >> 3) & 1));\n"
             "}\n");
         if (!s_mask_prog || !s_mask_map_prog) { s_mask_prog = 0; return 0; }
         s_mask_uUv = p_glGetUniformLocation(s_mask_prog, "u_uv_rect");
