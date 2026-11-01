@@ -30,6 +30,9 @@ void at_push(const int16_t *in, int frames);
 /* Up to `want` frames into out (compress 1), or every frame held (compress
  * 0, `want` ignored past out_cap). Returns the frames written. */
 int  at_pull(int16_t *out, int out_cap, int want, int compress);
+/* Out of compressing at once: drop the input held (its delay) and go on with
+ * the newest, the last grain's falling half faded under it (~12 ms). */
+void at_jump_direct(void);
 /* Frames held, not yet played (latency the compressor adds). */
 int  at_backlog(void);
 /* Observability (TCP audio_turbo): grains made, ratio measured, frames

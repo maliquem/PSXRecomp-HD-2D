@@ -107,6 +107,7 @@ extern "C" uint32_t g_guest_last_store_addr, g_guest_last_store_val;
 #include "spu.h"
 #include "audio_trace.h"
 #include "audio_turbo.h"
+#include "audio_music.h"
 #include "spu_shadow.h"
 
 /* Shared clock-domain bridge: band-limited polyphase resampler + P-only DRC.
@@ -4712,6 +4713,10 @@ static int turbo_audio_mode(void) {
 extern "C" void psx_mod_set_turbo_audio(int mode) {
     g_turbo_audio_mode = mode >= 0 && mode <= 2 ? mode : 0;
 }
+extern "C" void psx_mod_set_music_voice_classifier(uint32_t (*music_voices)(void)) {
+    am_set_classifier(music_voices);
+}
+extern "C" void psx_mod_music_changed(void) { am_music_changed(); }
 
 static void sdl_audio_pump(bool discard_output = false) {
     /* Guest-cycle SPU advance must not depend on host audio device/backpressure.
@@ -4773,6 +4778,7 @@ static void sdl_audio_pump(bool discard_output = false) {
     if (g_audio_cycle_resync) {
         /* Savestate/rewind load: queued output belongs to the old timeline. */
         spu_output_flush();
+        am_reset();
         at_reset();
         g_audio_cycle_resync = 0;
         if (legacy && sdl_audio_device)
@@ -4807,7 +4813,7 @@ static void sdl_audio_pump(bool discard_output = false) {
 
     frames = host_frames;
     int16_t *obuf = sdl_audio_buf;
-    if (!legacy && (turbo_audio_mode() > 0 || at_backlog() > 0)) {
+    if (!legacy && (turbo_audio_mode() > 0 || at_backlog() > 0 || am_active())) {
         /* The fast-forward's time compressor (audio_turbo.h): every frame goes
          * through it; under the manual fast-forward it hands the bridge what
          * the wall clock plays (the SPU made N times that), else the input as
@@ -4815,7 +4821,6 @@ static void sdl_audio_pump(bool discard_output = false) {
         static int16_t s_at_out[44100 * 2];
         static uint64_t s_at_last = 0;
         static double s_at_acc = 0.0;
-        at_push(sdl_audio_buf, frames);
         const int compress = turbo_audio_mode() > 0 && s_pm_fast_forward;
         int want = 0;
         const uint64_t now = SDL_GetPerformanceCounter();
@@ -4832,7 +4837,14 @@ static void sdl_audio_pump(bool discard_output = false) {
             s_at_acc = 0.0;
         }
         s_at_last = now;
-        frames = at_pull(s_at_out, 44100, want, compress);
+        if ((turbo_audio_mode() == 2 && am_ready()) || am_active()) {
+            /* mode 2: the music at its own tempo (audio_music.h) */
+            frames = am_pump(sdl_audio_buf, frames, s_at_out, 44100, want,
+                             turbo_audio_mode() == 2 && s_pm_fast_forward);
+        } else {
+            at_push(sdl_audio_buf, frames);
+            frames = at_pull(s_at_out, 44100, want, compress);
+        }
         obuf = s_at_out;
         if (frames <= 0) return;
     }

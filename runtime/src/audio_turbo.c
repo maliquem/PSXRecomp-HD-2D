@@ -39,6 +39,7 @@ static int     s_win_ok;
 static double  s_ratio = 1.0;
 static int64_t s_in_since, s_out_since;   /* input, output asked for */
 static uint64_t s_grains, s_jumps;
+static int     s_xf;               /* at_jump_direct: frames of s_pend still to fade under */
 
 static void win_init(void) {
     if (s_win_ok) return;
@@ -62,7 +63,16 @@ void at_reset(void) {
     s_fin_n = s_fin_off = 0;
     s_ratio = 1.0;
     s_in_since = s_out_since = 0;
+    s_xf = 0;
     memset(s_pend, 0, sizeof s_pend);
+}
+
+void at_jump_direct(void) {
+    if (s_mode != 1) return;
+    /* the newest input from here, the pending falling half under its first hop */
+    s_rd = s_end;
+    s_mode = 0;
+    s_xf = AT_HS;
 }
 
 void at_push(const int16_t *in, int frames) {
@@ -131,12 +141,19 @@ int at_pull(int16_t *out, int out_cap, int want, int compress) {
         /* Back to the input as it came: the hop in hand first, then from the
          * last grain's natural continuation (the pending falling half plus
          * that input's rising half are the input itself). */
-        if (s_mode == 1) { s_rd = s_prev + AT_HS; s_mode = 0; }
+        if (s_mode == 1) { s_rd = s_prev + AT_HS; s_mode = 0; s_xf = 0; }
         n = take_fin(out, out_cap);
         while (n < out_cap && s_rd < s_end) {
             const int16_t *d = s_in[s_rd & AT_MASK];
-            out[n * 2] = d[0];
-            out[n * 2 + 1] = d[1];
+            if (s_xf > 0) {
+                const int i = AT_HS - s_xf;
+                for (int c = 0; c < 2; c++)
+                    out[n * 2 + c] = clamp16f(s_pend[i][c] + (float)d[c] * (1.0f / 32768.0f) * s_win[i]);
+                s_xf--;
+            } else {
+                out[n * 2] = d[0];
+                out[n * 2 + 1] = d[1];
+            }
             s_rd++;
             n++;
         }
@@ -145,6 +162,7 @@ int at_pull(int16_t *out, int out_cap, int want, int compress) {
     }
     if (want > out_cap) want = out_cap;
     if (s_mode == 0) {
+        s_xf = 0;
         /* Start as if a grain ended on what was just played: its falling half
          * is the input from here on, so the first grain overlaps in phase. */
         if (s_end - s_rd < AT_HS) return take_fin(out, want);

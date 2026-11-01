@@ -1200,6 +1200,12 @@ int  psx_mod_fast_forward_speed(void);
  * title's music voices, psx_mod_set_music_voice_classifier). The bridge
  * output only; PSX_TURBO_AUDIO=0/1/2 wins (tests). */
 void psx_mod_set_turbo_audio(int mode);
+/* Mode 2's classifier: the title's music voices right now (bit v = SPU voice
+ * v), called at each key-on in the guest's own SPU access (read RAM only).
+ * NULL: mode 2 plays as mode 1. And the title's report that its song changed
+ * (the music SPU then catches up with a fade, not waiting to fall behind). */
+void psx_mod_set_music_voice_classifier(uint32_t (*music_voices)(void));
+void psx_mod_music_changed(void);
 
 /* A title's own page over the frozen game (e.g. an achievements list), run
  * like the save state menu: while it is open the guest is held at the vblank
