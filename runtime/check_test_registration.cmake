@@ -45,6 +45,7 @@ set(_PSXRECOMP_TESTREG_DIR "${CMAKE_CURRENT_LIST_DIR}")
 set(PSXRECOMP_TESTS_NOT_REGISTERED
     "test_overlay_posix.c|built and run by tests/run_overlay_posix_test.sh, which stages the dlopen fixture tree; that script is registered as overlay_posix_test on UNIX"
     "test_openxr_color_gl.c|real-GL fixture compiled and run by tests/run_openxr_color_gl.py (like test_gl_readback_region.c); not a ctest binary"
+    "test_sgl_basic.c|SDL_GPU smoke test: needs a GPU device and a window, run by hand; not a ctest binary"
 )
 
 function(psxrecomp_check_all_tests_registered)
