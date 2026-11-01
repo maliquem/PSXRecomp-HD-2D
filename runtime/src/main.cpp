@@ -1861,6 +1861,9 @@ static int           g_render_thread_frames = 2;
 /* [video] frame_generation (docs/FRAME_GENERATION.md), with the render thread. */
 static int           g_frame_generation = 0;
 static int           g_frame_generation_method = 0;   /* [video] frame_generation_method: 0 redraw, 1 reprojection */
+/* A title's hold on Smooth motion (psx_video_hold_smooth_motion): the
+ * player's own choice while the hold lasts, -1 without one. */
+static int           s_frame_generation_held = -1;
 /* [video] present_thread (docs/RENDER_THREAD.md), with the render thread. */
 static int           g_present_thread = 0;
 /* The player's persisted pipeline choice (game.toml default < settings.toml),
@@ -4349,6 +4352,22 @@ extern "C" void psx_video_set_smooth_motion(int on) {
         next.render_thread = 1;
     }
     (void)psx_video_apply_live(&next);   /* sets g_frame_generation (the render thread's start reads it) */
+}
+/* Smooth motion for a while, nothing saved: a title whose own 60 fps falls
+ * back to 30 in some scenes holds it on there, so the picture keeps 60. on 1
+ * or 0 holds it so; -1 gives the player's choice back (the menu's changes
+ * meanwhile included). Inert without the render thread, like the option. */
+extern "C" void psx_video_hold_smooth_motion(int on) {
+    if (on < 0) {
+        if (s_frame_generation_held < 0) return;
+        g_frame_generation = s_frame_generation_held;
+        s_frame_generation_held = -1;
+    } else {
+        if (s_frame_generation_held < 0) s_frame_generation_held = g_frame_generation;
+        g_frame_generation = on ? 1 : 0;
+    }
+    if (g_gl_active && gl_renderer_frame_generation() != g_frame_generation)
+        gl_renderer_set_frame_generation(g_frame_generation);
 }
 extern "C" int psx_video_get_vsync(void) { return g_video_vsync != 0; }
 extern "C" void psx_video_set_window_size(int w, int h) {
@@ -11101,7 +11120,8 @@ extern "C" void psx_video_current(PsxHostVideoSettings *v) {
     v->scanline_strength_pct = (int)(g_video_scanline_strength * 100.0f + 0.5f);
     v->present_linear = g_video_aa ? 1 : 0;
     v->dynamic_resolution = g_video_dynres ? 1 : 0;
-    v->frame_generation = g_frame_generation ? 1 : 0;
+    /* the player's choice, not a title's hold on it */
+    v->frame_generation = (s_frame_generation_held >= 0 ? s_frame_generation_held : g_frame_generation) ? 1 : 0;
     v->renderer = video_renderer_saved();   /* sdl_gpu stays "sdl_gpu" when settings are written */
     v->internal_resolution = g_video_internal_res;
     v->supersampling = g_video_scale;
@@ -11150,8 +11170,13 @@ extern "C" unsigned psx_video_apply_live(const PsxHostVideoSettings *next) {
         else { dynres_setup(); if (!g_dynres.active && gl_renderer_dynamic_resolution_ceiling() >= 2) g_dynres.active = true; }
     }
     if ((m & PSX_VIDEO_LIVE_FRAME_GEN) && g_gl_active) {
-        g_frame_generation = next->frame_generation ? 1 : 0;
-        gl_renderer_set_frame_generation(g_frame_generation);
+        if (s_frame_generation_held >= 0) {
+            /* held by the title: the new choice comes back with the release */
+            s_frame_generation_held = next->frame_generation ? 1 : 0;
+        } else {
+            g_frame_generation = next->frame_generation ? 1 : 0;
+            gl_renderer_set_frame_generation(g_frame_generation);
+        }
     }
     /* Persist everything the menu shows, live or not, like the launcher. */
     if (!g_overlay_settings_path.empty()) {
