@@ -731,7 +731,7 @@ int sgl_gpu_init(SDL_Window *win) {
                                                SDL_GPU_TEXTURETYPE_2D, dsu)
                   ? SDL_GPU_TEXTUREFORMAT_D24_UNORM : SDL_GPU_TEXTUREFORMAT_D32_FLOAT;
     g_sgl.caps.dual_source_blend = 0;
-    g_sgl.caps.timer_queries = 0;
+    g_sgl.caps.timer_queries = 1;   /* by fences: GPU busy time (sgl_gpu_timing_enable) */
     g_sgl.caps.wide_lines = 0;
     g_sgl.caps.max_texture_size = 16384;
     {
@@ -766,10 +766,12 @@ int sgl_gpu_init(SDL_Window *win) {
     return 1;
 }
 
+static void timing_shutdown(void);
 void sgl_gpu_shutdown(void) {
     if (!g_sgl.dev) return;
     sgl_flush(1, 0);
     SDL_WaitForGPUIdle(g_sgl.dev);
+    timing_shutdown();
     for (int i = 0; i < s_pipe_cap; i++)
         if (s_pipes[i].used) SDL_ReleaseGPUGraphicsPipeline(g_sgl.dev, s_pipes[i].pipe);
     free(s_pipes); s_pipes = NULL; s_pipe_cap = s_pipe_n = 0;
@@ -791,6 +793,103 @@ void sgl_gpu_shutdown(void) {
     memset(s_ip_tried, 0, sizeof(s_ip_tried));
 }
 
+/* ---- GPU time without timer queries --------------------------------------
+ * SDL_GPU has no timestamp queries. Once the renderer asks for GPU time
+ * (glBeginQuery / glQueryCounter on sgl), every submit carries a fence that a
+ * small thread waits on, in submit order, stamping when it signals. The GPU's
+ * busy time runs a clock: a command buffer counts from its submit or the end
+ * of the one before it, whichever is later, to its own end (idle gaps, CPU
+ * recording, do not count). A query reads that clock at the stream it was
+ * placed after, so GL_TIME_ELAPSED is the busy time of the streams between. */
+typedef struct { SDL_GPUFence *f; uint64_t id, submit_ns; } SglTimed;
+#define SGL_TQ 256
+#define SGL_TCLOCK 4096
+static SglTimed s_tq[SGL_TQ];
+static unsigned s_tq_head, s_tq_tail;
+static struct { uint64_t id, ns; } s_tclock[SGL_TCLOCK];
+static uint64_t s_tq_done;                /* last stream whose end is stamped */
+static uint64_t s_last_submit;            /* last stream submitted */
+static int s_timing, s_tq_quit;
+static SDL_Mutex *s_tq_mu;
+static SDL_Condition *s_tq_cv, *s_tq_done_cv;
+static SDL_Thread *s_tq_thread;
+
+static int SDLCALL timed_thread(void *arg) {
+    (void)arg;
+    uint64_t clock = 0, last_end = 0;
+    for (;;) {
+        SDL_LockMutex(s_tq_mu);
+        while (s_tq_head == s_tq_tail && !s_tq_quit) SDL_WaitCondition(s_tq_cv, s_tq_mu);
+        if (s_tq_head == s_tq_tail) { SDL_UnlockMutex(s_tq_mu); break; }
+        const SglTimed b = s_tq[s_tq_tail % SGL_TQ];
+        SDL_UnlockMutex(s_tq_mu);
+        SDL_WaitForGPUFences(g_sgl.dev, true, (SDL_GPUFence *const *)&b.f, 1);
+        const uint64_t t = SDL_GetTicksNS();
+        const uint64_t start = b.submit_ns > last_end ? b.submit_ns : last_end;
+        if (t > start) clock += t - start;
+        last_end = t;
+        SDL_ReleaseGPUFence(g_sgl.dev, b.f);
+        SDL_LockMutex(s_tq_mu);
+        s_tclock[b.id % SGL_TCLOCK].id = b.id;
+        s_tclock[b.id % SGL_TCLOCK].ns = clock;
+        s_tq_done = b.id;
+        s_tq_tail++;
+        SDL_BroadcastCondition(s_tq_done_cv);
+        SDL_UnlockMutex(s_tq_mu);
+    }
+    return 0;
+}
+void sgl_gpu_timing_enable(void) {
+    if (s_timing || !g_sgl.dev) return;
+    s_tq_mu = SDL_CreateMutex();
+    s_tq_cv = SDL_CreateCondition();
+    s_tq_done_cv = SDL_CreateCondition();
+    s_tq_quit = 0;
+    s_tq_head = s_tq_tail = 0;
+    s_tq_done = s_last_submit;
+    if (s_tq_mu && s_tq_cv && s_tq_done_cv)
+        s_tq_thread = SDL_CreateThread(timed_thread, "sgl_gpu_time", NULL);
+    s_timing = s_tq_thread != NULL;
+}
+static void timing_shutdown(void) {
+    if (!s_timing) return;
+    SDL_LockMutex(s_tq_mu);
+    s_tq_quit = 1;
+    SDL_SignalCondition(s_tq_cv);
+    SDL_UnlockMutex(s_tq_mu);
+    SDL_WaitThread(s_tq_thread, NULL);
+    SDL_DestroyCondition(s_tq_cv);
+    SDL_DestroyCondition(s_tq_done_cv);
+    SDL_DestroyMutex(s_tq_mu);
+    s_tq_thread = NULL; s_tq_cv = s_tq_done_cv = NULL; s_tq_mu = NULL;
+    s_timing = 0;
+}
+static void timed_push(SDL_GPUFence *f, uint64_t id, uint64_t submit_ns) {
+    SDL_LockMutex(s_tq_mu);
+    while (s_tq_head - s_tq_tail >= SGL_TQ) SDL_WaitCondition(s_tq_done_cv, s_tq_mu);
+    s_tq[s_tq_head % SGL_TQ] = (SglTimed){f, id, submit_ns};
+    s_tq_head++;
+    SDL_SignalCondition(s_tq_cv);
+    SDL_UnlockMutex(s_tq_mu);
+}
+static void timed_wait(uint64_t id) {
+    SDL_LockMutex(s_tq_mu);
+    while (s_tq_done < id) SDL_WaitCondition(s_tq_done_cv, s_tq_mu);
+    SDL_UnlockMutex(s_tq_mu);
+}
+uint64_t sgl_gpu_last_submit(void) { return s_last_submit; }
+int sgl_gpu_clock_at(uint64_t id, uint64_t *ns, int wait) {
+    if (!s_timing) { *ns = 0; return 1; }
+    if (id == 0) { *ns = 0; return 1; }
+    if (wait && id <= s_last_submit) timed_wait(id);
+    SDL_LockMutex(s_tq_mu);
+    int ok = s_tq_done >= id && s_tclock[id % SGL_TCLOCK].id == id;
+    if (ok) *ns = s_tclock[id % SGL_TCLOCK].ns;
+    else if (s_tq_done >= id) { *ns = 0; ok = 1; }   /* before timing, or too old */
+    SDL_UnlockMutex(s_tq_mu);
+    return ok;
+}
+
 /* ---- fences of submitted streams ---------------------------------------- */
 typedef struct { uint64_t id; SDL_GPUFence *f; } SglFenceSlot;
 static SglFenceSlot s_fences[16];
@@ -802,6 +901,7 @@ static void fence_keep(uint64_t id, SDL_GPUFence *f) {
 }
 int sgl_gpu_wait_stream(uint64_t id) {
     if (id >= g_sgl_stream.id) return sgl_flush(1, 0);
+    if (s_timing) { timed_wait(id); return 1; }
     SglFenceSlot *slot = &s_fences[id % 16];
     if (slot->f && slot->id == id) {
         sgl_stats_note(SGL_ST_WAIT);
@@ -1106,15 +1206,27 @@ int sgl_flush(int wait, int present) {
     const uint64_t id = s->id;
     int ok;
     sgl_stats_note(SGL_ST_SUBMIT);
-    if (need_fence) {
+    if (s_timing) {
+        /* timed: the thread owns the fence (and waits on it) */
+        const uint64_t sub = SDL_GetTicksNS();
         SDL_GPUFence *f = SDL_SubmitGPUCommandBufferAndAcquireFence(cmd);
         ok = f != NULL;
         if (f) {
+            s_last_submit = id;
+            timed_push(f, id, sub);
+            if (need_fence && wait) { timed_wait(id); sgl_stats_note(SGL_ST_WAIT); }
+        }
+    } else if (need_fence) {
+        SDL_GPUFence *f = SDL_SubmitGPUCommandBufferAndAcquireFence(cmd);
+        ok = f != NULL;
+        if (f) {
+            s_last_submit = id;
             if (wait) { SDL_WaitForGPUFences(g_sgl.dev, true, &f, 1); sgl_stats_note(SGL_ST_WAIT); }
             fence_keep(id, f);
         }
     } else {
         ok = SDL_SubmitGPUCommandBuffer(cmd);
+        if (ok) s_last_submit = id;
     }
     stream_reset();
     return ok;

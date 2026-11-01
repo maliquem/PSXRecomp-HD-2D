@@ -293,6 +293,12 @@ void      sgl_set_error(GLenum e);
 /* sgl_gpu.c */
 int  sgl_gpu_init(SDL_Window *win);
 void sgl_gpu_shutdown(void);
+/* GPU time (timer queries on sgl): the GPU's busy clock at a submitted
+ * stream. Enabled by the first query; every submit is then fenced and timed
+ * by a small thread. sgl_gpu_clock_at: 1 and *ns when known (wait: until). */
+void     sgl_gpu_timing_enable(void);
+uint64_t sgl_gpu_last_submit(void);
+int      sgl_gpu_clock_at(uint64_t id, uint64_t *ns, int wait);
 int  sgl_gpu_alloc_image(SglImage *im, GLenum ifmt, int w, int h);
 void sgl_release_texture(SDL_GPUTexture *t);
 /* Encode and submit the stream; wait for the GPU when wait != 0. present !=

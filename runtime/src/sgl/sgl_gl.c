@@ -25,6 +25,10 @@ static SglTable s_buf = {0, 0, 0, sizeof(SglBuffer)};
 static SglTable s_vao = {0, 0, 0, sizeof(SglVao)};
 static SglTable s_obj = {0, 0, 0, sizeof(SglObj)};
 static SglTable s_sync = {0, 0, 0, sizeof(SglSync)};
+/* A timer query: the GPU busy clock (sgl_gpu_clock_at) at the streams it
+ * was placed after (TIME_ELAPSED: begin and end; TIMESTAMP: one). */
+typedef struct { int used; GLenum target; uint64_t begin, end; int placed; } SglQuery;
+static SglTable s_query = {0, 0, 0, sizeof(SglQuery)};
 
 static void *tab_get(SglTable *t, GLuint name) {
     if (name == 0 || (int)name >= t->n) return NULL;
@@ -1510,6 +1514,69 @@ static void APIENTRY sgl_glDrawElements(GLenum mode, GLsizei count, GLenum type,
     sgl_glDrawElementsBaseVertex(mode, count, type, indices, 0);
 }
 
+/* ---- timer queries (GPU busy time, sgl_gpu.c) ------------------------------ */
+static SglQuery *s_query_open;
+static void APIENTRY sgl_glGenQueries(GLsizei n, GLuint *out) {
+    for (int i = 0; i < n; i++) out[i] = tab_new(&s_query);
+}
+static void APIENTRY sgl_glDeleteQueries(GLsizei n, const GLuint *names) {
+    for (int i = 0; i < n; i++) {
+        SglQuery *q = (SglQuery *)tab_get(&s_query, names[i]);
+        if (q) { if (q == s_query_open) s_query_open = NULL; q->used = 0; }
+    }
+}
+/* The clock is read after what was recorded so far has gone to the GPU. */
+static uint64_t query_mark(void) {
+    sgl_gpu_timing_enable();
+    sgl_flush(0, 0);
+    return sgl_gpu_last_submit();
+}
+static void APIENTRY sgl_glBeginQuery(GLenum target, GLuint name) {
+    SglQuery *q = (SglQuery *)tab_get(&s_query, name);
+    if (!q) { sgl_set_error(GL_INVALID_OPERATION); return; }
+    q->target = target;
+    q->begin = query_mark();
+    q->end = 0;
+    q->placed = 0;
+    s_query_open = q;
+}
+static void APIENTRY sgl_glEndQuery(GLenum target) {
+    (void)target;
+    SglQuery *q = s_query_open;
+    s_query_open = NULL;
+    if (!q) { sgl_set_error(GL_INVALID_OPERATION); return; }
+    q->end = query_mark();
+    q->placed = 1;
+}
+static void APIENTRY sgl_glQueryCounter(GLuint name, GLenum target) {
+    SglQuery *q = (SglQuery *)tab_get(&s_query, name);
+    if (!q) { sgl_set_error(GL_INVALID_OPERATION); return; }
+    q->target = target;
+    q->begin = 0;
+    q->end = query_mark();
+    q->placed = 1;
+}
+static int query_result(SglQuery *q, uint64_t *v, int wait) {
+    if (!q || !q->placed) return 0;
+    uint64_t a = 0, b = 0;
+    if (!sgl_gpu_clock_at(q->end, &b, wait)) return 0;
+    if (q->target == 0x8E28 /* TIMESTAMP */) { *v = b; return 1; }
+    if (!sgl_gpu_clock_at(q->begin, &a, wait)) return 0;
+    *v = b > a ? b - a : 0;
+    return 1;
+}
+static void APIENTRY sgl_glGetQueryObjectui64v(GLuint name, GLenum pname, GLuint64 *v) {
+    SglQuery *q = (SglQuery *)tab_get(&s_query, name);
+    uint64_t r = 0;
+    if (pname == 0x8867 /* RESULT_AVAILABLE */) *v = query_result(q, &r, 0) ? 1 : 0;
+    else *v = query_result(q, &r, 1) ? r : 0;
+}
+static void APIENTRY sgl_glGetQueryObjectiv(GLuint name, GLenum pname, GLint *v) {
+    GLuint64 r = 0;
+    sgl_glGetQueryObjectui64v(name, pname, &r);
+    *v = (GLint)r;
+}
+
 /* An internal program's draw: a full-target triangle, scissored to rect. */
 static void internal_draw(int which, const SglTarget *t, int cmask, int dwrite, int smask, uint8_t sref,
                           const int rect[4], const void *ublock, int usize,
@@ -1746,6 +1813,8 @@ static const SglProc s_procs[] = {
     P(glBufferSubData), P(glDisableVertexAttribArray), P(glGetVertexAttribiv), P(glGetVertexAttribPointerv),
     P(glDrawElements), P(glDrawElementsBaseVertex), P(glBlendEquation), P(glBindSampler), P(glPolygonMode),
     P(glIsProgram), P(glDetachShader), P(glGetAttribLocation), P(glGetStringi), P(glUniformMatrix4fv),
+    P(glGenQueries), P(glDeleteQueries), P(glBeginQuery), P(glEndQuery), P(glQueryCounter),
+    P(glGetQueryObjectui64v), P(glGetQueryObjectiv),
     P(glDeleteFramebuffers), P(glBindFramebuffer), P(glFramebufferTexture2D), P(glCheckFramebufferStatus),
     P(glBlitFramebuffer), P(glGenRenderbuffers), P(glDeleteRenderbuffers), P(glBindRenderbuffer),
     P(glRenderbufferStorage), P(glFramebufferRenderbuffer), P(glGetActiveUniform), P(glGetUniformfv),
