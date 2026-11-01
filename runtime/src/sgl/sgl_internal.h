@@ -268,7 +268,8 @@ typedef struct SglContext {
     SglImage back;             /* the default framebuffer's colour */
     SglImage back_ds;          /* ... and its depth-stencil (on demand) */
     int swap_interval;
-    int hdr;                   /* swapchain HDR_EXTENDED_LINEAR */
+    int hdr;                   /* HDR asked for: float16 default framebuffer */
+    int hdr_out;               /* the swapchain now: 0 SDR, 1 scRGB, 2 HDR10 */
     SDL_GPUTextureFormat swap_fmt;
     SDL_GPUTextureFormat ds_fmt;      /* depth-stencil format in use */
     SDL_GPUTextureFormat d_fmt;       /* depth-only format in use */
@@ -315,7 +316,8 @@ SDL_GPUGraphicsPipeline *sgl_pipeline(SglObj *prog, const SglVao *vao,
                                       int *nbuf_out);
 void sgl_follow_window(void);
 /* Internal programs (clears / blits of depth / scissored colour blits). */
-enum { SGL_IP_CLEAR = 0, SGL_IP_DEPTH_BLIT, SGL_IP_COLOR_BLIT, SGL_IP_COLOR_BLIT_U, SGL_IP_COUNT };
+enum { SGL_IP_CLEAR = 0, SGL_IP_DEPTH_BLIT, SGL_IP_COLOR_BLIT, SGL_IP_COLOR_BLIT_U, SGL_IP_PQ,
+       SGL_IP_COUNT };
 SglObj *sgl_internal_program(int which);
 SDL_GPUGraphicsPipeline *sgl_internal_pipeline(int which, const SglTarget *t,
                                                int color_mask, int depth_write,

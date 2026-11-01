@@ -232,7 +232,8 @@ static void row_from_gpu(SDL_GPUTextureFormat fmt, uint8_t *dst, const uint8_t *
     }
     int bpp = fmt == SDL_GPU_TEXTUREFORMAT_R16_UINT ? 2 :
               fmt == SDL_GPU_TEXTUREFORMAT_R8_UNORM ? 1 :
-              fmt == SDL_GPU_TEXTUREFORMAT_R32G32_FLOAT ? 8 : 4;
+              fmt == SDL_GPU_TEXTUREFORMAT_R32G32_FLOAT ? 8 :
+              fmt == SDL_GPU_TEXTUREFORMAT_R32G32B32A32_FLOAT ? 16 : 4;
     if (fmt == SDL_GPU_TEXTUREFORMAT_R8_UNORM && type == GL_FLOAT) {
         float *f = (float *)dst;
         for (int i = 0; i < w; i++) f[i] = u8f(src[i]);
@@ -525,7 +526,8 @@ static void convert_rows_out(SDL_GPUTextureFormat fmt, const uint8_t *src, int w
     int sbpp = fmt == SDL_GPU_TEXTUREFORMAT_R16_UINT ? 2 :
                fmt == SDL_GPU_TEXTUREFORMAT_R8_UNORM ? 1 :
                fmt == SDL_GPU_TEXTUREFORMAT_R16G16B16A16_FLOAT ? 8 :
-               fmt == SDL_GPU_TEXTUREFORMAT_R32G32_FLOAT ? 8 : 4;
+               fmt == SDL_GPU_TEXTUREFORMAT_R32G32_FLOAT ? 8 :
+              fmt == SDL_GPU_TEXTUREFORMAT_R32G32B32A32_FLOAT ? 16 : 4;
     uint8_t *d0 = dst + (size_t)skip_rows * dstride + (size_t)skip_px * dpx;
     for (int r = 0; r < h; r++)
         row_from_gpu(fmt, d0 + (size_t)r * dstride, src + (size_t)r * w * sbpp, w, format, type);

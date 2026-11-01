@@ -124,6 +124,10 @@ int gl_renderer_hdr_wanted(void) {
     hdr_env_once();
 #if defined(_WIN32) && defined(PSX_SDL3)
     s_hdr_want = s_hdr_env >= 0 ? s_hdr_env : s_hdr_cfg;
+#elif defined(PSX_SDL3)
+    /* elsewhere only through sgl: an HDR swapchain of the compositor
+     * (gamescope on the Steam Deck takes HDR from Vulkan only) */
+    s_hdr_want = gl_api_impl() == 1 ? (s_hdr_env >= 0 ? s_hdr_env : s_hdr_cfg) : 0;
 #else
     s_hdr_want = 0;
 #endif
@@ -685,6 +689,11 @@ static int hdr_dyn_measure(int ww, int wh, int mask_ok, int boost, float paper, 
 /* The last step before every swap: the composed SDR picture -> scRGB. */
 static void hdr_finish(void) {
     if (!s_hdr_on || !s_ctx || !s_win) return;
+#ifdef PSX_HAVE_SGL
+    /* sgl: the swapchain follows the display; SDR there takes the picture as
+     * composed (an 8-bit swapchain, no pass) */
+    if (gl_api_impl() == 1 && !sgl_hdr_output()) { s_hdr_display = 0; return; }
+#endif
     int ww = 0, wh = 0;
     SDL_GL_GetDrawableSize(s_win, &ww, &wh);
     if (ww <= 0 || wh <= 0) return;

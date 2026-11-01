@@ -108,6 +108,7 @@ static int fmt_for(GLenum ifmt, SglFmt *out) {
     switch (ifmt) {
     case GL_RGBA8: out->fmt = SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM; out->kind = SGL_KIND_COLOR; out->bpp = 4; return 1;
     case 0x881A: out->fmt = SDL_GPU_TEXTUREFORMAT_R16G16B16A16_FLOAT; out->kind = SGL_KIND_COLOR; out->bpp = 8; return 1;
+    case 0x8814: out->fmt = SDL_GPU_TEXTUREFORMAT_R32G32B32A32_FLOAT; out->kind = SGL_KIND_COLOR; out->bpp = 16; return 1;
     case 0x8229: out->fmt = SDL_GPU_TEXTUREFORMAT_R8_UNORM; out->kind = SGL_KIND_COLOR; out->bpp = 1; return 1;
     case 0x8230: out->fmt = SDL_GPU_TEXTUREFORMAT_R32G32_FLOAT; out->kind = SGL_KIND_COLOR; out->bpp = 8; return 1;
     case 0x822E: out->fmt = SDL_GPU_TEXTUREFORMAT_R32_FLOAT; out->kind = SGL_KIND_COLOR; out->bpp = 4; return 1;
@@ -172,6 +173,7 @@ static int fmt_bpp(SDL_GPUTextureFormat fmt) {
     case SDL_GPU_TEXTUREFORMAT_R16_UINT: case SDL_GPU_TEXTUREFORMAT_R16_FLOAT: return 2;
     case SDL_GPU_TEXTUREFORMAT_R8_UNORM: return 1;
     case SDL_GPU_TEXTUREFORMAT_R16G16B16A16_FLOAT: case SDL_GPU_TEXTUREFORMAT_R32G32_FLOAT: return 8;
+    case SDL_GPU_TEXTUREFORMAT_R32G32B32A32_FLOAT: return 16;
     default: return 4;
     }
 }
@@ -589,6 +591,21 @@ static const char *IP_FS[SGL_IP_COUNT] = {
     "    vec2 s = src.xy + t * (src.zw - src.xy);\n"
     "    o = texelFetch(u_src, clamp(ivec2(floor(s)), ivec2(0), ivec2(size.xy) - 1), 0);\n"
     "}\n",
+    /* HDR10 present: the scRGB default framebuffer (linear BT.709, 1.0 = 80
+     * nits, GL rows) -> BT.2020, ST 2084 PQ, the swapchain's rows */
+    "#version 450\n"
+    "layout(set = 2, binding = 0) uniform sampler2D u_src;\n"
+    "layout(set = 3, binding = 0) uniform U { vec4 size; };\n"   /* source w, h; target w, h */
+    "layout(location = 0) out vec4 o;\n"
+    "void main() {\n"
+    "    vec2 t = gl_FragCoord.xy / size.zw;\n"
+    "    ivec2 i = clamp(ivec2(floor(vec2(t.x, 1.0 - t.y) * size.xy)), ivec2(0), ivec2(size.xy) - 1);\n"
+    "    vec3 c = max(texelFetch(u_src, i, 0).rgb, vec3(0.0));\n"
+    "    c = mat3(0.627404, 0.069097, 0.016391, 0.329283, 0.919540, 0.088013,\n"
+    "             0.043313, 0.011362, 0.895595) * c;\n"
+    "    vec3 y = pow(clamp(c * (80.0 / 10000.0), 0.0, 1.0), vec3(0.1593017578125));\n"
+    "    o = vec4(pow((0.8359375 + 18.8515625 * y) / (1.0 + 18.6875 * y), vec3(78.84375)), 1.0);\n"
+    "}\n",
 };
 static const char *IP_FS_CLEAR_U =
     "#version 450\n"
@@ -662,16 +679,53 @@ static SDL_GPUPresentMode present_mode_for(int interval) {
     }
     return SDL_GPU_PRESENTMODE_VSYNC;
 }
+/* The window shown in HDR now. Windows says so per window (SDL); elsewhere
+ * a compositor that offers an HDR swapchain is taken at its word. */
+static int display_hdr(void) {
+#ifdef _WIN32
+    return SDL_GetBooleanProperty(SDL_GetWindowProperties(g_sgl.win), SDL_PROP_WINDOW_HDR_ENABLED_BOOLEAN, false);
+#else
+    return 1;
+#endif
+}
+/* The output HDR asks for: scRGB, else HDR10 (PSX_HDR_FORMAT=hdr10 first). */
+static int hdr_output_wanted(void) {
+    if (!g_sgl.hdr || !display_hdr()) return 0;
+    static int pref = -1;
+    if (pref < 0) {
+        const char *e = getenv("PSX_HDR_FORMAT");
+        pref = e && (strcmp(e, "hdr10") == 0 || strcmp(e, "pq") == 0) ? 2 : 1;
+    }
+    const int lin = SDL_WindowSupportsGPUSwapchainComposition(g_sgl.dev, g_sgl.win,
+                                                              SDL_GPU_SWAPCHAINCOMPOSITION_HDR_EXTENDED_LINEAR);
+    const int pq = SDL_WindowSupportsGPUSwapchainComposition(g_sgl.dev, g_sgl.win,
+                                                             SDL_GPU_SWAPCHAINCOMPOSITION_HDR10_ST2084);
+    if (pref == 2 && pq) return 2;
+    return lin ? 1 : pq ? 2 : 0;
+}
 static int apply_swapchain(void) {
     if (!g_sgl.dev || !g_sgl.win || !g_sgl.claimed) return 0;
-    SDL_GPUSwapchainComposition comp = SDL_GPU_SWAPCHAINCOMPOSITION_SDR;
-    if (g_sgl.hdr && SDL_WindowSupportsGPUSwapchainComposition(g_sgl.dev, g_sgl.win,
-                                                               SDL_GPU_SWAPCHAINCOMPOSITION_HDR_EXTENDED_LINEAR))
-        comp = SDL_GPU_SWAPCHAINCOMPOSITION_HDR_EXTENDED_LINEAR;
+    const int out = hdr_output_wanted();
+    const SDL_GPUSwapchainComposition comp = out == 1 ? SDL_GPU_SWAPCHAINCOMPOSITION_HDR_EXTENDED_LINEAR
+                                           : out == 2 ? SDL_GPU_SWAPCHAINCOMPOSITION_HDR10_ST2084
+                                                      : SDL_GPU_SWAPCHAINCOMPOSITION_SDR;
     if (!SDL_SetGPUSwapchainParameters(g_sgl.dev, g_sgl.win, comp, present_mode_for(g_sgl.swap_interval)))
         return 0;
+    if (out != g_sgl.hdr_out && g_sgl.hdr)
+        fprintf(stdout, "psxrecomp: sgl: HDR output %s\n", out == 1 ? "scRGB" : out == 2 ? "HDR10 (PQ)" : "off (SDR)");
+    g_sgl.hdr_out = out;
     g_sgl.swap_fmt = SDL_GetGPUSwapchainTextureFormat(g_sgl.dev, g_sgl.win);
     return 1;
+}
+int sgl_hdr_output(void) { return g_sgl.hdr_out; }
+/* After each swap: HDR follows the display (Windows' HDR switch, the window
+ * moved to another screen) without reopening the game. */
+static void hdr_follow(void) {
+    if (!g_sgl.hdr || !g_sgl.dev) return;
+    static int every;
+    if (++every < 15) return;   /* four times a second at 60 */
+    every = 0;
+    if (hdr_output_wanted() != g_sgl.hdr_out) apply_swapchain();
 }
 
 static int upload_now(SDL_GPUTexture *tex, int w, int h, const void *px, size_t bytes) {
@@ -1187,7 +1241,33 @@ int sgl_flush(int wait, int present) {
     if (present && g_sgl.back.tex) {
         SDL_GPUTexture *sw = NULL;
         Uint32 sw_w = 0, sw_h = 0;
-        if (SDL_WaitAndAcquireGPUSwapchainTexture(cmd, g_sgl.win, &sw, &sw_w, &sw_h) && sw) {
+        SglTarget pt;
+        memset(&pt, 0, sizeof(pt));
+        SDL_GPUGraphicsPipeline *pq = NULL;
+        if (g_sgl.hdr_out == 2) {
+            pt.color = g_sgl.back.tex;     /* only its format goes into the pipeline */
+            pt.color_fmt = g_sgl.swap_fmt;
+            pq = sgl_internal_pipeline(SGL_IP_PQ, &pt, 0xF, 0, 0);
+        }
+        if (SDL_WaitAndAcquireGPUSwapchainTexture(cmd, g_sgl.win, &sw, &sw_w, &sw_h) && sw && pq) {
+            /* HDR10: encoded on the way to the swapchain */
+            SDL_GPUColorTargetInfo ci;
+            memset(&ci, 0, sizeof(ci));
+            ci.texture = sw;
+            ci.load_op = SDL_GPU_LOADOP_DONT_CARE;
+            ci.store_op = SDL_GPU_STOREOP_STORE;
+            SDL_GPURenderPass *prp = SDL_BeginGPURenderPass(cmd, &ci, 1, NULL);
+            SDL_BindGPUGraphicsPipeline(prp, pq);
+            const SDL_GPUViewport vp = {0, 0, (float)sw_w, (float)sw_h, 0, 1};
+            SDL_SetGPUViewport(prp, &vp);
+            SDL_GPUTextureSamplerBinding tb = {g_sgl.back.tex, sgl_sampler(GL_NEAREST, GL_NEAREST, 0x812F, 0x812F)};
+            SDL_BindGPUFragmentSamplers(prp, 0, &tb, 1);
+            const float u[4] = {(float)g_sgl.back.w, (float)g_sgl.back.h, (float)sw_w, (float)sw_h};
+            SDL_PushGPUFragmentUniformData(cmd, 0, u, sizeof(u));
+            SDL_DrawGPUPrimitives(prp, 3, 1, 0, 0);
+            SDL_EndGPURenderPass(prp);
+            sgl_stats_note(SGL_ST_PRESENT);
+        } else if (sw) {
             SDL_GPUBlitInfo bi;
             memset(&bi, 0, sizeof(bi));
             bi.source.texture = g_sgl.back.tex;
@@ -1277,6 +1357,7 @@ bool sgl_swap_window(SDL_Window *win) {
     (void)win;
     int ok = sgl_flush(0, 1);
     sgl_follow_window();
+    hdr_follow();
     return ok != 0;
 }
 bool sgl_set_swap_interval(int interval) {
