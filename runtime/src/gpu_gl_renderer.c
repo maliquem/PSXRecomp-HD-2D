@@ -8230,6 +8230,13 @@ const char *gl_renderer_impl_name(void) {
 #endif
     return "opengl";
 }
+int gl_renderer_impl_probe(void) {
+#if defined(PSX_HAVE_SGL)
+    return gl_api_impl() == 1 ? sgl_gpu_probe() : 1;
+#else
+    return 1;
+#endif
+}
 unsigned long long gl_renderer_impl_window_flags(void) {
 #if defined(PSX_HAVE_SGL)
     return (unsigned long long)sgl_window_flags();

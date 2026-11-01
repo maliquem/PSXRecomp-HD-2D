@@ -1596,6 +1596,9 @@ static int           g_video_renderer = PSXRecompV4::DEFAULT_VIDEO_RENDERER;
  * SDL3's GPU API (docs/SDL_GPU_RENDERER_PLAN.md). From the point the renderer
  * is settled on, it is renderer 1 everywhere, with this flag set. */
 static int           g_video_sdl_gpu = 0;
+/* sdl_gpu asked for but no device for it here (no Vulkan): drawn with the
+ * driver's OpenGL this run, the setting kept as it was. */
+static int           g_video_sdl_gpu_fallback = 0;
 static void video_renderer_settle() {
     if (g_video_renderer == 3) { g_video_renderer = 1; g_video_sdl_gpu = 1; }
     else if (g_video_renderer != 1) g_video_sdl_gpu = 0;
@@ -1610,7 +1613,7 @@ static void video_renderer_settle() {
 }
 /* The renderer as settings store it (3 = sdl_gpu). */
 static int video_renderer_saved() {
-    return g_video_renderer == 1 && g_video_sdl_gpu ? 3 : g_video_renderer;
+    return g_video_renderer == 1 && (g_video_sdl_gpu || g_video_sdl_gpu_fallback) ? 3 : g_video_renderer;
 }
 
 /* Settings -> Display -> Internal resolution (internal_resolution.h). The
@@ -11099,7 +11102,7 @@ extern "C" void psx_video_current(PsxHostVideoSettings *v) {
     v->present_linear = g_video_aa ? 1 : 0;
     v->dynamic_resolution = g_video_dynres ? 1 : 0;
     v->frame_generation = g_frame_generation ? 1 : 0;
-    v->renderer = g_video_renderer;
+    v->renderer = video_renderer_saved();   /* sdl_gpu stays "sdl_gpu" when settings are written */
     v->internal_resolution = g_video_internal_res;
     v->supersampling = g_video_scale;
     v->render_thread = g_render_thread ? 1 : 0;
@@ -21775,6 +21778,15 @@ session_reboot:
 #endif
 
     Uint32 win_flags = SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE;
+    if (g_video_renderer == 1 && g_video_sdl_gpu && !gl_renderer_impl_probe()) {
+        /* no SDL_GPU device (no Vulkan driver or GPU for it): OpenGL, as the
+         * same renderer draws there; the saved choice stays sdl_gpu */
+        std::fprintf(stdout, "psxrecomp: no Vulkan (sdl_gpu) device here; using OpenGL instead.\n");
+        (void)gl_renderer_set_impl(0);
+        g_video_sdl_gpu = gl_renderer_impl();
+        g_video_sdl_gpu_fallback = !g_video_sdl_gpu;
+        if (g_video_sdl_gpu_fallback) host_osd_push("Vulkan unavailable: using OpenGL", 4000);
+    }
     if (g_video_renderer == 1 && g_video_sdl_gpu) {
         /* sgl: the window SDL_GPU's driver needs (Vulkan / Metal / none). */
         win_flags |= (Uint32)gl_renderer_impl_window_flags();

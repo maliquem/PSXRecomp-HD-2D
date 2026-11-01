@@ -764,15 +764,25 @@ static int upload_now(SDL_GPUTexture *tex, int w, int h, const void *px, size_t 
     return 1;
 }
 
-int sgl_gpu_init(SDL_Window *win) {
-    memset(&g_sgl, 0, sizeof(g_sgl));
+/* The device made before the window (sgl_gpu_probe), for sgl_gpu_init. */
+static SDL_GPUDevice *s_probe_dev;
+static SDL_GPUDevice *create_device(void) {
     const char *drv = driver_wanted();
     const int debug = getenv("PSX_SGL_DEBUG") && getenv("PSX_SGL_DEBUG")[0] == '1';
-    g_sgl.dev = SDL_CreateGPUDevice(SDL_GPU_SHADERFORMAT_SPIRV, debug, drv);
-    if (!g_sgl.dev) {
-        fprintf(stdout, "psxrecomp: sgl: no SDL_GPU device (%s): %s\n", drv ? drv : "default", SDL_GetError());
-        return 0;
-    }
+    SDL_GPUDevice *d = SDL_CreateGPUDevice(SDL_GPU_SHADERFORMAT_SPIRV, debug, drv);
+    if (!d) fprintf(stdout, "psxrecomp: sgl: no SDL_GPU device (%s): %s\n", drv ? drv : "default", SDL_GetError());
+    return d;
+}
+int sgl_gpu_probe(void) {
+    if (!s_probe_dev) s_probe_dev = create_device();
+    return s_probe_dev != NULL;
+}
+
+int sgl_gpu_init(SDL_Window *win) {
+    memset(&g_sgl, 0, sizeof(g_sgl));
+    g_sgl.dev = s_probe_dev ? s_probe_dev : create_device();
+    s_probe_dev = NULL;
+    if (!g_sgl.dev) return 0;
     g_sgl.win = win;
     if (!SDL_ClaimWindowForGPUDevice(g_sgl.dev, win)) {
         fprintf(stdout, "psxrecomp: sgl: window not claimed: %s\n", SDL_GetError());
