@@ -8840,6 +8840,22 @@ static void handle_post_shader(int id, const char *json)
 
 /* extra_shader: {"cmd":"extra_shader","slot":0,"path":"x.pfx"} sets one of
  * the extra file-chain slots live ("" = none), e.g. to tune a game effect. */
+/* marks_lean: {"on":0|1} lean marks (1: the marking passes a batch can skip
+ * skipped, the surface marks a byte a pixel) or all passes (0); the reply carries the passes skipped and drawn
+ * and the running GPU totals of the frames (frame_perf), for an A/B within
+ * one run. */
+static void handle_marks_lean(int id, const char *json)
+{
+    const int on = json_get_int(json, "on", -1);
+    if (on >= 0) gl_renderer_marks_lean_force(on);
+    uint64_t f = 0, s = 0, p = 0, c[2];
+    gl_renderer_frame_gpu_totals(&f, &s, &p);
+    gl_renderer_marks_lean_counts(c);
+    send_fmt("{\"id\":%d,\"ok\":true,\"frames\":%llu,\"scene_ns\":%llu,\"present_ns\":%llu,"
+             "\"skipped\":%llu,\"drawn\":%llu}", id, (unsigned long long)f, (unsigned long long)s,
+             (unsigned long long)p, (unsigned long long)c[0], (unsigned long long)c[1]);
+}
+
 static void handle_extra_shader(int id, const char *json)
 {
     char path[1024];
@@ -16647,6 +16663,7 @@ static const CmdEntry s_commands[] = {
     { "postfx_timing",     handle_postfx_timing },
     { "shadow_hide",       handle_shadow_hide },
     { "extra_shader",      handle_extra_shader },
+    { "marks_lean",        handle_marks_lean },
     { "fmv_chroma",        handle_fmv_chroma },
     { "fmv_enhance",       handle_fmv_enhance },
     { "hdr",               handle_hdr },

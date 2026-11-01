@@ -5114,6 +5114,50 @@ static int b3dm_passes(int semi, int b3d) {
     if (b3d == 0) return BCLS_CLEAR;
     return BCLS_CLEAR | BCLS_SET;
 }
+/* Passes a batch of known make (b3d 0, 1, 2) can skip, the stencil left the
+ * same: the 3D mark's set pass (3) on a batch with no 3D primitive (its
+ * shaders discard every fragment); its clear pass (2) under a set pass
+ * that covers every fragment the clear covers and is drawn after it (all
+ * 3D, or a painted backdrop: pass 5 discards nothing); the glow's set pass
+ * (1) of a batch with no 3D primitive when only additive 3D feeds the bloom
+ * (bloom_source "additive3d"), or an untextured one that does not add.
+ * The semi-transparent batches (the opaque and see-through pieces drawn
+ * together) took four passes each. The same switch writes the surface
+ * marks a byte a pixel (gl_postfx.inc pfx_surf_mask). Both exact; off by
+ * default (a game turns them on for a weak GPU: gl_renderer_marks_lean;
+ * PSX_MARKS_LEAN=1/0 overrides it, TCP marks_lean both). Off: every pass
+ * and four bytes a pixel, as before. */
+static int s_marks_lean = -1;
+static int s_marks_lean_env = -1;   /* PSX_MARKS_LEAN: -1 unset */
+static uint64_t s_mlean_n[2];   /* passes skipped, drawn */
+static int marks_lean(void) {
+    if (s_marks_lean < 0) {
+        const char *e = getenv("PSX_MARKS_LEAN");
+        s_marks_lean_env = e && e[0] ? e[0] != '0' : -1;
+        s_marks_lean = s_marks_lean_env > 0;
+    }
+    return s_marks_lean;
+}
+void gl_renderer_marks_lean(int on) {
+    (void)marks_lean();
+    if (s_marks_lean_env < 0) s_marks_lean = on ? 1 : 0;
+}
+void gl_renderer_marks_lean_force(int on) { (void)marks_lean(); s_marks_lean = on ? 1 : 0; }
+void gl_renderer_marks_lean_counts(uint64_t out[2]) { out[0] = s_mlean_n[0]; out[1] = s_mlean_n[1]; }
+static int b3dm_lean(int b3d, int bp) {
+    if (!marks_lean()) return bp;
+    const int in = bp;
+    if (b3d == 0) bp &= ~BCLS_SET;
+    if ((b3d == 1 || b3d == 2) && (bp & BCLS_SET)) bp &= ~BCLS_CLEAR;
+    s_mlean_n[0] += (unsigned)((in & 1) + ((in >> 1) & 1) - (bp & 1) - ((bp >> 1) & 1));
+    s_mlean_n[1] += (unsigned)((bp & 1) + ((bp >> 1) & 1));
+    return bp;
+}
+static int bcls_lean(int b3d, int tex, int add, int bp) {
+    if (!marks_lean() || b3d != 0 || !(bp & BCLS_SET)) return bp;
+    if (s_bloom_add_only == 2 || (!tex && add == 0)) { s_mlean_n[0]++; return bp & ~BCLS_SET; }
+    return bp;
+}
 /* GEO_FS u_badd for blend `semi`: 1 adds the colour (mode 1), 4 a quarter of
  * it (mode 3), 0 not additive. */
 #define BCLS_ADD(semi) ((semi) == 1 ? 1 : (semi) == 3 ? 4 : 0)
@@ -5126,13 +5170,14 @@ static int b3dm_passes(int semi, int b3d) {
         DRAW;                                                                 \
         if ((s_bcls_on || s_b3d_on) && (dmode) != 2 && (!s_fg_drawing || s_fg_marks)) { \
             if (s_bcls_on) {                                                  \
-                const int bcls_p_ = bcls_passes((semi), (b3d) == 2 ? 0 : (b3d)); \
+                const int bcls_p_ = bcls_lean((b3d), 0, BCLS_ADD(semi),      \
+                    bcls_passes((semi), (b3d) == 2 ? 0 : (b3d)));             \
                 bcls_begin(0, BCLS_ADD(semi), 0x02);                          \
                 if (bcls_p_ & BCLS_CLEAR) { bcls_pass(0, 2); DRAW; }          \
                 if (bcls_p_ & BCLS_SET)   { bcls_pass(0, 1); DRAW; }          \
             }                                                                 \
             if (s_b3d_on) {                                                   \
-                const int b3dm_p_ = b3dm_passes((semi), (b3d));               \
+                const int b3dm_p_ = b3dm_lean((b3d), b3dm_passes((semi), (b3d))); \
                 /* opaque: its passes also clear the cover bit; the cover     \
                  * pass reads u_badd (a dim additive 3D piece: no cover) */   \
                 bcls_begin(0, BCLS_ADD(semi), (semi) < 0 ? 0x0C : 0x04);      \
@@ -5238,7 +5283,7 @@ static void tex_draw_passes_ex_(int nverts, int semi, int tb_mask, int check,
     }
     if ((s_bcls_on || s_b3d_on) && b3d != 3 && (!s_fg_drawing || s_fg_marks)) {   /* 3: glass, marks kept */
         if (s_bcls_on) {
-            const int bp = bcls_passes(semi, b3d == 2 ? 0 : b3d);
+            const int bp = bcls_lean(b3d, 1, 0, bcls_passes(semi, b3d == 2 ? 0 : b3d));
             bcls_begin(1, 0, 0x02);
             if (bp & BCLS_CLEAR) { bcls_pass(1, 2); glDrawArrays(GL_TRIANGLES, 0, nverts); }
             if (bp & BCLS_SET)   { bcls_pass(1, 1); glDrawArrays(GL_TRIANGLES, 0, nverts); }
@@ -5248,7 +5293,7 @@ static void tex_draw_passes_ex_(int nverts, int semi, int tb_mask, int check,
              * 0): the clear pass (it skips the see-through ones) runs for those
              * too, so a HUD panel drawn semi-transparent is 2D where it is solid.
              * Both bits: the 3D mark and the see-through cover. */
-            const int bp = b3dm_passes(semi, b3d) | (semi >= 0 ? BCLS_CLEAR : 0);
+            const int bp = b3dm_lean(b3d, b3dm_passes(semi, b3d) | (semi >= 0 ? BCLS_CLEAR : 0));
             bcls_begin(1, 0, 0x0C);
             if (bp & BCLS_CLEAR) { bcls_pass(1, 2); glDrawArrays(GL_TRIANGLES, 0, nverts); }
             if (bp & BCLS_SET)   { bcls_pass(1, b3d == 2 ? 5 : 3); glDrawArrays(GL_TRIANGLES, 0, nverts); }
