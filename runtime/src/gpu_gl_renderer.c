@@ -11489,9 +11489,11 @@ static int pt_cb_ctx(void *user, int current) {
     return 1;
 }
 
+static void fg_hdr_vsync_sync(void);
 /* The one owned swap call: the composing thread's (direct) or the present
  * thread's. */
 static void gl_window_swap(void) {
+    fg_hdr_vsync_sync();
 #if defined(PSX_SDL3)
     psx_video_telemetry_present(SDL_GL_SwapWindow(s_win) ? 1 : 0);
 #else
@@ -13463,6 +13465,27 @@ typedef struct { uint32_t rec, key0, vid[3]; float x[3], y[3], p[3][3], h[3]; in
 static int       s_fg_on = 0;                 /* configured (any thread reads) */
 static int       s_fg_force = 0;              /* PSX_FRAME_GEN_FORCE: tests */
 static _Atomic double s_fg_refresh_hz = 0.0, s_fg_guest_hz = 59.94;
+/* Smooth motion with HDR: the float16 window swapped without vsync flickered
+ * on screen with generated frames (seen by the player, 2026-11-01; HDR alone
+ * or Smooth motion alone did not), so with both on the swap waits for vsync,
+ * from the first frame (the screen's rate not measured yet included), on a
+ * screen at least as fast as the game. Not in the turbo. Without HDR the
+ * swap interval stays main.cpp's. PSX_SGL_FG_FIFO=0: never forced. */
+static void fg_hdr_vsync_sync(void) {
+#if defined(PSX_SDL3)
+    if (!s_hdr_on) return;
+    static int env = -1;
+    if (env < 0) {
+        const char *e = getenv("PSX_SGL_FG_FIFO");
+        env = !(e && *e == '0');
+    }
+    const double rhz = atomic_load(&s_fg_refresh_hz), ghz = atomic_load(&s_fg_guest_hz);
+    const int want = env && s_fg_on && !psx_presentation_fast_forward() && (rhz <= 0.0 || rhz >= ghz - 0.5)
+                     ? 1 : s_swap_interval;
+    int cur = -2;
+    if (!SDL_GL_GetSwapInterval(&cur) || cur != want) (void)SDL_GL_SetSwapInterval(want);
+#endif
+}
 static _Atomic int s_fg_late = 0;             /* emulation thread: a late frame */
 static const char *_Atomic s_fg_hold_reason = NULL;
 static _Atomic uint64_t s_fg_hold_until = 0;  /* rt_now_ns: no generation before */
