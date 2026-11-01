@@ -1981,12 +1981,14 @@ static int s_tex_filter = 0;
  * which keeps them nearest. Edges: PSX_TEXTURE_EDGE_* (gl_texfilter.inc).
  * s_tf_eff: the filter each class draws with now; s_tf_soft: some class
  * blends its edges (opaque batches then draw with dual-source blending, exact
- * where a texel is fully covered). */
+ * where a texel is fully covered; without it, a colour pass blended by the
+ * coverage and an alpha pass for the mask bit: the same pixels). */
 static int s_tf_class[3] = {-1, -1, -1}, s_tf_edge[3] = {0, 0, 0};
 static int s_tf_eff[3] = {0, 0, 0}, s_tf_soft = 0;
 /* Dual-source blending (GL_SRC1_ALPHA): the driver's OpenGL has it; sgl
  * (renderer = "sdl_gpu") does not, so semi-transparent prims there take the
- * isolated two-pass path (same pixels) and Blend edges draw Clean. */
+ * isolated two-pass path (same pixels), Blend edges of opaque prims take two
+ * passes (tex_soft_alpha_pass) and those of semi-transparent ones draw Clean. */
 static int s_gl_dual_src = 1;
 static uint64_t s_tf_prims[3];   /* textured triangles drawn per class (TCP texture_filter) */
 static void tf_update(void) {
@@ -1995,7 +1997,7 @@ static void tf_update(void) {
         int f = s_tf_class[c];
         if (f < 0) f = (c == 0 || s_tex_filter != PSX_TEXTURE_FILTER_STABLE_WORLD) ? s_tex_filter : 0;
         s_tf_eff[c] = f;
-        if (f && s_tf_class[c] >= 0 && s_tf_edge[c] == PSX_TEXTURE_EDGE_SOFT && s_gl_dual_src) s_tf_soft = 1;
+        if (f && s_tf_class[c] >= 0 && s_tf_edge[c] == PSX_TEXTURE_EDGE_SOFT) s_tf_soft = 1;
     }
 }
 /* The a_filter bits of a primitive of class c (sampler | edge << 5). */
@@ -3425,6 +3427,9 @@ static const char *TEX_FS =
     "#endif\n"
     "  frag = vec4(rgb, (stp == 1 || u_maskset == 1) ? 1.0 : 0.0);\n"
     "  blend_factor = vec4(0.0, 0.0, 0.0, dst_factor);\n"
+    "#if TF_MASK != 0\n"
+    "  if (u_softok == 2) frag.a = tf_cov;   /* one source: the coverage blends, alpha kept */\n"
+    "#endif\n"
     "}\n";
 
 /* Quad blit: used for CPU->VRAM upload flushes and VRAM->VRAM copies.
@@ -5145,14 +5150,34 @@ static int b3dm_passes(int semi, int b3d) {
  * texel gives dst factor 0: the same pixels), the semi batches of modes 0/1/3
  * already do; elsewhere the edge is cut (Clean). */
 static void tex_opaque_blend(void) {
-    if (s_tf_soft) {
+    if (s_tf_soft && s_gl_dual_src) {
         glEnable(GL_BLEND);
         p_glBlendEquationSeparate(PSXGL_FUNC_ADD, PSXGL_FUNC_ADD);
         p_glBlendFuncSeparate(GL_ONE, PSXGL_SRC1_ALPHA, GL_ONE, GL_ZERO);
+        p_glUniform1i(s_tex_uSoftok, 1);
+    } else if (s_tf_soft) {
+        /* one source: colour over what is under it by the coverage (the
+         * shader's alpha, u_softok 2), the destination alpha kept for the
+         * mask pass after it */
+        glEnable(GL_BLEND);
+        p_glBlendEquationSeparate(PSXGL_FUNC_ADD, PSXGL_FUNC_ADD);
+        p_glBlendFuncSeparate(GL_ONE, GL_ONE_MINUS_SRC_ALPHA, GL_ZERO, GL_ONE);
+        p_glUniform1i(s_tex_uSoftok, 2);
     } else {
         glDisable(GL_BLEND);
+        p_glUniform1i(s_tex_uSoftok, 0);
     }
-    p_glUniform1i(s_tex_uSoftok, s_tf_soft);
+}
+/* Without dual source: the mask bit of the soft-edged batch just drawn, into
+ * alpha only, from the same fragments (u_softok 3). */
+static void tex_soft_alpha_pass(int nverts) {
+    if (!s_tf_soft || s_gl_dual_src) return;
+    glDisable(GL_BLEND);
+    glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_TRUE);
+    p_glUniform1i(s_tex_uSoftok, 3);
+    glDrawArrays(GL_TRIANGLES, 0, nverts);
+    glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+    tex_opaque_blend();
 }
 static void tex_draw_passes_ex_(int nverts, int semi, int tb_mask, int check,
                                 int track_stencil, int b3d);
@@ -5171,6 +5196,7 @@ static void tex_draw_passes_ex_(int nverts, int semi, int tb_mask, int check,
         mask_stencil_ex(tb_mask, check);
         p_glUniform1i(s_uSemipass, 0);                 /* all texels, one ordered colour pass */
         glDrawArrays(GL_TRIANGLES, 0, nverts);
+        tex_soft_alpha_pass(nverts);
         if (check) {
             glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);  /* stencil-only fixup */
             mask_stencil_ex(1, check);
