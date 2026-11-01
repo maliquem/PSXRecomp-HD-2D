@@ -70,6 +70,10 @@ const char *sgl_impl_name(void);
  * the platform's default). */
 void        sgl_set_driver(const char *name);
 uint64_t    sgl_window_flags(void);
+/* Makes the SDL_GPU device for the driver sgl will use, before any window
+ * (kept for the context that follows): 0 when there is none (no Vulkan
+ * driver or device), so the frontend can take OpenGL instead. */
+int         sgl_gpu_probe(void);
 
 /* Counters for the debug server (TCP "sgl"): passes, draws, uploads... */
 int sgl_stats_json(char *out, int cap);

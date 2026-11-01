@@ -34,6 +34,9 @@ const char *gl_renderer_impl_name(void);
 /* SDL window flags the sdl_gpu window needs ([video] sdl_gpu_driver /
  * PSX_SGL_DRIVER: "vulkan", "direct3d12", "metal", "auto"); 0 without sgl. */
 unsigned long long gl_renderer_impl_window_flags(void);
+/* sdl_gpu: 1 when its GPU device can be made (made now, before the window,
+ * and kept); 0 = none here. Always 1 on the driver's OpenGL. */
+int gl_renderer_impl_probe(void);
 void gl_renderer_set_sgl_driver(const char *name);
 /* sgl counters as JSON (TCP "sgl"); 0 when the renderer is not on sgl. */
 int gl_renderer_sgl_json(char *out, int cap);
