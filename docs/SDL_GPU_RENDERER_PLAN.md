@@ -490,3 +490,9 @@ sem a aprovação dela; nada de push.
   (merge fc51fbaf) e ao build-dev do jogo (PGO antigo, não retreinado). Conferido no exe do
   build-dev numa pasta de teste: SDL_GPU vulkan na RTX 4070 SUPER, 0 avisos, efeitos e sombras na
   foto. Pendente: sem dispositivo Vulkan o jogo não volta sozinho ao OpenGL; etapa (i).
+- 2026-11-01 (manhã): sem dispositivo SDL_GPU (sem Vulkan) o jogo abre no OpenGL e avisa; o
+  dispositivo é criado antes da janela (`sgl_gpu_probe`, reaproveitado pelo contexto). A escolha
+  salva continua `sdl_gpu`: o `psx_video_current` dizia 1 (opengl) com o sdl_gpu, e qualquer
+  gravação de configurações pelo jogo (Smooth motion, tamanho da janela) trocava o settings.toml
+  para "opengl". Testado com `PSX_SGL_DRIVER=bogus` (OpenGL, settings.toml intacto) e no caminho
+  normal (Vulkan).
