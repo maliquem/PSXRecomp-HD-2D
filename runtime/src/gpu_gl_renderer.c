@@ -8190,6 +8190,8 @@ int gl_renderer_set_impl(int impl) {
     return impl ? 0 : 1;
 #endif
 }
+void *gl_renderer_get_proc(const char *name) { return gl_api_get_proc(name); }
+
 int gl_renderer_impl(void) { return gl_api_impl(); }
 const char *gl_renderer_impl_name(void) {
 #if defined(PSX_HAVE_SGL)

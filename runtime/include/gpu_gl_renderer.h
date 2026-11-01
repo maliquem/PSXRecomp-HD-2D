@@ -26,6 +26,9 @@ int  gl_renderer_init_context(struct SDL_Window *win);
  * gl_renderer_set_impl returns 0 when sgl is not compiled in. */
 int  gl_renderer_set_impl(int impl);
 int  gl_renderer_impl(void);
+/* A GL entry point of the implementation in use (driver or sgl), for code
+ * that draws into the renderer's context with its own GL table (ImGui). */
+void *gl_renderer_get_proc(const char *name);
 /* "opengl" or "sdl_gpu (vulkan)" etc. — for the logs and the debug server. */
 const char *gl_renderer_impl_name(void);
 /* SDL window flags the sdl_gpu window needs ([video] sdl_gpu_driver /

@@ -312,6 +312,8 @@ bool place_and_reflect(SglObj *prog, std::vector<uint32_t> spv[2], bool gl_rules
                 if (loc < SGL_MAX_ATTRIBS) {
                     prog->vs_inputs |= 1u << loc;
                     prog->vs_input_comps[loc] = (uint8_t)c.get_type(res.type_id).vecsize;
+                    snprintf(prog->vs_input_name[loc], sizeof(prog->vs_input_name[loc]), "%s",
+                             c.get_name(res.id).c_str());
                 }
             }
         }

@@ -21853,8 +21853,8 @@ session_reboot:
         dynres_setup();
         psx_video_current(&g_video_boot);  /* boot snapshot for restart-only rows */
         recomp_overlay_setup(argv[0], s_picker_game_name);
-        /* The ImGui form draws with OpenGL: not on sgl (the canvas form then). */
-        bug_report_ui_set_window(g_gl_active && !g_headless && !g_video_sdl_gpu ? sdl_window : nullptr);
+        /* The ImGui form draws through the renderer's GL (driver or sgl). */
+        bug_report_ui_set_window(g_gl_active && !g_headless ? sdl_window : nullptr);
         if (dbg_live_scale && g_gl_active) {
             if (!dynres_requested()) g_dynres.active = false;
             const int ceil_s = gl_renderer_dynamic_resolution_ceiling();

@@ -719,9 +719,11 @@ static void APIENTRY sgl_glDeleteBuffers(GLsizei n, const GLuint *names) {
         if (g_sgls.unpack_buffer == names[i]) g_sgls.unpack_buffer = 0;
     }
 }
+static SglVao *cur_vao(void);
 static GLuint *buffer_slot(GLenum target) {
     switch (target) {
     case 0x8892: return &g_sgls.array_buffer;
+    case 0x8893: return &cur_vao()->element;
     case 0x88EB: return &g_sgls.pack_buffer;
     case 0x88EC: return &g_sgls.unpack_buffer;
     default: return NULL;
@@ -745,6 +747,13 @@ static void APIENTRY sgl_glBufferData(GLenum target, ptrdiff_t size, const void 
     if (data && size) memcpy(b->data, data, (size_t)size);
     b->version++;
     b->job.active = 0;
+}
+static void APIENTRY sgl_glBufferSubData(GLenum target, ptrdiff_t off, ptrdiff_t size, const void *data) {
+    GLuint *s = buffer_slot(target);
+    SglBuffer *b = s ? buf_get(*s) : NULL;
+    if (!b || off < 0 || size < 0 || (size_t)(off + size) > b->size) { sgl_set_error(GL_INVALID_VALUE); return; }
+    if (data && size) memcpy(b->data + off, data, (size_t)size);
+    b->version++;
 }
 static void *APIENTRY sgl_glMapBuffer(GLenum target, GLenum access) {
     (void)access;
@@ -794,6 +803,29 @@ static void APIENTRY sgl_glVertexAttribPointer(GLuint index, GLint size, GLenum 
     a->buffer = g_sgls.array_buffer; a->size = size; a->type = type; a->normalized = norm;
     a->stride = stride; a->offset = (size_t)(uintptr_t)ptr;
     g_sgls.pipe_epoch++;
+}
+static void APIENTRY sgl_glDisableVertexAttribArray(GLuint index) {
+    if (index < SGL_MAX_ATTRIBS && cur_vao()->a[index].enabled) {
+        cur_vao()->a[index].enabled = 0;
+        g_sgls.pipe_epoch++;
+    }
+}
+static void APIENTRY sgl_glGetVertexAttribiv(GLuint index, GLenum pname, GLint *v) {
+    if (index >= SGL_MAX_ATTRIBS || !v) return;
+    const SglAttrib *a = &cur_vao()->a[index];
+    switch (pname) {
+    case 0x8622: *v = a->enabled; break;                /* ENABLED */
+    case 0x8623: *v = a->size ? a->size : 4; break;     /* SIZE */
+    case 0x8624: *v = a->stride; break;                 /* STRIDE */
+    case 0x8625: *v = a->type ? (GLint)a->type : GL_FLOAT; break;
+    case 0x886A: *v = a->normalized; break;
+    case 0x889F: *v = (GLint)a->buffer; break;          /* BUFFER_BINDING */
+    default: *v = 0; break;
+    }
+}
+static void APIENTRY sgl_glGetVertexAttribPointerv(GLuint index, GLenum pname, void **v) {
+    (void)pname;
+    if (index < SGL_MAX_ATTRIBS && v) *v = (void *)(uintptr_t)cur_vao()->a[index].offset;
 }
 static void APIENTRY sgl_glEnableVertexAttribArray(GLuint index) {
     if (index < SGL_MAX_ATTRIBS && !cur_vao()->a[index].enabled) {
@@ -933,6 +965,16 @@ static void APIENTRY sgl_glGetProgramInfoLog(GLuint p, GLsizei max, GLsizei *len
     if (len) *len = n;
 }
 static void APIENTRY sgl_glUseProgram(GLuint p) { PSET(g_sgls.program, p); }
+static GLboolean APIENTRY sgl_glIsProgram(GLuint p) { return sgl_obj(p) ? GL_TRUE : GL_FALSE; }
+static void APIENTRY sgl_glDetachShader(GLuint p, GLuint sh) { (void)p; (void)sh; }
+static GLint APIENTRY sgl_glGetAttribLocation(GLuint p, const char *name) {
+    SglObj *o = sgl_obj(p);
+    if (!o || !o->linked || !name) return -1;
+    for (int i = 0; i < SGL_MAX_ATTRIBS; i++)
+        if ((o->vs_inputs & (1u << i)) && strcmp(o->vs_input_name[i], name) == 0) return i;
+    return -1;
+}
+static const GLubyte *APIENTRY sgl_glGetStringi(GLenum name, GLuint i) { (void)name; (void)i; return NULL; }
 
 /* Location -> (uniform, element). */
 static SglUniform *uniform_at(SglObj *o, GLint loc, int *elem) {
@@ -976,6 +1018,7 @@ static int gltype_comps(GLenum t) {
     case 0x8B50: case 0x8B53: case 0x8DC6: case 0x8B57: return 2;
     case 0x8B51: case 0x8B54: case 0x8DC7: case 0x8B58: return 3;
     case 0x8B52: case 0x8B55: case 0x8DC8: case 0x8B59: return 4;
+    case 0x8B5C /* MAT4: four std140 columns in a row */: return 16;
     default: return 4;
     }
 }
@@ -1023,6 +1066,15 @@ static void APIENTRY sgl_glUniform2f(GLint l, GLfloat a, GLfloat b) { float v[2]
 static void APIENTRY sgl_glUniform3f(GLint l, GLfloat a, GLfloat b, GLfloat c) { float v[3] = {a, b, c}; set_uniform(l, 3, 1, v, NULL); }
 static void APIENTRY sgl_glUniform4f(GLint l, GLfloat a, GLfloat b, GLfloat c, GLfloat d) { float v[4] = {a, b, c, d}; set_uniform(l, 4, 1, v, NULL); }
 static void APIENTRY sgl_glUniform4fv(GLint l, GLsizei count, const GLfloat *v) { set_uniform(l, 4, count, v, NULL); }
+static void APIENTRY sgl_glUniformMatrix4fv(GLint l, GLsizei count, GLboolean transpose, const GLfloat *v) {
+    float m[16];
+    for (int e = 0; e < count; e++) {
+        const float *src = v + 16 * e;
+        if (transpose) for (int r = 0; r < 4; r++) for (int c = 0; c < 4; c++) m[c * 4 + r] = src[r * 4 + c];
+        else memcpy(m, src, sizeof(m));
+        set_uniform(l + e, 16, 1, m, NULL);
+    }
+}
 
 static void APIENTRY sgl_glGetActiveUniform(GLuint p, GLuint index, GLsizei max, GLsizei *len, GLint *size,
                                             GLenum *type, char *name) {
@@ -1096,6 +1148,9 @@ static void APIENTRY sgl_glBlendFuncSeparate(GLenum sr, GLenum dr, GLenum sa, GL
     PSET(g_sgls.bsrc_rgb, sr); PSET(g_sgls.bdst_rgb, dr); PSET(g_sgls.bsrc_a, sa); PSET(g_sgls.bdst_a, da);
 }
 static void APIENTRY sgl_glBlendEquationSeparate(GLenum rgb, GLenum a) { PSET(g_sgls.beq_rgb, rgb); PSET(g_sgls.beq_a, a); }
+static void APIENTRY sgl_glBlendEquation(GLenum m) { PSET(g_sgls.beq_rgb, m); PSET(g_sgls.beq_a, m); }
+static void APIENTRY sgl_glBindSampler(GLuint unit, GLuint sampler) { (void)unit; (void)sampler; }   /* 0 only */
+static void APIENTRY sgl_glPolygonMode(GLenum face, GLenum mode) { (void)face; (void)mode; }       /* fill only */
 static void APIENTRY sgl_glBlendColor(GLfloat r, GLfloat g, GLfloat b, GLfloat a) {
     g_sgls.blend_color[0] = r; g_sgls.blend_color[1] = g; g_sgls.blend_color[2] = b; g_sgls.blend_color[3] = a;
 }
@@ -1184,6 +1239,9 @@ static void APIENTRY sgl_glGetIntegerv(GLenum pname, GLint *v) {
     case GL_STENCIL_PASS_DEPTH_FAIL: *v = (GLint)g_sgls.st_zfail; break;
     case GL_STENCIL_PASS_DEPTH_PASS: *v = (GLint)g_sgls.st_zpass; break;
     case GL_STENCIL_CLEAR_VALUE: *v = g_sgls.clear_stencil; break;
+    case 0x8895 /* ELEMENT_ARRAY_BUFFER_BINDING */: *v = (GLint)cur_vao()->element; break;
+    case 0x9126 /* CONTEXT_PROFILE_MASK */: *v = 1; break;   /* core */
+    case 0x0B40 /* POLYGON_MODE */: v[0] = v[1] = 0x1B02 /* FILL */; break;
     case 0x821B /* MAJOR_VERSION */: *v = 3; break;
     case 0x821C /* MINOR_VERSION */: *v = 3; break;
     default: *v = 0; break;
@@ -1376,6 +1434,80 @@ static void APIENTRY sgl_glDrawArrays(GLenum mode, GLint first, GLsizei count) {
         st->nbind += p->nsamplers[s];
     }
     sgl_stats_note(SGL_ST_DRAW);
+}
+
+/* Indexed draws (Dear ImGui's backend): SDL_GPU draws indexed, but the
+ * buffers live in memory here, so the vertices are gathered in index order
+ * into scratch buffers with the same layout (each record where the index
+ * would have it) and drawn as arrays: no new pipeline, the same pixels. */
+static GLuint s_gather[SGL_MAX_ATTRIBS];
+static size_t attrib_bytes(const SglAttrib *a) {
+    const int n = a->size ? a->size : 4;
+    switch (a->type) {
+    case GL_UNSIGNED_BYTE: case 0x1400 /* BYTE */: return (size_t)n;
+    case 0x1402 /* SHORT */: case 0x1403 /* UNSIGNED_SHORT */: return (size_t)n * 2;
+    default: return (size_t)n * 4;
+    }
+}
+static void APIENTRY sgl_glDrawElementsBaseVertex(GLenum mode, GLsizei count, GLenum type, const void *indices,
+                                                  GLint basevertex) {
+    if (count <= 0) return;
+    SglVao *vao = cur_vao();
+    SglBuffer *eb = buf_get(vao->element);
+    const size_t isz = type == 0x1405 /* UNSIGNED_INT */ ? 4 : type == 0x1403 /* UNSIGNED_SHORT */ ? 2 : 1;
+    const size_t ioff = (size_t)(uintptr_t)indices;
+    if (!eb || !eb->data || ioff + (size_t)count * isz > eb->size) { sgl_set_error(GL_INVALID_OPERATION); return; }
+    const uint8_t *ip = eb->data + ioff;
+    GLuint src[SGL_MAX_ATTRIBS], saved[SGL_MAX_ATTRIBS];
+    size_t stride[SGL_MAX_ATTRIBS], lo[SGL_MAX_ATTRIBS], hi[SGL_MAX_ATTRIBS];
+    int nsrc = 0, grp[SGL_MAX_ATTRIBS];
+    for (int i = 0; i < SGL_MAX_ATTRIBS; i++) {
+        SglAttrib *a = &vao->a[i];
+        saved[i] = a->buffer;
+        grp[i] = -1;
+        if (!a->enabled || !a->buffer) continue;
+        const size_t bytes = attrib_bytes(a);
+        const size_t st = a->stride ? (size_t)a->stride : bytes;
+        int g = 0;
+        while (g < nsrc && !(src[g] == a->buffer && stride[g] == st)) g++;
+        if (g == nsrc) {
+            src[g] = a->buffer; stride[g] = st; lo[g] = a->offset; hi[g] = a->offset + bytes;
+            nsrc++;
+        }
+        if (a->offset < lo[g]) lo[g] = a->offset;
+        if (a->offset + bytes > hi[g]) hi[g] = a->offset + bytes;
+        grp[i] = g;
+    }
+    for (int g = 0; g < nsrc; g++) {
+        SglBuffer *sb = buf_get(src[g]);
+        if (!s_gather[g]) s_gather[g] = tab_new(&s_buf);
+        SglBuffer *tb = buf_get(s_gather[g]);
+        if (!sb || !tb) return;
+        const size_t rec = hi[g] - lo[g];
+        const size_t need = lo[g] + (size_t)count * stride[g] + rec;
+        if (need > tb->size || !tb->data) {
+            uint8_t *np = (uint8_t *)realloc(tb->data, need);
+            if (!np) { sgl_set_error(GL_OUT_OF_MEMORY); return; }
+            tb->data = np;
+        }
+        tb->size = need;
+        for (GLsizei k = 0; k < count; k++) {
+            const int64_t ix = (int64_t)(isz == 4 ? ((const uint32_t *)ip)[k]
+                                         : isz == 2 ? ((const uint16_t *)ip)[k] : ip[k]) + basevertex;
+            uint8_t *d = tb->data + lo[g] + (size_t)k * stride[g];
+            const size_t so = lo[g] + (size_t)ix * stride[g];
+            if (ix >= 0 && so + rec <= sb->size) memcpy(d, sb->data + so, rec);
+            else memset(d, 0, rec);
+        }
+        tb->version++;
+    }
+    for (int i = 0; i < SGL_MAX_ATTRIBS; i++)
+        if (grp[i] >= 0) vao->a[i].buffer = s_gather[grp[i]];
+    sgl_glDrawArrays(mode, 0, count);
+    for (int i = 0; i < SGL_MAX_ATTRIBS; i++) vao->a[i].buffer = saved[i];
+}
+static void APIENTRY sgl_glDrawElements(GLenum mode, GLsizei count, GLenum type, const void *indices) {
+    sgl_glDrawElementsBaseVertex(mode, count, type, indices, 0);
 }
 
 /* An internal program's draw: a full-target triangle, scissored to rect. */
@@ -1611,6 +1743,9 @@ static const SglProc s_procs[] = {
     P(glGenVertexArrays), P(glBindVertexArray), P(glActiveTexture), P(glGenBuffers), P(glDeleteBuffers),
     P(glDeleteVertexArrays), P(glBindBuffer), P(glBufferData), P(glVertexAttribPointer),
     P(glEnableVertexAttribArray), P(glBindFragDataLocationIndexed), P(glGenFramebuffers),
+    P(glBufferSubData), P(glDisableVertexAttribArray), P(glGetVertexAttribiv), P(glGetVertexAttribPointerv),
+    P(glDrawElements), P(glDrawElementsBaseVertex), P(glBlendEquation), P(glBindSampler), P(glPolygonMode),
+    P(glIsProgram), P(glDetachShader), P(glGetAttribLocation), P(glGetStringi), P(glUniformMatrix4fv),
     P(glDeleteFramebuffers), P(glBindFramebuffer), P(glFramebufferTexture2D), P(glCheckFramebufferStatus),
     P(glBlitFramebuffer), P(glGenRenderbuffers), P(glDeleteRenderbuffers), P(glBindRenderbuffer),
     P(glRenderbufferStorage), P(glFramebufferRenderbuffer), P(glGetActiveUniform), P(glGetUniformfv),

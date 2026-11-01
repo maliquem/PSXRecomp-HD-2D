@@ -99,6 +99,7 @@ typedef struct SglAttrib {
 typedef struct SglVao {
     int used;
     SglAttrib a[SGL_MAX_ATTRIBS];
+    GLuint element;            /* ELEMENT_ARRAY_BUFFER (glDrawElements) */
 } SglVao;
 
 /* One active uniform of a program (from the SPIR-V of each stage). */
@@ -145,6 +146,7 @@ typedef struct SglObj {        /* shaders and programs share one name space */
     uint8_t sampler_uint[2][SGL_MAX_SAMPLERS];   /* usampler2D slot */
     uint32_t vs_inputs;        /* bit per vertex input location */
     uint8_t vs_input_comps[SGL_MAX_ATTRIBS];
+    char vs_input_name[SGL_MAX_ATTRIBS][32];   /* glGetAttribLocation */
 } SglObj;
 
 typedef struct SglSync { int used; uint64_t stream; SDL_GPUFence *fence; } SglSync;
