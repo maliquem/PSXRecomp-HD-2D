@@ -59,6 +59,8 @@
 #include "spu.h"
 #include "spu_shadow.h"
 #include "audio_trace.h"
+#include "audio_turbo.h"
+#include "audio_music.h"
 #include "mdec.h"
 #include "interrupts.h"
 #include "psx_cycles.h"
@@ -7330,7 +7332,7 @@ static void handle_spu_events(int id, const char *json)
                                          "END_LOOP", "IRQ" };
 
     /* Worst case ~200 chars per event; 64 KB is plenty for 4096 events. */
-    size_t cap = 256u + (size_t)got * 256u;
+    size_t cap = 256u + (size_t)got * 512u;
     char *out = (char *)malloc(cap);
     if (!out) { free(evs); send_fmt("{\"id\":%d,\"ok\":false,\"err\":\"alloc\"}", id); return; }
     size_t off = 0;
@@ -7346,12 +7348,15 @@ static void handle_spu_events(int id, const char *json)
             "%s{\"seq\":%llu,\"frame\":%u,\"kind\":\"%s\",\"v\":%d,"
             "\"pitch\":\"0x%04X\",\"addr\":\"0x%05X\","
             "\"adsr_lo\":\"0x%04X\",\"adsr_hi\":\"0x%04X\","
-            "\"vol_l\":\"0x%04X\",\"vol_r\":\"0x%04X\"}",
+            "\"vol_l\":\"0x%04X\",\"vol_r\":\"0x%04X\","
+            "\"ra\":\"0x%08X\",\"sp\":\"0x%08X\",\"sr\":\"0x%08X\","
+            "\"stk\":[%u,%u,%u,%u,%u,%u,%u,%u]}",
             i == 0 ? "" : ",",
             (unsigned long long)e->seq, e->frame, kn, (int)e->voice,
             e->pitch, e->addr,
             e->adsr_lo, e->adsr_hi,
-            e->vol_l, e->vol_r);
+            e->vol_l, e->vol_r, e->ctx[0], e->ctx[1], e->ctx[2],
+            e->ctx[3], e->ctx[4], e->ctx[5], e->ctx[6], e->ctx[7], e->ctx[8], e->ctx[9], e->ctx[10]);
         if (n > 0) off += (size_t)n;
     }
     n = snprintf(out + off, cap - off, "]}");
@@ -7436,6 +7441,53 @@ static void handle_audio_stats(int id, const char *json)
              correction,
              spu_output_available(),
              (unsigned long long)spu_output_overflow_drops());
+}
+
+/* audio_turbo: {"mode":0|1|2} sets the fast-forward's sound
+ * (psx_mod_set_turbo_audio); the reply: the compressor's grains, the ratio it
+ * measured, overflow jumps, its mode (0 direct, 1 compressing), frames held;
+ * "music" (mode 2, audio_music.h): state, delay, accesses queued, catch-ups,
+ * entries, and dbg = [the music SPU's peak, the effects SPU's peak (both
+ * since the last read), accesses applied, music key-on voices, the music
+ * voices at the last entry, effects frames, music frames]. */
+extern void psx_mod_set_turbo_audio(int mode);
+extern uint32_t g_am_dbg[8];
+static void handle_audio_turbo(int id, const char *json)
+{
+    const int mode = json_get_int(json, "mode", -1);
+    if (mode >= 0) psx_mod_set_turbo_audio(mode);
+    uint64_t grains = 0, jumps = 0;
+    double ratio = 0.0;
+    int m = 0;
+    at_stats(&grains, &ratio, &jumps, &m);
+    int ms = 0;
+    double lag = 0.0;
+    uint32_t q = 0, rs = 0, ent = 0;
+    am_stats(&ms, &lag, &q, &rs, &ent);
+    send_fmt("{\"id\":%d,\"ok\":true,\"grains\":%llu,\"ratio\":%.3f,\"jumps\":%llu,"
+             "\"compressing\":%d,\"backlog\":%d,\"music\":{\"state\":%d,\"lag_ms\":%.0f,"
+             "\"queued\":%u,\"catchups\":%u,\"entries\":%u,\"ready\":%d,"
+             "\"dbg\":[%u,%u,%u,%u,%u,%u,%u]}}", id,
+             (unsigned long long)grains, ratio, (unsigned long long)jumps, m, at_backlog(),
+             ms, lag, q, rs, ent, am_ready(), g_am_dbg[0], g_am_dbg[1], g_am_dbg[2], g_am_dbg[3],
+             g_am_dbg[4], g_am_dbg[5], g_am_dbg[6]);
+    g_am_dbg[0] = g_am_dbg[1] = 0;   /* peaks since the last read */
+}
+
+/* audio_turbo_kons: the last 256 key-ons mode 2 saw, each voice | music<<7 |
+ * start address (bytes) << 8 (audio_music.c g_am_kon). */
+static void handle_audio_turbo_kons(int id, const char *json)
+{
+    (void)json;
+    extern uint32_t g_am_kon[256], g_am_kon_n;
+    char buf[256 * 12 + 64];
+    int o = snprintf(buf, sizeof buf, "{\"id\":%d,\"ok\":true,\"n\":%u,\"kons\":[", id, g_am_kon_n);
+    const uint32_t n = g_am_kon_n < 256 ? g_am_kon_n : 256;
+    for (uint32_t i = 0; i < n; i++)
+        o += snprintf(buf + o, sizeof buf - (size_t)o, "%s%u", i ? "," : "",
+                      g_am_kon[(g_am_kon_n - n + i) & 255u]);
+    snprintf(buf + o, sizeof buf - (size_t)o, "]}");
+    send_fmt("%s", buf);
 }
 
 static void handle_audio_wav(int id, const char *json)
@@ -16725,6 +16777,8 @@ static const CmdEntry s_commands[] = {
     { "spu_events_reset",  handle_spu_events_reset },
     { "audio_stats",       handle_audio_stats },
     { "audio_wav",         handle_audio_wav },
+    { "audio_turbo",       handle_audio_turbo },
+    { "audio_turbo_kons",  handle_audio_turbo_kons },
     { "audio_events",      handle_audio_events },
     { "card_buffer_dump",  handle_card_buffer_dump },
     { "sio_arm_audit",     handle_sio_arm_audit },
@@ -17041,6 +17095,19 @@ static void process_command(const char *line)
 /* Extended init that accepts a CPU state pointer for register queries. */
 static CPUState *s_init_cpu = NULL;
 CPUState *debug_cpu_ptr = NULL; /* Global, used by memory.c watchpoints */
+/* spu_events: where the guest keyed each voice on (ra, sp, SR, stack words). */
+static void spu_keyon_ctx(uint32_t ctx[11]) {
+    const CPUState *c = debug_cpu_ptr;
+    if (!c) return;
+    ctx[0] = c->gpr[31];
+    ctx[1] = c->gpr[29];
+    ctx[2] = c->cop0[12];
+    for (int i = 0; i < 8; i++) {
+        const uint32_t a = (c->gpr[29] + 4u * (uint32_t)i) & 0x1FFFFCu;
+        ctx[3 + i] = (uint32_t)psx_read_byte(0x80000000u | a) | ((uint32_t)psx_read_byte(0x80000001u | a) << 8) |
+                     ((uint32_t)psx_read_byte(0x80000002u | a) << 16) | ((uint32_t)psx_read_byte(0x80000003u | a) << 24);
+    }
+}
 
 /* Guest $ra accessor for other TUs (e.g. gpu.c GP0 ring caller capture) that
  * must not depend on the CPUState layout. Returns 0 before the CPU is bound. */
@@ -17051,6 +17118,7 @@ void debug_server_set_cpu(CPUState *cpu)
 {
     s_cpu = cpu;
     debug_cpu_ptr = cpu;
+    spu_keyon_ctx_hook = spu_keyon_ctx;
     /* Always-on guest-cycle profile ring (gcp_ring), Release included. */
     guest_cycle_profile_install();
 }

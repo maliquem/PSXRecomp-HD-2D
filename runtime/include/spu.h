@@ -126,7 +126,17 @@ typedef struct SpuEvent {
     uint16_t adsr_hi;
     uint16_t vol_l;
     uint16_t vol_r;
+    /* KEYON: where the guest was (spu_keyon_ctx_hook, when set): ra, sp, SR
+     * and the 8 stack words from sp; zero without the hook. */
+    uint32_t ctx[11];
 } SpuEvent;
+/* Fills ctx for a KEYON (set by the runtime; NULL in tools and tests). */
+extern void (*spu_keyon_ctx_hook)(uint32_t ctx[11]);
+/* Every guest access that changes the SPU, before it is applied: kind 0 a
+ * register store (addr, value), 1 a DMA word written (value), 2 a DMA word
+ * read. NULL (the default) = nothing called. audio_music.c feeds its host-only
+ * SPU clones from it during the fast-forward. */
+extern void (*spu_io_tap)(int kind, uint32_t addr, uint32_t value);
 
 uint64_t spu_event_total(void);
 uint32_t spu_event_get(SpuEvent* out, uint32_t max_count);  /* most recent up to max_count */

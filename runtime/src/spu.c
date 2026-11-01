@@ -205,8 +205,13 @@ int spu_bind_next_voice_bank(unsigned voice,uint32_t bank) {
     voices[voice].pending_bank=bank;return 1;
 }
 
+void (*spu_keyon_ctx_hook)(uint32_t ctx[11]) = NULL;
+void (*spu_io_tap)(int kind, uint32_t addr, uint32_t value) = NULL;
+
 static void spu_event_record(uint8_t kind, int voice, uint32_t addr) {
     SpuEvent *e = &s_events[s_event_idx & (SPU_EVENT_CAP - 1u)];
+    memset(e->ctx, 0, sizeof e->ctx);
+    if (kind == SPU_EV_KEYON && spu_keyon_ctx_hook) spu_keyon_ctx_hook(e->ctx);
     e->seq      = s_event_seq++;
     e->frame    = (uint32_t)s_frame_count;
     e->kind     = kind;
@@ -1833,6 +1838,7 @@ uint32_t spu_read(uint32_t addr) {
 }
 
 void spu_write(uint32_t addr, uint32_t value) {
+    if (spu_io_tap) spu_io_tap(0, addr, value);
     spu_catch_up();
     if (addr >= 0x1F801C00u && addr <= 0x1F801DFFu) {
         uint32_t idx = reg_index(addr);
@@ -1940,6 +1946,7 @@ void spu_write(uint32_t addr, uint32_t value) {
 }
 
 void spu_dma_write(uint32_t word) {
+    if (spu_io_tap) spu_io_tap(1, 0u, word);
     spu_catch_up();
     spu_irq_check(transfer_addr, 4u);
     if (transfer_addr + 3 < SPU_RAM_SIZE) {
@@ -1956,6 +1963,7 @@ void spu_dma_write(uint32_t word) {
  * exact mirror of spu_dma_write. Titles carry state through SPU RAM across
  * EXE transitions via this path; returning zeros breaks them. */
 uint32_t spu_dma_read(void) {
+    if (spu_io_tap) spu_io_tap(2, 0u, 0u);
     spu_catch_up();
     uint32_t word = 0;
     spu_irq_check(transfer_addr, 4u);
