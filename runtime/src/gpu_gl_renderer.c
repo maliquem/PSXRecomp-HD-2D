@@ -13597,22 +13597,28 @@ typedef struct { uint32_t rec, key0, vid[3]; float x[3], y[3], p[3][3], h[3]; in
 static int       s_fg_on = 0;                 /* configured (any thread reads) */
 static int       s_fg_force = 0;              /* PSX_FRAME_GEN_FORCE: tests */
 static _Atomic double s_fg_refresh_hz = 0.0, s_fg_guest_hz = 59.94;
-/* sdl_gpu with Smooth motion: the swapchain's FIFO queue paces the frames,
- * one real or generated frame per screen refresh, whatever the clock's jitter
- * (on a screen at least as fast as the game; the guest keeps its own pacer).
- * The driver's OpenGL has no such queue on Windows (its swap does not wait),
- * so there the frame clock alone places them, as before. Not in the turbo.
- * PSX_SGL_FG_FIFO=0: the swap interval as on OpenGL. */
+/* Smooth motion and the swap interval. sdl_gpu: the swapchain's FIFO queue
+ * paces the frames, one real or generated frame per screen refresh, whatever
+ * the clock's jitter (on a screen at least as fast as the game; the guest
+ * keeps its own pacer). The driver's OpenGL on Windows has no such queue (its
+ * swap does not wait), so there the frame clock places them with the swap
+ * interval main.cpp chose; except with HDR: the float16 window swapped
+ * without vsync flickered on screen with generated frames (seen by the
+ * player, 2026-11-01; HDR alone or Smooth motion alone did not), so it swaps
+ * with vsync too. Not in the turbo. PSX_SGL_FG_FIFO=0: never forced. */
 static void sgl_fg_fifo_sync(void) {
-#if defined(PSX_HAVE_SGL)
-    if (gl_api_impl() != 1) return;
+#if defined(PSX_SDL3)
+    const int sgl = gl_api_impl() == 1;
+    if (!sgl && !s_hdr_on) return;
     static int env = -1;
     if (env < 0) {
         const char *e = getenv("PSX_SGL_FG_FIFO");
         env = !(e && *e == '0');
     }
     const double rhz = atomic_load(&s_fg_refresh_hz), ghz = atomic_load(&s_fg_guest_hz);
-    const int want = env && s_fg_on && !psx_presentation_fast_forward() && rhz >= ghz - 0.5 ? 1 : s_swap_interval;
+    /* the screen not measured yet (the first frames): vsync as well */
+    const int want = env && s_fg_on && !psx_presentation_fast_forward() && (rhz <= 0.0 || rhz >= ghz - 0.5)
+                     ? 1 : s_swap_interval;
     int cur = -2;
     if (!SDL_GL_GetSwapInterval(&cur) || cur != want) (void)SDL_GL_SetSwapInterval(want);
 #endif
