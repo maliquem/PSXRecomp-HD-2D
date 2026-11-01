@@ -472,3 +472,8 @@ sem a aprovação dela; nada de push.
     35% → 89%. TCP `sgl` "acquire". `PSX_SGL_FG_FIFO=0` volta ao jeito do OpenGL.
   Falta: o olho dela no HDR10 e no ritmo; cache de shaders/pipelines (noite); (h) menu e launcher;
   (i) D3D12/Metal e Linux.
+- 2026-11-01 (noite, autônoma): cache de SPIR-V em disco (`<exe>/cache/sgl_spirv`; 150 ms de
+  glslang → 0 na 2ª vez; pior quadro ao entrar no campo 131 → 58 ms); pipelines ~0,15 ms cada
+  (o driver guarda as suas), sem pré-criação. Também: AA só da geometria 3D (`hd2d/aa3d.pfx`,
+  6º lugar de efeito), igual nos dois renderizadores. Relatório da noite no repositório do jogo
+  (docs/NOITE_2026-11-01_RELATORIO.md).
