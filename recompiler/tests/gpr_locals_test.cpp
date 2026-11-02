@@ -59,7 +59,7 @@ int main() {
         CHECK(has(r, "PSX_B2_DECL(2) PSX_B2_DECL(4) PSX_B2_DECL(5) PSX_B2_DECL(31)"));
         CHECK(has(r, "PSX_R(4) = PSX_R(5) + 1;"));
         CHECK(has(r, "PSX_B2_EDGE(0x80020000u, PSX_B2_ST(4) PSX_B2_ST(31) , "
-                     "PSX_B2_LD(2) PSX_B2_LD(4) PSX_B2_LD(5) PSX_B2_LD(31) );"));
+                     "PSX_B2_LD(4) PSX_B2_LD(31) );"));   // only what is used again
         CHECK(has(r, "cpu->pc = 0x80020000u; { PSX_B2_ST(4) PSX_B2_ST(31) return; }"));
         CHECK(has(r, "PSX_B2_ICACHE(0x80010010u, );"));        // entered clean
         CHECK(has(r, "cpu->pc = PSX_R(31); { PSX_B2_ST(2) return; }"));
@@ -103,6 +103,25 @@ int main() {
         CHECK(has(r, "{ PSX_B2_ST(3) psx_mod_instruction(cpu, 0x80010004u, 0x00000000u); "
                      "PSX_B2_LD(3) PSX_B2_LD(31) }"));
         CHECK(has(r, "cpu->pc = PSX_R(31); { return; }"));     // nothing dirty after the reload
+    }
+    // A return inside an if-block ends only that path: a register used after
+    // the block is still reloaded after an earlier call.
+    {
+        GprLocalsStats st;
+        const std::string b =
+            "{\n"
+            "block_80010000:\n"
+            "    psx_mod_instruction(cpu, 0x80010000u, 0x00000000u);\n"
+            "    if (cpu->gpr[4] == 0) {\n"
+            "        cpu->pc = 0x80020000u; return;\n"
+            "    }\n"
+            "    cpu->gpr[2] = cpu->gpr[5];\n"
+            "    cpu->pc = cpu->gpr[31]; return;\n"
+            "    ;  /* label compatibility */\n"
+            "}\n";
+        const std::string r = gpr_localize_body(b, 8, 0x80010000u, st);
+        CHECK(has(r, "psx_mod_instruction(cpu, 0x80010000u, 0x00000000u); "
+                     "PSX_B2_LD(4) PSX_B2_LD(5) PSX_B2_LD(31) }"));
     }
     if (g_fail) { std::printf("%d failure(s)\n", g_fail); return 1; }
     std::printf("gpr_locals_test: ok\n");

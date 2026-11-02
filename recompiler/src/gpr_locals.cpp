@@ -148,6 +148,7 @@ struct Call {
 
 struct LineScan {
     RegSet writes = 0;
+    RegSet reads = 0;
     std::vector<Call> calls;
     std::vector<size_t> returns;           // positions of `return;`
     std::vector<std::string> gotos;        // block label names
@@ -207,8 +208,11 @@ LineScan scan_line(const std::string& line, const std::string& m) {
             size_t b = a;
             if (b < m.size() && std::strchr("+-*/%&|^", m[b])) b++;
             else if (b + 1 < m.size() && (m.compare(b, 2, "<<") == 0 || m.compare(b, 2, ">>") == 0)) b += 2;
-            if (b < m.size() && m[b] == '=' && !(b + 1 < m.size() && m[b + 1] == '=') && reg >= 0 && reg < 32)
-                r.writes |= 1u << reg;
+            const bool assigns = b < m.size() && m[b] == '=' && !(b + 1 < m.size() && m[b + 1] == '=');
+            if (reg >= 0 && reg < 32) {
+                if (assigns) r.writes |= 1u << reg;
+                if (!assigns || b != a) r.reads |= 1u << reg;   // compound assignment reads too
+            }
             i = close + 1;
             continue;
         }
@@ -316,13 +320,14 @@ std::string gpr_localize_body(const std::string& body, int flush_max,
         std::string label;
         RegSet writes = 0, in = 0, out = 0;
         bool flush = false;
+        bool falls = false;     // reached by fallthrough from this block's end
         std::vector<int> succ;
     };
     std::vector<Seg> segs;
-    segs.push_back({0, "", 0, 0, 0, false, {}});
+    segs.push_back({0, "", 0, 0, 0, false, false, {}});
     std::vector<int> line_seg(lines.size(), 0);
     for (size_t i = 0; i < lines.size(); i++) {
-        if (!scans[i].label.empty()) segs.push_back({i, scans[i].label, 0, 0, 0, false, {}});
+        if (!scans[i].label.empty()) segs.push_back({i, scans[i].label, 0, 0, 0, false, false, {}});
         line_seg[i] = (int)segs.size() - 1;
         segs.back().writes |= scans[i].writes;
     }
@@ -355,7 +360,7 @@ std::string gpr_localize_body(const std::string& body, int flush_max,
                                  t.rfind("goto block_", 0) == 0);
                 break;
             }
-            if (!ends) segs[k].succ.push_back((int)k + 1);
+            if (!ends) { segs[k].succ.push_back((int)k + 1); segs[k].falls = true; }
         }
     }
     // Forward union to a fixpoint.
@@ -374,12 +379,109 @@ std::string gpr_localize_body(const std::string& body, int flush_max,
         }
     }
 
-    // 3/4. Rewrite.
-    const std::string in_all = set_text(referenced, "PSX_B2_LD");
+    RegSet written_any = 0;
+    for (const auto& g : segs) written_any |= g.writes;
+
+    // 3. The set each line's stores carry, as the rewrite below computes it.
+    auto line_resets = [&](size_t i) {
+        for (const Call& c : scans[i].calls)
+            if (c.kind == Kind::CallStmt || c.kind == Kind::CallIfReturn) return true;
+        return false;
+    };
+    auto line_syncs = [&](size_t i) {
+        if (!scans[i].returns.empty()) return true;
+        for (const Call& c : scans[i].calls) if (c.kind != Kind::Ignore) return true;
+        return false;
+    };
+    std::vector<RegSet> cur_at(lines.size(), 0);
+    {
+        RegSet cur = 0;
+        for (size_t i = 1; i < lines.size(); i++) {
+            const LineScan& sc = scans[i];
+            if (!sc.label.empty()) {
+                const Seg& g = segs[line_seg[i]];
+                cur = g.flush ? 0u : g.in;
+                continue;
+            }
+            if (sc.preprocessor) continue;
+            cur |= sc.writes;
+            cur_at[i] = cur;
+            if (line_resets(i) && !sc.writes) cur = 0;
+        }
+    }
+
+    // Backward liveness of the locals: a line uses what it reads and what its
+    // stores carry (a store of a local is a use of it). After a call that can
+    // write guest registers, IN reloads only the locals that may be used again
+    // before they are written: one that is dead can never be stored back, so
+    // the callee's value stays in cpu->gpr.
+    std::vector<RegSet> live_in(lines.size(), 0);
+    const bool conditional_text = s.find("#else") != std::string::npos || s.find("#elif") != std::string::npos;
+    if (!conditional_text) {
+        std::map<std::string, int> by_label;
+        for (size_t k = 1; k < segs.size(); k++) by_label[segs[k].label] = (int)k;
+        auto uses = [&](size_t i) -> RegSet {
+            const LineScan& sc = scans[i];
+            if (!sc.label.empty()) {
+                const Seg& g = segs[line_seg[i]];
+                return g.flush ? g.in : 0u;
+            }
+            RegSet u = sc.reads;
+            if (line_syncs(i)) u |= cur_at[i];
+            if (i + 2 == lines.size()) u |= written_any;   // falling off the end stores these
+            return u;
+        };
+        // Brace depth at the start of each line (1: the function's top level).
+        // A top-level `...; return;` or `goto block_X;` ends every path through
+        // it, so nothing after it is live there; inside an if-block it does not
+        // (the not-taken path goes on past the closing brace).
+        std::vector<int> depth(lines.size(), 0);
+        {
+            int d = 0;
+            for (size_t i = 0; i < lines.size(); i++) {
+                depth[i] = d;
+                for (char ch : masked[i]) d += ch == '{' ? 1 : ch == '}' ? -1 : 0;
+            }
+        }
+        auto cuts = [&](size_t i) {
+            if (depth[i] != 1 || scans[i].preprocessor) return false;
+            const std::string& mi = masked[i];
+            size_t b = mi.find_first_not_of(" \t\r\n"), e = mi.find_last_not_of(" \t\r\n");
+            if (b == std::string::npos) return false;
+            const std::string t = mi.substr(b, e - b + 1);
+            int bal = 0;
+            for (char ch : t) bal += ch == '{' ? 1 : ch == '}' ? -1 : 0;
+            if (bal != 0 || t.rfind("if", 0) == 0 || t.rfind("else", 0) == 0 || t.rfind("case", 0) == 0 ||
+                t.rfind("default", 0) == 0 || t[0] == '}')
+                return false;
+            return (t.size() >= 7 && t.compare(t.size() - 7, 7, "return;") == 0) || t.rfind("goto block_", 0) == 0;
+        };
+        for (bool changed = true; changed;) {
+            changed = false;
+            for (size_t k = segs.size(); k-- > 0;) {
+                const size_t first = segs[k].first_line;
+                const size_t end = k + 1 < segs.size() ? segs[k + 1].first_line : lines.size();
+                RegSet live = segs[k].falls ? live_in[segs[k + 1].first_line] : 0u;
+                for (size_t i = end; i-- > first;) {
+                    if (cuts(i)) live = 0;
+                    for (const auto& g : scans[i].gotos) live |= live_in[segs[by_label[g]].first_line];
+                    live = scans[i].preprocessor ? live : (uses(i) | (live & ~scans[i].writes));
+                    if (live != live_in[i]) { live_in[i] = live; changed = true; }
+                }
+            }
+        }
+    }
+    auto in_text = [&](size_t i) {
+        // $zero is never reloaded unless the body writes it (no callee makes it nonzero).
+        const RegSet zero = (written_any & 1u) ? 0u : 1u;
+        return set_text((conditional_text ? referenced : (live_in[i] | cur_at[i]) & referenced) & ~zero,
+                        "PSX_B2_LD");
+    };
+
+    // 4. Rewrite.
     std::string out_text;
     out_text.reserve(s.size() + s.size() / 2);
-    RegSet cur = 0, written_any = 0;
-    for (const auto& g : segs) written_any |= g.writes;
+    RegSet cur = 0;
     for (size_t i = 0; i < lines.size(); i++) {
         const LineScan& sc = scans[i];
         std::string line = lines[i];
@@ -425,7 +527,7 @@ std::string gpr_localize_body(const std::string& body, int flush_max,
             case Kind::Edge:
                 if (a.size() != 2) return keep("args:" + c.name);
                 edits.push_back({c.name_at, c.close + 1,
-                                 "PSX_B2_EDGE(" + a[1] + ", " + out_st + ", " + in_all + ")"});
+                                 "PSX_B2_EDGE(" + a[1] + ", " + out_st + ", " + in_text(i) + ")"});
                 break;
             case Kind::Slice: {
                 if (a.size() != 4) return keep("args:" + c.name);
@@ -440,7 +542,7 @@ std::string gpr_localize_body(const std::string& body, int flush_max,
                     return keep("slice-shape");
                 edits.push_back({ifp, semi + 1,
                                  "PSX_B2_SLICE(" + a[1] + ", " + a[2] + ", " + a[3] + ", " +
-                                 out_st + ", " + in_all + ");"});
+                                 out_st + ", " + in_text(i) + ");"});
                 break;
             }
             case Kind::LoadW: case Kind::LoadH: case Kind::LoadB: {
@@ -471,7 +573,7 @@ std::string gpr_localize_body(const std::string& body, int flush_max,
                 const bool starts = c.name_at == 0 || before == std::string::npos ||
                                     (before < c.name_at && (m[before] == ';' || m[before] == '{' || m[before] == '}'));
                 if (!starts || semi >= m.size() || m[semi] != ';') return keep("call-shape:" + c.name);
-                edits.push_back({c.name_at, semi + 1, "{ " + out_st + call + "; " + in_all + "}"});
+                edits.push_back({c.name_at, semi + 1, "{ " + out_st + call + "; " + in_text(i) + "}"});
                 resets = true;
                 break;
             }
@@ -484,7 +586,7 @@ std::string gpr_localize_body(const std::string& body, int flush_max,
                 if (between.find_first_not_of(" (") != std::string::npos ||
                     tail.find_first_not_of(" )") != std::string::npos || semi == std::string::npos)
                     return keep("hook-shape:" + c.name);
-                edits.push_back({ifp, semi + 1, "{ " + out_st + line.substr(ifp, semi + 1 - ifp) + " " + in_all + "}"});
+                edits.push_back({ifp, semi + 1, "{ " + out_st + line.substr(ifp, semi + 1 - ifp) + " " + in_text(i) + "}"});
                 resets = true;
                 break;
             }
