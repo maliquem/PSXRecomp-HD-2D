@@ -1469,6 +1469,11 @@ if(BUILD_TESTING AND Python3_Interpreter_FOUND AND CMAKE_C_COMPILER_ID STREQUAL 
         COMMAND ${Python3_EXECUTABLE}
             "${CMAKE_CURRENT_SOURCE_DIR}/../runtime/tests/test_syscall_change_thread_self.py"
             --cc ${CMAKE_C_COMPILER})
+    # ChangeThread to another thread leaves 1 in the yielding thread's saved R2.
+    add_test(NAME syscall_change_thread_result
+        COMMAND ${Python3_EXECUTABLE}
+            "${CMAKE_CURRENT_SOURCE_DIR}/../runtime/tests/test_syscall_change_thread_result.py"
+            --cc ${CMAKE_C_COMPILER})
 endif()
 
 # Presentation capture ring: distinct-presentation dedupe and bounded slots.

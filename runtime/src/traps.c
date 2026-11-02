@@ -332,6 +332,18 @@ static void psx_save_context_to_tcb(CPUState* cpu, uint32_t tcb, uint32_t resume
     debug_server_log_thread_event(1, cpu, tcb, tcb, resume_pc);
 }
 
+/* ChangeTh (B 10h) returns 1 to its caller. The kernel's SYS(03h) handler
+ * stores it in R2 of the yielding thread's TCB, so the thread receives it when
+ * it is switched back to (psx-spx "B(10h) - ChangeTh"). The kernel wrapper only
+ * runs `syscall; jr $ra`, and the scheduler takes SYS(03h) without running that
+ * handler, so it stores the 1 itself. Front Mission 2 runs its job thread only
+ * while ChangeTh keeps returning 1; any other value turns the thread off and
+ * leaves its queued jobs (scene loads) undone. */
+static void psx_store_change_thread_result(CPUState* cpu, uint32_t tcb)
+{
+    cpu->write_word(tcb + 8u + 2u * 4u, 1u);
+}
+
 static uint32_t psx_restore_context_from_tcb(CPUState* cpu, uint32_t tcb)
 {
     uint32_t save = tcb + 8u;
@@ -557,6 +569,7 @@ static int psx_change_thread_fiber(CPUState* cpu, uint32_t target_tcb)
     }
     if (current_tcb == target_tcb) {
         debug_server_log_thread_event(5, cpu, current_tcb, target_tcb, cpu->gpr[31]);
+        cpu->gpr[2] = 1u; /* ChangeTh's result, as when switched back */
         g_pc0_reason = PSX_PC0_CHANGE_SELF;
         cpu->pc = 0;
         return 1;
@@ -574,6 +587,7 @@ static int psx_change_thread_fiber(CPUState* cpu, uint32_t target_tcb)
     int saved_current_context = 0;
     if (psx_tcb_state(cpu, current_tcb) == 0x4000u) {
         psx_save_context_to_tcb(cpu, current_tcb, cpu->gpr[31]);
+        psx_store_change_thread_result(cpu, current_tcb);
         saved_current_context = 1;
     } else {
         /* 0x1000 is the BIOS closed/free state and must retire the host fiber.
@@ -664,6 +678,7 @@ static int psx_request_thread_switch(CPUState* cpu, uint32_t target_tcb)
          * through to its own jr $ra (CPS); the thread simply continues.
          * psx_syscall clears cpu->pc for the interpreter's caller. */
         debug_server_log_thread_event(5, cpu, current_tcb, target_tcb, cpu->gpr[31]);
+        cpu->gpr[2] = 1u; /* ChangeTh's result, as when switched back */
         return 1;
     }
     /* The target's entire context already lives in its TCB; it must be runnable
@@ -685,6 +700,7 @@ static int psx_request_thread_switch(CPUState* cpu, uint32_t target_tcb)
      * (0x1000) thread is being torn down and must not be saved. */
     if (psx_tcb_state(cpu, current_tcb) == 0x4000u) {
         psx_save_context_to_tcb(cpu, current_tcb, cpu->gpr[31]);
+        psx_store_change_thread_result(cpu, current_tcb);
     }
     psx_set_current_tcb(cpu, target_tcb);
     g_sched_return_tcb        = current_tcb; /* one-level switch-back safety net */

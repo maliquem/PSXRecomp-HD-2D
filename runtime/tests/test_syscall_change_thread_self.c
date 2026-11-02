@@ -66,6 +66,7 @@ int main(void) {
     cpu.pc = SYSCALL_PC;
     CPUState expected = cpu;
     expected.pc = 0u;        /* continue after the SYSCALL, as SYS01/02 do */
+    expected.gpr[2] = 1u;    /* ChangeTh returns 1 (psx-spx "B(10h) - ChangeTh") */
 
     int transfer = psx_syscall(&cpu, 0u);
     assert(transfer == 0);
