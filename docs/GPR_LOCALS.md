@@ -1,6 +1,7 @@
 # Guest registers in C locals (`[recompiler] gpr_locals`, perf plan B2)
 
-Status: in progress (branch `perf/b2`, 2026-11-02). Off unless the title turns it on.
+Status: exact, no measured gain without PGO (branch `perf/b2`, 2026-11-02). Off unless
+the title turns it on.
 
 ## Why
 
@@ -84,6 +85,20 @@ code grows: every cold path carries its stores, and with the Windows x64 ABI
 net effect is not known until it is measured. Liveness-limited IN lists saved
 ~1.5% of reads; flush_max 2 vs 4 trades entry stores for smaller cold paths
 (418k vs 447k instructions).
+
+Measured on BoF4 (2026-11-02, no PGO on either side, area cache complete):
+
+- **Exact.** `mode_check`, 8 scenes, effects on: frame by frame identical for 630
+  frames each (cycles, RAM/MMIO/scratchpad writes), sound identical, shots 0 px
+  (the campfire flickers by wall clock, also between runs of one exe).
+- **No speed gain.** Turbo, 3 alternating rounds, medians off -> on: title +1.8%,
+  field -2.5%, dungeon +0.3%, night +4.1%, campfire -0.6%, battle -0.8%, magic
+  -1.3%, menu -3.3%: inside the run-to-run noise. Game thread CPU at 1x equal.
+
+The hot-path savings are paid back by the larger code (cold paths carry their
+stores; more spills). Area DLLs are generated without the pass. Not tried yet:
+PGO on both sides (it moves cold blocks out of the hot code, which is the cost
+here).
 
 Test folder: bof4-b2 `build-test/b2` (both exes from the same generated code:
 `BreathOfFire4_b2on.exe`, `BreathOfFire4_b2off.exe` built with
