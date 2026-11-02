@@ -1023,6 +1023,7 @@ static void deferred_exception_longjmp(int code) {
     }
     g_pending_exception_longjmp = code;
     psx_fiber_switch(g_exception_owner_fiber);
+    { extern void psx_fiber_take_restore_unnested(void); psx_fiber_take_restore_unnested(); }
     /* If we end up back here, the owner didn't honor the flag (bug).
      * Fall through to direct longjmp as a last resort — even though
      * the stack is wrong, the alternative is hanging silently. */

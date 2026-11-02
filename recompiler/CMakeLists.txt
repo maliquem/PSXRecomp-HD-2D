@@ -1479,6 +1479,11 @@ if(BUILD_TESTING AND Python3_Interpreter_FOUND AND CMAKE_C_COMPILER_ID STREQUAL 
         COMMAND ${Python3_EXECUTABLE}
             "${CMAKE_CURRENT_SOURCE_DIR}/../runtime/tests/test_fiber_preempt_switch.py"
             --cc ${CMAKE_C_COMPILER})
+    # A state restore asked on a thread fiber lands on the scheduler loop.
+    add_test(NAME fiber_state_restore
+        COMMAND ${Python3_EXECUTABLE}
+            "${CMAKE_CURRENT_SOURCE_DIR}/../runtime/tests/test_fiber_state_restore.py"
+            --cc ${CMAKE_C_COMPILER})
 endif()
 
 # Presentation capture ring: distinct-presentation dedupe and bounded slots.

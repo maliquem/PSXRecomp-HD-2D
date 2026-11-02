@@ -550,6 +550,46 @@ static void psx_fiber_nesting_restore(HostFiberNesting* n)
     psx_irq_set_compiled_resume_pc(n->resume_latch);
 }
 
+/* State restore on the host-fiber scheduler (savestate, rewind, selfcheck,
+ * rollback). The restored machine keeps every thread in its TCB, as the
+ * kernel does: the current one in CPUState, the others at the EPC and
+ * registers their TCB holds. The native continuations the fibers kept belong
+ * to the machine that was replaced, so they are all dropped, and each thread
+ * starts a new fiber from its TCB the next time it is switched to. The
+ * scheduler loop (g_scheduler_jmpbuf) lives on the main fiber: a restore
+ * requested on a thread fiber first switches there and that fiber takes the
+ * unwind (psx_fiber_take_restore). */
+static int s_fiber_restore_pending = 0;
+
+static void psx_fiber_drop_threads(void)
+{
+    if (!s_main_fiber) return;   /* no fiber was ever created */
+    psx_fiber_t self = psx_fiber_current();
+    for (size_t i = 0; i < sizeof(s_host_threads) / sizeof(s_host_threads[0]); i++) {
+        HostThreadFiber* t = &s_host_threads[i];
+        if (t->used && t->fiber && t->owned && t->fiber != self)
+            psx_fiber_destroy(t->fiber);
+    }
+    memset(s_host_threads, 0, sizeof(s_host_threads));
+}
+
+/* Called where the main fiber resumes after a switch: if a restore is
+ * waiting, unwind this fiber's stack to the scheduler loop, as the HLE
+ * scheduler unwinds its single stack. */
+static void psx_fiber_take_restore(HostFiberNesting* n)
+{
+    if (!s_fiber_restore_pending || psx_fiber_current() != s_main_fiber) return;
+    s_fiber_restore_pending = 0;
+    if (n) psx_fiber_nesting_restore(n);
+    psx_fiber_drop_threads();
+    longjmp(g_scheduler_jmpbuf, 1);
+}
+
+void psx_fiber_take_restore_unnested(void)
+{
+    psx_fiber_take_restore(NULL);
+}
+
 static HostThreadFiber* psx_get_or_create_host_thread(CPUState* cpu, uint32_t tcb)
 {
     HostThreadFiber* slot = psx_find_host_thread(tcb);
@@ -650,6 +690,7 @@ static int psx_change_thread_fiber(CPUState* cpu, uint32_t target_tcb)
     HostFiberNesting nesting;
     psx_fiber_nesting_save(&nesting);
     psx_fiber_switch(target->fiber);
+    psx_fiber_take_restore(&nesting);
     psx_fiber_nesting_restore(&nesting);
 
     /* The switch returns on the original native stack, but CPUState is
@@ -723,6 +764,7 @@ int psx_fiber_preempt_switch(CPUState* cpu, uint32_t from_tcb, uint32_t to_tcb)
     HostFiberNesting nesting;
     psx_fiber_nesting_save(&nesting);
     psx_fiber_switch(target->fiber);
+    psx_fiber_take_restore(&nesting);
     psx_fiber_nesting_restore(&nesting);
 
     /* Whatever switched back here named this thread's TCB in PCB[0]. */
@@ -850,6 +892,17 @@ void psx_scheduler_resume_at(uint32_t resume_pc)
     {
         extern void psx_irq_arm_compiled_resume_pc(uint32_t pc);
         psx_irq_arm_compiled_resume_pc(resume_pc);
+    }
+    /* Host-fiber scheduler: the scheduler loop is on the main fiber, and the
+     * other threads' native continuations belong to the replaced machine. */
+    if (!psx_hle_scheduler_enabled() && s_main_fiber) {
+        if (psx_fiber_current() != s_main_fiber) {
+            s_fiber_restore_pending = 1;
+            psx_fiber_switch(s_main_fiber);
+            trap_crash("state restore: the main fiber did not take the restore");
+            return;
+        }
+        psx_fiber_drop_threads();
     }
     longjmp(g_scheduler_jmpbuf, 1); /* unwind to psx_scheduler_run; never returns */
 }

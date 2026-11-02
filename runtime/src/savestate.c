@@ -152,8 +152,6 @@ static int savestate_resume_pc_ok(uint32_t pc)
            pc != 0x80000080u && pc != 0xbfc00180u && pc != 0x80000000u;
 }
 
-extern int psx_hle_scheduler_enabled(void);
-
 /* Create each path component (mkdir -p). Single-level mkdir fails for
  * "saves/netplay" when parent "saves" is missing. */
 static void ensure_dir(const char* dir) {
@@ -796,15 +794,6 @@ static int request_load_inner(int slot) {
         return 0;
     }
     if (slot < 0 || slot >= SAVESTATE_ALL_SLOTS) return 0;
-    if (!psx_hle_scheduler_enabled()) {
-        /* LLE (host-fiber) mode: the restore longjmp target lives on the
-         * scheduler fiber; cross-fiber unwind is unsafe. HLE is the default. */
-        fprintf(stderr, "savestate: load requires the HLE scheduler (default); "
-                        "PSX_HLE_SCHEDULER=0 run cannot load states.\n");
-        psx_frontend_on_savestate_refused(1, slot,
-            "Cannot load: this run uses the legacy thread scheduler");
-        return 0;
-    }
     s_load_failed = 0;
     s_load_completed = 0;
     s_load_pending = slot;
@@ -844,10 +833,6 @@ int savestate_request_load_blob_protocol(const void* data, size_t size) {
     }
     if (!data || size == 0 || size > 64u * 1024u * 1024u)
         return 0;
-    if (!psx_hle_scheduler_enabled()) {
-        fprintf(stderr, "savestate: load_blob requires the HLE scheduler\n");
-        return 0;
-    }
     copy = (uint8_t*)malloc(size);
     if (!copy) {
         fprintf(stderr, "savestate: load_blob malloc(%zu) failed\n", size);
