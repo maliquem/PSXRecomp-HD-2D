@@ -2952,3 +2952,27 @@ __attribute__((noinline)) void psx_store_byte(CPUState *cpu, uint32_t addr, uint
     }
     cpu->write_byte(addr, val);
 }
+
+/* [recompiler] gpr_locals (psx_gpr_locals.h): the first half of the three
+ * above, with nothing called out of line, so the generated code can keep its
+ * guest registers in locals across it. 1: stored. 0: the direct store said
+ * no (as above, once); the caller goes on with cpu->write_*. 2: nothing done
+ * (another store pointer, or an overlay's cycles to publish first); the
+ * caller runs psx_store_*. */
+__attribute__((noinline)) int psx_store_word_quiet(CPUState *cpu, uint32_t addr, uint32_t val) {
+    extern void (*g_overlay_flush_pending_cycles)(void);
+    if (cpu->write_word != psx_write_word || g_overlay_flush_pending_cycles) return 2;
+    return psx_store_try_word(addr, val);
+}
+
+__attribute__((noinline)) int psx_store_half_quiet(CPUState *cpu, uint32_t addr, uint16_t val) {
+    extern void (*g_overlay_flush_pending_cycles)(void);
+    if (cpu->write_half != psx_write_half || g_overlay_flush_pending_cycles) return 2;
+    return psx_store_try_half(addr, val);
+}
+
+__attribute__((noinline)) int psx_store_byte_quiet(CPUState *cpu, uint32_t addr, uint8_t val) {
+    extern void (*g_overlay_flush_pending_cycles)(void);
+    if (cpu->write_byte != psx_write_byte || g_overlay_flush_pending_cycles) return 2;
+    return psx_store_try_byte(addr, val);
+}

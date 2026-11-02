@@ -3035,6 +3035,10 @@ GameConfig load_game_config(const fs::path& config_path_in) {
                 "{}: [recompiler].cpu_timing must be 'pipeline' or 'block'", config_path.string()));
         loaded.cpu_timing_block = (t == "block");
     }
+    loaded.gpr_locals = recomp.contains("gpr_locals") &&
+                        toml::find<bool>(recomp, "gpr_locals");
+    if (recomp.contains("gpr_locals_flush_max"))
+        loaded.gpr_locals_flush_max = toml::find<int>(recomp, "gpr_locals_flush_max");
     loaded.quality_presets = parse_quality_presets(cfg, root, config_path);
     return loaded;
 }

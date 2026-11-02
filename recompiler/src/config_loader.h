@@ -1613,6 +1613,10 @@ struct GameConfig {
     // time and charged where the clock can be seen: NOT exact at block edges,
     // an option for speed).
     bool cpu_timing_block = false;
+    // [recompiler] gpr_locals (docs/GPR_LOCALS.md): guest registers in C locals.
+    // Exact (synced wherever anything else can look); off by default; regen required.
+    bool gpr_locals = false;
+    int gpr_locals_flush_max = 8;
     // [quality.low/medium/high/ultra] -- graphics presets, lowest first. Empty:
     // the title has no presets and [video] alone applies (unchanged).
     std::vector<QualityPreset> quality_presets;
