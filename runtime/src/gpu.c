@@ -3590,7 +3590,7 @@ int psx_ws_prim_in_backdrop(void) {
     if (g_dbg_mode != 0) return dbg_gate_match();   /* correlation override */
     /* The title's own answer for this primitive (gpu_ws_set_wide_prim_predicate):
      * 4 = stretched, unmarked; 3 = only the vertices on or past the edges;
-     * KEEP = none of the rules below. */
+     * 5 = cut at the 4:3 edges; KEEP = none of the rules below. */
     if (s_ws_wide_prim_predicate && ws_native_wide_active()) {
         const uint32_t op = (gp0_cmd_buf[0] >> 24) & 0xFFu;
         if (op >= 0x20u && op <= 0x7Fu) {
@@ -3599,6 +3599,7 @@ int psx_ws_prim_in_backdrop(void) {
                 (f - ws_last_gte_stamp <= 4u || f - ws_last_world3d_stamp <= 4u ? GPU_WS_WIDE_PRIM_WORLD3D : 0u);
             const int r = s_ws_wide_prim_predicate(op, gp0_ot_rank, flags);
             if (r == GPU_WS_WIDE_PRIM_KEEP) return 0;
+            if (r == GPU_WS_WIDE_PRIM_CLIP) return 5;   /* the renderer skips its wide mirror */
             if ((r == GPU_WS_WIDE_PRIM_STRETCH || r == GPU_WS_WIDE_PRIM_EDGES) && op <= 0x3Fu) {
                 ws_prim_pred_stamp = f;
                 return r == GPU_WS_WIDE_PRIM_STRETCH ? 4 : 3;
@@ -8832,6 +8833,35 @@ static void prim_sx_extent(uint8_t op, int32_t *xmin, int32_t *xmax) {
         lo = hi = vx;
     }
     *xmin = lo; *xmax = hi;
+}
+
+/* The screen-X span of the primitive being drawn, for a title's native-wide
+ * predicate (gpu.h): polygons by their vertices, rectangles with their width,
+ * lines by both ends; in the coordinates the game sent (before the drawing
+ * offset), with the display width the 4:3 picture has. 0 when no primitive. */
+int gpu_ws_prim_x_span(int32_t *xmin, int32_t *xmax, int32_t *disp_w) {
+    const uint8_t op = (uint8_t)(gp0_cmd_buf[0] >> 24);
+    if (op < 0x20u || op > 0x7Fu) return 0;
+    int32_t lo, hi;
+    prim_sx_extent(op, &lo, &hi);
+    if (op >= 0x40u && op <= 0x5Fu && !(op & 0x08u)) {   /* single line: its far end */
+        int32_t vx, vy;
+        parse_vertex(gp0_cmd_buf[(op & 0x10u) ? 3 : 2], &vx, &vy);
+        if (vx < lo) lo = vx;
+        if (vx > hi) hi = vx;
+    } else if (op >= 0x60u) {   /* rectangle: its width */
+        int32_t w;
+        switch ((op >> 3) & 3u) {
+        case 0:  w = (int32_t)(gp0_cmd_buf[(op & 0x04u) ? 3 : 2] & 0x3FFu); break;
+        case 1:  w = 1; break;
+        case 2:  w = 8; break;
+        default: w = 16; break;
+        }
+        hi = lo + w - 1;
+    }
+    *xmin = lo; *xmax = hi;
+    if (disp_w) *disp_w = ws_disp_w();
+    return 1;
 }
 
 /* Natural-overhang noter (see the ws_ovh_* block up top for the rationale).

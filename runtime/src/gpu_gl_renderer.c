@@ -4783,6 +4783,13 @@ static int mirror_x_center_only(int lo, int hi) {
     if (native_w <= 0) return 0;
     return (lo >= base) && (hi < base + native_w);
 }
+/* A primitive the title cut at the 4:3 picture's edges (GPU_WS_WIDE_PRIM_CLIP,
+ * gate 5): its centre comes from the canonical blit, so not drawing its wide
+ * mirror leaves out exactly what it puts in the revealed bands. Only while the
+ * centre is that blit; otherwise it is drawn as it is. */
+static int mirror_gate_clipped(int gate) {
+    return (gate & 7) == 5 && wide_center_is_canonical();
+}
 static int mirror_geo_center_only(const int *xs, int n) {
     if (!wide_center_is_canonical()) return 0;
     int lo = xs[0], hi = xs[0];
@@ -4818,7 +4825,9 @@ static void wide_bd_scale_of(int gate, float *out_scale, float *out_center) {
             scale  = g_ws_bd_stretch_pct > 0 ? (float)g_ws_bd_stretch_pct / 100.0f
                                              : (float)g_wide_w / (float)native_w;
             const int kind = gate & 7, share = (gate >> 8) & 0xFF;
-            if (kind == 2) {
+            if (kind == 5) {
+                scale = 1.0f;   /* cut at the 4:3 edges, never stretched */
+            } else if (kind == 2) {
                 scale = g_ws_tex_edge_pct > 0
                       ? (float)g_ws_tex_edge_pct / 100.0f : scale;
                 scale = -scale; /* shader: expand only beyond canonical edges */
@@ -5708,7 +5717,7 @@ static void flush_tex_batch_impl(void) {
      * centre content comes from the present-time canonical blit; nothing to add
      * to the margins). A backdrop-stretched batch (s_tb_gate) widens past the
      * frame, so it is never treated as centre-only. */
-    int mirror = g_wide_cur && s_ws_ablate != 1 &&
+    int mirror = g_wide_cur && s_ws_ablate != 1 && !mirror_gate_clipped(s_tb_gate) &&
                  !(s_tb_gate == 0 && mirror_batch_center_only(nverts));
     if (mirror) {   /* the stencil it may leave behind alpha */
         float sc, ce;
@@ -5844,7 +5853,7 @@ static void flush_flat_batch_impl(void) {
     BCLS_DRAW(semi, dmode, mask, s_mask_check, b3d, if (nl) flat_batch_draw_hr_lines(nverts, nl);
                        else glDrawArrays(fmode, 0, nverts));
     depth_restore_ex(dmode, 0, nverts);
-    int mirror = g_wide_cur && !s_wide_suppress && s_ws_ablate != 1 &&
+    int mirror = g_wide_cur && !s_wide_suppress && s_ws_ablate != 1 && !mirror_gate_clipped(s_fb_gate) &&
                  !(!g_ws_bd_stretch_on && mirror_flat_batch_center_only(nverts));
     if (mirror) {
         float sc, ce;
@@ -6231,6 +6240,7 @@ static void gpu_geometry(GLenum mode, const int *xs, const int *ys,
             draw_mode = GL_TRIANGLES; draw_n = 6;
         }
         int mirror = g_wide_cur && !s_wide_suppress && s_ws_ablate != 1 &&
+                     !mirror_gate_clipped(bd_prim_gate(xs, n, 0)) &&
                      !(!g_ws_bd_stretch_on && mirror_geo_center_only(xs, n));
         if (mirror) {
             float sc, ce;
@@ -13304,7 +13314,7 @@ static uint64_t s_rth_presents = 0, s_rth_presents_stale = 0;
 
 #define RTHF_PRIM      0x0001u
 #define RTHF_TAGGED    0x0002u
-#define RTHF_BD_SHIFT  2          /* bits 2-4: psx_ws_prim_in_backdrop() 0..4 */
+#define RTHF_BD_SHIFT  2          /* bits 2-4: psx_ws_prim_in_backdrop() 0..5 */
 #define RTHF_BD_MASK   7u
 #define RTHF_BDQ_SHIFT 5          /* bits 5-12: its stretch share (backdrop images), 0 = the full one */
 #define RTHF_FRONT     0x2000u    /* in the ordering table's front (gpu_ot_front_now): UI */

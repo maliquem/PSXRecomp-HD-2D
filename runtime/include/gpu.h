@@ -663,7 +663,12 @@ void gpu_ws_set_nw_phase_backdrop(int on);
  *   GPU_WS_WIDE_PRIM_IMAGE: the backdrop-image rule decides (drawn as it is,
  *     its edge colour over the revealed band, or stretched by what it needs;
  *     gpu_ws_set_backdrop_images), else as STRETCH for a polygon, KEEP for the
- *     rest.
+ *     rest;
+ *   GPU_WS_WIDE_PRIM_CLIP: cut at the 4:3 picture's left and right edges, as
+ *     the console's screen cuts it: what it puts in the revealed bands is not
+ *     drawn (a UI panel the game parks just past the screen edge). Needs the
+ *     wide surface's centre to be the canonical frame (no camera view shift);
+ *     otherwise it is drawn as KEEP.
  * STRETCH and EDGES apply to polygons. Render-only: guest VRAM and the
  * canonical 4:3 picture are untouched, 4:3 never asks. The pure, cheap
  * predicate runs on the emulation thread: no GPU calls, allocation or guest
@@ -671,8 +676,12 @@ void gpu_ws_set_nw_phase_backdrop(int on);
 #define GPU_WS_WIDE_PRIM_BACKDROP 1u
 #define GPU_WS_WIDE_PRIM_WORLD3D  2u
 enum { GPU_WS_WIDE_PRIM_DEFAULT = 0, GPU_WS_WIDE_PRIM_STRETCH = 1, GPU_WS_WIDE_PRIM_EDGES = 2,
-       GPU_WS_WIDE_PRIM_KEEP = 3, GPU_WS_WIDE_PRIM_IMAGE = 4 };
+       GPU_WS_WIDE_PRIM_KEEP = 3, GPU_WS_WIDE_PRIM_IMAGE = 4, GPU_WS_WIDE_PRIM_CLIP = 5 };
 void gpu_ws_set_wide_prim_predicate(int (*predicate)(uint32_t op, uint32_t ot_rank, uint32_t flags));
+/* For that predicate: the screen-X span of the primitive being asked about
+ * (vertices, a rectangle's width, a line's ends; before the drawing offset)
+ * and the 4:3 picture's width. Returns 0 outside a primitive. */
+int gpu_ws_prim_x_span(int32_t *xmin, int32_t *xmax, int32_t *disp_w);
 /* The primitive being drawn is in its ordering table's last entries, where a
  * game draws its UI over everything (never a sprite standing in the world). */
 int gpu_ot_front_now(void);
