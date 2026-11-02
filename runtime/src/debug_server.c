@@ -4190,6 +4190,9 @@ static const char *thread_kind_name(uint32_t kind)
         case 31: return "inexc_switch_defer";
         case 32: return "deferred_switch_escape";
         case 33: return "deferred_switch_stale";
+        case 34: return "inexc_fiber_switch";         /* guest moved PCB[0] inside handler -> fiber switch */
+        case 35: return "inexc_fiber_resume";         /* the preempted thread's fiber resumed */
+        case 36: return "inexc_fiber_refused";        /* value 0 bad TCB, 1 no other fiber */
         default: return "unknown";
     }
 }

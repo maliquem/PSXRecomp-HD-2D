@@ -725,6 +725,11 @@ void psx_irq_arm_compiled_resume_pc(uint32_t pc)
     s_last_interrupt_check_pc = pc;
 }
 
+/* The host-fiber thread scheduler (traps.c) keeps the compiled resume latch
+ * per thread: it is set by a frame on that thread's native stack. */
+uint32_t psx_irq_compiled_resume_pc(void) { return s_compiled_interrupt_resume_pc; }
+void psx_irq_set_compiled_resume_pc(uint32_t pc) { s_compiled_interrupt_resume_pc = pc; }
+
 /* Deferred cooperative thread switch from nested exception delivery.
  *
  * A genuine in-exception ChangeThread (kind-30, escape site below) must be
@@ -2119,6 +2124,46 @@ irq_deliver_eval:
      * (prev_in_exception==0 → no live outer exception_jmpbuf frame to skip) and to
      * the HLE scheduler (the legacy fiber bridge has no g_scheduler_jmpbuf and
      * switches threads by fiber). */
+    /* The same switch on the host-fiber scheduler (PSX_HLE_SCHEDULER=0): each
+     * thread has its own native stack, so the interrupted thread is suspended
+     * right here, mid-whatever-it-was-doing, and the target thread's fiber
+     * runs. When a later switch names the interrupted thread again, its fiber
+     * resumes here and leaves the exception exactly as a same-thread return:
+     * its pre-exception registers and SR, its own resume PC. */
+    if (prev_in_exception == 0 && !psx_hle_scheduler_enabled() &&
+        entry_tcb != 0u && exit_tcb != 0u && entry_tcb != exit_tcb &&
+        g_exception_real_epc != 0u &&
+        psx_read_word(exit_tcb & 0x1FFFFFFFu) == 0x4000u) {
+        extern int overlay_loader_shadow_native_thread_switch_bail(void);
+        extern int psx_fiber_preempt_switch(CPUState* cpu, uint32_t from_tcb, uint32_t to_tcb);
+        extern int psx_scheduler_top_level_resume_active(void);
+        if (overlay_loader_shadow_native_thread_switch_bail())
+            PSX_CHECK_INTERRUPTS_RETURN();
+        /* Per-delivery globals: the other thread's exceptions overwrite them. */
+        uint32_t resume_pc = g_exception_real_epc;
+        uint32_t last_check_pc = s_last_interrupt_check_pc;
+        if (psx_fiber_preempt_switch(cpu, entry_tcb, exit_tcb)) {
+            for (int i = 0; i < 32; i++) cpu->gpr[i] = saved_gpr[i];
+            cpu->hi = saved_hi;
+            cpu->lo = saved_lo;
+            cpu->cop0[COP0_SR] = sr;   /* pre-exception SR (IEc was set) */
+            if (resume_pc == (uint32_t)PSX_EXC_SENTINEL_PC) {
+                /* As the same-thread sentinel exit above: continue the
+                 * interrupted live chain, or at a top-level resume the
+                 * interrupted block's own PC. */
+                if (psx_scheduler_top_level_resume_active()) {
+                    uint32_t resume = s_compiled_interrupt_resume_pc;
+                    if (resume == 0u) resume = last_check_pc;
+                    cpu->pc = resume;
+                } else {
+                    cpu->pc = 0;
+                }
+            } else {
+                cpu->pc = resume_pc;
+            }
+            s_last_interrupt_check_pc = last_check_pc;
+        }
+    }
     if (prev_in_exception == 0 && psx_hle_scheduler_enabled() &&
         entry_tcb != 0u && exit_tcb != 0u && entry_tcb != exit_tcb) {
         extern uint32_t psx_read_word(uint32_t addr);   /* memory.c (plain RAM read) */

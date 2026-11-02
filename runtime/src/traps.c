@@ -514,6 +514,42 @@ static void psx_thread_fiber_entry(void* param)
     exit(1);
 }
 
+/* Host nesting that belongs to one fiber's native stack: dispatch depth, call
+ * units, the dirty interpreter, DMA/host-store depths, the compiled resume
+ * latch. Another fiber runs with its own values, so a switch saves ours
+ * before it leaves and puts them back when this fiber resumes. */
+typedef struct HostFiberNesting {
+    void*    nest;
+    int      dispatch_depth;
+    int      call_bail;
+    uint32_t resume_latch;
+} HostFiberNesting;
+
+static void psx_fiber_nesting_save(HostFiberNesting* n)
+{
+    extern void* psx_host_nesting_save_alloc(void);
+    extern int g_psx_dispatch_depth;
+    extern int g_psx_call_bail;
+    extern uint32_t psx_irq_compiled_resume_pc(void);
+    n->nest = psx_host_nesting_save_alloc();
+    n->dispatch_depth = g_psx_dispatch_depth;
+    n->call_bail = g_psx_call_bail;
+    n->resume_latch = psx_irq_compiled_resume_pc();
+}
+
+static void psx_fiber_nesting_restore(HostFiberNesting* n)
+{
+    extern void psx_host_nesting_restore_free(void* p);
+    extern int g_psx_dispatch_depth;
+    extern int g_psx_call_bail;
+    extern void psx_irq_set_compiled_resume_pc(uint32_t pc);
+    psx_host_nesting_restore_free(n->nest);
+    n->nest = NULL;
+    g_psx_dispatch_depth = n->dispatch_depth;
+    g_psx_call_bail = n->call_bail;
+    psx_irq_set_compiled_resume_pc(n->resume_latch);
+}
+
 static HostThreadFiber* psx_get_or_create_host_thread(CPUState* cpu, uint32_t tcb)
 {
     HostThreadFiber* slot = psx_find_host_thread(tcb);
@@ -611,7 +647,10 @@ static int psx_change_thread_fiber(CPUState* cpu, uint32_t target_tcb)
     psx_set_current_tcb(cpu, target_tcb);
     (void)psx_restore_context_from_tcb(cpu, target_tcb);
     debug_server_log_thread_event(8, cpu, current_tcb, target_tcb, 0);
+    HostFiberNesting nesting;
+    psx_fiber_nesting_save(&nesting);
     psx_fiber_switch(target->fiber);
+    psx_fiber_nesting_restore(&nesting);
 
     /* The switch returns on the original native stack, but CPUState is
      * shared globally and still contains the fiber that just yielded back.
@@ -643,6 +682,52 @@ static int psx_change_thread_fiber(CPUState* cpu, uint32_t target_tcb)
     debug_server_log_thread_event(9, cpu, target_tcb, current_tcb, 0);
     g_pc0_reason = PSX_PC0_FIBER_SWITCH;
     cpu->pc = 0;
+    return 1;
+}
+
+/* In-exception thread switch on the host-fiber scheduler.
+ *
+ * A game's interrupt callback can point PCB[0] at another thread; the
+ * ReturnFromException that ends the handler then resumes THAT thread, which
+ * preempts the interrupted one in the middle of whatever it was doing (Front
+ * Mission 2's VBlank callback 0x80091D30 takes the CPU back from its job
+ * thread every frame). The guest handler has already saved the interrupted
+ * thread into its own TCB. The interrupted thread's native stack stays
+ * suspended in its fiber, at the exception exit, and continues from there
+ * when some later switch names its TCB again: the interrupted code resumes
+ * exactly where it was, as on hardware.
+ *
+ * Returns 1 after this fiber was switched away and resumed again, 0 when no
+ * switch was possible (nothing changed). */
+int psx_fiber_preempt_switch(CPUState* cpu, uint32_t from_tcb, uint32_t to_tcb)
+{
+    if (!psx_is_valid_tcb(cpu, from_tcb) || !psx_is_valid_tcb(cpu, to_tcb) ||
+        from_tcb == to_tcb) {
+        debug_server_log_thread_event(36, cpu, from_tcb, to_tcb, 0);
+        return 0;
+    }
+    { extern void ds_note_thread_switch(void); ds_note_thread_switch(); }
+
+    HostThreadFiber* current = psx_bind_current_host_thread(cpu, from_tcb);
+    HostThreadFiber* target = psx_get_or_create_host_thread(cpu, to_tcb);
+    if (!target || target->fiber == current->fiber) {
+        debug_server_log_thread_event(36, cpu, from_tcb, to_tcb, 1);
+        return 0;
+    }
+    target->return_fiber = current->fiber;
+    target->return_tcb = from_tcb;
+
+    psx_set_current_tcb(cpu, to_tcb);
+    (void)psx_restore_context_from_tcb(cpu, to_tcb);
+    debug_server_log_thread_event(34, cpu, from_tcb, to_tcb, 0);
+    HostFiberNesting nesting;
+    psx_fiber_nesting_save(&nesting);
+    psx_fiber_switch(target->fiber);
+    psx_fiber_nesting_restore(&nesting);
+
+    /* Whatever switched back here named this thread's TCB in PCB[0]. */
+    debug_server_log_thread_event(35, cpu, psx_current_tcb_ptr(cpu), from_tcb, 0);
+    psx_set_current_tcb(cpu, from_tcb);
     return 1;
 }
 
