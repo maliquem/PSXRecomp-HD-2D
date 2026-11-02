@@ -64,6 +64,32 @@ build both ways (A/B). Overlay DLLs (captured areas) are generated without the p
 Other threads reading `cpu->gpr` mid-function (freeze heartbeat dumps) may see
 values up to one sync point old. Diagnostics only.
 
+## Status (2026-11-02)
+
+BoF4: 1113 of 1119 functions localized (the 6 left name no register).
+`gpr_locals_flush_max = 4`: 1382 block entry stores. Static machine code of two
+shards (03, 05; no PGO, no LTO; cold paths included), off -> on:
+
+| | off | on |
+|---|---|---|
+| instructions | 274k | 447k |
+| memory reads | 78k | 124k |
+| memory writes | 8.7k | 54k |
+| stack memory operands | 4.9k | 29k |
+
+In the hot path the locals do stay in host registers (a small function keeps
+$sp and $ra in rbx/rbp and drops their cpu->gpr loads and stores), but the
+code grows: every cold path carries its stores, and with the Windows x64 ABI
+(7 callee-saved registers) and calls everywhere the compiler spills more. The
+net effect is not known until it is measured. Liveness-limited IN lists saved
+~1.5% of reads; flush_max 2 vs 4 trades entry stores for smaller cold paths
+(418k vs 447k instructions).
+
+Test folder: bof4-b2 `build-test/b2` (both exes from the same generated code:
+`BreathOfFire4_b2on.exe`, `BreathOfFire4_b2off.exe` built with
+`-DPSX_GPR_LOCALS_OFF`). Codegen hash 0xf844c460: the area cache starts cold
+and the test states need restamping from a state the new exe saves.
+
 ## Proof required before it is on by default
 
 Frame-by-frame identical over 630 frames in the 8 scenes with effects on, identical
