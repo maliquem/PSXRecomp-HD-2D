@@ -42,6 +42,60 @@ int gpu_ws_netplay_local_viewport_width(void){return 0;}
 int render_pass_netplay_enabled(void){return 0;}
 void frame_interpolation_schedule_reset(FrameInterpolationSchedule *p){memset(p,0,sizeof(*p));}
 void frame_flip_tracker_reset(FrameFlipTracker *p){memset(p,0,sizeof(*p));p->period=1;}
+/* Frame generation stays off in these fixtures: never due, never a new phase. */
+int frame_flip_is_new_frame(int g,int e,int r,int ox,int oy,int lx,int ly){(void)g;(void)e;(void)r;(void)ox;(void)oy;(void)lx;(void)ly;return 1;}
+uint32_t frame_flip_tracker_vblank(FrameFlipTracker *t,int n,double *lo,double *hi){(void)t;(void)n;if(lo)*lo=0;if(hi)*hi=0;return 0;}
+int frame_interpolation_schedule_begin_phase(FrameInterpolationSchedule *s,uint64_t now,uint64_t f,double sh,double th,double lo,double hi){(void)s;(void)now;(void)f;(void)sh;(void)th;(void)lo;(void)hi;return 0;}
+int frame_interpolation_schedule_due(FrameInterpolationSchedule *s,uint64_t now,double h,uint64_t *d){(void)s;(void)now;(void)h;(void)d;return 0;}
+void frame_interpolation_schedule_consume(FrameInterpolationSchedule *s){(void)s;}
+uint64_t frame_interpolation_schedule_end(const FrameInterpolationSchedule *s){(void)s;return 0;}
+int frame_interpolation_schedule_next(FrameInterpolationSchedule *s,uint64_t now,uint64_t *d,float *a){(void)s;(void)now;(void)d;(void)a;return 0;}
+/* HD texture replacement off. */
+void gpu_hd_textures_begin_copy(int sx,int sy,int dx,int dy,int w,int h){(void)sx;(void)sy;(void)dx;(void)dy;(void)w;(void)h;}
+void gpu_hd_textures_begin_upload(int x,int y,int w,int h){(void)x;(void)y;(void)w;(void)h;}
+void gpu_hd_textures_end_copy(void){}
+void gpu_hd_textures_invalidate(int x,int y,int w,int h){(void)x;(void)y;(void)w;(void)h;}
+void gpu_hd_textures_track_upload(int x,int y,int w,int h,const uint16_t *d){(void)x;(void)y;(void)w;(void)h;(void)d;}
+/* No shadows, lights, OT tracking, overdraw, MDEC, overlays or telemetry. */
+int area_lights_get(uint32_t a,AreaLightSet *o){(void)a;(void)o;return 0;}
+int gpu_ot_front_now(void){return 0;}
+uint32_t gpu_shadow_current_area(void){return 0;}
+int gpu_shadow_moon_area(float *az,float *el){(void)az;(void)el;return 0;}
+int gpu_shadow_off_active(void){return 0;}
+int gpu_shadow_sun_area(float *az,float *el){(void)az;(void)el;return 0;}
+int psx_overdraw_x(void){return 0;}
+int psx_overdraw_y(void){return 0;}
+uint32_t mdec_mean_qscale_x16(void){return 0;}
+int mdec_recently_active(uint32_t f){(void)f;return 0;}
+int bug_report_ui_draw(int w,int h){(void)w;(void)h;return 0;}
+int host_osd_image(const uint32_t **p,int *w,int *h){(void)p;(void)w;(void)h;return 0;}
+int host_osd_needs_present(void){return 0;}
+void host_osd_present_done(void){}
+int host_osd_volume_image(const uint32_t **p,int *w,int *h){(void)p;(void)w;(void)h;return 0;}
+int psx_rewind_overlay_image(const uint32_t **p,int *w,int *h){(void)p;(void)w;(void)h;return 0;}
+float psx_rewind_slide(void){return 0.f;}
+int psx_savestate_menu_overlay_blend(void){return 0;}
+int psx_savestate_menu_overlay_image(const uint32_t **p,int *w,int *h){(void)p;(void)w;(void)h;return 0;}
+int present_shot_take(char *o,int n){(void)o;(void)n;return 0;}
+void present_shot_done(int ok){(void)ok;}
+void psx_ws_dbg_gate_frame_snapshot(void){}
+int g_perf_meter_on=0;
+void perf_meter_note_present(void){}
+void perf_meter_pop_(int s){(void)s;}
+void perf_meter_push_(int s){(void)s;}
+void latency_ring_mark(LatencyStage s){(void)s;}
+void host_sampler_register_render_thread(void){}
+void psx_video_telemetry_compose(int r,int s,int sw,int sh,int dw,int dh,int vw,int vh){(void)r;(void)s;(void)sw;(void)sh;(void)dw;(void)dh;(void)vw;(void)vh;}
+void psx_video_telemetry_present(int r){(void)r;}
+/* Presentation pacing: no pacer in these fixtures. */
+int present_phase_active(void){return 0;}
+int present_phase_hold(uint64_t r,void *w){(void)r;(void)w;return 0;}
+void present_phase_note_done(uint64_t s,uint64_t d,void *w){(void)s;(void)d;(void)w;}
+uint64_t psx_present_ref_ticks(void){return 0;}
+int psx_present_vsync_owns_cadence(void){return 0;}
+int psx_presentation_fast_forward(void){return 0;}
+void psx_host_sleep_micros(unsigned u){(void)u;}
+uint64_t psx_host_thread_cpu_ns(void){return 0;}
 static int checks,failures;
 static void check(int ok,const char *label){checks++;if(!ok){fprintf(stderr,"FAIL %s\n",label);failures++;}}
 static void verify(const char *label){
@@ -526,6 +580,25 @@ int main(int argc,char **argv){
  glb_draw_textured_rect(90,90,16,16,0,0,0,0,0x108);verify("texture pack does not clear CPU debt");
  glb_fill_rect(1016,508,24,8,0x3210);verify("wrapping fill");
  glb_copy_rect(40,40,42,41,12,12);verify("overlapping copy");
+ /* A primitive still queued in a batch is part of an fbo_peek (the read the
+  * debug server's display ring makes every frame). The pack the peek forces
+  * clears the dirty box, so the primitive must land first: else the read
+  * misses it and the raw mirror that later draws sample keeps the old words
+  * (Front Mission 2's hangar menus: 4-bit sprites, the last draws of each
+  * frame, vanished whenever a debug client was connected). */
+ {
+  uint16_t px[64];int queued_ok=1,sample_ok=1;
+  glb_draw_flat_rect(544,64,8,8,0x3c3c);
+  check(s_fb_n>0||s_tb_n>0,"queued primitive still batched before the peek");
+  check(gl_renderer_fbo_peek(544,64,8,8,px),"queued primitive peek");
+  for(int i=0;i<64;i++)queued_ok&=px[i]==0x3c3c;
+  check(queued_ok,"peek includes the queued primitive");
+  glb_draw_textured_rect(300,300,8,8,32,64,0,0,0x108);
+  check(gl_renderer_fbo_peek(300,300,8,8,px),"sampled copy peek");
+  for(int i=0;i<64;i++)sample_ok&=px[i]==0x3c3c;
+  check(sample_ok,"raw mirror keeps the queued primitive after the peek");
+  verify("queued primitive across a peek");
+ }
  for(int mode=0;mode<4;mode++){
   glb_set_mask_bits(1,0);glb_draw_flat_rect(111,151,7,3,0x4567);
   glb_set_mask_bits(0,1);glb_draw_flat_rect(109,150,12,6,0x2222);

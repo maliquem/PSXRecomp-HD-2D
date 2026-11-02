@@ -8742,6 +8742,12 @@ int gl_renderer_fbo_peek(int x, int y, int w, int h, uint16_t *out) {
     if (!s_raster_ok || !s_ctx) return 0;
     if (x < 0 || y < 0 || w < 1 || h < 1 ||
         x + w > VRAM_W || y + h > VRAM_H) return 0;
+    /* Queued draws are part of s_pack_dirty, which the pack clears: land
+     * them first, or the read misses them and the raw mirror stays without
+     * them for good (as ensure_cpu does). */
+    flush_line_batch();
+    flush_flat_batch();
+    flush_tex_batch();
     flush_cpu_upload();
     rect_add(&s_pack_dirty, x, y, x + w - 1, y + h - 1);
     pack_flush();
@@ -8780,6 +8786,9 @@ int gl_renderer_vram_diff(uint32_t *count, int bbox[4],
     if (!s_raster_ok || !s_ctx) return 0;
     uint16_t *tmp = (uint16_t *)malloc((size_t)VRAM_W * VRAM_H * 2);
     if (!tmp) return 0;
+    flush_line_batch();   /* queued draws first: see gl_renderer_fbo_peek */
+    flush_flat_batch();
+    flush_tex_batch();
     flush_cpu_upload();
     /* Force a full pack: the diff must read FBO truth even where the
      * raw-mirror invariant (raw == FBO outside s_pack_dirty) is broken —
