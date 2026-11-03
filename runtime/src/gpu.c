@@ -1184,17 +1184,35 @@ static void shadow_point_note(void) {
     if (V[2] < 1.0f) return;
     gl_renderer_shadow_point(V);
 }
+static int sh_anc_ext = 0;   /* a title's plugin names the foot points (psx_shadow_sprite_anchor_world) */
+static int sh_blob_allow = 1;   /* psx_shadow_sprite_blobs: the game has blob shadows to hide */
+void psx_shadow_sprite_blobs(int on) { sh_blob_allow = on != 0; }
+static void shadow_anchor_take(const float w[3]);
 static void shadow_anchor_note(void) {
     const uint32_t ra = psx_mod_cpu_gpr(31);
     int k = 0;
     while (k < sh_anc_n && sh_anc_ra[k] != ra) k++;
     if (k == sh_anc_n) return;
+    uint32_t d[32];
+    if (!psx_mod_gte_data(d)) return;
+    const float w[3] = {(float)(int16_t)d[0], (float)(int16_t)(d[0] >> 16), (float)(int16_t)d[1]};
+    shadow_anchor_take(w);
+}
+/* A game that projects its sprites inline (no call of their own to know them
+ * by, FM2's battle map): its plugin names each foot point, in world
+ * coordinates, while the GTE still holds the camera that projected the sprite
+ * (right after that RTPS). */
+void psx_shadow_sprite_anchor_world(const int16_t w[3]) {
+    sh_anc_ext = 1;
+    if (!sh_anc_live) return;
+    const float f[3] = {(float)w[0], (float)w[1], (float)w[2]};
+    shadow_anchor_take(f);
+}
+static void shadow_anchor_take(const float w[3]) {
     int16_t ri[9];
     int32_t pj[6];
-    uint32_t d[32];
-    if (!psx_mod_gte_rotation(ri) || !psx_mod_gte_projection(pj) || !psx_mod_gte_data(d)) return;
+    if (!psx_mod_gte_rotation(ri) || !psx_mod_gte_projection(pj)) return;
     if (!sh_cam_have[0] || memcmp(ri, sh_cam_r[0], sizeof ri) || memcmp(pj, sh_cam_t[0], sizeof sh_cam_t[0])) return;
-    const float w[3] = {(float)(int16_t)d[0], (float)(int16_t)(d[0] >> 16), (float)(int16_t)d[1]};
     float V[3];
     for (int r = 0; r < 3; r++)
         V[r] = sh_cam_last[r * 3] * w[0] + sh_cam_last[r * 3 + 1] * w[1] + sh_cam_last[r * 3 + 2] * w[2] + sh_cam_last[9 + r];
@@ -1380,8 +1398,8 @@ static void shadow_vblank(void) {
         sh_od_on = wanted;
     }
     sh_bf_on = wanted && sh_camera;
-    sh_anc_live = track && sh_camera == 2 && sh_anc_n > 0 && gl_renderer_shadow_sprites_wanted();
-    sh_blob_on = sh_anc_live && ours;   /* the game's blobs hidden: only under our sun, a fire or the windows */
+    sh_anc_live = track && sh_camera == 2 && (sh_anc_n > 0 || sh_anc_ext) && gl_renderer_shadow_sprites_wanted();
+    sh_blob_on = sh_anc_live && ours && sh_blob_allow;   /* the game's blobs hidden: only under our sun, a fire or the windows */
     if (sh_bf_on) shadow_backfaces_flush();   /* this frame's culled faces, before the camera takes the frame in */
     if (!track) return;
     if (sh_camera == 2) {   /* the camera met lately (a 30 fps game projects every other VBlank) */

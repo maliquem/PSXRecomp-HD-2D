@@ -464,6 +464,14 @@ float psx_shadow_camera_scale(void);
 void psx_shadow_camera_normalize(int on);
 /* sprite_anchors: return addresses of the calls projecting sprite foot points. */
 void psx_shadow_sprite_anchors(const uint32_t *ra, int n);
+/* A sprite's foot point named by a title's plugin (world coordinates), while
+ * the GTE holds the camera that projected the sprite: for a game that projects
+ * its sprites inline, with no call of their own to know them by. */
+void psx_shadow_sprite_anchor_world(const int16_t w[3]);
+/* 0: the game draws no blob shadows under its sprites, so none is looked for
+ * (the blob finders would take its own pieces near a foot point for one: FM2's
+ * cobbles, a near-black palette entry of the ground under a wanzer). Default 1. */
+void psx_shadow_sprite_blobs(int on);
 int  psx_shadow_state(char *out, int cap);   /* JSON fields for TCP shadow_cache */
 /* [video.shadow] hide_textures: textured polygons (page 9 bits + CLUT) not
  * drawn while the shadow map is in use (a game's own blob shadows). */
