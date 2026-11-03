@@ -23,7 +23,7 @@ struct PLight {
     V3 q{0, 0, 0};      // a window's fourth corner, across from p (round it: p, a, q, b)
     float col[3] = {1.0f, 0.85f, 0.6f};
     float power = 1.0f, reach = 600.0f, flicker = 0.0f, cone = 60.0f, dust = 0.0f, az = 0.0f, el = 0.0f;
-    bool shadow = false, own_dir = false, has_dir = false;
+    bool shadow = false, own_dir = false, has_dir = false, round = false;   // round: a round window
     V3 dir{0, -1, 0};   // a window's light: the way it travels (world)
     int when = W_ALWAYS, cols = 1, rows = 1, src = 0;
     std::string note;
@@ -57,6 +57,7 @@ std::string light_line(unsigned area, const PLight& l) {
         if (std::max({std::fabs(l.q.x - par.x), std::fabs(l.q.y - par.y), std::fabs(l.q.z - par.z)}) > 0.05f)
             put(" corner %.1f %.1f %.1f", l.q.x, l.q.y, l.q.z);
         if (l.has_dir) put(" dir %.3f %.3f %.3f", l.dir.x, l.dir.y, l.dir.z);
+        if (l.round) put(" round");
     }
     if (l.kind == PL_SPOT) put(" at %.1f %.1f %.1f cone %.1f", l.a.x, l.a.y, l.a.z, l.cone);
     put(" color %.2f %.2f %.2f power %.2f", l.col[0], l.col[1], l.col[2], l.power);
@@ -128,6 +129,7 @@ bool parse_light_line(char* line, unsigned* area, PArea& into) {
         else if (!strcmp(t, "dust")) num(l.dust);
         else if (!strcmp(t, "cone")) num(l.cone);
         else if (!strcmp(t, "shadow")) l.shadow = true;
+        else if (!strcmp(t, "round")) l.round = l.kind == PL_WINDOW;
         else if (!strcmp(t, "at")) v3(l.a);
         else if (!strcmp(t, "corner")) has_q = v3(l.q);
         else if (!strcmp(t, "dir")) l.has_dir = v3(l.dir);
