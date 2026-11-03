@@ -5954,13 +5954,21 @@ static void pgxp_tri_log_tri(char kind, int dmode, int semi, const float *v, int
  * the depth buffer: there SZ quantisation and R4's near subdivision make a
  * road decal's depth disagree with its road by more than any sane tolerance
  * (the lane dash cut off at the bottom of the screen), and painter order is
- * what the game was built for. PSX_PGXP_DEPTH_NEAR tunes it (0 = off). */
+ * what the game was built for. PSX_PGXP_DEPTH_NEAR tunes it (0 = off), and a
+ * title whose 3D sits nearer (a small projection distance: Front Mission 2's
+ * map is SZ 100..400) sets its own with gl_renderer_set_pgxp_depth_near. */
 static float s_pgxp_depth_near = -1.0f;
+static float s_pgxp_depth_near_title = 1024.0f;   /* gl_renderer_set_pgxp_depth_near */
+void gl_renderer_set_pgxp_depth_near(float sz) {
+    GL_RT_SYNC("set_pgxp_depth_near");
+    s_pgxp_depth_near_title = sz < 0.0f ? 1024.0f : sz;
+    s_pgxp_depth_near = -1.0f;   /* re-read: the env still wins */
+}
 static int pgxp_tri_depth_mode(int semi) {
     if (!(s_pgxp_depth && semi < 0 && pgxp_tri_is_3d())) return 0;
     if (s_pgxp_depth_near < 0.0f) {
         const char *e = getenv("PSX_PGXP_DEPTH_NEAR");
-        s_pgxp_depth_near = e && *e ? (float)atof(e) : 1024.0f;
+        s_pgxp_depth_near = e && *e ? (float)atof(e) : s_pgxp_depth_near_title;
     }
     const float zmin = fminf(s_pz[0], fminf(s_pz[1], s_pz[2]));
     return zmin >= s_pgxp_depth_near ? 1 : 0;

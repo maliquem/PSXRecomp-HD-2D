@@ -507,6 +507,10 @@ int  gl_renderer_get_pgxp_color_perspective(void);
 void gl_renderer_set_pgxp_seam(int mode);
 int  gl_renderer_get_pgxp_seam(void);
 void gl_renderer_set_pgxp_depth_threshold(float sz);
+/* Triangles with any vertex nearer than SZ sz stay out of the PGXP depth
+ * buffer (painter order; default 1024, 0 = every triangle). For a title whose
+ * 3D world sits at small SZ; env PSX_PGXP_DEPTH_NEAR still wins. */
+void gl_renderer_set_pgxp_depth_near(float sz);
 /* Relative near bias of the PGXP depth test (0..0.5); 0 = per-triangle LEQUAL. */
 void gl_renderer_set_pgxp_depth_tolerance(float t);
 /* Cumulative depth clears by cause: config, drawing-area change, fill,
