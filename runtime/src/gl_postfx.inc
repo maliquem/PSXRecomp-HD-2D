@@ -45,7 +45,35 @@
 
 /* Uniform locations, looked up once per program (a lookup per frame is a
  * driver round trip on a threaded GL). */
-enum { PFX_LOC_RCP, PFX_LOC_SIZE, PFX_LOC_ORG, PFX_LOC_UV, PFX_LOC_TIME, PFX_LOC_FIXED };
+enum { PFX_LOC_RCP, PFX_LOC_SIZE, PFX_LOC_ORG, PFX_LOC_UV, PFX_LOC_TIME, PFX_LOC_NATX, PFX_LOC_PP, PFX_LOC_FIXED };
+/* The native picture's horizontal scale against the 240-line, square-pixel
+ * grid the effects assume (240 x the picture's aspect: 320 at 4:3): its width
+ * over its height x 4/3. 1 for a 320x240 game; 0.8 for a 256-wide one (FM2's
+ * battle, stretched to 4:3), whose pixels are not square. The effects that
+ * rebuild positions from depth multiply their native width by it: the C side
+ * through the aspect it passes, the shaders through u_natx (unset = 1). */
+static float s_pfx_natx = 1.0f;
+/* u_pp: where the projection centre (the GTE's OFX, OFY) lies from the
+ * picture's centre, native px, y down; the shaders that rebuild positions from
+ * depth take it in. A title opts in (gl_renderer_postfx_principal_point): FM2
+ * projects round (128, 140) on its 256x240 picture. Off, 0 (the centre). */
+static int   s_pfx_pp_on = 0;
+static float s_pfx_pp[2] = {0.0f, 0.0f};
+void gl_renderer_postfx_principal_point(int on) { s_pfx_pp_on = on ? 1 : 0; }
+static void pfx_natx_update(void) {
+    GpuDisplayInfo di;
+    gpu_get_display_info(&di);
+    s_pfx_natx = di.width && di.height ? (float)di.width / ((float)di.height * (4.0f / 3.0f)) : 1.0f;
+    if (s_pfx_natx < 0.25f || s_pfx_natx > 4.0f) s_pfx_natx = 1.0f;
+    s_pfx_pp[0] = s_pfx_pp[1] = 0.0f;
+    if (s_pfx_pp_on && di.width && di.height) {
+        const ScSlot *sc = sc_presented();
+        if (sc && sc->cam_ok) {
+            s_pfx_pp[0] = sc->cam.of[0] - 0.5f * (float)di.width;
+            s_pfx_pp[1] = sc->cam.of[1] - 0.5f * (float)di.height;
+        }
+    }
+}
 /* u_time: seconds since the first present (wall clock, so flickers and other
  * motion keep their pace whatever the frame rate), wrapped at an hour.
  * PSX_PFX_TIME=<seconds> holds it still (tests that compare two runs). */
@@ -526,7 +554,7 @@ static void pfx_depth_fill(int lw, int lh) {
             p_glUniform3f(r ? p_glGetUniformLocation(s_dfill_prog, an[r]) : s_dfill_uA,
                           s_pfx_vx_a[3 * r], s_pfx_vx_a[3 * r + 1], s_pfx_vx_a[3 * r + 2]);
         p_glUniform3f(s_dfill_uB, s_pfx_vx_b[0], s_pfx_vx_b[1], s_pfx_vx_b[2]);
-        p_glUniform2f(s_dfill_uNat, 240.0f * (float)lw / (float)lh, 240.0f);
+        p_glUniform2f(s_dfill_uNat, 240.0f * (float)lw / (float)lh * s_pfx_natx, 240.0f);
         p_glUniform1f(s_dfill_uH, s_cam_h);
     }
     p_glActiveTexture(PSXGL_TEXTURE0);
@@ -789,6 +817,18 @@ static float  s_ss_u[4][4];
  * on the sandflier's deck), hidden in a long shadow but floating under a
  * high sun. s_spr_drop_h: the H the frame's triangles are placed with (0 = off). */
 static float  s_spr_drop_h = 0.0f;
+/* The world's axes in view space (y up) from a camera rotation r: east = its
+ * world x, up = its world y (or z: gl_renderer_shadow_up_axis, a game whose
+ * height is z), the sign that points up on screen (a camera looks down on its
+ * scenery). */
+static int s_world_up_z = 0;
+void gl_renderer_shadow_up_axis(int axis) { s_world_up_z = axis == 2; }
+static void cam_axes(const float *r, float e[3], float u[3]) {
+    e[0] = r[0]; e[1] = -r[3]; e[2] = r[6];
+    if (s_world_up_z) { u[0] = r[2]; u[1] = -r[5]; u[2] = r[8]; }
+    else              { u[0] = r[1]; u[1] = -r[4]; u[2] = r[7]; }
+    if (u[1] < 0.0f) { u[0] = -u[0]; u[1] = -u[1]; u[2] = -u[2]; }
+}
 /* Does the scene's geometry (gl_renderer_shadow_world: a mod's map) lie
  * under what the picture draws? A cutscene can draw its own floor away from
  * the map (BoF4's sandflier crash), which then casts shadows nobody sees the
@@ -1722,8 +1762,8 @@ static void pfx_shadow_build(const PfxPass *ps, float aspect, int lw, int lh) {
          * camera looks down on its scenery). u_sun (azimuth from east toward
          * the far side, elevation; degrees) then fixes the light in the world. */
         const float *r = s_cam_r;
-        float e[3] = {r[0], -r[3], r[6]}, u[3] = {r[1], -r[4], r[7]};
-        if (u[1] < 0.0f) { u[0] = -u[0]; u[1] = -u[1]; u[2] = -u[2]; }
+        float e[3], u[3];
+        cam_axes(r, e, u);
         const float eu = e[0] * u[0] + e[1] * u[1] + e[2] * u[2];
         float rt[3] = {e[0] - u[0] * eu, e[1] - u[1] * eu, e[2] - u[2] * eu};
         const float rl = sqrtf(rt[0] * rt[0] + rt[1] * rt[1] + rt[2] * rt[2]);
@@ -2225,9 +2265,8 @@ static void pfx_sprites_alone(float aspect, int lw, int lh) {
         memcpy(s_cam_r, sc->cam.r, sizeof s_cam_r); memcpy(s_cam_t, sc->cam.t, sizeof s_cam_t);
         s_cam_of[0] = sc->cam.of[0]; s_cam_of[1] = sc->cam.of[1]; s_cam_h = sc->cam.h;
         s_cam_ok = 1;
-        const float *r = s_cam_r;
-        float u[3] = {r[1], -r[4], r[7]};
-        if (u[1] < 0.0f) { u[0] = -u[0]; u[1] = -u[1]; u[2] = -u[2]; }
+        float e[3], u[3];
+        cam_axes(s_cam_r, e, u);
         for (int i = 0; i < 3; i++) s_sm_world[1][i] = u[i];
         s_sm_world[1][3] = 1.0f;
         const float none[3] = {0.0f, 0.0f, 0.0f};   /* no light to turn toward */
@@ -2523,8 +2562,8 @@ static void pfx_fire_build(const PfxPass *ps, float aspect, int lw, int lh) {
     const float *r = s_cam_r, h = s_cam_h;
     s_fl_k[0] = h / (240.0f * aspect); s_fl_k[1] = h / 240.0f;
     s_pfx_aspect = aspect;
-    float up[3] = {r[1], -r[4], r[7]};   /* world up in view space (y up) */
-    if (up[1] < 0.0f) { up[0] = -up[0]; up[1] = -up[1]; up[2] = -up[2]; }
+    float east[3], up[3];   /* world up in view space (y up) */
+    cam_axes(r, east, up);
     /* the lights: the steady ones, biggest first */
     int pick[LIT_MAX], np = 0;
     for (int i = 0; fire_on && i < s_lit_n; i++)
@@ -3041,6 +3080,8 @@ static int pfx_stage_run(PfxStage *st, int generated, int lx, int ly, int lw, in
                 L->fixed[PFX_LOC_ORG] = p_glGetUniformLocation(pg, "u_org");
                 L->fixed[PFX_LOC_UV] = p_glGetUniformLocation(pg, "u_uv_rect");
                 L->fixed[PFX_LOC_TIME] = p_glGetUniformLocation(pg, "u_time");
+                L->fixed[PFX_LOC_NATX] = p_glGetUniformLocation(pg, "u_natx");
+                L->fixed[PFX_LOC_PP] = p_glGetUniformLocation(pg, "u_pp");
                 for (int k = 0; k < ps->ninputs; k++) L->in[k] = p_glGetUniformLocation(pg, ps->in[k].sampler);
                 for (int k = 0; k < ps->nuniforms; k++) L->u[k] = p_glGetUniformLocation(pg, ps->u[k].name);
             }
@@ -3076,13 +3117,13 @@ static int pfx_stage_run(PfxStage *st, int generated, int lx, int ly, int lw, in
         int reads_shadow = 0;
         for (int k = 0; k < ps->ninputs; k++)
             if (ps->in[k].from == PFX_IN_SHADOW) reads_shadow = 1;
-        if (reads_shadow) pfx_shadow_build(ps, (float)lw / (float)lh, lw, lh);
+        if (reads_shadow) pfx_shadow_build(ps, (float)lw / (float)lh * s_pfx_natx, lw, lh);
         for (int k = 0; k < ps->ninputs; k++)
-            if (ps->in[k].from == PFX_IN_SPRITE && s_spr_built != s_pfx_presents) pfx_sprites_alone((float)lw / (float)lh, lw, lh);
+            if (ps->in[k].from == PFX_IN_SPRITE && s_spr_built != s_pfx_presents) pfx_sprites_alone((float)lw / (float)lh * s_pfx_natx, lw, lh);
         int reads_fire = 0;
         for (int k = 0; k < ps->ninputs; k++)
             if (ps->in[k].from == PFX_IN_FIREMAP) reads_fire = 1;
-        if (reads_fire && s_fire_built != s_pfx_presents) pfx_fire_build(ps, (float)lw / (float)lh, lw, lh);
+        if (reads_fire && s_fire_built != s_pfx_presents) pfx_fire_build(ps, (float)lw / (float)lh * s_pfx_natx, lw, lh);
         for (int k = 0; k < ps->ninputs; k++) {
             if (ps->in[k].from == PFX_IN_SOURCE && !copied) {
                 post_copy_bind(lw, lh);
@@ -3124,6 +3165,8 @@ static int pfx_stage_run(PfxStage *st, int generated, int lx, int ly, int lw, in
         p_glUniform2f(L->fixed[PFX_LOC_SIZE], (float)w, (float)h);
         p_glUniform2i(L->fixed[PFX_LOC_ORG], last ? lx : 0, last ? ly : 0);
         if (L->fixed[PFX_LOC_TIME] >= 0) p_glUniform1f(L->fixed[PFX_LOC_TIME], pfx_time_now());
+        if (L->fixed[PFX_LOC_NATX] >= 0) p_glUniform1f(L->fixed[PFX_LOC_NATX], s_pfx_natx);
+        if (L->fixed[PFX_LOC_PP] >= 0) p_glUniform2f(L->fixed[PFX_LOC_PP], s_pfx_pp[0], s_pfx_pp[1]);
         for (int k = 0; k < ps->nuniforms; k++) {
             const PfxUniform *u = &ps->u[k];
             const GLint loc = L->u[k];
@@ -3193,6 +3236,7 @@ static int s_pfx_src_gen = 0;
 static void postfx_present(int fresh, int with_aa, int lx, int ly, int lw, int lh) {
     const int src_fresh = fresh || s_pfx_src_gen;
     s_pfx_presents++;
+    pfx_natx_update();
     s_night_f = atomic_load_explicit(&s_night_req, memory_order_relaxed);
     if (fresh) { pfx_lights_update(); pfx_tone_publish(); }
     if (!s_ctx) { s_mask_src_valid = 0; return; }

@@ -451,6 +451,17 @@ void psx_shadow_configure(int camera, int od_x, int od_y, const uint32_t *addr,
                           const uint32_t *size, int nkeys);
 /* camera 2 ("ram:ADDR"): the game's camera MATRIX (9 x s16, pad, 3 x s32). */
 void psx_shadow_camera_ram(uint32_t addr);
+/* More places the camera MATRIX may be (a game with one per mode); the first
+ * set becomes the main one when none is configured. Up to 4 more. */
+void psx_shadow_camera_ram_add(uint32_t addr);
+/* The last camera's own uniform scale (its rotation rows' length; 1 = none)
+ * when psx_shadow_camera_normalize is on: the rotation goes to the renderer
+ * without it, so the effects see the world times it (a mod's map geometry is
+ * scaled by it). */
+float psx_shadow_camera_scale(void);
+/* Opt in to that: a title whose camera rotation carries its zoom (FM2's battle
+ * map). Off, the rotation goes to the renderer as the game wrote it. */
+void psx_shadow_camera_normalize(int on);
 /* sprite_anchors: return addresses of the calls projecting sprite foot points. */
 void psx_shadow_sprite_anchors(const uint32_t *ra, int n);
 int  psx_shadow_state(char *out, int cap);   /* JSON fields for TCP shadow_cache */

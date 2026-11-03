@@ -46,6 +46,8 @@ uniform vec4 u_lightview;
 uniform vec4 u_lspr;
 uniform vec4 u_flicker;
 uniform vec4 u_proj;
+uniform vec2 u_pp;    // the projection centre from the picture centre, native px, y down (framework; 0 = the centre)
+uniform float u_natx;   // native width / (240 x 4/3): 0.8 for a 256-wide picture (framework)
 uniform vec4 u_fl[4], u_fls[4], u_flc[4], u_flx[4], u_fld[4], u_flmap;
 uniform vec4 u_al[8], u_alc[8], u_ald[8], u_alx[8], u_aln, u_alamb;
 uniform vec4 u_win[8], u_wu[8], u_wv[8], u_wd[8], u_wc[8], u_wa[8], u_wb[8], u_wn;
@@ -112,7 +114,7 @@ float sz_at(vec2 uv)
     float d = texture(u_d, (floor(uv * g_grid) + 0.5) / g_grid).r;
     return d < 0.99999 ? 256.0 / max(1.0 - d, 1e-7) - 256.0 : 0.0;
 }
-vec3 pos_at(vec2 uv, float z) { return vec3((uv - 0.5) * g_nat * z / u_proj.x, z); }
+vec3 pos_at(vec2 uv, float z) { return vec3(((uv - 0.5) * g_nat + vec2(-u_pp.x, u_pp.y)) * z / u_proj.x, z); }
 // Two native pixels along +d from P on its own face, as a step forward (as
 // sun.glsl: the side whose 1/Z runs straightest). The nearest neighbours'
 // difference stepped once per native line on a floor (its depth moves in
@@ -308,7 +310,7 @@ void main()
     vec3 firec = vec3(0.0);   // the lights' colours, each by how much of it reaches here
     vec3 placed = vec3(0.0);  // the lights placed by hand, coloured
     vec3 wpatch = vec3(0.0);   // the windows' light where it lands
-    g_nat = vec2(u_proj.y * u_size.x / u_size.y, u_proj.y);
+    g_nat = vec2(u_proj.y * u_size.x / u_size.y * (u_natx > 0.0 ? u_natx : 1.0), u_proj.y);
     g_grid = g_nat * max(u_proj.z, 1.0);
     if ((u_flmap.y > 0.0 || u_aln.x > 0.0 || u_wn.y * u_wn.x > 0.0) && (m > 0.5 || is_spr)) {
         float z = zs;

@@ -282,6 +282,13 @@ int   gl_renderer_shadow_light_info(float out[8]);
  * known, the shadow map takes it whole plus the frame's own triangles, in
  * place of the scenery memory. n 0: none. */
 void  gl_renderer_shadow_world(const float *w9, int n);
+/* Which world axis is up for the effects: 1 = y (default, BoF4), 2 = z (a game
+ * whose map heights are the GTE's z, FM2). */
+void  gl_renderer_shadow_up_axis(int axis);
+/* The effects that rebuild positions from depth take the GTE's projection
+ * centre (OFX, OFY) where it is, not at the picture's centre: for a title that
+ * projects off centre (FM2: y 140 on 240 lines). Off by default. */
+void  gl_renderer_postfx_principal_point(int on);
 /* The area that geometry is (a mod's id for the map: the same screen, the
  * same number, wherever it was entered from); [video.shadow] sun_areas use it
  * in place of the scene_keys' number. 0: none (the scene_keys'). */

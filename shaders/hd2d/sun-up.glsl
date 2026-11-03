@@ -9,6 +9,8 @@
 
 uniform vec4 u_upstage;
 uniform vec4 u_proj;
+uniform float u_natx;   // native width / (240 x 4/3): 0.8 for a 256-wide picture (framework)
+uniform vec2 u_pp;    // the projection centre from the picture centre, native px, y down (framework; 0 = the centre)
 
 vec2 g_nat;
 
@@ -18,7 +20,7 @@ float sz_at(vec2 uv)
     return d < 0.99999 ? 256.0 / max(1.0 - d, 1e-7) - 256.0 : 0.0;
 }
 
-vec3 pos_at(vec2 uv, float z) { return vec3((uv - 0.5) * g_nat * z / u_proj.x, z); }
+vec3 pos_at(vec2 uv, float z) { return vec3(((uv - 0.5) * g_nat + vec2(-u_pp.x, u_pp.y)) * z / u_proj.x, z); }
 
 void main()
 {
@@ -31,7 +33,7 @@ void main()
         return;
     }
     vec2 ws = vec2(textureSize(u_d, 0));
-    g_nat = vec2(u_proj.y * ws.x / ws.y, u_proj.y);
+    g_nat = vec2(u_proj.y * ws.x / ws.y * (u_natx > 0.0 ? u_natx : 1.0), u_proj.y);
     vec2 px = 3.0 / g_nat;
     vec4 s = vec4(0.0);
     for (int j = 0; j < 8; j++)

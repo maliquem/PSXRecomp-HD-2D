@@ -26,7 +26,9 @@ uniform vec4 u_mooncol, u_moonamb, u_moonspr;
 uniform vec4 u_sunview;
 uniform vec4 u_ss;
 uniform vec4 u_worldup, u_shadowdir;   // the framework's (pfx_shadow_uniforms): world up, the light
-uniform vec4 u_proj;                   // y = native height (the view rays)
+uniform vec4 u_proj;
+uniform vec2 u_pp;    // the projection centre from the picture centre, native px, y down (framework; 0 = the centre)
+uniform float u_natx;   // native width / (240 x 4/3): 0.8 for a 256-wide picture (framework)                   // y = native height (the view rays)
 uniform vec4 u_horizon;                // the framework's: world up (view space, y up), w the camera's H (0 = none)
 
 // depth-aware upsample of the lit term (as in ao-out.glsl)
@@ -74,8 +76,8 @@ void main()
         // space y up; the camera's own H), fading in over the first few
         // pixels; the sky and the mountains stay
         vec3 up = normalize(u_horizon.xyz);
-        vec2 nat = vec2(u_proj.y * u_size.x / u_size.y, u_proj.y);
-        vec3 ray = normalize(vec3((v_uv - 0.5) * nat / u_horizon.w, 1.0));
+        vec2 nat = vec2(u_proj.y * u_size.x / u_size.y * (u_natx > 0.0 ? u_natx : 1.0), u_proj.y);
+        vec3 ray = normalize(vec3(((v_uv - 0.5) * nat + vec2(-u_pp.x, u_pp.y)) / u_horizon.w, 1.0));
         float gnd = smoothstep(0.03, 0.06, -dot(ray, up));   // past the far dunes painted at the horizon
         float lg = clamp(dot(up, normalize(u_shadowdir.xyz)), 0.0, 1.0);
         o = vec4(src * mix(vec3(1.0), mix(amb, suncol, lg), gnd), 1.0); return;

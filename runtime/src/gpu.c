@@ -1073,12 +1073,32 @@ extern int psx_mod_gte_projection(int32_t out[6]);
  * frame's. When no projection used it for a few VBlanks (a battle, a map
  * screen: another camera, or none) the renderer is told there is none. */
 static uint32_t sh_cam_addr = 0;
+enum { SH_CAM_ADDRS = 4 };
+static uint32_t sh_cam_more[SH_CAM_ADDRS];   /* psx_shadow_camera_ram_add: more places it may be */
+static int      sh_cam_nmore = 0;
 static int16_t  sh_cam_r[2][9];     /* [0] the camera, [1] the last matrix that was not it */
 static int32_t  sh_cam_t[2][3];
 static int      sh_cam_have[2] = {0, 0};
 static float    sh_cam_last[15];    /* r, t, of, h of the camera */
 static int      sh_cam_met = 0, sh_cam_age = 99;   /* used since the last VBlank; VBlanks since */
+static float    sh_cam_scale = 1.0f;                /* the camera rotation's own scale (1 = none) */
+static int      sh_cam_norm = 0;                    /* psx_shadow_camera_normalize */
+float psx_shadow_camera_scale(void) { return sh_cam_scale; }
+void psx_shadow_camera_normalize(int on) { sh_cam_norm = on ? 1 : 0; }
 void psx_shadow_camera_ram(uint32_t addr) { sh_cam_addr = addr; }
+/* A game with a camera MATRIX per mode (FM2: the battle map's, the 3D
+ * combat's) names each place; the first that holds the matrix met is it. */
+void psx_shadow_camera_ram_add(uint32_t addr) {
+    if (!sh_cam_addr) { sh_cam_addr = addr; return; }
+    if (addr == sh_cam_addr) return;
+    for (int i = 0; i < sh_cam_nmore; i++) if (sh_cam_more[i] == addr) return;
+    if (sh_cam_nmore < SH_CAM_ADDRS) sh_cam_more[sh_cam_nmore++] = addr;
+}
+static int sh_cam_at(uint32_t a, const int16_t ri[9], const int32_t pj[6]) {
+    for (int i = 0; i < 9; i++) if ((int16_t)psx_read_half(a + 2u * (uint32_t)i) != ri[i]) return 0;
+    for (int i = 0; i < 3; i++) if ((int32_t)psx_read_word(a + 20u + 4u * (uint32_t)i) != pj[i]) return 0;
+    return 1;
+}
 static void shadow_camera_note(void) {
     int16_t ri[9];
     int32_t pj[6];
@@ -1088,13 +1108,22 @@ static void shadow_camera_note(void) {
             if (k == 0) sh_cam_met = 1;
             return;   /* the camera again, or the matrix just found not to be it */
         }
-    int same = pj[5] > 0;
-    for (int i = 0; i < 9 && same; i++) same = (int16_t)psx_read_half(sh_cam_addr + 2u * (uint32_t)i) == ri[i];
-    for (int i = 0; i < 3 && same; i++) same = (int32_t)psx_read_word(sh_cam_addr + 20u + 4u * (uint32_t)i) == pj[i];
+    int same = pj[5] > 0 && sh_cam_at(sh_cam_addr, ri, pj);
+    for (int i = 0; i < sh_cam_nmore && !same && pj[5] > 0; i++) same = sh_cam_at(sh_cam_more[i], ri, pj);
     const int k = same ? 0 : 1;
     memcpy(sh_cam_r[k], ri, sizeof ri); memcpy(sh_cam_t[k], pj, sizeof sh_cam_t[k]); sh_cam_have[k] = 1;
     if (!same) return;
-    for (int i = 0; i < 9; i++) sh_cam_last[i] = (float)ri[i] * (1.0f / 4096.0f);
+    /* A camera whose rotation carries a uniform scale (FM2's battle map: its
+     * zoom, rows of length ~0.7) goes to the renderer as a pure rotation: the
+     * world the effects rebuild is then the game's times that scale, one size
+     * for the whole picture (a mod's map geometry scales with it). */
+    float rs = 1.0f;
+    if (sh_cam_norm) {
+        const float n = sqrtf((float)ri[0] * ri[0] + (float)ri[1] * ri[1] + (float)ri[2] * ri[2]) * (1.0f / 4096.0f);
+        if (n > 0.05f && fabsf(n - 1.0f) > 0.01f) rs = 1.0f / n;
+    }
+    sh_cam_scale = rs == 1.0f ? 1.0f : 1.0f / rs;
+    for (int i = 0; i < 9; i++) sh_cam_last[i] = (float)ri[i] * (rs / 4096.0f);
     for (int i = 0; i < 3; i++) sh_cam_last[9 + i] = (float)pj[i];
     sh_cam_last[12] = (float)pj[3] / 65536.0f; sh_cam_last[13] = (float)pj[4] / 65536.0f;
     sh_cam_last[14] = (float)pj[5];

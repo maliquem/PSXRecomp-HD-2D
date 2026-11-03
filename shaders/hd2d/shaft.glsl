@@ -14,6 +14,8 @@
 // clear of scenery (air_clear). Composited by light-out.glsl.
 
 uniform vec4 u_proj;
+uniform vec2 u_pp;    // the projection centre from the picture centre, native px, y down (framework; 0 = the centre)
+uniform float u_natx;   // native width / (240 x 4/3): 0.8 for a 256-wide picture (framework)
 uniform vec4 u_win[8], u_wu[8], u_wv[8], u_wd[8], u_wc[8], u_wa[8], u_wb[8], u_wn;
 
 float hash(vec3 p)
@@ -80,12 +82,12 @@ void main()
 {
     o = vec4(0.0);
     if (u_wn.x < 0.5 || u_wn.y < 0.5) return;
-    vec2 g_nat = vec2(u_proj.y * u_size.x / u_size.y, u_proj.y);
+    vec2 g_nat = vec2(u_proj.y * u_size.x / u_size.y * (u_natx > 0.0 ? u_natx : 1.0), u_proj.y);
     float d = texture(u_d, v_uv).r;
     float zend = d < 0.99999 ? 256.0 / max(1.0 - d, 1e-7) - 256.0 : 20000.0;
     float zp = texture(u_spr, v_uv).r;   // a sprite in front: the air behind it is hidden
     if (zp > 0.0 && zp < 50000.0) zend = min(zend, zp);
-    vec3 R = vec3((v_uv - 0.5) * g_nat / u_proj.x, 1.0);   // the ray: X = R z
+    vec3 R = vec3(((v_uv - 0.5) * g_nat + vec2(-u_pp.x, u_pp.y)) / u_proj.x, 1.0);   // the ray: X = R z
     int N = u_wn.y > 1.5 ? 26 : 14;
     float jit = fract(sin(dot(gl_FragCoord.xy, vec2(12.9898, 78.233))) * 43758.5453);
     vec3 acc = vec3(0.0);
