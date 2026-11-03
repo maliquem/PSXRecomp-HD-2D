@@ -2270,7 +2270,7 @@ static int   s_al_n = 0;
 /* The area's windows (view space, y up): the box around the window in its
  * plane, a corner (w: how far the light goes in, down to the scene's lowest
  * point), its width and height edges (w: its panes across and down), the way
- * the light travels (w 1), its colour now (day's toward moonlight by the
+ * the light travels (w 1; 2: a round window, the ellipse inside its corners), its colour now (day's toward moonlight by the
  * night's share; w: its dust), then the window's four corners in the box
  * (0..1: the first two, the last two; any four, not only a rectangle); u_wn:
  * count, quality (u_shaft.x, or 2 while a tool edits), the picked window's
@@ -2455,7 +2455,7 @@ static int pfx_area_lights_prep(const PfxPass *ps, int nl, float *mapd) {
                 w[0][c] = O[c]; w[1][c] = U[c]; w[2][c] = V[c]; w[3][c] = D[c];
                 w[4][c] = kw * (l->col[c] + (moon[c] * 0.45f - l->col[c]) * nn);
             }
-            w[0][3] = tmax; w[1][3] = (float)l->cols; w[2][3] = (float)l->rows; w[3][3] = 1.0f; w[4][3] = l->dust;
+            w[0][3] = tmax; w[1][3] = (float)l->cols; w[2][3] = (float)l->rows; w[3][3] = l->round ? 2.0f : 1.0f; w[4][3] = l->dust;
             for (int k = 0; k < 4; k++) {
                 w[5 + k / 2][(k & 1) * 2] = (cs[k] - s0) / sw;
                 w[5 + k / 2][(k & 1) * 2 + 1] = (cr[k] - r0) / rh;

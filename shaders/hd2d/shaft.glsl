@@ -2,7 +2,8 @@
 // part. Written for psxrecomp. A window is four corners in the room's wall,
 // in a box (u_win the box's corner, view space y up, w how far its light goes
 // in; u_wu, u_wv its width and height edges, w its panes; u_wa, u_wb the four
-// corners in the box, 0..1); its light travels along u_wd; u_wc its colour (w:
+// corners in the box, 0..1); its light travels along u_wd (w 2: a round window, the
+// ellipse inside the four corners); u_wc its colour (w:
 // how dusty). Each pixel's camera ray crosses the beam (the box pushed along
 // u_wd) between two depths, found exactly;
 // samples along that stretch, up to the scenery (u_d) or a sprite (u_spr) in front, sum how much
@@ -122,6 +123,7 @@ void main()
             float t = t0 + t1 * z, s = s0 + s1 * z, r = r0 + r1 * z;
             vec2 q = quad_uv(vec2(s, r), i);
             float edge = smoothstep(-0.04, 0.04, q.x) * smoothstep(1.04, 0.96, q.x) * smoothstep(-0.04, 0.04, q.y) * smoothstep(1.04, 0.96, q.y);
+            if (u_wd[i].w > 1.5) edge = smoothstep(1.08, 0.92, length(q * 2.0 - 1.0));   // round window
             if (edge <= 0.0) continue;
             // the panes' bars: a little darker streaks
             float bu = abs(fract(q.x * u_wu[i].w + 0.5) - 0.5) * lu / u_wu[i].w;

@@ -14,11 +14,11 @@
  *   0xAREA point X Y Z [color R G B] [power F] [reach A] [shadow] [flicker F] [when day|night|always]
  *   0xAREA spot X Y Z at X Y Z [cone DEG] (then as point)
  *   0xAREA window X Y Z  X Y Z  X Y Z [panes C R] [light sun|moon|fixed [AZ EL]] [corner X Y Z] [dir X Y Z]
- *                [color R G B] [power F] [dust F] [when ...]
+ *                [round] [color R G B] [power F] [dust F] [when ...]
  *
  * A window is the corner X Y Z, the corner along its width, the corner along
  * its height (and the fourth corner, across from the first: none, a
- * parallelogram); the light goes through it along dir (the world way it travels),
+ * parallelogram; `round`: the ellipse inside those four, a round window); the light goes through it along dir (the world way it travels),
  * else from the area's sun (or moon), else straight in and down. Its colour
  * is the day's; at night (the night's share) it turns to moonlight. '#'
  * starts a note, kept with the light. */
@@ -43,6 +43,7 @@ typedef struct {
     float cone;           /* spot: its full angle, degrees */
     int   shadow, when;
     int   cols, rows;     /* window: its panes */
+    int   round;          /* window: the ellipse inside its four corners (a round window) */
     int   src;            /* window: sun, moon or a fixed direction */
     int   own_dir;        /* its own direction (az, el, degrees as sun_areas'), over the area's sun or moon */
     float az, el, dust;

@@ -33,7 +33,7 @@
 // on each placed light, u_aln.z the picked one (a tuning tool).
 // The windows placed by hand (u_win.. as shaft.glsl; u_wn.y > 0: shafts on):
 // the patch each one's light lands on (back along the light to the window's
-// four corners: inside them, its panes' bars dark, edges softer the farther it
+// four corners (u_wd.w 2: the ellipse inside them, a round window): inside them, its panes' bars dark, edges softer the farther it
 // goes; what stands between, from the depth, shades it), and the lit air and
 // dust of the shaft pass (u_sh, blurred) over the scenery and the sprites.
 // With the markers on, each window's outline; the picked one's (u_wn.z) with
@@ -207,6 +207,8 @@ float window_light(vec3 P, vec3 n, int i)
     float soft = 1.5 + 0.012 * t;   // world units
     float es = soft / lu, er = soft / lv;
     float inside = smoothstep(-es, es, q.x) * smoothstep(1.0 + es, 1.0 - es, q.x) * smoothstep(-er, er, q.y) * smoothstep(1.0 + er, 1.0 - er, q.y);
+    if (u_wd[i].w > 1.5)   // a round window: the ellipse inside the four corners, the same soft edge
+        inside = smoothstep(1.0 + 2.0 * max(es, er), 1.0 - 2.0 * max(es, er), length(q * 2.0 - 1.0));
     if (inside <= 0.0) return 0.0;
     float bu = abs(fract(q.x * u_wu[i].w + 0.5) - 0.5) * lu / u_wu[i].w;
     float bv = abs(fract(q.y * u_wv[i].w + 0.5) - 0.5) * lv / u_wv[i].w;

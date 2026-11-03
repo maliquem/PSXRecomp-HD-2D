@@ -69,12 +69,13 @@ moon shines through: a shaft of lit air and dust, and the patch it lands on).
   0xAREA point X Y Z [color R G B] [power F] [reach A] [shadow] [flicker F] [when day|night|always]
   0xAREA spot X Y Z at X Y Z [cone DEG] ...
   0xAREA window X Y Z  X Y Z  X Y Z [panes C R] [light sun|moon|fixed [AZ EL]] [corner X Y Z]
-               [dir X Y Z] [color R G B] [power F] [dust F] [when ...]
+               [dir X Y Z] [round] [color R G B] [power F] [dust F] [when ...]
   ```
 
   A window is its corner, the corner along its width, the corner along its height, and
   `corner` the fourth, across from the first (none: a parallelogram); `dir` the
-  way its light travels (else the area's sun or moon, else straight in and down). '#' starts
+  way its light travels (else the area's sun or moon, else straight in and down); `round` a
+  round window: the ellipse inside the four corners (patch and air). '#' starts
   a note, kept with the light.
 - **Drawing** (`shaders/hd2d/light.pfx`, `light-out.glsl`, `shaft.glsl`; uniforms set by
   `gl_postfx.inc`): `u_placed.x` 1 turns on the lamps and the ambient, `u_shaft.x` 1 Low / 2
