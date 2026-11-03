@@ -677,9 +677,10 @@ void gpu_ws_set_nw_phase_backdrop(int on);
  *     rest;
  *   GPU_WS_WIDE_PRIM_CLIP: cut at the 4:3 picture's left and right edges, as
  *     the console's screen cuts it: what it puts in the revealed bands is not
- *     drawn (a UI panel the game parks just past the screen edge). Needs the
- *     wide surface's centre to be the canonical frame (no camera view shift);
- *     otherwise it is drawn as KEEP.
+ *     drawn (a UI panel the game parks just past the screen edge). With the
+ *     canonical centre copied, its wide mirror is skipped; with the wide
+ *     surface drawn whole (a stretched backdrop that frame), its mirror is
+ *     drawn scissored to the 4:3 columns.
  * STRETCH and EDGES apply to polygons. Render-only: guest VRAM and the
  * canonical 4:3 picture are untouched, 4:3 never asks. The pure, cheap
  * predicate runs on the emulation thread: no GPU calls, allocation or guest

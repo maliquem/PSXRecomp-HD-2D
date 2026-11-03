@@ -4650,7 +4650,14 @@ static void wide_target_begin(int dx, GLint uXoff, GLint uXhalf) {
     if (s_hiw)
         p_glUniform1f(uXoff == s_tex_uXoff ? s_tex_uShift : s_geo_uShift, s_shift_hi);
     glViewport(0, 0, g_wide_w * s_out_scale, VRAM_H * s_out_scale);
-    wide_band_scissor_x(view_pad_left, g_wide_w - view_pad_left - view_pad_right);
+    if ((s_bd_gate & 7) == 5) {
+        /* cut at the 4:3 picture's edges (GPU_WS_WIDE_PRIM_CLIP) while the wide
+         * surface is drawn whole (no canonical centre to copy): only its columns */
+        const int native_w = g_wide_w - 2 * g_wide_off;
+        wide_band_scissor_x(g_wide_off + view_shift, native_w > 0 ? native_w : g_wide_w);
+    } else {
+        wide_band_scissor_x(view_pad_left, g_wide_w - view_pad_left - view_pad_right);
+    }
     p_glUniform1f(uXoff, (float)dx);
     p_glUniform1f(uXhalf, (float)g_wide_w / 2.0f);
 }
@@ -4790,6 +4797,8 @@ static int mirror_x_center_only(int lo, int hi) {
 static int mirror_gate_clipped(int gate) {
     return (gate & 7) == 5 && wide_center_is_canonical();
 }
+/* (Not canonical: the wide surface is drawn whole, and wide_target_begin cuts
+ * a gate-5 mirror to the 4:3 columns with the scissor.) */
 static int mirror_geo_center_only(const int *xs, int n) {
     if (!wide_center_is_canonical()) return 0;
     int lo = xs[0], hi = xs[0];
@@ -5486,6 +5495,10 @@ static void hiw_wide_set(HiCmd *c, int gate) {
         c->wsx = view_pad_left;
         c->wsw = g_wide_w - view_pad_left - view_pad_right;
         wide_band_rows(&c->wsy, &c->wsh);
+    }
+    if ((gate & 7) == 5) {   /* cut at the 4:3 picture's edges (GPU_WS_WIDE_PRIM_CLIP) */
+        const int native_w = g_wide_w - 2 * g_wide_off;
+        if (native_w > 0) { c->wsx = g_wide_off + view_shift; c->wsw = native_w; }
     }
 }
 
