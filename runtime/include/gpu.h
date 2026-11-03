@@ -468,6 +468,12 @@ int  psx_shadow_state(char *out, int cap);   /* JSON fields for TCP shadow_cache
 /* [video.shadow] hide_textures: textured polygons (page 9 bits + CLUT) not
  * drawn while the shadow map is in use (a game's own blob shadows). */
 void gpu_set_hidden_textures(const uint32_t *tpage, const uint32_t *clut, int n);
+/* Set by a title's plugin: texture page (9 bits) + CLUT (0xFFFF = any)
+ * of glowing pieces that are no light (a movement grid, a cursor): drawn as
+ * before, left out of the fire lights. gpu_prim_nolight_now: the primitive
+ * being drawn is one of them. */
+void gpu_set_nolight_textures(const uint32_t *tpage, const uint32_t *clut, int n);
+int  gpu_prim_nolight_now(void);
 /* [video.shadow] off_textures: textured primitives (page 9 bits + CLUT,
  * 0xFFFF = any) only a screen with no place under the sun draws (a world
  * map); while one was drawn in the last few VBlanks, or in an area with no

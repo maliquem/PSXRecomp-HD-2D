@@ -441,7 +441,7 @@ static uint16_t *s_rth_vram_pub = NULL;   /* gpu.c's VRAM (guest-visible)      *
 static uint16_t *s_rth_vram_priv = NULL;  /* render thread's upload source     */
 /* Replay-side capture of guest state (valid only on the render thread). */
 static int       s_rthx_prim = 0;         /* current record carries prim tags  */
-static int       s_rthx_tagged = 0, s_rthx_backdrop = 0, s_rthx_front = 0;
+static int       s_rthx_tagged = 0, s_rthx_backdrop = 0, s_rthx_front = 0, s_rthx_nolight = 0;
 static int       s_rths_flat_bd = 0, s_rths_vp_w = 0, s_rths_bg_full = 0;
 static inline int rth_replaying(void) { return s_rth_on && rt_on_render_thread(); }
 extern uint64_t psx_present_ref_ticks(void);      /* main.cpp: the pacer's last deadline */
@@ -481,6 +481,10 @@ static int ctx_prim_tagged(void) {
 }
 static int ctx_prim_in_backdrop(void) {
     return rth_replaying() ? (s_rthx_prim ? s_rthx_backdrop : 0) : psx_ws_prim_in_backdrop();
+}
+/* a glowing piece that is no light (gpu_set_nolight_textures) */
+static int ctx_prim_nolight(void) {
+    return rth_replaying() ? (s_rthx_prim ? s_rthx_nolight : 0) : gpu_prim_nolight_now();
 }
 /* in its ordering table's front (gpu_ot_front_now): the game's UI */
 static int ctx_prim_front(void) {
@@ -1106,6 +1110,7 @@ static void tone_flat_rgb(const uint16_t *cs, float *rgb) {
 static void sc_add_emit(int x1, int y1, int x2, int y2, const int *xs, const int *ys, const float *rgb,
                         float share, float wsc, float wce) {
     if (!s_sc_on || s_fg_drawing) return;   /* needs the 3D triangles counted (sl->n) */
+    if (ctx_prim_nolight()) return;          /* a grid or a cursor: no light */
     s_emit_seen[!s_pz_valid ? 2 : s_pc_valid ? 0 : 1]++;
     const int area[4] = {x1, y1, x2, y2};
     ScSlot *sl = sc_slot(area, 1);
@@ -13339,6 +13344,7 @@ static uint64_t s_rth_presents = 0, s_rth_presents_stale = 0;
 #define RTHF_BD_MASK   7u
 #define RTHF_BDQ_SHIFT 5          /* bits 5-12: its stretch share (backdrop images), 0 = the full one */
 #define RTHF_FRONT     0x2000u    /* in the ordering table's front (gpu_ot_front_now): UI */
+#define RTHF_NOLIGHT   0x4000u    /* no light (gpu_prim_nolight_now) */
 static uint16_t rth_bd_flags(int bd) {
     return (uint16_t)(((unsigned)bd & RTHF_BD_MASK) << RTHF_BD_SHIFT |
                       (((unsigned)bd >> 8) & 0xFFu) << RTHF_BDQ_SHIFT);
@@ -13404,7 +13410,8 @@ static void rth_send_state(void) {
  * only when the backend would read them (native-wide on, stretch gate on;
  * or the 3D mark kept: a painted backdrop takes it, b3dm_passes). */
 static uint16_t rth_prim_flags(void) {
-    const uint16_t fr = gpu_ot_front_now() ? (uint16_t)(RTHF_PRIM | RTHF_FRONT) : 0;
+    const uint16_t fr = (gpu_ot_front_now() ? (uint16_t)(RTHF_PRIM | RTHF_FRONT) : 0) |
+                        (gpu_prim_nolight_now() ? (uint16_t)(RTHF_PRIM | RTHF_NOLIGHT) : 0);
     if (s_rthm_wide_w <= 0 || !g_ws_bd_stretch_on) {
         if (!s_b3d_on) return fr;
         return (uint16_t)(RTHF_PRIM | rth_bd_flags(psx_ws_prim_in_backdrop()) | fr);
@@ -14686,6 +14693,7 @@ static void fg_replay(const FgList *a, const FgList *b, double t, GLuint gen_wid
         s_rthx_tagged = (h.flags & RTHF_TAGGED) != 0;
         s_rthx_backdrop = rth_bd_value(h.flags);
         s_rthx_front = (h.flags & RTHF_FRONT) != 0;
+        s_rthx_nolight = (h.flags & RTHF_NOLIGHT) != 0;
         const int area[4] = { s_area_x1, s_area_y1, s_area_x2, s_area_y2 };
         const int in = !s_fg_replay_objects_only && fg_area_meets(area, disp);
         {   /* the object mark (s_fg_obj_mark), set by triangles and cleared by
@@ -16909,6 +16917,7 @@ static void gl_rth_exec(void *user, const RtCmd *c, const void *payload) {
     s_rthx_tagged = (c->flags & RTHF_TAGGED) != 0;
     s_rthx_backdrop = rth_bd_value(c->flags);
     s_rthx_front = (c->flags & RTHF_FRONT) != 0;
+    s_rthx_nolight = (c->flags & RTHF_NOLIGHT) != 0;
     if (c->op == RTH_FRAME) { rthf_end(); return; }
     if (!s_rthf_open && (atomic_load_explicit(&s_rthf_want, memory_order_relaxed) || s_fg_on))
         rthf_begin();

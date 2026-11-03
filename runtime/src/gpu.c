@@ -809,6 +809,24 @@ void gpu_set_hidden_textures(const uint32_t *tpage, const uint32_t *clut, int n)
     sh_hide_n = n < 0 ? 0 : n > 16 ? 16 : n;
     for (int i = 0; i < sh_hide_n; i++) { sh_hide_tpage[i] = (uint16_t)(tpage[i] & 0x1FFu); sh_hide_clut[i] = (uint16_t)clut[i]; }
 }
+/* gpu_set_nolight_textures (a title's plugin): texture page
+ * (9 bits) + CLUT (0xFFFF = any) of glowing pieces that are no light: a
+ * tactics game's movement grid and cursor (FM2: additive quads lying on the
+ * ground, steady, that the fire lights took for a fire). They are drawn as
+ * before; the lights and their colour samples leave them out
+ * (gpu_prim_nolight_now while the primitive is drawn). */
+static int      sh_nol_n = 0, s_prim_nolight = 0;
+static uint16_t sh_nol_tpage[16], sh_nol_clut[16];
+void gpu_set_nolight_textures(const uint32_t *tpage, const uint32_t *clut, int n) {
+    sh_nol_n = n < 0 ? 0 : n > 16 ? 16 : n;
+    for (int i = 0; i < sh_nol_n; i++) { sh_nol_tpage[i] = (uint16_t)(tpage[i] & 0x1FFu); sh_nol_clut[i] = (uint16_t)clut[i]; }
+}
+int gpu_prim_nolight_now(void) { return s_prim_nolight; }
+static int nolight_match(uint16_t tpage, uint16_t clut) {
+    for (int i = 0; i < sh_nol_n; i++)
+        if (sh_nol_tpage[i] == (tpage & 0x1FFu) && (sh_nol_clut[i] == 0xFFFFu || sh_nol_clut[i] == clut)) return 1;
+    return 0;
+}
 /* [video.shadow] off_textures: texture page (9 bits) + CLUT, either 0xFFFF =
  * any, of what only a screen with no place under the sun draws (a world
  * map's paper, its frame): while one was drawn in the last few VBlanks the
@@ -9136,7 +9154,9 @@ static void gp0_dispatch_command(uint8_t opcode) {
             break;
         case 0x24: case 0x25: case 0x26: case 0x27:
             if (sh_off_n) shadow_off_note((uint16_t)(gp0_cmd_buf[4] >> 16), (uint16_t)(gp0_cmd_buf[2] >> 16), (gp0_cmd_buf[0] >> 25) & 1);
+            s_prim_nolight = sh_nol_n && nolight_match((uint16_t)(gp0_cmd_buf[4] >> 16), (uint16_t)(gp0_cmd_buf[2] >> 16));
             gp0_exec_textured_tri();
+            s_prim_nolight = 0;
             break;
         case 0x28: case 0x29: case 0x2A: case 0x2B:
             gp0_exec_mono_quad();
@@ -9149,7 +9169,9 @@ static void gp0_dispatch_command(uint8_t opcode) {
                                             gp0_cmd_buf[7], (const uint32_t[4]){gp0_cmd_buf[2], gp0_cmd_buf[4],
                                             gp0_cmd_buf[6], gp0_cmd_buf[8]}, &kx, &ky);
             const uint16_t kc = key ? shadow_blob_key_hide(kx, ky) : 0;
+            s_prim_nolight = sh_nol_n && nolight_match((uint16_t)(gp0_cmd_buf[4] >> 16), (uint16_t)(gp0_cmd_buf[2] >> 16));
             gp0_exec_textured_quad();
+            s_prim_nolight = 0;
             if (key) shadow_blob_key_put(kx, ky, kc);
             break;
         }
@@ -9158,7 +9180,9 @@ static void gp0_dispatch_command(uint8_t opcode) {
             break;
         case 0x34: case 0x35: case 0x36: case 0x37:
             if (sh_off_n) shadow_off_note((uint16_t)(gp0_cmd_buf[5] >> 16), (uint16_t)(gp0_cmd_buf[2] >> 16), (gp0_cmd_buf[0] >> 25) & 1);
+            s_prim_nolight = sh_nol_n && nolight_match((uint16_t)(gp0_cmd_buf[5] >> 16), (uint16_t)(gp0_cmd_buf[2] >> 16));
             gp0_exec_shaded_textured_tri();
+            s_prim_nolight = 0;
             break;
         case 0x38: case 0x39: case 0x3A: case 0x3B:
             gp0_exec_shaded_quad();
@@ -9171,7 +9195,9 @@ static void gp0_dispatch_command(uint8_t opcode) {
                                             gp0_cmd_buf[10], (const uint32_t[4]){gp0_cmd_buf[2], gp0_cmd_buf[5],
                                             gp0_cmd_buf[8], gp0_cmd_buf[11]}, &kx, &ky);
             const uint16_t kc = key ? shadow_blob_key_hide(kx, ky) : 0;
+            s_prim_nolight = sh_nol_n && nolight_match((uint16_t)(gp0_cmd_buf[5] >> 16), (uint16_t)(gp0_cmd_buf[2] >> 16));
             gp0_exec_shaded_textured_quad();
+            s_prim_nolight = 0;
             if (key) shadow_blob_key_put(kx, ky, kc);
             break;
         }
