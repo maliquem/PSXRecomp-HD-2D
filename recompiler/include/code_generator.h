@@ -203,6 +203,8 @@ struct CodeGenConfig {
     // incoming dirty set is larger than gpr_locals_flush_max stores it on entry.
     bool gpr_locals = false;
     int gpr_locals_flush_max = 8;
+    // [recompiler] lean (docs/LEAN_CORE.md): the pass writes the PSX_LN_* forms.
+    bool lean = false;
 
     // Exact model-participation cosine compares that gain a camera-horizontal
     // aspect envelope while preserving the vanilla vertical cone.

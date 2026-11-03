@@ -276,6 +276,7 @@ static inline void exec_pc_table_record(uint32_t pc) {
             *slot |= mask;
             uint32_t page = phys >> 12;
             g_dirty_ram_exec_page_bitmap[page >> 5] |= 1u << (page & 31u);
+            psx_store_page_forget(page);
         }
     }
 }

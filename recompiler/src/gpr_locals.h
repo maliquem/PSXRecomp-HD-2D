@@ -16,5 +16,9 @@ struct GprLocalsStats {
 // body: one generated function body, "{\n ... }\n", as generate_function emits
 // it. Returns the rewritten body, or `body` unchanged (counted in stats.kept)
 // when it holds anything the pass does not know how to keep exact.
+// lean ([recompiler] lean, docs/LEAN_CORE.md): write the PSX_LN_* forms, which
+// keep the block's cycles in the function's local _psx_lc, and hand them to
+// the batch (PSX_LN_PUB) before everything that can see the clock.
 std::string gpr_localize_body(const std::string& body, int flush_max,
-                              uint32_t func_addr, GprLocalsStats& stats);
+                              uint32_t func_addr, GprLocalsStats& stats,
+                              bool lean = false);

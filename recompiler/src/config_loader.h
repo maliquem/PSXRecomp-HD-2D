@@ -1617,6 +1617,9 @@ struct GameConfig {
     // Exact (synced wherever anything else can look); off by default; regen required.
     bool gpr_locals = false;
     int gpr_locals_flush_max = 8;
+    // [recompiler] lean (docs/LEAN_CORE.md): on top of gpr_locals, a block's
+    // cycles in a function local and plain stores inline. Exact; regen required.
+    bool lean = false;
     // [quality.low/medium/high/ultra] -- graphics presets, lowest first. Empty:
     // the title has no presets and [video] alone applies (unchanged).
     std::vector<QualityPreset> quality_presets;

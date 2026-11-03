@@ -123,6 +123,34 @@ int main() {
         CHECK(has(r, "psx_mod_instruction(cpu, 0x80010000u, 0x00000000u); "
                      "PSX_B2_LD(4) PSX_B2_LD(5) PSX_B2_LD(31) }"));
     }
+    // lean: the PSX_LN_* forms, and the deferred cycles handed over before
+    // every call, the block flush and every return.
+    {
+        GprLocalsStats st;
+        const std::string b =
+            "{\n"
+            "block_80010000:\n"
+            "    psx_cyc_charge(2u);\n"
+            "    cpu->gpr[3] = psx_blk_load_word(0x2u, cpu, cpu->gpr[4] + 8, 3, 0x8u);\n"
+            "    psx_store_word(cpu, cpu->gpr[4], cpu->gpr[3]);\n"
+            "    (psx_gte_stall(cpu));\n"
+            "    psx_cyc_bb_defer_flush();\n"
+            "    psx_mod_instruction(cpu, 0x80010008u, 0x00000000u);\n"
+            "    cpu->pc = cpu->gpr[31]; return;\n"
+            "    ;  /* label compatibility */\n"
+            "}\n";
+        const std::string r = gpr_localize_body(b, 8, 0x80010000u, st, true);
+        CHECK(st.localized == 1);
+        CHECK(has(r, "PSX_B2_DECL(31) PSX_LN_DECL"));
+        CHECK(has(r, "PSX_LN_CHARGE(2u, );"));
+        CHECK(has(r, "PSX_LN_LOADW(0x2u, PSX_R(4) + 8, 3, 0x8u, PSX_B2_ST(3) )"));
+        CHECK(has(r, "PSX_LN_STOREW(PSX_R(4), PSX_R(3), PSX_B2_ST(3) );"));
+        CHECK(has(r, "((PSX_LN_PUBX PSX_B2_SX(3) psx_gte_stall(cpu)));"));
+        CHECK(has(r, "(PSX_LN_PUBX psx_cyc_bb_defer_flush());"));
+        CHECK(has(r, "{ PSX_LN_PUB(); PSX_B2_ST(3) psx_mod_instruction("));
+        CHECK(has(r, "cpu->pc = PSX_R(31); { PSX_LN_PUB(); return; }"));
+        CHECK(!has(r, "PSX_B2_CHARGE") && !has(r, "PSX_B2_LOADW") && !has(r, "PSX_B2_STOREW"));
+    }
     if (g_fail) { std::printf("%d failure(s)\n", g_fail); return 1; }
     std::printf("gpr_locals_test: ok\n");
     return 0;

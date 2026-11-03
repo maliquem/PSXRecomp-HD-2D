@@ -14,6 +14,11 @@ endif()
 # costly PGO rebuild/train cycle a silent no-op.
 set(PSX_PGO "" CACHE STRING "PGO mode: empty, generate, or use")
 set_property(CACHE PSX_PGO PROPERTY STRINGS "" generate use)
+# Instruction set for the runtime and the generated code (-march=..., e.g.
+# x86-64-v3: BMI2 shifts, LZCNT, AVX2; docs/LEAN_CORE.md). Empty: the compiler's
+# default (x86-64 baseline). An exe built for x86-64-v3 does not start on a CPU
+# without it.
+set(PSX_TARGET_ARCH "" CACHE STRING "-march for the runtime and generated code (empty: default)")
 include("${PSXRECOMP_ROOT}/cmake/psx_runtime_ipo.cmake")
 include("${PSXRECOMP_ROOT}/cmake/psx_execution_profile.cmake")
 include("${PSXRECOMP_ROOT}/cmake/psx_sha256_file.cmake")
@@ -2557,6 +2562,11 @@ function(psxrecomp_add_runtime_target target)
         target_compile_options(${target} PRIVATE
             $<$<COMPILE_LANGUAGE:C>:-ffp-contract=off>
             $<$<COMPILE_LANGUAGE:CXX>:-ffp-contract=off>)
+    endif()
+    if(PSX_TARGET_ARCH AND (CMAKE_C_COMPILER_ID MATCHES "Clang|GNU"))
+        target_compile_options(${target} PRIVATE -march=${PSX_TARGET_ARCH})
+        target_link_options(${target} PRIVATE -march=${PSX_TARGET_ARCH})
+        message(STATUS "${target}: -march=${PSX_TARGET_ARCH}")
     endif()
 
     if(MINGW)

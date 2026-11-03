@@ -1,6 +1,7 @@
 #include "mod_runtime.h"
 #include "host_launch_timing.h"
 #include "cpu_state.h"
+#include "psx_mem_gate.h"
 
 #include "disc_path.h"
 #include "host_file_identity.h"
@@ -3346,6 +3347,10 @@ static int game_netplay_function_entry(CPUState* cpu, uint32_t address);
  * with or without them. */
 static int s_host_output_depth;
 
+/* psx_mem_gate.h: while a host-output view runs, its dropped writes keep the
+ * generated code's stores off the inline path (memory.c psx_mem_gate_value). */
+extern "C" int psx_mod_host_output_active(void) { return s_host_output_depth > 0; }
+
 extern "C" int psx_mod_host_output_scope(void) {
     return s_host_output_depth > 0 &&
            PSXRecompV4::state().netplay_view_plan ? 1 : 0;
@@ -3368,6 +3373,7 @@ static void run_host_output_hooks(CPUState* cpu, uint32_t address) {
         view.read_byte = ho_peek_byte;   view.write_byte = ho_drop_byte;
         PluginCallbackScope scope(s, it->plugin, &view);
         ++s_host_output_depth;
+        PSX_MEM_GATE_RAISE();
         it->callback(&view, address);
         --s_host_output_depth;
         s.current_function_finished = false;

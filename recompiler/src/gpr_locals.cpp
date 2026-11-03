@@ -261,7 +261,7 @@ struct Edit {
 }  // namespace
 
 std::string gpr_localize_body(const std::string& body, int flush_max,
-                              uint32_t func_addr, GprLocalsStats& stats) {
+                              uint32_t func_addr, GprLocalsStats& stats, bool lean) {
     (void)func_addr;
     stats.functions++;
     auto keep = [&](const std::string& why) -> std::string {
@@ -487,7 +487,7 @@ std::string gpr_localize_body(const std::string& body, int flush_max,
         std::string line = lines[i];
         if (i == 0) {
             out_text += line;
-            out_text += "    " + set_text(referenced, "PSX_B2_DECL") + "\n";
+            out_text += "    " + set_text(referenced, "PSX_B2_DECL") + (lean ? "PSX_LN_DECL" : "") + "\n";
             continue;
         }
         if (!sc.label.empty()) {
@@ -507,27 +507,35 @@ std::string gpr_localize_body(const std::string& body, int flush_max,
         const std::string& m = masked[i];
         std::vector<Edit> edits;
         bool resets = false;
+        // lean: the macro family, and what hands _psx_lc to the batch first.
+        const std::string fam = lean ? "PSX_LN_" : "PSX_B2_";
+        const std::string pub = lean ? "PSX_LN_PUB(); " : "";
+        const std::string pubx = lean ? "PSX_LN_PUBX " : "";
         for (const Call& c : sc.calls) {
             const std::vector<std::string> a = split_args(line, m, c.open, c.close);
             const std::string head = line.substr(c.name_at, c.open - c.name_at);
             const std::string call = line.substr(c.name_at, c.close + 1 - c.name_at);
             switch (c.kind) {
-            case Kind::Ignore: break;
+            case Kind::Ignore:
+                // The block flush publishes the batch: the deferred cycles first.
+                if (lean && c.name == "psx_cyc_bb_defer_flush")
+                    edits.push_back({c.name_at, c.close + 1, "(" + pubx + call + ")"});
+                break;
             case Kind::OutOnly:
-                if (cur) edits.push_back({c.name_at, c.close + 1, "(" + out_sx + call + ")"});
+                if (cur || lean) edits.push_back({c.name_at, c.close + 1, "(" + pubx + out_sx + call + ")"});
                 break;
             case Kind::Icache:
                 if (a.size() != 2) return keep("args:" + c.name);
-                edits.push_back({c.name_at, c.close + 1, "PSX_B2_ICACHE(" + a[1] + ", " + out_st + ")"});
+                edits.push_back({c.name_at, c.close + 1, fam + "ICACHE(" + a[1] + ", " + out_st + ")"});
                 break;
             case Kind::Charge:
                 if (a.size() != 1) return keep("args:" + c.name);
-                edits.push_back({c.name_at, c.close + 1, "PSX_B2_CHARGE(" + a[0] + ", " + out_st + ")"});
+                edits.push_back({c.name_at, c.close + 1, fam + "CHARGE(" + a[0] + ", " + out_st + ")"});
                 break;
             case Kind::Edge:
                 if (a.size() != 2) return keep("args:" + c.name);
                 edits.push_back({c.name_at, c.close + 1,
-                                 "PSX_B2_EDGE(" + a[1] + ", " + out_st + ", " + in_text(i) + ")"});
+                                 fam + "EDGE(" + a[1] + ", " + out_st + ", " + in_text(i) + ")"});
                 break;
             case Kind::Slice: {
                 if (a.size() != 4) return keep("args:" + c.name);
@@ -541,28 +549,28 @@ std::string gpr_localize_body(const std::string& body, int flush_max,
                     tail.find_first_not_of(" )") != std::string::npos || semi == std::string::npos)
                     return keep("slice-shape");
                 edits.push_back({ifp, semi + 1,
-                                 "PSX_B2_SLICE(" + a[1] + ", " + a[2] + ", " + a[3] + ", " +
+                                 fam + "SLICE(" + a[1] + ", " + a[2] + ", " + a[3] + ", " +
                                  out_st + ", " + in_text(i) + ");"});
                 break;
             }
             case Kind::LoadW: case Kind::LoadH: case Kind::LoadB: {
                 if (a.size() != 5) return keep("args:" + c.name);
-                const char* mac = c.kind == Kind::LoadW ? "PSX_B2_LOADW(" :
-                                  c.kind == Kind::LoadH ? "PSX_B2_LOADH(" : "PSX_B2_LOADB(";
-                edits.push_back({c.name_at, c.close + 1, std::string(mac) + a[0] + ", " + a[2] + ", " +
+                const char* mac = c.kind == Kind::LoadW ? "LOADW(" :
+                                  c.kind == Kind::LoadH ? "LOADH(" : "LOADB(";
+                edits.push_back({c.name_at, c.close + 1, fam + mac + a[0] + ", " + a[2] + ", " +
                                  a[3] + ", " + a[4] + ", " + out_st + ")"});
                 break;
             }
             case Kind::Lwc2:
                 if (a.size() != 3) return keep("args:" + c.name);
                 edits.push_back({c.name_at, c.close + 1,
-                                 "PSX_B2_LWC2(" + a[0] + ", " + a[2] + ", " + out_st + ")"});
+                                 fam + "LWC2(" + a[0] + ", " + a[2] + ", " + out_st + ")"});
                 break;
             case Kind::StoreW: case Kind::StoreH: case Kind::StoreB: {
                 if (a.size() != 3) return keep("args:" + c.name);
-                const char* mac = c.kind == Kind::StoreW ? "PSX_B2_STOREW(" :
-                                  c.kind == Kind::StoreH ? "PSX_B2_STOREH(" : "PSX_B2_STOREB(";
-                edits.push_back({c.name_at, c.close + 1, std::string(mac) + a[1] + ", " + a[2] + ", " +
+                const char* mac = c.kind == Kind::StoreW ? "STOREW(" :
+                                  c.kind == Kind::StoreH ? "STOREH(" : "STOREB(";
+                edits.push_back({c.name_at, c.close + 1, fam + mac + a[1] + ", " + a[2] + ", " +
                                  out_st + ")"});
                 break;
             }
@@ -573,7 +581,7 @@ std::string gpr_localize_body(const std::string& body, int flush_max,
                 const bool starts = c.name_at == 0 || before == std::string::npos ||
                                     (before < c.name_at && (m[before] == ';' || m[before] == '{' || m[before] == '}'));
                 if (!starts || semi >= m.size() || m[semi] != ';') return keep("call-shape:" + c.name);
-                edits.push_back({c.name_at, semi + 1, "{ " + out_st + call + "; " + in_text(i) + "}"});
+                edits.push_back({c.name_at, semi + 1, "{ " + pub + out_st + call + "; " + in_text(i) + "}"});
                 resets = true;
                 break;
             }
@@ -586,7 +594,7 @@ std::string gpr_localize_body(const std::string& body, int flush_max,
                 if (between.find_first_not_of(" (") != std::string::npos ||
                     tail.find_first_not_of(" )") != std::string::npos || semi == std::string::npos)
                     return keep("hook-shape:" + c.name);
-                edits.push_back({ifp, semi + 1, "{ " + out_st + line.substr(ifp, semi + 1 - ifp) + " " + in_text(i) + "}"});
+                edits.push_back({ifp, semi + 1, "{ " + pub + out_st + line.substr(ifp, semi + 1 - ifp) + " " + in_text(i) + "}"});
                 resets = true;
                 break;
             }
@@ -598,7 +606,7 @@ std::string gpr_localize_body(const std::string& body, int flush_max,
             for (const Edit& e : edits) inside = inside || (rp >= e.from && rp < e.to);
             if (inside) continue;
             size_t semi = m.find(';', rp);
-            edits.push_back({rp, semi + 1, "{ " + out_st + "return; }"});
+            edits.push_back({rp, semi + 1, "{ " + pub + out_st + "return; }"});
         }
         // Nested calls (an Ignore inside an OutOnly's arguments) never both edit;
         // two edits that overlap mean a shape the pass does not know.
@@ -609,7 +617,7 @@ std::string gpr_localize_body(const std::string& body, int flush_max,
             line.replace(edits[k].from, edits[k].to - edits[k].from, edits[k].text);
         if (i + 2 == lines.size() && masked[i].find_first_not_of(" ;\t\r\n") == std::string::npos) {
             // The `;` after the last label: falling off the end stores what may differ.
-            out_text += "    { " + set_text(written_any, "PSX_B2_ST") + "}\n";
+            out_text += "    { " + std::string(lean ? "PSX_LN_PUB(); " : "") + set_text(written_any, "PSX_B2_ST") + "}\n";
         }
         out_text += line;
         // After IN every local equals cpu->gpr again (unless the line also

@@ -3039,6 +3039,11 @@ GameConfig load_game_config(const fs::path& config_path_in) {
                         toml::find<bool>(recomp, "gpr_locals");
     if (recomp.contains("gpr_locals_flush_max"))
         loaded.gpr_locals_flush_max = toml::find<int>(recomp, "gpr_locals_flush_max");
+    loaded.lean = recomp.contains("lean") && toml::find<bool>(recomp, "lean");
+    if (loaded.lean && !(loaded.gpr_locals && loaded.cpu_timing_block))
+        throw std::runtime_error(fmt::format(
+            "{}: [recompiler].lean needs gpr_locals = true and cpu_timing = 'block'",
+            config_path.string()));
     loaded.quality_presets = parse_quality_presets(cfg, root, config_path);
     return loaded;
 }

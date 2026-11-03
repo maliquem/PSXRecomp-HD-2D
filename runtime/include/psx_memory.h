@@ -54,6 +54,22 @@ void     psx_ram_apply_size_request(void);
 
 static inline uint32_t psx_ram_live_bytes(void) { return g_psx_ram_size; }
 
+/* Plain-store pages (perf plan G1; memory.c): one byte per 4 KB page of RAM
+ * offset that the generated code's inline store reads. 0: the store takes
+ * psx_store_*_slow. 1: a plain store (no code watcher acts on the page). 2: a
+ * plain store when the target's text line is already marked (game text already
+ * seen modified). memory.c sets an entry when its full path finds the page
+ * plain; whoever makes a page watched clears it (psx_store_page_forget) or
+ * clears the table (psx_store_pages_forget_all). */
+#define PSX_STORE_PAGE_SHIFT 12u
+#define PSX_STORE_PAGE_COUNT (PSX_MAIN_RAM_WINDOW_BYTES >> PSX_STORE_PAGE_SHIFT)
+extern uint8_t g_psx_store_page[PSX_STORE_PAGE_COUNT];
+extern uint32_t g_psx_text_line_bitmap[];   /* one bit per 64-byte line of RAM */
+static inline void psx_store_page_forget(uint32_t page) {
+    if (page < PSX_STORE_PAGE_COUNT) g_psx_store_page[page] = 0u;
+}
+void psx_store_pages_forget_all(void);
+
 /* BYTE offset of a physical address. Inside the decode window it folds through
  * the live mask; addresses at/above the window are returned unchanged (not
  * RAM), so callers may pass any physical address. */

@@ -3489,7 +3489,7 @@ GeneratedFunction CodeGenerator::generate_function(
     result.body = body_ss.str();
     if (config_.gpr_locals && !config_.overlay_mode)
         result.body = gpr_localize_body(result.body, config_.gpr_locals_flush_max,
-                                        func.start_addr, gpr_locals_stats_);
+                                        func.start_addr, gpr_locals_stats_, config_.lean);
 
     // Prepend annotation comment if one exists for this function's address
     std::string annotation_prefix;
