@@ -26,6 +26,8 @@
 #if !defined(PSX_GPR_LOCALS) && !defined(PSX_GPR_LOCALS_OFF)
 #define PSX_GPR_LOCALS 1
 #endif
+/* -DPSX_LEAN_NO_LOCALS: the B2 / lean forms with the registers in cpu->gpr
+ * (see PSX_R below). -DPSX_GPR_LOCALS_OFF: the original text, no forms. */
 
 #if defined(PSX_GPR_LOCALS) && PSX_GPR_LOCALS && !defined(PSX_GPR_LOCALS_OFF) && \
     !defined(PSX_OVERLAY_DLL_BUILD) && !defined(PSX_COSIM) && defined(PSX_ENABLE_BLOCK_CYCLES) && \
@@ -106,11 +108,22 @@ static inline __attribute__((always_inline)) int psx_b2_lwc2_quiet(uint32_t pack
 }
 #endif
 
+#ifdef PSX_LEAN_NO_LOCALS
+/* The forms below (B2 and lean) with the guest registers left in cpu->gpr:
+ * nothing to store before a call or to reload after it (perf A/B: the lean
+ * pieces without the locals' sync code). */
+#define PSX_R(n)        cpu->gpr[n]
+#define PSX_B2_DECL(n)
+#define PSX_B2_ST(n)
+#define PSX_B2_SX(n)
+#define PSX_B2_LD(n)
+#else
 #define PSX_R(n)        _psx_r##n
 #define PSX_B2_DECL(n)  uint32_t _psx_r##n = cpu->gpr[n];
 #define PSX_B2_ST(n)    cpu->gpr[n] = _psx_r##n;
 #define PSX_B2_SX(n)    (cpu->gpr[n] = _psx_r##n),
 #define PSX_B2_LD(n)    _psx_r##n = cpu->gpr[n];
+#endif
 
 #define PSX_B2_ICACHE(addr, OUT) do {                                            \
         const uint32_t _b2a = (addr);                                             \

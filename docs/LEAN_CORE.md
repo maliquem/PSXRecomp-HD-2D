@@ -1,6 +1,7 @@
 # Lean core (`[recompiler] lean`)
 
-Status: in progress on `perf/lean` (2026-11-02). Exactness and speed not measured yet.
+Status: in progress on `perf/lean` (2026-11-02/03). Exact (golden, 8 scenes); speed not measured yet
+(the user's PC was busy with other sessions; the measurement waits for her go-ahead).
 
 ## Why
 
@@ -68,7 +69,44 @@ functions, not to overlay DLLs.
 - Function order by profile: lld's COFF driver sorts sections by the call-graph profile by
   default when PGO left one in the objects; nothing to turn on.
 
-## Proof (to do)
+## PGXP: the scratchpad on the inline path
 
-Frame prints, sound and photos identical to the B2 exe in the 8 scenes (`tools/mode_check.py`
-of the game), cold boot, the user's saves after a restamp (the generator's hash moved).
+`pgxp_fast.h` (not part of the execution identity) already took, for main RAM, the light memory
+mode's two common cases inline: a word load from a slot with no live bit (reset the register's
+shadow) and a store of an untracked register into one (nothing). Every word access to the
+scratchpad still called the hook, and BoF4's hottest 3D function works on a scratchpad base.
+`pgxp_fast_unmarked` now reads the scratchpad's live bits as well (index
+`PGXP_FAST_SCRATCH_BIT0` + word, the same as pgxp.cpp's `ck_index`). pgxp.cpp is untouched.
+
+## Proof
+
+- BoF4, `tools/mode_check.py` of the game: 8 scenes x 630 frames, frame prints (cycles and hashes
+  of every RAM / MMIO / scratchpad write) and sound identical to the B2 exe; the x86-64-v3 build
+  identical to the lean one. Photos differ from run to run even for one exe (busy machine).
+- Golden (`tools/golden.py` of the game: per-frame hashes of RAM, scratchpad, CPU and GTE
+  registers, cycles, GPU words, SPU samples and the whole PGXP state): the lean forms and the
+  scratchpad PGXP path identical to the B2 forms (`-DPSX_LEAN_OFF`) in 8 scenes x 600 frames.
+- To do: cold boot; the user's saves after a restamp (the generator's hash moved).
+
+## Build variants for the A/B (same generated code)
+
+| define | what it builds |
+|---|---|
+| (none) | lean: B2 locals + lean forms |
+| `-DPSX_LEAN_OFF` | the B2 forms (`gpr_locals` as measured on 2026-11-02) |
+| `-DPSX_LEAN_NO_LOCALS` | the B2 and lean forms with the registers left in `cpu->gpr` (no locals, no sync code) |
+| `-DPSX_GPR_LOCALS_OFF` | the original text: no forms at all |
+
+Static count of the generated functions in the linked exes, all with PGO + ThinLTO (BoF4, every
+`func_*`, cold code included):
+
+| variant | x86 instructions | stack operands | calls |
+|---|---|---|---|
+| original | 2.23 M | 38 k | 200 k |
+| B2 forms | 3.22 M | 183 k | 226 k |
+| lean | 3.55 M | 233 k | 250 k |
+| lean, no locals | 2.98 M | 28 k | 243 k |
+
+The locals bring a lot of sync code on the cold paths (every slow path stores the dirty set): 5x
+the stack operands of the original. Whether the hot paths gain more than the size costs is what
+the measurement has to say; the no-locals variant is there in case they do not.
