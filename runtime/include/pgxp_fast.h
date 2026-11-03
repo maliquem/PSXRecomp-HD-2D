@@ -21,6 +21,7 @@
 #include <stdint.h>
 #include "pgxp.h"
 #include "psx_memory.h"
+#include "mod_memory.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -57,13 +58,23 @@ extern PGXPScalar g_pgxp_gpr_s[34];
 
 #if defined(PSX_PGXP) && PSX_PGXP && !defined(PSX_OVERLAY_DLL_BUILD) && !defined(PGXP_ENGINE_IMPL)
 
-/* The RAM slot of a word access has no live bit (1), has one (0), or the
- * hook must decide (-1). pgxp.cpp pgxp_ptr + live_marked for the RAM window. */
+/* pgxp.cpp's live-bit index of the first scratchpad slot (ck_index: the RAM,
+ * GPU-DMA aperture and mod-memory slots come first). */
+#define PGXP_FAST_SCRATCH_BIT0 ((PSX_MAIN_RAM_BACKING_BYTES >> 2) + (PSX_MOD_GPU_DMA_APERTURE_SIZE >> 2) + \
+                                (PSX_MOD_MEMORY_SIZE >> 2))
+
+/* The slot of a word access has no live bit (1), has one (0), or the hook
+ * must decide (-1). pgxp.cpp pgxp_ptr + live_marked for the RAM window and the
+ * scratchpad (its slots always exist, so only the bits decide). */
 static inline int pgxp_fast_unmarked(uint32_t addr) {
     const uint32_t m = addr & 0x1FFFFFFFu;
-    if (m >= PSX_MAIN_RAM_WINDOW_BYTES) return -1;
-    if (!g_pgxp_fast.ram) return 1;              /* no slot: never marked */
     const uint8_t *bits = g_pgxp_fast.live_bits;
+    if (m >= PSX_MAIN_RAM_WINDOW_BYTES) {
+        if ((m & 0xFFFFFC00u) != 0x1F800000u || !bits) return -1;
+        const uint32_t i = PGXP_FAST_SCRATCH_BIT0 + ((m & 0x3FCu) >> 2);
+        return !((bits[i >> 3] >> (i & 7u)) & 1u);
+    }
+    if (!g_pgxp_fast.ram) return 1;              /* no slot: never marked */
     if (!bits) return -1;
     const uint32_t i = psx_ram_canonical_offset(m) >> 2;
     return !((bits[i >> 3] >> (i & 7u)) & 1u);
