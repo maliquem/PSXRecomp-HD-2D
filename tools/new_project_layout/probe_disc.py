@@ -307,9 +307,7 @@ def parse_system_cnf(cnf: bytes) -> str:
         m = re.search(r"BOOT\s*=\s*([^;\s]+)", text, re.I)
     if not m:
         raise SystemExit("SYSTEM.CNF has no BOOT= line")
-    token = m.group(1).strip()
-    token = token.split("\\")[-1].split("/")[-1]
-    return token
+    return m.group(1).strip().replace("/", "\\")
 
 
 def normalize_serial(boot_exe: str) -> tuple[str, str]:
@@ -430,6 +428,16 @@ def probe(cue_path: Path, *, identity_only: bool = False) -> DiscProbe:
         extent, fsize = entries["SYSTEM.CNF"]
         cnf = read_file(read_user, data, extent, fsize)
         boot_token = parse_system_cnf(cnf)
+    # The boot EXE may sit in a subdirectory (Wild Arms 2: EXE\SCPS_100.89).
+    *boot_dirs, boot_token = [p for p in boot_token.split("\\") if p]
+    for sub in boot_dirs:
+        upper = {k.upper(): k for k in entries}
+        if sub.upper() not in upper:
+            raise SystemExit(
+                f"boot directory {sub!r} not on disc (found {sorted(entries)[:24]})"
+            )
+        dext, dsize = entries[upper[sub.upper()]]
+        entries = parse_root_entries(read_file(read_user, data, dext, dsize))
     serial, boot_exe = normalize_serial(boot_token)
 
     disc_boot = boot_token
