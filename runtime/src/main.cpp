@@ -22456,6 +22456,18 @@ session_reboot:
     /* Let memory subsystem see SR for cache-isolation checks. */
     memory_set_sr_ptr(&cpu.cop0[12]);
 
+#ifdef _WIN32
+    /* PSX_GAME_THREAD_CPU=N (tooling, docs/LEAN_CORE.md): the game thread held
+     * on logical CPU N, so the scheduler does not move it between cores (and
+     * the render thread can be kept off N's SMT sibling). Off by default. */
+    if (const char* gt = getenv("PSX_GAME_THREAD_CPU")) {
+        const int n = atoi(gt);
+        if (n >= 0 && n < 64 &&
+            SetThreadAffinityMask(GetCurrentThread(), (DWORD_PTR)1 << n) != 0)
+            fprintf(stderr, "[perf] game thread pinned to CPU %d\n", n);
+    }
+#endif
+
     /* Wire the CAUSE.IP2 mirror. IP2 is combinational on real hardware and has
      * to track (I_STAT & I_MASK) through raises, acks and mask writes; this
      * hands interrupts.c the one location it is allowed to maintain. Also

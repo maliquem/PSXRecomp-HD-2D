@@ -57,10 +57,13 @@ uint32_t g_psx_mem_gate = 1u;
 uint64_t g_psx_mem_gate_stale = 0;
 uint32_t (*g_psx_mem_gate_value)(void) = NULL;
 void psx_mem_gate_check(void) {
+    extern int g_psx_store_page_audit;
+    extern void psx_store_pages_audit(void);
     if (!g_psx_mem_gate && g_psx_mem_gate_value && g_psx_mem_gate_value()) {
         g_psx_mem_gate_stale++;
         g_psx_mem_gate = 1u;
     }
+    if (g_psx_store_page_audit) psx_store_pages_audit();
 }
 static inline uint32_t psx_cyc_gate_value(void) {
     return (g_psx_gcs_recip_q16 != 65536u ? 1u : 0u) | (g_ls_replay_active ? 2u : 0u) |
@@ -1281,3 +1284,42 @@ int psx_cycle_uncharged_end(const PsxCycleFreeze *save) {
     freeze_restore_deferred(save);
     return uncharged;
 }
+
+#if !defined(PSX_COSIM)
+/* [recompiler] lean (psx_gpr_locals.h PSX_LN_*): the uncommon paths of the
+ * generated code's loads, stores and edges as one call each, instead of the
+ * B2 forms' inline copies (a second load path and three store calls at every
+ * site). Each does exactly what that inline text did. */
+int psx_store_word_quiet(CPUState* cpu, uint32_t addr, uint32_t val);
+int psx_store_half_quiet(CPUState* cpu, uint32_t addr, uint16_t val);
+int psx_store_byte_quiet(CPUState* cpu, uint32_t addr, uint8_t val);
+void psx_store_word(CPUState* cpu, uint32_t addr, uint32_t val);
+void psx_store_half(CPUState* cpu, uint32_t addr, uint16_t val);
+void psx_store_byte(CPUState* cpu, uint32_t addr, uint8_t val);
+__attribute__((noinline)) uint32_t psx_ln_load_word_cold(uint32_t packed, CPUState* cpu, uint32_t addr) {
+    return psx_blk_load_word_edge(packed, cpu, addr, 0u, 0u);
+}
+__attribute__((noinline)) uint16_t psx_ln_load_half_cold(uint32_t packed, CPUState* cpu, uint32_t addr) {
+    return psx_blk_load_half_edge(packed, cpu, addr, 0u, 0u);
+}
+__attribute__((noinline)) uint8_t psx_ln_load_byte_cold(uint32_t packed, CPUState* cpu, uint32_t addr) {
+    return psx_blk_load_byte_edge(packed, cpu, addr, 0u, 0u);
+}
+__attribute__((noinline)) uint32_t psx_ln_lwc2_cold(uint32_t packed, CPUState* cpu, uint32_t addr) {
+    return psx_blk_lwc2_read_edge(packed, cpu, addr);
+}
+#define PSX_LN_STORE_COLD(T, kind)                                                 \
+    __attribute__((noinline)) void psx_ln_store_##kind##_cold(CPUState* cpu, uint32_t addr, T val) { \
+        const int k = psx_store_##kind##_quiet(cpu, addr, val);                    \
+        if (k == 1) return;                                                        \
+        if (k == 0) cpu->write_##kind(addr, val);                                  \
+        else psx_store_##kind(cpu, addr, val);                                     \
+    }
+PSX_LN_STORE_COLD(uint32_t, word)
+PSX_LN_STORE_COLD(uint16_t, half)
+PSX_LN_STORE_COLD(uint8_t, byte)
+#undef PSX_LN_STORE_COLD
+__attribute__((noinline)) void psx_ln_edge_cold(CPUState* cpu, uint32_t resume_pc) {
+    psx_check_interrupts_at_inline(cpu, resume_pc);
+}
+#endif

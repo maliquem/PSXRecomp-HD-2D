@@ -264,6 +264,29 @@ static inline void psx_cyc_batch_flush(void) {
     psx_advance_cycles(b);
 #endif
 }
+
+/* [recompiler] gpr_locals (docs/GPR_LOCALS.md): psx_cyc_batch_flush when it
+ * needs no out-of-line call (no local sink to publish; the batch's advance
+ * reaches neither the slow path nor device service). 1: done, exactly what
+ * psx_cyc_batch_flush would have written; 0: nothing written. */
+static inline int psx_cyc_batch_flush_quiet(void) {
+#if defined(PSX_COSIM)
+    return 0;
+#else
+    const uint32_t *acc = g_psx_cyc_local_acc;
+    if (acc && *acc) return 0;
+    const uint32_t b = g_psx_cyc_batch;
+    if (!b) return 1;
+    if (g_ls_replay_active | g_event_step_conservative) return 0;
+    if (!psx_in_device_service &&
+        (psx_next_service_cycle == 0u || psx_cycle_count + (uint64_t)b >= psx_next_service_cycle))
+        return 0;
+    g_psx_cyc_batch = 0;
+    g_psx_cyc_batch_limit = 0;
+    psx_cycle_count += (uint64_t)b;
+    return 1;
+#endif
+}
 #endif
 
 /* Read accessor for telemetry (includes deferred batch). */

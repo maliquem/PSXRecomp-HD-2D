@@ -104,6 +104,7 @@ set(PSXRECOMP_GAME_SOURCES
     src/control_flow.cpp
     src/function_analysis.cpp
     src/code_generator.cpp
+    src/gpr_locals.cpp
     src/pgxp_hook_emitter.cpp
     src/bios_address_model.cpp
     src/annotations.cpp
@@ -529,6 +530,7 @@ if(BUILD_TESTING)
         src/control_flow.cpp
         src/function_analysis.cpp
         src/code_generator.cpp
+        src/gpr_locals.cpp
         src/pgxp_hook_emitter.cpp
         src/annotations.cpp
         src/bios_address_model.cpp
@@ -570,6 +572,13 @@ if(BUILD_TESTING)
     target_link_libraries(full_function_emitter_test PRIVATE fmt rabbitizer)
     add_test(NAME full_function_emitter_test COMMAND full_function_emitter_test)
 
+    add_executable(gpr_locals_test
+        tests/gpr_locals_test.cpp
+        src/gpr_locals.cpp
+    )
+    target_include_directories(gpr_locals_test PRIVATE src)
+    add_test(NAME gpr_locals_test COMMAND gpr_locals_test)
+
     add_executable(signed_x_bound_codegen_test
         tests/signed_x_bound_codegen_test.cpp
         src/ps1_exe_parser.cpp
@@ -577,6 +586,7 @@ if(BUILD_TESTING)
         src/control_flow.cpp
         src/function_analysis.cpp
         src/code_generator.cpp
+        src/gpr_locals.cpp
         src/pgxp_hook_emitter.cpp
         src/annotations.cpp
         src/bios_address_model.cpp
@@ -603,6 +613,7 @@ if(BUILD_TESTING)
         src/control_flow.cpp
         src/function_analysis.cpp
         src/code_generator.cpp
+        src/gpr_locals.cpp
         src/pgxp_hook_emitter.cpp
         src/annotations.cpp
         src/bios_address_model.cpp
@@ -632,6 +643,7 @@ if(BUILD_TESTING)
         src/control_flow.cpp
         src/function_analysis.cpp
         src/code_generator.cpp
+        src/gpr_locals.cpp
         src/pgxp_hook_emitter.cpp
         src/annotations.cpp
         src/bios_address_model.cpp
@@ -660,6 +672,7 @@ if(BUILD_TESTING)
         src/control_flow.cpp
         src/function_analysis.cpp
         src/code_generator.cpp
+        src/gpr_locals.cpp
         src/pgxp_hook_emitter.cpp
         src/annotations.cpp
         src/bios_address_model.cpp
@@ -745,6 +758,7 @@ if(BUILD_TESTING)
         src/control_flow.cpp
         src/function_analysis.cpp
         src/code_generator.cpp
+        src/gpr_locals.cpp
         src/pgxp_hook_emitter.cpp
         src/annotations.cpp
         src/bios_address_model.cpp
@@ -775,6 +789,7 @@ if(BUILD_TESTING)
         src/control_flow.cpp
         src/function_analysis.cpp
         src/code_generator.cpp
+        src/gpr_locals.cpp
         src/game_dispatch_emitter.cpp
         src/strict_translator.cpp
         src/pgxp_hook_emitter.cpp
@@ -813,6 +828,7 @@ if(BUILD_TESTING)
         src/control_flow.cpp
         src/function_analysis.cpp
         src/code_generator.cpp
+        src/gpr_locals.cpp
         src/pgxp_hook_emitter.cpp
         src/annotations.cpp
         src/bios_address_model.cpp

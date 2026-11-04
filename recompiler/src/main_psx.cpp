@@ -249,6 +249,10 @@ static int psxrecomp_game_main(int argc, char** argv) {
     std::vector<PSXRecompV4::DrawDistanceClampSite> draw_distance_clamps; // [[draw_distance.clamp]]
     bool ram_fast_path = false;   // [recompiler] ram_fast_path
     bool cpu_timing_block = false;   // [recompiler] cpu_timing = "block"
+    bool gpr_locals = false;         // [recompiler] gpr_locals
+    int gpr_locals_flush_max = 8;    // [recompiler] gpr_locals_flush_max
+    bool lean = false;               // [recompiler] lean
+    bool lean_no_locals = false;     // [recompiler] lean_no_locals
     PSXRecompV4::WidescreenAspectConeConfig ws_aspect_cone;
     int                   ws_cull_activation_guard_pixels = 0;
     std::vector<uint32_t> ws_cull_w_imms = { 0x140, 0x141 }; // [widescreen.cull] screen_w_imms
@@ -330,6 +334,10 @@ static int psxrecomp_game_main(int argc, char** argv) {
         draw_distance_clamps = cfg.draw_distance_clamp_sites;
         ram_fast_path = cfg.ram_fast_path;
         cpu_timing_block = cfg.cpu_timing_block;
+        gpr_locals = cfg.gpr_locals;
+        gpr_locals_flush_max = cfg.gpr_locals_flush_max;
+        lean = cfg.lean;
+        lean_no_locals = cfg.lean_no_locals;
         ws_aspect_cone = cfg.ws_aspect_cone;
         ws_cull_activation_guard_pixels =
             cfg.ws_cull_activation_guard_pixels;
@@ -1513,6 +1521,10 @@ static int psxrecomp_game_main(int argc, char** argv) {
     codegen_config.draw_distance_clamp_sites = draw_distance_clamps;
     codegen_config.ram_fast_path = ram_fast_path;
     codegen_config.cpu_timing_block = cpu_timing_block;
+    codegen_config.gpr_locals = gpr_locals;
+    codegen_config.gpr_locals_flush_max = gpr_locals_flush_max;
+    codegen_config.lean = lean;
+    codegen_config.lean_no_locals = lean_no_locals;
     codegen_config.ws_aspect_cone = ws_aspect_cone;
     codegen_config.ws_cull_w_imms      = ws_cull_w_imms;
     codegen_config.ws_cull_h_imms      = ws_cull_h_imms;
@@ -1587,6 +1599,13 @@ static int psxrecomp_game_main(int argc, char** argv) {
     fmt::print("Generating complete C file: {}\n", output_filename.string());
 
     std::string full_c_code = codegen.generate_file(analysis_result.functions, all_cfgs);
+    if (gpr_locals) {
+        const GprLocalsStats& gs = codegen.gpr_locals_stats();
+        fmt::print("  [gpr_locals] {} of {} functions in C locals{}, {} block entry stores\n",
+                   gs.localized, gs.functions, lean ? " (lean)" : "", gs.entry_flushes);
+        for (const auto& [why, n] : gs.kept)
+            fmt::print("  [gpr_locals]   kept {} ({})\n", n, why);
+    }
     std::set<uint32_t> dispatch_addrs;
     {
         const std::string marker = "void func_";

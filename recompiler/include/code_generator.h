@@ -13,6 +13,7 @@
 #include "control_flow.h"
 #include "../src/annotations.hpp"
 #include "../src/config_loader.h"
+#include "../src/gpr_locals.h"
 
 namespace PSXRecompV4 { class BiosAddressModel; }
 
@@ -195,6 +196,18 @@ struct CodeGenConfig {
     // per-instruction R3000A pipeline model run over each block at generation
     // time, charged at the points that can see the clock.
     bool cpu_timing_block = false;
+
+    // [recompiler] gpr_locals (docs/GPR_LOCALS.md): a function's guest registers
+    // live in C locals, stored back to cpu->gpr only where something else can
+    // look (exits, out-of-line calls). Not in overlay mode. A block whose
+    // incoming dirty set is larger than gpr_locals_flush_max stores it on entry.
+    bool gpr_locals = false;
+    int gpr_locals_flush_max = 8;
+    // [recompiler] lean (docs/LEAN_CORE.md): the pass writes the PSX_LN_* forms.
+    bool lean = false;
+    // [recompiler] lean_no_locals: those forms with the guest registers left in
+    // cpu->gpr (generated files define PSX_LEAN_NO_LOCALS).
+    bool lean_no_locals = false;
 
     // Exact model-participation cosine compares that gain a camera-horizontal
     // aspect envelope while preserving the vanilla vertical cone.
@@ -429,6 +442,18 @@ private:
     // TUs) vs `static` (monolith, single TU) linkage for the 4 helper
     // function definitions; everything else is identical.
     void emit_unaligned_helpers(std::ostream& ss, bool as_inline) const;
+
+    // [recompiler] gpr_locals (gpr_locals.h): the include line generated files
+    // carry when the mode is on (empty otherwise), and the pass's tallies.
+    std::string gpr_locals_include() const {
+        if (!config_.gpr_locals || config_.overlay_mode) return "";
+        return std::string(config_.lean_no_locals ? "#define PSX_LEAN_NO_LOCALS 1\n" : "") +
+               "#include \"psx_gpr_locals.h\"  /* [recompiler] gpr_locals */\n";
+    }
+    GprLocalsStats gpr_locals_stats_;
+public:
+    const GprLocalsStats& gpr_locals_stats() const { return gpr_locals_stats_; }
+private:
 
     // RECURSION_BUG.md §25 — continuation-passing call/return (the universal fix
     // for the idle-freeze host-stack leak). When set (gen-time env PSX_CPS),

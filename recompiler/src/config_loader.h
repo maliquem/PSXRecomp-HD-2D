@@ -1613,6 +1613,16 @@ struct GameConfig {
     // time and charged where the clock can be seen: NOT exact at block edges,
     // an option for speed).
     bool cpu_timing_block = false;
+    // [recompiler] gpr_locals (docs/GPR_LOCALS.md): guest registers in C locals.
+    // Exact (synced wherever anything else can look); off by default; regen required.
+    bool gpr_locals = false;
+    int gpr_locals_flush_max = 8;
+    // [recompiler] lean (docs/LEAN_CORE.md): on top of gpr_locals, a block's
+    // cycles in a function local and plain stores inline. Exact; regen required.
+    bool lean = false;
+    // [recompiler] lean_no_locals: the lean forms with the guest registers left
+    // in cpu->gpr. With PGO the locals' sync code costs more than they save.
+    bool lean_no_locals = false;
     // [quality.low/medium/high/ultra] -- graphics presets, lowest first. Empty:
     // the title has no presets and [video] alone applies (unchanged).
     std::vector<QualityPreset> quality_presets;

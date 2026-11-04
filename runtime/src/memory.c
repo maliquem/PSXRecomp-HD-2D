@@ -46,8 +46,13 @@
 static int rp_mod_journal(uint8_t *base, uint32_t page_base, uint32_t off,
                           uint32_t width);
 
-static uint8_t ram[RAM_SIZE];
-static uint8_t scratchpad[SCRATCHPAD_SIZE];
+/* Exported arrays (psx_gpr_locals.h, [recompiler] lean): the generated code
+ * writes them by name, so the compiler knows a guest store cannot touch any
+ * other global. Never moved; g_psx_ram / g_psx_scratch below point at them. */
+uint8_t g_psx_ram_arr[RAM_SIZE];
+static uint8_t *const ram = g_psx_ram_arr;
+uint8_t g_psx_scratch_arr[SCRATCHPAD_SIZE];
+static uint8_t *const scratchpad = g_psx_scratch_arr;
 static uint8_t bios_rom[BIOS_ROM_SIZE];
 static uint8_t mod_memory[MOD_MEMORY_SIZE];
 static uint32_t mod_memory_used;
@@ -166,9 +171,9 @@ uint32_t psx_gpu_packet_key(uint32_t address) {
 }
 
 /* Exposed for inlined main-RAM load helpers in psx_cyc.h (VLC/decode hot path). */
-uint8_t *g_psx_ram = ram;
+uint8_t *g_psx_ram = g_psx_ram_arr;
 /* The scratchpad, for the inlined scratchpad loads in psx_cyc.h. */
-uint8_t *g_psx_scratch = scratchpad;
+uint8_t *g_psx_scratch = g_psx_scratch_arr;
 /* PSX_LOAD_DELAY gate (default on). −1 = unread; 0/1 after first resolve. */
 int g_psx_load_delay = -1;
 
@@ -564,10 +569,10 @@ static uint32_t text_diverged_bitmap[DIRTY_RAM_BITMAP_WORDS];
  * every dispatch (800 KB per frame in battle). */
 #define TEXT_LINE_SHIFT 6u
 #define TEXT_LINE_BYTES (1u << TEXT_LINE_SHIFT)
-static uint32_t text_line_bitmap[(RAM_SIZE >> TEXT_LINE_SHIFT) / 32u];
+uint32_t g_psx_text_line_bitmap[(RAM_SIZE >> TEXT_LINE_SHIFT) / 32u];
 static inline int text_line_marked(uint32_t off) {
     const uint32_t l = off >> TEXT_LINE_SHIFT;
-    return (text_line_bitmap[l >> 5] >> (l & 31u)) & 1u;
+    return (g_psx_text_line_bitmap[l >> 5] >> (l & 31u)) & 1u;
 }
 /* Validation generation (dirty_ram_text_native_ok_ranges_from's cache): bumped
  * whenever a range that compared equal could stop doing so — a line newly
@@ -576,8 +581,8 @@ static inline int text_line_marked(uint32_t off) {
 static uint32_t s_text_ok_gen = 1;
 static inline void text_line_mark(uint32_t off) {
     const uint32_t l = off >> TEXT_LINE_SHIFT, m = 1u << (l & 31u);
-    if (!(text_line_bitmap[l >> 5] & m)) {
-        text_line_bitmap[l >> 5] |= m;
+    if (!(g_psx_text_line_bitmap[l >> 5] & m)) {
+        g_psx_text_line_bitmap[l >> 5] |= m;
         s_text_ok_gen++;
     }
 }
@@ -592,7 +597,7 @@ static void text_lines_mark_range(uint32_t lo, uint32_t len) {
 /* Every line of the reference range that differs, from the bytes. */
 static void text_lines_recompute(void) {
     s_text_ok_gen++;
-    memset(text_line_bitmap, 0, sizeof(text_line_bitmap));
+    memset(g_psx_text_line_bitmap, 0, sizeof(g_psx_text_line_bitmap));
     if (!text_ref_image || text_ref_hi <= text_ref_lo) return;
     for (uint32_t a = text_ref_lo & ~(TEXT_LINE_BYTES - 1u); a < text_ref_hi; a += TEXT_LINE_BYTES) {
         uint32_t lo = a < text_ref_lo ? text_ref_lo : a;
@@ -621,6 +626,7 @@ void dirty_ram_register_text_image(uint32_t phys_lo, const uint8_t *bytes,
     memset(text_modified_bitmap, 0, sizeof(text_modified_bitmap));
     memset(text_diverged_bitmap, 0, sizeof(text_diverged_bitmap));
     text_lines_recompute();
+    psx_store_pages_forget_all();
     g_text_native_blocked = 0;
     g_text_diverged_pages = 0;
     g_text_exact_mismatches = 0;
@@ -769,7 +775,7 @@ int dirty_ram_text_native_ok_ranges_from(const uint32_t *lo_len_pairs,
             }
             if (clean) continue;
         }
-        /* Only the lines that may differ (text_line_bitmap); a whole line
+        /* Only the lines that may differ (g_psx_text_line_bitmap); a whole line
          * found equal is unmarked. */
         int differs = 0;
         for (uint32_t a = phys & ~(TEXT_LINE_BYTES - 1u); a < phys + len; a += TEXT_LINE_BYTES) {
@@ -786,7 +792,7 @@ int dirty_ram_text_native_ok_ranges_from(const uint32_t *lo_len_pairs,
                 (lo != a || hi != a + TEXT_LINE_BYTES
                      ? memcmp(ram + a, text_ref_image + (a - text_ref_lo), TEXT_LINE_BYTES) == 0
                      : 1))
-                text_line_bitmap[(a >> TEXT_LINE_SHIFT) >> 5] &= ~(1u << ((a >> TEXT_LINE_SHIFT) & 31u));
+                g_psx_text_line_bitmap[(a >> TEXT_LINE_SHIFT) >> 5] &= ~(1u << ((a >> TEXT_LINE_SHIFT) & 31u));
         }
         if (differs) {
             uint32_t off = 0;
@@ -993,6 +999,7 @@ static uint32_t overlay_watch_bitmap[DIRTY_RAM_BITMAP_WORDS];
 static uint32_t overlay_page_gen[DIRTY_RAM_PAGE_COUNT];
 
 void dirty_ram_reset_for_boot(void) {
+    psx_store_pages_forget_all();
     memset(dirty_ram_bitmap, 0, sizeof(dirty_ram_bitmap));
     memset(text_modified_bitmap, 0, sizeof(text_modified_bitmap));
     memset(text_diverged_bitmap, 0, sizeof(text_diverged_bitmap));
@@ -1012,8 +1019,10 @@ void overlay_watch_set_range(uint32_t phys, uint32_t len) {
     if (end >= RAM_LIVE || end < phys) end = RAM_LIVE - 1u;
     uint32_t fp = phys >> DIRTY_RAM_PAGE_SHIFT;
     uint32_t lp = end  >> DIRTY_RAM_PAGE_SHIFT;
-    for (uint32_t pg = fp; pg <= lp; pg++)
+    for (uint32_t pg = fp; pg <= lp; pg++) {
         overlay_watch_bitmap[pg >> 5] |= (1u << (pg & 31u));
+        psx_store_page_forget(pg);
+    }
 }
 
 void overlay_watch_clear_range(uint32_t phys, uint32_t len) {
@@ -1063,6 +1072,7 @@ void dirty_ram_text_guard_resync_after_restore(void) {
      * and the writes happened in the process that produced it. One pass
      * over the reference range (at most 2 MB, once per restore) puts every
      * mismatching page back under the exact compare. */
+    psx_store_pages_forget_all();
     memset(text_modified_bitmap, 0, sizeof(text_modified_bitmap));
     memset(text_diverged_bitmap, 0, sizeof(text_diverged_bitmap));
     g_text_diverged_pages = 0;
@@ -1335,11 +1345,17 @@ static uint32_t s_bios_checksum = 0;
 uint32_t memory_get_bios_checksum(void) { return s_bios_checksum; }
 
 static uint32_t psx_mem_gate_flags(void);   /* below, with psx_store_fast_ptr */
+extern int g_psx_store_page_audit;            /* below, with psx_store_page_kind */
 void memory_init(const char* bios_path) {
     g_psx_mem_gate_value = psx_mem_gate_flags;
+    {
+        const char *audit = getenv("PSX_STORE_PAGE_AUDIT");
+        g_psx_store_page_audit = audit && audit[0] == '1';
+    }
+    psx_store_pages_forget_all();
     psx_ram_apply_size_request();
-    memset(ram, 0, sizeof(ram));
-    memset(scratchpad, 0, sizeof(scratchpad));
+    memset(ram, 0, RAM_SIZE);
+    memset(scratchpad, 0, SCRATCHPAD_SIZE);
     /* Rematch re-enters without process exit — wipe sticky I/O regs that
      * live outside device *_init (I_STAT/I_MASK cleared in interrupts_init). */
     memset(mem_ctrl, 0, sizeof(mem_ctrl));
@@ -2818,6 +2834,7 @@ static void psx_write_byte_raw(uint32_t addr, uint8_t val) {
  * text not yet seen modified unless the store writes the image's own bytes).
  * Everything else takes cpu->write_*. */
 extern int g_parity_trace_armed;               /* parity_trace.c */
+extern int psx_mod_host_output_active(void);    /* mod_runtime.cpp: a host-output view runs */
 extern volatile int g_card_data_writes_armed;  /* card_data_writes.c */
 
 /* TCP core_rates: stores the short path left to cpu->write_* past its
@@ -2834,7 +2851,8 @@ uint64_t g_psx_store_raw[3];
 static inline uint32_t psx_mem_gate_value(void) {
     uint32_t v = (uint32_t)(g_psx_render_pass_active | g_ls_mode | g_ds_recording |
                             g_dma_exec_depth | g_host_store_depth |
-                            g_parity_trace_armed | g_card_data_writes_armed);
+                            g_parity_trace_armed | g_card_data_writes_armed |
+                            psx_mod_host_output_active());
 #ifndef PSX_NO_DEBUG_TOOLS
     v |= (uint32_t)g_debug_write_trace_live;
 #endif
@@ -2851,6 +2869,38 @@ static __attribute__((noinline)) int psx_mem_gate_lower(void) {
     return 1;
 }
 static uint32_t psx_mem_gate_flags(void) { return psx_mem_gate_value(); }
+
+/* [perf plan G1] psx_memory.h g_psx_store_page: what the short path below
+ * decides for a whole RAM page, for the generated code's inline store. */
+uint8_t g_psx_store_page[PSX_STORE_PAGE_COUNT];
+void psx_store_pages_forget_all(void) { memset(g_psx_store_page, 0, sizeof(g_psx_store_page)); }
+/* 1: every aligned store to the page is a plain store here; 2: one is when
+ * its text line is already marked (text_line_mark would do nothing); 0:
+ * neither (kernel window, executed code, watched overlay page, game text not
+ * yet seen modified, the D44 word's page). */
+static uint32_t psx_store_page_kind(uint32_t pg) {
+    const uint32_t lo = pg << DIRTY_RAM_PAGE_SHIFT, hi = lo + (1u << DIRTY_RAM_PAGE_SHIFT);
+    const uint32_t bit = 1u << (pg & 31u);
+    if (lo < DIRTY_RAM_KERNEL_TRACK_BYTES || lo >= RAM_LIVE) return 0u;
+    if (pg == (D44_PHYS >> DIRTY_RAM_PAGE_SHIFT)) return 0u;
+    if ((g_dirty_ram_exec_page_bitmap[pg >> 5] | overlay_watch_bitmap[pg >> 5]) & bit) return 0u;
+    if (!text_ref_image || hi <= text_ref_lo || lo >= text_ref_hi) return 1u;
+    return (text_modified_bitmap[pg >> 5] & bit) ? 2u : 0u;
+}
+/* PSX_STORE_PAGE_AUDIT=1 (tooling): every device service checks each entry
+ * against the page's watchers and aborts on one a watcher forgot to clear. */
+int g_psx_store_page_audit = 0;
+void psx_store_pages_audit(void) {
+    for (uint32_t pg = 0; pg < PSX_STORE_PAGE_COUNT; pg++) {
+        const uint32_t k = g_psx_store_page[pg];
+        if (k && k != psx_store_page_kind(pg)) {
+            fprintf(stderr, "psx_store_page audit: page 0x%X marked %u, now %u\n",
+                    (unsigned)pg, (unsigned)k, (unsigned)psx_store_page_kind(pg));
+            fflush(stderr);
+            abort();
+        }
+    }
+}
 
 /* Where a plain store may go directly: main RAM (above the kernel window, on
  * a page no code watcher acts on) or the scratchpad, which the full path
@@ -2889,6 +2939,8 @@ static inline uint8_t *psx_store_fast_ptr(uint32_t addr, uint32_t size, uint32_t
         }
     }
     if (size == 4u && off == D44_PHYS) return NULL;
+    if (__builtin_expect(g_psx_store_page[pg] == 0u, 0))
+        g_psx_store_page[pg] = (uint8_t)psx_store_page_kind(pg);
     return &ram[off];
 }
 
@@ -2951,4 +3003,28 @@ __attribute__((noinline)) void psx_store_byte(CPUState *cpu, uint32_t addr, uint
         if (psx_store_try_byte(addr, val)) return;
     }
     cpu->write_byte(addr, val);
+}
+
+/* [recompiler] gpr_locals (psx_gpr_locals.h): the first half of the three
+ * above, with nothing called out of line, so the generated code can keep its
+ * guest registers in locals across it. 1: stored. 0: the direct store said
+ * no (as above, once); the caller goes on with cpu->write_*. 2: nothing done
+ * (another store pointer, or an overlay's cycles to publish first); the
+ * caller runs psx_store_*. */
+__attribute__((noinline)) int psx_store_word_quiet(CPUState *cpu, uint32_t addr, uint32_t val) {
+    extern void (*g_overlay_flush_pending_cycles)(void);
+    if (cpu->write_word != psx_write_word || g_overlay_flush_pending_cycles) return 2;
+    return psx_store_try_word(addr, val);
+}
+
+__attribute__((noinline)) int psx_store_half_quiet(CPUState *cpu, uint32_t addr, uint16_t val) {
+    extern void (*g_overlay_flush_pending_cycles)(void);
+    if (cpu->write_half != psx_write_half || g_overlay_flush_pending_cycles) return 2;
+    return psx_store_try_half(addr, val);
+}
+
+__attribute__((noinline)) int psx_store_byte_quiet(CPUState *cpu, uint32_t addr, uint8_t val) {
+    extern void (*g_overlay_flush_pending_cycles)(void);
+    if (cpu->write_byte != psx_write_byte || g_overlay_flush_pending_cycles) return 2;
+    return psx_store_try_byte(addr, val);
 }

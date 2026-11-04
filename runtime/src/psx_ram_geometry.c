@@ -39,4 +39,5 @@ void psx_ram_apply_size_request(void) {
                                                : PSX_MAIN_RAM_RETAIL_BYTES;
     g_psx_ram_size = bytes;
     g_psx_ram_mask = bytes - 1u;
+    psx_store_pages_forget_all();
 }

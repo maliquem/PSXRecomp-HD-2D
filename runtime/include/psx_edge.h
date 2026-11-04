@@ -82,11 +82,10 @@ static inline int psx_edge_idle_site(uint32_t pc) {
 /* The edge publishes the batched cycles first, in every case (it takes over the
  * emitters' psx_cyc_bb_defer_flush, below). flatten: the publish is inline here
  * (it was a call of its own per edge, ~3% of the game thread). */
-#if defined(__clang__) || defined(__GNUC__)
-__attribute__((flatten))
-#endif
-static inline void psx_check_interrupts_at_inline(CPUState* cpu, uint32_t resume_pc) {
-    psx_cyc_batch_flush();
+/* The common case after the publish: 1 when it is done here (the counter or
+ * the idle detector's restart written), 0 when the out-of-line check must run
+ * (nothing written). */
+static inline int psx_edge_irq_fast(CPUState* cpu, uint32_t resume_pc) {
     if (!g_psx_guest_time_frozen) {
         const uint32_t sw = cpu->cop0[13] & cpu->cop0[12] & 0x0300u;
         if (((i_stat & i_mask) | sw) == 0u &&
@@ -95,7 +94,7 @@ static inline void psx_check_interrupts_at_inline(CPUState* cpu, uint32_t resume
             ((g_psx_irq_fast_maintenance + 1u) & 0x3FFFu) != 0u) {
             if (g_idle_skip_enabled == 0) {
                 g_psx_irq_fast_maintenance++;
-                return;
+                return 1;
             }
             if (g_idle_skip_enabled > 0) {
                 PsxIdleEdge *e = &g_psx_idle_edge;
@@ -120,11 +119,21 @@ static inline void psx_check_interrupts_at_inline(CPUState* cpu, uint32_t resume
                     e->last_stores = g_guest_store_count;
                     e->last_mmio = g_mmio_access_count;
                     g_psx_irq_fast_maintenance++;
-                    return;
+                    return 1;
                 }
             }
         }
     }
+    (void)cpu;
+    return 0;
+}
+
+#if defined(__clang__) || defined(__GNUC__)
+__attribute__((flatten))
+#endif
+static inline void psx_check_interrupts_at_inline(CPUState* cpu, uint32_t resume_pc) {
+    psx_cyc_batch_flush();
+    if (psx_edge_irq_fast(cpu, resume_pc)) return;
     psx_check_interrupts_at(cpu, resume_pc);
 }
 
