@@ -4,6 +4,8 @@
 
 # PSXRecomp
 
+> **This is [maliquem/psxrecomp](https://github.com/maliquem/psxrecomp), a fork of [RetroPortingToolKit/psxrecomp](https://github.com/RetroPortingToolKit/psxrecomp).** Everything the fork adds is listed under [What this fork adds](#what-this-fork-adds). The rest of this page is the upstream README.
+
 > ℹ️ **Note from mstan:** This repo and I are now part of [RetroPortingToolkit](https://retroportingtoolkit.com/). I remain a primary maintainer of psxrecomp alongside the team. [More info](https://1379.tech/forming-a-collective-retro-porting-toolkit/).
 
 **A general-purpose static recompiler for the PlayStation 1.** It turns a PS1
@@ -33,6 +35,191 @@ configuration and reverse engineering, not new engine work.
 
 Background on the original prototype:
 [I Built a PS1 Static Recompiler With No Prior Experience (and Claude Code)](https://1379.tech/i-built-a-ps1-static-recompiler-with-no-prior-experience-and-claude-code/)
+
+## What this fork adds
+
+Everything below sits on top of upstream commit `bce31aff`, on this fork's `master` and
+`feat/pgxp-depth-per-triangle` branches. It came out of building new game recomps on the framework, and each
+item is general: game-specific behaviour stays in that game's plugin.
+
+New visual features are optional and off by default. The one exception is `fmv_enhance`, which is on. Speed work
+is checked against the code it replaces, with per-frame hashes of RAM, CPU, GTE, GPU, sound and cycles.
+
+### Renderers and output
+
+- **Vulkan through SDL3's GPU API** (`[video] renderer = "sdl_gpu"`). The OpenGL renderer's own code runs on a thin
+  layer (`runtime/src/sgl/`), so both draw the same picture. Shaders go from GLSL to SPIR-V with glslang and a disk
+  cache. With no Vulkan device the game opens on OpenGL and says so.
+  [Plan and diary](docs/SDL_GPU_RENDERER_PLAN.md).
+- **HDR output** (`[video] hdr`, `PSX_HDR`) on both renderers, Windows: contrast, highlights for lit pieces, dynamic
+  tone mapping, paper white and peak settings. It runs as the last step before the swap.
+  [HDR_OUTPUT.md](docs/HDR_OUTPUT.md).
+- **Presents held to the screen's refresh grid** (`present_phase`), which removes judder on 120 Hz displays.
+- **Texture filters by class:** world, sprites and UI each get a filter and an edge mode. New filters: Sharp bilinear,
+  JINC2, monotonic cubic, DCCI, Scale2x, Scale3x and MMPX. The shader is built with only the filters in use.
+- **FMV enhancement** (`[video] fmv_enhance`): chroma rebuilt between 2x2 blocks, deblocking from the MDEC quantizer,
+  FSR1 on the luma. It only touches what is shown: RAM, VRAM and the decoder stay exact.
+- **Anti-aliasing of the 3D geometry only** (`shaders/hd2d/aa3d.pfx`), leaving sprites and UI alone.
+- **Per-triangle PGXP depth** (`[video] pgxp_depth_tolerance = 0`) and a near limit a title can set
+  (`gl_renderer_set_pgxp_depth_near`). This fixes overlapping pieces that the per-batch test left in.
+- **Internal resolution changes live**, including steps above the starting scale.
+- **Pillarbox fill:** flat edge colour or blurred cover.
+
+### Post effects
+
+- **Extra effect slots:** six shader chains before the CRT shader, changeable live, with 64 live uniforms and
+  per-pass GPU timing.
+- **New pass inputs:** `mask3d`, `depth` (PGXP depth of the shown picture), `shadow`, `sprshadow`, `sprite` and
+  `firemap`, plus a `lines` pass size. See [POST_EFFECTS.md](docs/POST_EFFECTS.md).
+- **Bloom sources:** `bloom_source = "additive"` or `"additive3d"` with `bloom_threshold`, so only lights and spells
+  glow, not UI.
+- **Shipped presets:** ambient occlusion, sun and GI, lights, colour grade and vignette, Box and Adaptive downsample,
+  and debug views for depth, masks and shadow maps ([shaders/README.md](shaders/README.md)).
+
+### 3D lighting and shadows
+
+- **Shadow maps** (`[video.shadow]`) built from the frame's PGXP geometry. The camera comes from the GTE or from the
+  game's matrix in RAM (`camera = "ram:ADDR"`), and a plugin can supply world geometry.
+- **Casters the game culls still cast:** back faces, a memory of static scenery, and polygons in the overdraw band,
+  so shadows don't pop at the screen edge.
+- **Sprites cast and take shadows:** grouped by palette across texture pages, with their own map, feet bent to the
+  floor, planes turned to face a side light, and a separate rule for a high sun. UI is never taken for a sprite, and a
+  plugin can name foot points.
+- **Soft shadows:** variable softness by distance to the caster, and the lit seam at a wall's foot filled.
+- **The game's own blob shadows hidden** by texture, by look, or by the near-black palette entry in a sprite.
+- **Sun and moon per area** (`sun_areas`, `sun_areas.txt`), caves with no sun, day or night forced per area.
+- **`psx_sun_tool`:** a live tuning tool with a 3D sun and moon view and a Lights tab ([SUN_TOOL.md](docs/SUN_TOOL.md)).
+- **Fire lights:** steady additive glows become lights with cube-map shadows, coloured by their own pixels. A look
+  seen before lights up at once.
+- **Spell lights:** additive 3D pieces light the scenery by 3D distance.
+- **Lights placed by hand** (`area_lights.txt`): point lights, spots, interior ambient and windows with light shafts,
+  round windows included.
+- **Night:** a reading of the scenery's tone (`gl_renderer_scene_tone`), moonlight in the GI, and scene lights that
+  keep their colour.
+- **Fewer false lights:** dim grey dust and smoke, black pieces, and faces textured from a copy of the picture
+  (treated as glass).
+- **Games with a 256-wide, off-centre, Z-up picture** work with shadows and depth effects.
+- **`off_textures`:** turns shadows off on screens such as a world map.
+
+### Widescreen
+
+- **Overdraw band** (`psx_mod_set_overdraw`, `_extra`, `_share`): culling keeps geometry past the picture's edge, and
+  polygons in the band reach the renderer.
+- **Per-primitive rules** (`gpu_ws_set_wide_prim_predicate`): default, stretch, stretch only the edge vertices, keep,
+  or cut at the 4:3 edges (`GPU_WS_WIDE_PRIM_CLIP`).
+- **Backdrop images** (`gpu_ws_set_backdrop_images`): each picture a frame draws behind or over the 3D world is judged
+  on its own, whether it is stretched whole, kept as a panorama, or continued from its edge colour. Looping skies stay
+  still.
+- **Cutscene backdrops stretched** (`nw_phase_backdrop`), and 16:9 copies of the picture take their margins from the
+  wide surface.
+- **The HUD canvas follows the window's aspect** during play.
+
+### Smooth motion (frame generation)
+
+- **Works with every effect:** in-between frames carry their own marks, depth and shadow casters, and effects see them
+  from their own camera.
+- **Sprites interpolate:** textured rectangles move with the in-between frames, a sprite's pieces move together, and
+  each redraw samples its own frame's textures.
+- **Edges:** strips the in-between camera uncovers are filled pixel by pixel from the real frame's depth.
+- **Pacing:** fixed phases k/(n+1) by default, and the swapchain's FIFO queue on `sdl_gpu`.
+- **Control:** on or off live (`psx_video_set_smooth_motion`), held off by a title for a while
+  (`psx_video_hold_smooth_motion`), and no flicker with HDR on OpenGL.
+
+### Speed
+
+Modes in `game.toml` ([PERFORMANCE_MODES.md](docs/PERFORMANCE_MODES.md)):
+
+- `[recompiler] lean` and `lean_no_locals` ([LEAN_CORE.md](docs/LEAN_CORE.md)), `gpr_locals`
+  ([GPR_LOCALS.md](docs/GPR_LOCALS.md)) and `ram_fast_path`.
+- `[recompiler] cpu_timing = "block"`: the load-delay pipeline simulated per block at generation time, exact inside a
+  block.
+- `[video] pgxp_alu = "moves"` and `pgxp_mem = "words"` or `"live"`: lighter PGXP, sub-pixel data only.
+- `[runtime] overlay_precompile`: areas compiled ahead of time.
+- `-DPSX_TARGET_ARCH=x86-64-v3`, and IPO links that keep `-ffp-contract=off` so pictures don't change.
+
+Always on, exact:
+
+- **Generated code:** cycle steps folded, the cycle charge and block edge inline with one gate word, instruction cache
+  inline, scratchpad loads and stores on the direct path, and BIOS dispatch that skips the table search.
+- **PGXP:** the common word load, store, register moves and LUI inline.
+- **GPU:** a linked-list DMA handled in one stop (one event per word before), a ring for the render thread, display info
+  remembered, and VRAM reads that no longer sync outside drawn blocks.
+- **SPU:** voice by voice in slices when no IRQ or memory read can see it, and Gaussian taps from one window.
+- **Code checks:** text validated per 64-byte line, overlay evidence cleared per word instead of per page, an exact shard
+  tried when the range owner has no such block, and fewer cache rescans.
+- **Debug tools:** passive recorders run only with a client connected, and a store costs one test.
+- **Build:** MinGW clang reads extern globals directly (`-fno-auto-import`).
+
+Turbo skips drawing without ever showing a skipped frame, shows 30 frames a second on the wall clock and doesn't wait on
+the screen. A title can set its speed (`psx_mod_set_fast_forward_speed`).
+
+### Sound
+
+- **Turbo sound:** a time compressor (WSOLA) instead of dropped audio, or the music at its own tempo through two
+  host-only SPU clones, staying whole across releases.
+- **The SPU shadow gives up** after 8 windows it can't prove, which saves its cost where it never applies.
+
+### Accuracy and fixes
+
+- **MDEC:** the busy bit stays set until the output is down to one FIFO load, which fixes movie corruption (merged
+  upstream as RetroPortingToolKit/psxrecomp#691).
+- **Threads:** `ChangeThread` returns 1 to the yielding thread, thread switches work inside exceptions on the host-fiber
+  scheduler, and savestates load on it.
+- **GPU:** `GP0(80h)` copies wrap at the VRAM edges like the hardware on OpenGL, and queued draws land before a debug VRAM
+  read.
+- **Saves:** a failed write on a full disk no longer leaves a partial save in the slot.
+- **Watchdog:** a spin only counts as frozen once the guest's output has stopped.
+- **Toolchain:** a stale overlay compiler stops at the first try and says so, instead of retrying with a hitch each time.
+  `rebuild` warns when copying one.
+- **Disc probing:** boot executables in a subdirectory.
+
+### Clean-room rewrites
+
+- **MDEC numeric core**, from a [functional specification](docs/MDEC_DECODER_SPEC.md) and
+  [psx-spx](https://psx-spx.consoledev.net/), with a byte-exact fingerprint in `tools/mdec_replay`.
+
+These three were written from psx-spx and an interface, with the old code available only as a compiled black box, and
+compared against it case by case:
+
+- **SPU envelopes:** ADSR and sweep, 934 million cases ([SPU_ENV_CLEAN_ROOM.md](docs/SPU_ENV_CLEAN_ROOM.md)).
+- **Instruction cache model**, 857 million cases ([ICACHE_CLEAN_ROOM.md](docs/ICACHE_CLEAN_ROOM.md)).
+- **Triangle edge math**, 146 million cases (`runtime/src/gpu_edge.inc`).
+
+Patches for third-party emulators used as oracles no longer live in this repository. The tools read them from
+`PSX_ORACLE_PATCHES`.
+
+### Mod API and title UI
+
+- **Pages and overlays:** a title's own page over the paused game, a HUD after all effects, a notice layer over menus,
+  and handlers for the OSD, FPS meter and volume bar (`psx_mod_open_title_page`, `psx_mod_set_title_hud`,
+  `psx_mod_set_title_toast`, `psx_mod_set_osd_handler`, `psx_mod_set_perf_handler`, `psx_mod_set_volume_handler`).
+- **Save state menu in the game's own look** (`psx_mod_set_savestate_menu_renderer`), plus a 13th slot for a title's
+  save-and-quit.
+- **Mouse:** a pointer layer drawn last, window-to-display mapping, and menu commands (`psx_mod_set_pointer`,
+  `psx_mod_window_to_display`, `psx_mod_savestate_menu_command`).
+- **Input config API** (`psx_input_config.h`, `host_keymap_*`): a title's own controls menu, pad shortcuts as hotkey
+  triggers, a D-pad direction and its left-stick twin sharing a key, and the controller family for button prompts
+  (`psx_mod_host_pad_kind`).
+- **Play restrictions for a hardcore mode:** blocks for loading, rewind, fast-forward and debug tools, plus the stock
+  disc's path.
+- **Reading and writing the game:** GTE matrices and registers, CPU registers, title pixels into VRAM
+  (`psx_mod_vram_write`), screenshots (`psx_mod_request_screenshot`).
+- **Uncharged spans** (`psx_mod_uncharged_span_begin`, `_end`): extra work between two hooks with no PS1 time charged.
+- **Texture filter class** set by a title (`psx_mod_set_texture_filter_class`), plus finer title canvases.
+
+### Diagnostics
+
+- **Bug reports** (Ctrl+B): photo as seen, photo without effects, savestate, a clip of the last seconds and the config,
+  with a form over the frozen game. A real freeze files one by itself. [BUG_REPORT.md](docs/BUG_REPORT.md).
+- **Golden recorder:** per-frame hashes of RAM, scratchpad, CPU, GTE, cycles, GPU words, SPU samples and PGXP state, to
+  prove a change is exact.
+- **Performance meter:** where each VBlank goes, a CSV log, CPU per thread, GPU engine share, VRAM, and exact GPU time of
+  the effects (`perf_summary`, `perf_frames`, `postfx_timing`, `core_rates`).
+- **New TCP commands** for shadows, sprites, Smooth motion, lights, the sun and more: `shadow_cache`, `sprite_dump`,
+  `frame_gen`, `area_lights`, `sun_area`, `hdr`, `sgl`, `present_phase`, `spu_shadow`, `ws_backdrop_images`.
+- **MDEC capture and replay** (`PSX_MDEC_CAPTURE`, `tools/mdec_replay`).
+- **Freeze dumps** go to `freeze_dumps/` or `PSX_FREEZE_DUMP_DIR`, and debug A/B keys are off unless
+  `[debug] toggle_keys` turns them on.
 
 ## Games
 

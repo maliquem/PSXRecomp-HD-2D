@@ -3,9 +3,8 @@
 Every game recomp keeps its own working copy of this framework, and every improvement or fix ends up in
 one shared place, so all games stay at the same level of features and speed.
 
-- **Common copy:** bare repository `K:/src/psxrecomp-comum.git`, branch `main`. Local only; nothing here
-  goes to GitHub by itself. A mirror on the external drive (`G:/BreathOfFire4Recomp_dados/psxrecomp-comum.git`)
-  follows it on every push (hook `post-receive`).
+- **Common copy:** a bare repository on the development machine, branch `main`. Local only; nothing here
+  goes to GitHub by itself. A mirror on a second drive follows it on every push (hook `post-receive`).
 - **In each game:** the `psxrecomp` submodule has a remote called `comum`, and the game keeps its own branch.
 - `main` only moves forward: no force pushes, no deletes (the repository refuses both).
 
@@ -53,7 +52,7 @@ or slower in speed windows, and judge generator changes only with PGO on both si
 ## Starting a new game on it
 
 ```sh
-git -c protocol.file.allow=always submodule add K:/src/psxrecomp-comum.git psxrecomp
+git -c protocol.file.allow=always submodule add <path of the common copy> psxrecomp
 git -C psxrecomp remote rename origin comum
 bash psxrecomp/tools/ci/build_emitters.sh       # then check: build-recompiler/psxrecomp-game --codegen-hash
 ```

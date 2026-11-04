@@ -1,6 +1,6 @@
 # Lean core (`[recompiler] lean`)
 
-Status: on `perf/lean`, not merged. Exact (golden, 8 scenes). Measured 2026-11-03 with PGO + ThinLTO on
+Status: merged, off unless a game turns it on (BoF4 uses `lean_no_locals`). Exact (golden, 8 scenes). Measured 2026-11-03 with PGO + ThinLTO on
 every side: the threshold thesis below did not hold. See "Measured" at the end.
 
 ## Why
