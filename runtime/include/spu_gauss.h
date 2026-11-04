@@ -1,5 +1,5 @@
 /* spu_gauss.h - PS1 SPU hardware Gaussian interpolation table (512 entries).
- * Values from No$PSX docs / DuckStation core/spu.cpp (SPU::Voice::Interpolate).
+ * Values from psx-spx, "4-Point Gaussian Interpolation" (checked: 512 of 512).
  * Usage, with i = (phase >> 4) & 0xFF and s[0]=current, s[-1..-3]=history:
  *   out = (g[0x0FF-i]*s[-3] + g[0x1FF-i]*s[-2] + g[0x100+i]*s[-1] + g[i]*s[0]) >> 15
  */

@@ -2,19 +2,14 @@
 #define PSXRECOMP_GPU_SW_EDGES_H
 
 #include <stdint.h>
+#include "gpu_edge.h"
+#include "gpu_edge.inc"
 
 /* PS1 polygon coverage uses a biased 32.32 edge DDA with exclusive bottom
  * and right edges. Float-truncated inclusive spans make adjacent polygons
  * disagree by a pixel and draw a shared diagonal twice. */
-static inline int64_t psx_edge_fp(int x) {
-    return ((int64_t)x << 32) + ((1LL << 32) - (1 << 11));
-}
-
-static inline int64_t psx_edge_step(int dx, int dy) {
-    int64_t rounding = dx < 0 ? -(int64_t)(dy - 1)
-                              : (dx > 0 ? (int64_t)(dy - 1) : 0);
-    return (((int64_t)dx << 32) + rounding) / dy;
-}
+static inline int64_t psx_edge_fp(int x) { return gpu_edge_start(x); }
+static inline int64_t psx_edge_step(int dx, int dy) { return gpu_edge_step(dx, dy); }
 
 static inline int psx_edge_unfp(int64_t fp) {
     return (int)((uint64_t)fp >> 32);
