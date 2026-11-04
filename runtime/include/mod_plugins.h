@@ -1373,7 +1373,13 @@ void psx_mod_bug_report_add_file(const char *path);
  * key that seals the save state and the settings (NULL: they stay at home).
  * The form then offers "Save and send": docs/BUG_REPORT.md. */
 void psx_mod_set_bug_report_send(const char *new_issue_url, const uint8_t public_key[32]);
-/* The ImGui form shows `shown` (UTF-8) where it would show `english`: its
+/* The system's language in lowercase ISO 639 ("pt", "en"; "en" when unknown).
+ * The form follows it: Portuguese has its words in the framework, anything else
+ * shows the English. */
+const char *psx_mod_host_language(void);
+/* The ImGui form shows `shown` (UTF-8) where it would show `english`, ahead of
+ * the framework's Portuguese: a title adds its own types this way. The form's
+ * words are its
  * labels and buttons ("Report a bug", "Type", "Severity", "Frequency",
  * "Description", "Type here what happened.", "Photo", "State", "Clip",
  * "Save report", "Save and send", "Discard", "Discard? Press again", "Ctrl+Enter

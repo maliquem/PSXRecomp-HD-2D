@@ -84,6 +84,51 @@ static const char *const k_base_types[] = {
 static const char *const k_severities[] = { "Critical", "Annoying", "Minor" };
 static const char *const k_frequencies[] = { "Always", "Sometimes", "Once" };
 
+/* The form's words for a player whose system is in Portuguese. A title's own
+ * (psx_mod_bug_report_translate) come first. */
+static const char *const k_words_pt[][2] = {
+    { "Report a bug", "Relatar um bug" },
+    { "Type", "Tipo" },
+    { "Severity", "Gravidade" },
+    { "Frequency", "Frequ\xC3\xAAncia" },
+    { "Description", "Descri\xC3\xA7\xC3\xA3o" },
+    { "Type here what happened.", "Escreva aqui o que aconteceu." },
+    { "Photo", "Foto" },
+    { "State", "Estado" },
+    { "Clip", "Clipe" },
+    { "Save report", "Salvar relato" },
+    { "Save and send", "Salvar e enviar" },
+    { "Mark on picture", "Marcar na foto" },
+    { "Done", "Pronto" },
+    { "Undo", "Desfazer" },
+    { "Clear", "Limpar" },
+    { "Drag a red rectangle over the problem. Mark as many as you need.",
+      "Arraste um ret\xC3\xA2ngulo vermelho sobre o problema. Marque quantos precisar." },
+    { "Keys or controller: move, Enter or Cross marks each corner, Backspace or Square undoes, Esc or Circle goes back.",
+      "Teclado ou controle: mova, Enter ou X marca cada canto, Backspace ou Quadrado desfaz, Esc ou C\xC3\xADrculo volta." },
+    { "Sending opens GitHub. Your text and the photos become public. The save state and your settings go encrypted.",
+      "Enviar abre o GitHub. Seu texto e as fotos ficam p\xC3\xBA" "blicos. O save state e as suas configura\xC3\xA7\xC3\xB5" "es v\xC3\xA3o criptografados." },
+    { "Discard", "Descartar" },
+    { "Discard? Press again", "Descartar? Aperte de novo" },
+    { "Ctrl+Enter saves \xC2\xB7 Esc discards", "Ctrl+Enter salva \xC2\xB7 Esc descarta" },
+    { "Bug report saved", "Relato de bug salvo" },
+    { "Bug report saved, not packed", "Relato salvo, mas o zip falhou" },
+    { "Bug report discarded", "Relato de bug descartado" },
+    { "Graphics", "Gr\xC3\xA1" "ficos" },
+    { "Sound", "Som" },
+    { "Crash / freeze", "Travou / congelou" },
+    { "Slow / stutter", "Lento / engasgos" },
+    { "Controls", "Controles" },
+    { "Menu / text", "Menu / texto" },
+    { "Other", "Outro" },
+    { "Critical", "Cr\xC3\xADtico: o jogo n\xC3\xA3o continua" },
+    { "Annoying", "Inc\xC3\xB4modo: atrapalha" },
+    { "Minor", "Pequeno: um detalhe" },
+    { "Always", "Sempre" },
+    { "Sometimes", "\xC3\x80s vezes" },
+    { "Once", "Uma vez" },
+};
+
 /* The title's additions (cleared at session activation). */
 static char *s_title_types[BR_TYPES_MAX];
 static int s_title_type_n;
@@ -1485,9 +1530,36 @@ void psx_mod_bug_report_translate(const char *english, const char *shown) {
     s_word_n++;
 }
 const char *bug_report_tr(const char *english) {
-    for (int i = 0; english && i < s_word_n; i++)
+    if (!english) return english;
+    for (int i = 0; i < s_word_n; i++)
         if (!strcmp(s_word_en[i], english)) return s_word_shown[i];
+    if (!strcmp(psx_mod_host_language(), "pt"))
+        for (size_t i = 0; i < sizeof k_words_pt / sizeof *k_words_pt; i++)
+            if (!strcmp(k_words_pt[i][0], english)) return k_words_pt[i][1];
     return english;
+}
+
+/* The system's first language, PSX_HOST_LANGUAGE winning (tests). */
+const char *psx_mod_host_language(void) {
+    static char lang[8];
+    if (lang[0]) return lang;
+    const char *e = getenv("PSX_HOST_LANGUAGE");
+    if (e && *e) {
+        snprintf(lang, sizeof lang, "%s", e);
+        return lang;
+    }
+#if defined(PSX_SDL3)
+    int n = 0;
+    SDL_Locale **list = SDL_GetPreferredLocales(&n);
+    if (list && n > 0 && list[0]->language) snprintf(lang, sizeof lang, "%s", list[0]->language);
+    SDL_free(list);
+#else
+    SDL_Locale *list = SDL_GetPreferredLocales();
+    if (list && list[0].language) snprintf(lang, sizeof lang, "%s", list[0].language);
+    SDL_free(list);
+#endif
+    if (!lang[0]) snprintf(lang, sizeof lang, "en");
+    return lang;
 }
 int psx_mod_bug_report_open(void) { return bug_report_begin(); }
 int psx_mod_bug_report_active(void) { return bug_report_busy(); }
@@ -1536,8 +1608,9 @@ int bug_report_debug(const char *op, const char *text, int key, int row, int val
     n += snprintf(out + n, cap > (size_t)n ? cap - (size_t)n : 0,
                   "\",\"row\":%d,\"type\":%d,\"types\":%d,\"severity\":%d,\"frequency\":%d,"
                   "\"photo\":%d,\"photo_ps1\":%d,\"state\":%d,\"clip_frames\":%d,\"text_bytes\":%d,"
-                  "\"marks\":%d,\"marking\":%d,\"can_send\":%d",
+                  "\"marks\":%d,\"marking\":%d,\"can_send\":%d,\"language\":\"%s\"",
                   s_row, s_type, s_type_n, s_sev, s_freq, s_photo, s_photo_ps1, s_state, s_clip_frames,
-                  (int)strlen(s_text), s_mark_n, bug_report_ui_marking(), send_available());
+                  (int)strlen(s_text), s_mark_n, bug_report_ui_marking(), send_available(),
+                  psx_mod_host_language());
     return n;
 }

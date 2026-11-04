@@ -110,10 +110,12 @@ anything from it. Save states from strangers belong in a disposable test folder.
   `game` object (where the player was, the title's modes).
 - `psx_mod_set_bug_report_send(new_issue_url, public_key)`: where a release build sends a report,
   above. Each title has its own page and key.
-- `psx_mod_bug_report_translate(english, shown)`: the ImGui form's words in the player's
-  language (labels, buttons, the saved / discarded notices, the names of the types,
-  severities and frequencies; the list is in mod_plugins.h). `report.json` keeps the
-  English names.
+- The form follows the system's language: Portuguese words are in the framework, any other
+  language shows the English (`PSX_HOST_LANGUAGE=pt|en` tests one). `report.json` and the issue
+  keep the English names.
+- `psx_mod_bug_report_translate(english, shown)`: a title's own words, ahead of those. Only for
+  what the framework does not know, such as its types, and only when `psx_mod_host_language()`
+  matches.
 - `psx_mod_set_bug_report_renderer(fn)`: the canvas form in the title's look, drawn from a
   `PSXModBugReportView` (rows, values, text and caret, the moment's thumbnail, what was
   taken); return 0 to have the framework's panel. Not called where the ImGui form is
