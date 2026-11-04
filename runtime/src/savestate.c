@@ -746,7 +746,9 @@ int savestate_write_slot(int slot, const void* data, size_t size) {
         remove(path);
         return 0;
     }
-    if (fflush(f) != 0 || fclose(f) != 0) {
+    int flushed = fflush(f) == 0;
+    int closed = fclose(f) == 0;
+    if (!flushed || !closed) {
         fprintf(stderr, "savestate: write_slot flush/close('%s') failed: %s\n",
                 path, strerror(errno));
         remove(path);

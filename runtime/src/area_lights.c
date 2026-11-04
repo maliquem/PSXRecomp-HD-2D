@@ -132,7 +132,7 @@ static int al_parse_line(char *line, AreaLightSet *set, uint32_t *area_out, char
         else if (strcmp(t, "corner") == 0 && kind == AREA_LIGHT_WINDOW) { ok = al_nums(&w, l.q, 3); has_q = ok; }
         else if (strcmp(t, "dir") == 0) { ok = al_nums(&w, l.dir, 3); l.has_dir = ok; }
         else if (strcmp(t, "panes") == 0) {
-            float c[2];
+            float c[2] = {1.0f, 1.0f};
             ok = al_nums(&w, c, 2);
             l.cols = c[0] < 1.0f ? 1 : c[0] > 16.0f ? 16 : (int)c[0];
             l.rows = c[1] < 1.0f ? 1 : c[1] > 16.0f ? 16 : (int)c[1];

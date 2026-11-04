@@ -8221,7 +8221,7 @@ static void bdi_tiles_learn(void) {
         for (int k = 0; k + 1 < n; k++) {
             const BdiPrim *a = &s_bdi_prim[order[k]], *c = &s_bdi_prim[order[k + 1]];
             BdiTile ta, tc;
-            bdi_tile_of(a, &ta); bdi_tile_of(c, &tc);
+            if (!bdi_tile_of(a, &ta) || !bdi_tile_of(c, &tc)) continue;
             if (c->x[0] != a->x[0] + ta.w) continue;   /* not side by side */
             BdiTileMem *ma = bdi_tile_mem(&ta, 1);
             ma->nb[1] = tc; ma->has[1] = 1; ma->seen = (uint32_t)s_frame_count + 1u;
