@@ -2820,7 +2820,7 @@ void debug_server_trace_dispatch(uint32_t func_addr) {
      * (normalized) block leader. Sampled before the block runs. */
     cyc_watch_observe(func_addr & 0x1FFFFFFFu);
 
-    card_mgr_trace_record(func_addr, 1);
+    if (s_passive) card_mgr_trace_record(func_addr, 1);
 
     {
         uint32_t vphys = func_addr & 0x1FFFFFFFu;
@@ -2897,7 +2897,7 @@ void debug_server_trace_dispatch(uint32_t func_addr) {
 
     s_dispatch_ring[s_dispatch_seq % DISPATCH_TRACE_CAP] = func_addr;
     s_dispatch_seq++;
-    dispatch_unique_add(func_addr);
+    if (s_passive) dispatch_unique_add(func_addr);
     ls_suppress_end();
 }
 
