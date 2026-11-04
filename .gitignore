@@ -8,7 +8,8 @@ bios/*
 !bios/*.LICENSE
 
 # DuckStation — upstream source is a git submodule pointing at stenzek/duckstation.
-# Our custom changes live in tools/duckstation/psxrecomp_oracle.patch (committed).
+# Our custom changes live in psxrecomp_oracle.patch, outside the repository
+# (PSX_ORACLE_PATCHES, tools/duckstation/README.md).
 # Only the build artefacts and prebuilt binary deps are untracked at the parent level;
 # the submodule's own .gitignore handles in-tree ignores.
 duckstation/build/

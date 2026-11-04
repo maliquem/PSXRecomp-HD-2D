@@ -34,10 +34,10 @@ Keep the checkout outside the psxrecomp tree and symlink it in. The symlink
 git clone https://github.com/libretro/beetle-psx-libretro.git ~/dev/beetle-psx
 cd ~/dev/beetle-psx
 git checkout 5759277b      # last C++-tree base; newer upstream is plain C
-PSXRECOMP=<path to psxrecomp>
+PSX_ORACLE_PATCHES=<the folder with the beetle_*.patch files, see beetle-linux.md>
 for p in wtrace_hook sio_trace_hook cdcmd_trace_hook rtrace_irq_hook \
          guest_cycles_hook cdc_dma_peek_hook spu_event_hook; do
-    git apply "$PSXRECOMP/docs/beetle_$p.patch"
+    git apply "$PSX_ORACLE_PATCHES/beetle_$p.patch"
 done
 ```
 

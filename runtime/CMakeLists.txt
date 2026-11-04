@@ -2118,7 +2118,8 @@ endif()
 # on its own port (default 4382, set in beetle_main.cpp; --port N). No recomp
 # code linked.
 #
-# Requires beetle-psx with the docs/beetle_*.patch hooks, built via:
+# Requires beetle-psx with the beetle_*.patch hooks (kept outside this repository,
+# docs/beetle-linux.md), built via:
 #   cd beetle-psx && make platform=mingw_x86_64 STATIC_LINKING=1 HAVE_LIGHTREC=0
 # (platform=unix on Linux, platform=osx on macOS; there the archive is named
 # mednafen_psx_libretro.so/.dylib; copy it to libmednafen_psx.a). Recipes:

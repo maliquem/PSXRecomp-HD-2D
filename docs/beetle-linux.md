@@ -10,7 +10,9 @@ ping/screenshot served over the TCP debug protocol).
 master has since been converted to plain C (`libretro.cpp` -> `libretro.c`,
 `PS_CPU` class dropped), which no longer compiles against our integration.
 Pin the checkout to the last compatible commit — the same base
-`docs/beetle_wtrace_hook.patch` was generated from:
+`beetle_wtrace_hook.patch` was generated from. The `beetle_*.patch` files are diffs of
+GPL code, so they live outside this repository, in the folder named by
+`PSX_ORACLE_PATCHES` (default `../oracle_patches`):
 
 ```bash
 git clone https://github.com/libretro/beetle-psx-libretro.git beetle-psx
@@ -18,12 +20,12 @@ cd beetle-psx
 git checkout 5759277b          # "audit pass" — last C++-tree base we target
 for p in wtrace_hook sio_trace_hook cdcmd_trace_hook rtrace_irq_hook \
          guest_cycles_hook cdc_dma_peek_hook spu_event_hook; do
-    git apply ../docs/beetle_$p.patch    # in this order; each builds on the last
+    git apply "$PSX_ORACLE_PATCHES/beetle_$p.patch"    # in this order; each builds on the last
 done
 ```
 
 Every hook `beetle_libretro.cpp` and `beetle_debug_server.c` link against is
-now in `docs/beetle_*.patch` (added 2026-09-29): the rtrace/IRQ callbacks, the
+now in `beetle_*.patch` (added 2026-09-29): the rtrace/IRQ callbacks, the
 guest-cycle clock and the per-instruction PC hook behind `cyc_watch`, the
 CDC/DMA IRQ peeks, `PS_CDC::PSXRecomp_GetDecodeVolume` and the SPU event
 calls. `beetle_cdcmd_trace_hook.patch` is now a diff on top of the wtrace and
