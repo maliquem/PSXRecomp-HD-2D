@@ -90,8 +90,11 @@ try and the game hitches.
 
 ## Parity log
 
+Newest rows last. Hash `f6e8251e` and identity `effd3445` unless a row says otherwise.
+
 | Date | What | Proof |
 |---|---|---|
 | 2026-11-03 | BoF4 and FM2 copies merged (`135cbc3d`, generator hash `f6e8251e`, identity `effd3445`) | BoF4 against its previous exe: cycles, CPU, GTE, GPU, SPU identical in 8 scenes x 600 frames; RAM differs only by ChangeTh's result in two TCBs; photos 0 px in 7 scenes (the campfire varies run to run); sound identical. FM2: golden identical in 8 scenes x 600 frames, PGXP included; 0 hitches over 100 ms in 150 s |
 | 2026-11-04 | SPU envelopes rewritten clean-room (`spu_env.inc`, docs/SPU_ENV_CLEAN_ROOM.md) | Against the old code: 0 differences in 134M parameter inputs and 800M random states. BoF4 and FM2 golden identical in 8 scenes x 600 frames, sound included. Hash and identity unchanged |
 | 2026-11-04 | Instruction cache rewritten clean-room (`psx_icache_core.inc`, docs/ICACHE_CLEAN_ROOM.md); stale overlay toolchain stops at the first try; two debug recorders follow the passive policy | 0 differences in 857M cases against the old code; BoF4 and FM2 golden identical in 8 scenes x 600 frames; stale toolchain tested both ways. Hash and identity unchanged |
+| 2026-11-04 | Triangle edge math rewritten clean-room (`gpu_edge.inc`); 3 small bugs from static analysis fixed; oracle patches moved out of the tree | 0 differences in 146M cases; BoF4 and FM2 golden identical in 8 scenes x 600 frames |
