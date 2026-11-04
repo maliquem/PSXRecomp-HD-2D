@@ -2092,9 +2092,15 @@ enum { LIT_MAX = 16, LIT_JOIN = 24, LIT_START = 15, LIT_STEADY = 30, LIT_GONE = 
 #define LIT_DARK 0.02f   /* a glowing piece's brightest channel below this adds nothing */
 #define LIT_MATCH 160.0f
 #define LIT_ALL 0.9f     /* seen in this share of the light steps since it was first */
-typedef struct { float w[3]; float sx, sy, z, size, after, c[3], ramp; unsigned hits, seen, first; int active, up, known; } PfxLight;
+typedef struct { float w[3]; float sx, sy, z, size, after, c[3], ramp, glow; unsigned hits, seen, first; int active, up, known, picked; } PfxLight;
 static PfxLight s_lit[LIT_MAX];
 static int      s_lit_n = 0;
+/* gl_renderer_set_fire_steady: how much of the way a fire light goes, each present,
+ * to its flame's size and to on or off; 0: at once. A title whose flames are
+ * animated sprites of wildly different sizes (FM2's) gets a light that follows
+ * the fire and not each of its frames. */
+static float    s_lit_steady = 0.0f;
+void gl_renderer_set_fire_steady(float k) { s_lit_steady = k; }
 static unsigned s_lit_steps = 0;   /* pfx_lights_update calls (fresh presents) */
 static uint32_t s_lit_look[LIT_LOOKS];   /* the learned looks (open addressing, 0 = empty) */
 static int      s_lit_looks = 0;
@@ -2211,7 +2217,9 @@ static void pfx_lights_update(void) {
             PfxLight *L = &s_lit[m];
             for (int c = 0; c < 3; c++) L->w[c] = 0.8f * L->w[c] + 0.2f * w[c];   /* a flame moves; its light, less */
             for (int c = 0; c < 3; c++) L->c[c] = 0.9f * L->c[c] + 0.1f * g[k][7 + c] / g[k][2];   /* its colour: the pieces' (emit_tex_rgb) */
-            L->sx = sx; L->sy = sy; L->z = z; L->size = g[k][2]; L->after = g[k][4] > 0.0f ? -1.0f : g[k][6];
+            L->sx = sx; L->sy = sy; L->z = z;
+            L->size = s_lit_steady > 0.0f && L->size > 0.0f ? L->size + s_lit_steady * (g[k][2] - L->size) : g[k][2];
+            L->after = g[k][4] > 0.0f ? -1.0f : g[k][6];
             L->hits++; L->seen = s_pfx_presents;
             /* a learned look: at once (2 presents: not a one-off) and at full */
             if (g[k][10] > 0.0f && L->hits >= 2) L->known = 1;
@@ -2227,6 +2235,10 @@ static void pfx_lights_update(void) {
                 lit_look_learn((uint32_t)sc->ev[(size_t)i * SC_EV + 15]);
     }
 age:
+    for (int i = 0; i < s_lit_n; i++) {
+        const float want = s_lit[i].active ? 1.0f : 0.0f;
+        s_lit[i].glow = s_lit_steady > 0.0f ? s_lit[i].glow + s_lit_steady * (want - s_lit[i].glow) : want;
+    }
     for (int i = 0; i < s_lit_n;) {   /* gone: not seen for a while */
         if (s_pfx_presents - s_lit[i].seen > LIT_GONE) { s_lit[i] = s_lit[--s_lit_n]; continue; }
         i++;
@@ -2566,16 +2578,21 @@ static void pfx_fire_build(const PfxPass *ps, float aspect, int lw, int lh) {
     cam_axes(r, east, up);
     /* the lights: the steady ones, biggest first */
     int pick[LIT_MAX], np = 0;
+    /* steady lights: one in a slot keeps it over one a little bigger */
+#define LIT_KEY(i) (s_lit[i].size * (s_lit_steady > 0.0f && s_lit[i].picked ? 1.5f : 1.0f))
     for (int i = 0; fire_on && i < s_lit_n; i++)
-        if (s_lit[i].active) {
+        if (s_lit[i].active || (s_lit_steady > 0.0f && s_lit[i].glow > 0.02f)) {
             int j = np++;
-            while (j > 0 && s_lit[pick[j - 1]].size < s_lit[i].size) { pick[j] = pick[j - 1]; j--; }
+            while (j > 0 && LIT_KEY(pick[j - 1]) < LIT_KEY(i)) { pick[j] = pick[j - 1]; j--; }
             pick[j] = i;
         }
+#undef LIT_KEY
+    for (int i = 0; i < s_lit_n; i++) s_lit[i].picked = 0;
     int nl = 0;
     /* the fire lights keep FIRE_MAX - AL_CAST_MAX slots for the placed ones */
     for (int k = 0; k < np && nl < FIRE_MAX - AL_CAST_MAX; k++) {
         const float *w = s_lit[pick[k]].w;
+        s_lit[pick[k]].picked = 1;
         float V[3];
         for (int c = 0; c < 3; c++) V[c] = r[c * 3] * w[0] + r[c * 3 + 1] * w[1] + r[c * 3 + 2] * w[2] + s_cam_t[c];
         if (V[2] < 16.0f) continue;
@@ -2594,7 +2611,7 @@ static void pfx_fire_build(const PfxPass *ps, float aspect, int lw, int lh) {
             const float big = fminf(fmaxf(sqrtf(s_lit[pick[k]].size / LIT_FULL), 0.25f), 1.0f);
             /* light-out.glsl: strength, and reach (the map's depth stays over
              * `reach`); a new light's grow over its ramp */
-            s_fl_col[nl][3] = big * s_lit[pick[k]].ramp;
+            s_fl_col[nl][3] = big * s_lit[pick[k]].ramp * (s_lit_steady > 0.0f ? s_lit[pick[k]].glow : 1.0f);
         }
         /* light-out.glsl: a fire light reaches its strength x the map's depth;
          * it flickers by u_flicker (y < 0) */

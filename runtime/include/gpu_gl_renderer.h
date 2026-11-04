@@ -517,6 +517,9 @@ void gl_renderer_set_pgxp_depth_threshold(float sz);
 /* Triangles with any vertex nearer than SZ sz stay out of the PGXP depth
  * buffer (painter order; default 1024, 0 = every triangle). For a title whose
  * 3D world sits at small SZ; env PSX_PGXP_DEPTH_NEAR still wins. */
+/* Fire lights that follow the fire and not each frame of its flames: the share of
+ * the way a light goes, each present, to its size and to on or off (0: at once). */
+void gl_renderer_set_fire_steady(float k);
 void gl_renderer_set_pgxp_depth_near(float sz);
 /* Relative near bias of the PGXP depth test (0..0.5); 0 = per-triangle LEQUAL. */
 void gl_renderer_set_pgxp_depth_tolerance(float t);
