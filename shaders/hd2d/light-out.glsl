@@ -50,7 +50,7 @@ uniform vec2 u_pp;    // the projection centre from the picture centre, native p
 uniform float u_natx;   // native width / (240 x 4/3): 0.8 for a 256-wide picture (framework)
 uniform vec4 u_fl[4], u_fls[4], u_flc[4], u_flx[4], u_fld[4], u_flmap;
 uniform vec4 u_al[8], u_alc[8], u_ald[8], u_alx[8], u_aln, u_alamb;
-uniform vec4 u_win[8], u_wu[8], u_wv[8], u_wd[8], u_wc[8], u_wa[8], u_wb[8], u_wn;
+uniform vec4 u_win[8], u_wu[8], u_wv[8], u_wd[8], u_wc[8], u_wa[8], u_wb[8], u_wm[8], u_wn;
 uniform vec4 u_firecol, u_firecfg;
 
 float flicker_by(float t, float amount)
@@ -195,6 +195,15 @@ bool spr_plane(vec2 uv, float zp, int c, out vec3 S, out vec3 nS)
     nS = normalize(ab);
     return true;
 }
+// A window's shape (u_wm: its place in the masks' atlas, z 0: none) at its place q: the mask covers
+// the corners plus 0.08 around them. The edge is the level curve 0.5 of the blurred mask: a smooth
+// line, never the pixels' stairs; softer by rad
+float window_mask(vec2 q, int i, float rad)
+{
+    vec2 t = clamp(vec2(q.x + 0.08, 1.08 - q.y) / 1.16, 0.01, 0.99);
+    float w = 0.10 + rad * 4.0;
+    return smoothstep(0.5 - w, 0.5 + w, texture(u_wmask, u_wm[i].xy + t * u_wm[i].zw).r);
+}
 float window_light(vec3 P, vec3 n, int i)
 {
     vec3 O = u_win[i].xyz, U = u_wu[i].xyz, V = u_wv[i].xyz, D = u_wd[i].xyz;
@@ -216,6 +225,10 @@ float window_light(vec3 P, vec3 n, int i)
     float bv = abs(fract(q.y * u_wv[i].w + 0.5) - 0.5) * lv / u_wv[i].w;
     float bw = 1.6 + 0.004 * t;
     float bars = min(u_wu[i].w > 1.5 ? smoothstep(bw, bw + soft, bu) : 1.0, u_wv[i].w > 1.5 ? smoothstep(bw, bw + soft, bv) : 1.0);
+    if (u_wm[i].z > 0.0) {
+        bars *= window_mask(q, i, max(es, er));
+        if (bars <= 0.0) return 0.0;
+    }
     float face = dot(n, n) > 0.0 ? clamp(dot(n, -D), 0.0, 1.0) : 0.6;
     if (face <= 0.0) return 0.0;
     // something between: steps back toward the window over the depth. On the
@@ -343,7 +356,8 @@ void main()
             if (u_wn.y > 0.5)
                 for (int i = 0; i < 8; i++) {
                     if (float(i) >= u_wn.x) break;
-                    wpatch += u_wc[i].rgb * window_light(P, n, i);
+                    // patches that meet are one patch, as shadows are: the brighter, never the sum
+                    wpatch = max(wpatch, u_wc[i].rgb * window_light(P, n, i));
                 }
         }
     }

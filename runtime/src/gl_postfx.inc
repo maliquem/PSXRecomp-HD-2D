@@ -2314,9 +2314,38 @@ static int   s_al_n = 0;
  * (0..1: the first two, the last two; any four, not only a rectangle); u_wn:
  * count, quality (u_shaft.x, or 2 while a tool edits), the picked window's
  * slot and its corner held by the tool (-1 none). s_alw_set: each one's light
- * in the area's set. */
-enum { ALW_ROWS = 7 };
+ * in the area's set. Last row: its shape's place in the masks' atlas (u, v, size; z 0: none). */
+enum { ALW_ROWS = 8 };
 static float s_alw[AL_WIN_MAX][ALW_ROWS][4];
+/* The windows' shapes in one texture, made once (input `winmask`): a square of tiles, each its own
+ * mask, read with linear filtering so an edge is a smooth curve. Never empty: a pass may bind it. */
+static GLuint s_wm_tex = 0;
+static int wm_cols(int count) {
+    int c = 1;
+    while (c * c < count) c++;
+    return c;
+}
+static void wm_ensure(void) {
+    if (s_wm_tex) return;
+    int side, count;
+    const unsigned char *m = area_lights_masks(&side, &count);
+    const int cols = m ? wm_cols(count) : 1, w = m ? cols * side : 1;
+    unsigned char *px = (unsigned char *)calloc((size_t)w * w, 4);
+    if (!px) return;
+    for (int i = 0; m && i < count; i++)
+        for (int y = 0; y < side; y++)
+            for (int x = 0; x < side; x++) {
+                unsigned char *o = px + 4 * ((size_t)(i / cols * side + y) * w + i % cols * side + x);
+                o[0] = o[1] = o[2] = m[(size_t)i * side * side + (size_t)y * side + x];
+                o[3] = 255;
+            }
+    glGenTextures(1, &s_wm_tex);
+    glBindTexture(GL_TEXTURE_2D, s_wm_tex);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, w, w, 0, GL_RGBA, GL_UNSIGNED_BYTE, px);
+    free(px);
+}
 static int   s_alw_n = 0, s_alw_q = 0, s_alw_set[AL_WIN_MAX];
 static float s_al_amb[4];
 static _Atomic int s_al_mark = -2, s_al_corner = -1;
@@ -2498,6 +2527,15 @@ static int pfx_area_lights_prep(const PfxPass *ps, int nl, float *mapd) {
             for (int k = 0; k < 4; k++) {
                 w[5 + k / 2][(k & 1) * 2] = (cs[k] - s0) / sw;
                 w[5 + k / 2][(k & 1) * 2 + 1] = (cr[k] - r0) / rh;
+            }
+            memset(w[7], 0, sizeof w[7]);
+            int mside, mcount;
+            (void)area_lights_masks(&mside, &mcount);
+            if (l->mask > 0 && l->mask <= mcount) {
+                const int cols = wm_cols(mcount);
+                w[7][0] = (float)((l->mask - 1) % cols) / (float)cols;
+                w[7][1] = (float)((l->mask - 1) / cols) / (float)cols;
+                w[7][2] = w[7][3] = 1.0f / (float)cols;
             }
             s_alw_set[s_alw_n] = i;
             s_alw_n++;
@@ -2750,7 +2788,7 @@ static void pfx_fire_uniforms(GLuint prog) {
         p_glUniform4f(loc, (float)s_al_n, mark >= -1 ? 1.0f : 0.0f, (float)mark, 0.0f);
     if ((loc = p_glGetUniformLocation(prog, "u_alamb")) >= 0) p_glUniform4fv(loc, 1, s_al_amb);
     {   /* the windows (u_win, u_wu, u_wv, u_wd, u_wc, u_wa, u_wb; u_wn count, quality, picked, corner) */
-        static const char *const wn[ALW_ROWS] = {"u_win", "u_wu", "u_wv", "u_wd", "u_wc", "u_wa", "u_wb"};
+        static const char *const wn[ALW_ROWS] = {"u_win", "u_wu", "u_wv", "u_wd", "u_wc", "u_wa", "u_wb", "u_wm"};
         float wv[ALW_ROWS][AL_WIN_MAX][4];
         int picked = -1;
         for (int i = 0; i < s_alw_n; i++)
@@ -3123,6 +3161,8 @@ static int pfx_stage_run(PfxStage *st, int generated, int lx, int ly, int lw, in
         int reads_fire = 0;
         for (int k = 0; k < ps->ninputs; k++)
             if (ps->in[k].from == PFX_IN_FIREMAP) reads_fire = 1;
+        for (int k = 0; k < ps->ninputs; k++)
+            if (ps->in[k].from == PFX_IN_WINMASK) wm_ensure();
         if (reads_fire && s_fire_built != s_pfx_presents) pfx_fire_build(ps, (float)lw / (float)lh * s_pfx_natx, lw, lh);
         for (int k = 0; k < ps->ninputs; k++) {
             if (ps->in[k].from == PFX_IN_SOURCE && !copied) {
@@ -3155,6 +3195,7 @@ static int pfx_stage_run(PfxStage *st, int generated, int lx, int ly, int lw, in
                            : from == PFX_IN_SPRSHADOW ? s_sm2_tex
                            : from == PFX_IN_SPRITE ? s_spr_tex
                            : from == PFX_IN_FIREMAP ? s_fm_tex
+                           : from == PFX_IN_WINMASK ? s_wm_tex
                            : st->tex[from];
             p_glActiveTexture(PSXGL_TEXTURE0 + (GLenum)k);
             glBindTexture(GL_TEXTURE_2D, t);

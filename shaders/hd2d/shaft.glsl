@@ -17,7 +17,7 @@
 uniform vec4 u_proj;
 uniform vec2 u_pp;    // the projection centre from the picture centre, native px, y down (framework; 0 = the centre)
 uniform float u_natx;   // native width / (240 x 4/3): 0.8 for a 256-wide picture (framework)
-uniform vec4 u_win[8], u_wu[8], u_wv[8], u_wd[8], u_wc[8], u_wa[8], u_wb[8], u_wn;
+uniform vec4 u_win[8], u_wu[8], u_wv[8], u_wd[8], u_wc[8], u_wa[8], u_wb[8], u_wm[8], u_wn;
 
 float hash(vec3 p)
 {
@@ -49,6 +49,15 @@ vec2 quad_uv(vec2 p, int i)
     float u = 2.0 * hf / den;
     vec2 fg = f + g * u;
     return vec2(u, dot(h - e * u, fg) / max(dot(fg, fg), 1e-8));
+}
+// A window's shape (u_wm: its place in the masks' atlas, z 0: none) at its place q: the mask covers
+// the corners plus 0.08 around them. The edge is the level curve 0.5 of the blurred mask: a smooth
+// line, never the pixels' stairs; softer by rad
+float window_mask(vec2 q, int i, float rad)
+{
+    vec2 t = clamp(vec2(q.x + 0.08, 1.08 - q.y) / 1.16, 0.01, 0.99);
+    float w = 0.10 + rad * 4.0;
+    return smoothstep(0.5 - w, 0.5 + w, texture(u_wmask, u_wm[i].xy + t * u_wm[i].zw).r);
 }
 // the stretch of z (along the ray: X = R z) where lo <= f0 + f1 z <= hi
 vec2 band(float f0, float f1, float lo, float hi, vec2 zz)
@@ -119,6 +128,7 @@ void main()
         float path = (zz.y - zz.x) * length(R), cap = 0.8 * min(lu, lv);
         float along = max(dot(normalize(R), D), 0.0);
         float dzw = dz * (path > cap ? cap / path : 1.0) * mix(1.0, 0.3, along * along);
+        vec3 one = vec3(0.0);   // this beam's air
         for (int k = 0; k < 26; k++) {
             if (k >= N) break;
             float z = zz.x + (float(k) + jit) * dz;
@@ -131,18 +141,20 @@ void main()
             float bu = abs(fract(q.x * u_wu[i].w + 0.5) - 0.5) * lu / u_wu[i].w;
             float bv = abs(fract(q.y * u_wv[i].w + 0.5) - 0.5) * lv / u_wv[i].w;
             float bars = mix(1.0, min(smoothstep(1.5, 4.0, bu), smoothstep(1.5, 4.0, bv)), 0.45);
+            if (u_wm[i].z > 0.0) bars = window_mask(q, i, 0.03);
             float fade = smoothstep(0.0, 30.0, t) * exp(-t / (0.6 * u_win[i].w + 150.0)) * (1.0 - smoothstep(0.8, 1.0, t / u_win[i].w));
             vec3 L = vec3(s * lu, r * lv, t);   // the window's own frame (world units)
             float haze = 0.55 + 0.6 * noise3(L / 46.0 + vec3(0.0, u_time * 0.05, u_time * 0.03)) + 0.25 * noise3(L / 17.0 - u_time * 0.04);
             float a = edge * bars * fade;
             if (a <= 0.0) continue;
             a *= air_clear(R * z, D, t, g_nat, jit);
-            acc += u_wc[i].rgb * a * haze * dzw;
+            one += u_wc[i].rgb * a * haze * dzw;
             if (u_wn.y > 1.5 && u_wc[i].w > 0.0) {   // motes: sparse sparks of a fine noise, drifting down slowly
                 float m = noise3(L / 3.2 + vec3(0.0, u_time * 0.6, u_time * 0.15));
                 dust += u_wc[i].w * a * pow(m, 18.0) * 6.0 * dzw;
             }
         }
+        acc = max(acc, one);    // beams that cross are one beam: the brighter, never the sum
     }
     o = vec4(acc / 120.0, dust / 25.0);
 }

@@ -49,6 +49,7 @@ typedef struct {
     float az, el, dust;
     int   has_dir;        /* window: dir set */
     float dir[3];         /* window: the way its light travels (world) */
+    int   mask;           /* window: its shape in window_masks.bin, 1.. (0: its panes and corners) */
     char  note[AREA_LIGHT_NOTE];
 } AreaLight;
 
@@ -72,6 +73,10 @@ int      area_lights_text(uint32_t area, char *out, int cap);
 int      area_lights_areas(uint32_t *areas, int max);
 /* A file of such lines (several areas): the lights read, -1 none. */
 int      area_lights_load(const char *path);
+/* The windows' shapes (`mask N`), read with the file from window_masks.bin beside it: "WMSK", side
+ * and count (int32), then count masks of side*side bytes (top row first; 0 dark, 255 lit, soft
+ * edges). A mask covers the window's four corners plus 0.08 of its size around them. */
+const unsigned char *area_lights_masks(int *side, int *count);
 /* Bumped at each change (a reader's cache). */
 uint32_t area_lights_version(void);
 
