@@ -3040,6 +3040,8 @@ GameConfig load_game_config(const fs::path& config_path_in) {
     if (recomp.contains("gpr_locals_flush_max"))
         loaded.gpr_locals_flush_max = toml::find<int>(recomp, "gpr_locals_flush_max");
     loaded.lean = recomp.contains("lean") && toml::find<bool>(recomp, "lean");
+    loaded.lean_no_locals = recomp.contains("lean_no_locals") &&
+                            toml::find<bool>(recomp, "lean_no_locals");
     if (loaded.lean && !(loaded.gpr_locals && loaded.cpu_timing_block))
         throw std::runtime_error(fmt::format(
             "{}: [recompiler].lean needs gpr_locals = true and cpu_timing = 'block'",

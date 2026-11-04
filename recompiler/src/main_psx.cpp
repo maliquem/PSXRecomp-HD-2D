@@ -252,6 +252,7 @@ static int psxrecomp_game_main(int argc, char** argv) {
     bool gpr_locals = false;         // [recompiler] gpr_locals
     int gpr_locals_flush_max = 8;    // [recompiler] gpr_locals_flush_max
     bool lean = false;               // [recompiler] lean
+    bool lean_no_locals = false;     // [recompiler] lean_no_locals
     PSXRecompV4::WidescreenAspectConeConfig ws_aspect_cone;
     int                   ws_cull_activation_guard_pixels = 0;
     std::vector<uint32_t> ws_cull_w_imms = { 0x140, 0x141 }; // [widescreen.cull] screen_w_imms
@@ -336,6 +337,7 @@ static int psxrecomp_game_main(int argc, char** argv) {
         gpr_locals = cfg.gpr_locals;
         gpr_locals_flush_max = cfg.gpr_locals_flush_max;
         lean = cfg.lean;
+        lean_no_locals = cfg.lean_no_locals;
         ws_aspect_cone = cfg.ws_aspect_cone;
         ws_cull_activation_guard_pixels =
             cfg.ws_cull_activation_guard_pixels;
@@ -1522,6 +1524,7 @@ static int psxrecomp_game_main(int argc, char** argv) {
     codegen_config.gpr_locals = gpr_locals;
     codegen_config.gpr_locals_flush_max = gpr_locals_flush_max;
     codegen_config.lean = lean;
+    codegen_config.lean_no_locals = lean_no_locals;
     codegen_config.ws_aspect_cone = ws_aspect_cone;
     codegen_config.ws_cull_w_imms      = ws_cull_w_imms;
     codegen_config.ws_cull_h_imms      = ws_cull_h_imms;

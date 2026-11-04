@@ -94,7 +94,7 @@ scratchpad still called the hook, and BoF4's hottest 3D function works on a scra
 |---|---|
 | (none) | lean: B2 locals + lean forms |
 | `-DPSX_LEAN_OFF` | the B2 forms (`gpr_locals` as measured on 2026-11-02) |
-| `-DPSX_LEAN_NO_LOCALS` | the B2 and lean forms with the registers left in `cpu->gpr` (no locals, no sync code) |
+| `-DPSX_LEAN_NO_LOCALS` or `[recompiler] lean_no_locals = true` | the B2 and lean forms with the registers left in `cpu->gpr` (no locals, no sync code) |
 | `-DPSX_GPR_LOCALS_OFF` | the original text: no forms at all |
 
 Static count of the generated functions in the linked exes, all with PGO + ThinLTO (BoF4, every

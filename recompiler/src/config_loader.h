@@ -1620,6 +1620,9 @@ struct GameConfig {
     // [recompiler] lean (docs/LEAN_CORE.md): on top of gpr_locals, a block's
     // cycles in a function local and plain stores inline. Exact; regen required.
     bool lean = false;
+    // [recompiler] lean_no_locals: the lean forms with the guest registers left
+    // in cpu->gpr. With PGO the locals' sync code costs more than they save.
+    bool lean_no_locals = false;
     // [quality.low/medium/high/ultra] -- graphics presets, lowest first. Empty:
     // the title has no presets and [video] alone applies (unchanged).
     std::vector<QualityPreset> quality_presets;

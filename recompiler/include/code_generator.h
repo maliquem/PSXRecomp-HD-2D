@@ -205,6 +205,9 @@ struct CodeGenConfig {
     int gpr_locals_flush_max = 8;
     // [recompiler] lean (docs/LEAN_CORE.md): the pass writes the PSX_LN_* forms.
     bool lean = false;
+    // [recompiler] lean_no_locals: those forms with the guest registers left in
+    // cpu->gpr (generated files define PSX_LEAN_NO_LOCALS).
+    bool lean_no_locals = false;
 
     // Exact model-participation cosine compares that gain a camera-horizontal
     // aspect envelope while preserving the vanilla vertical cone.
@@ -443,8 +446,9 @@ private:
     // [recompiler] gpr_locals (gpr_locals.h): the include line generated files
     // carry when the mode is on (empty otherwise), and the pass's tallies.
     std::string gpr_locals_include() const {
-        return config_.gpr_locals && !config_.overlay_mode
-            ? "#include \"psx_gpr_locals.h\"  /* [recompiler] gpr_locals */\n" : "";
+        if (!config_.gpr_locals || config_.overlay_mode) return "";
+        return std::string(config_.lean_no_locals ? "#define PSX_LEAN_NO_LOCALS 1\n" : "") +
+               "#include \"psx_gpr_locals.h\"  /* [recompiler] gpr_locals */\n";
     }
     GprLocalsStats gpr_locals_stats_;
 public:
