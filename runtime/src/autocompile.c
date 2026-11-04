@@ -1427,9 +1427,15 @@ void autocompile_poll_main(void) {
     /* Direct markers minimize handoff latency, then one idempotent batch-end
      * rescan makes every successfully published artifact visible to additive
      * cache queries and the lazy manifest index. This is intentionally once per
-     * compiler run, never once per DLL or interpreted instruction. */
-    overlay_loader_rescan();
-    s_rescans++;
+     * compiler run, never once per DLL or interpreted instruction. A clean run
+     * that built nothing (every shard already cached: the usual boot precompile)
+     * left the directory as the index already has it, and the rescan is a
+     * 600 ms stall on this thread in a game with a mature cache. */
+    if (s_exit_code != 0 || !s_shard_result_seen || s_shard_ok != 0 ||
+        s_shard_fail != 0) {
+        overlay_loader_rescan();
+        s_rescans++;
+    }
     /* A run "failed" if the process exited non-zero OR it reported shard
      * failures. compile_overlays.py exits 2 when any shard that should have
      * built failed, so these usually agree; the parsed count is the detail. */
