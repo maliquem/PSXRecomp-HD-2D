@@ -2471,6 +2471,20 @@ static int pfx_area_lights_prep(const PfxPass *ps, int nl, float *mapd) {
             nmid += 1.0f;
         }
         if (nmid > 0.0f) for (int c = 0; c < 3; c++) mid[c] /= nmid;
+        /* the floor a beam lands on: the commonest height, not the lowest (a pit in the room) */
+        float hfloor = hmin;
+        if (sc && s_alw_q > 0 && hmin < 1e29f) {
+            enum { BINS = 128 };
+            int bins[BINS] = {0}, best = 0;
+            for (int t = 0; t < sc->n * 3; t++) {
+                const float *v = sc->v + (size_t)t * SC_V;
+                if (v[2] < 1.0f) continue;
+                const float P[3] = {(v[0] - s_sc_cx) * v[2] * k, -(v[1] - s_sc_cy) * v[2] * k, v[2]};
+                const int b = (int)((P[0] * up[0] + P[1] * up[1] + P[2] * up[2] - hmin) / 24.0f);
+                if (b >= 0 && b < BINS && ++bins[b] > bins[best]) best = b;
+            }
+            hfloor = hmin + ((float)best + 0.5f) * 24.0f;
+        }
         for (int i = 0; i < set.n && s_alw_q > 0 && s_alw_n < AL_WIN_MAX; i++) {
             const AreaLight *l = &set.l[i];
             if (l->kind != AREA_LIGHT_WINDOW) continue;
@@ -2591,7 +2605,7 @@ static int pfx_area_lights_prep(const PfxPass *ps, int nl, float *mapd) {
                 float M[3];
                 for (int c = 0; c < 3; c++) M[c] = (C[0][c] + C[1][c] + C[2][c] + C[3][c]) * 0.25f;
                 const float h = M[0] * up[0] + M[1] * up[1] + M[2] * up[2];
-                float t = down > 0.05f && hmin < 1e29f ? (h - hmin) / down : tmax;
+                float t = down > 0.05f && hmin < 1e29f ? (h - hfloor) / down : tmax;
                 t = fminf(fmaxf(t, 0.0f), tmax);
                 for (int c = 0; c < 3; c++) w[8][c] = M[c] + D[c] * t + up[c] * AL_BOUNCE_LIFT;
                 float open = 0.6f;

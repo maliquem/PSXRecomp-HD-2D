@@ -401,7 +401,8 @@ void main()
         }
     }
     if (u_lightview.y > 0.5) { o = vec4(src * 0.15 + vec3(min(fire.x, 1.0)) + placed, 1.0); return; }
-    wbounce = wbounce / (1.0 + wbounce);   // many windows fill a room, never burn it
+    // how lit the room is here: toward its full colours and past them, never burnt by many windows
+    wbounce = 1.45 * (1.0 - exp(-wbounce * u_wind.x));
     if (u_lightview.z > 1.5) { o = vec4(src * 0.15 + wbounce, 1.0); return; }
     if (u_lightview.z > 0.5) { o = vec4(src * 0.15 + wpatch, 1.0); return; }
 
@@ -410,7 +411,8 @@ void main()
     // reaches; the placed lights bring back their light (from the colours as drawn)
     vec3 src0 = src;
     if (u_alamb.w > 0.5 && (m > 0.5 || is_spr)) src *= u_alamb.rgb;
-    if (u_wn.y * u_wn.x > 0.0 && (m > 0.5 || is_spr)) src *= u_wind.y;   // a room lit by its windows, with or without an ambient
+    // a room lit by its windows: dark where their light does not reach, its own colours back where it does
+    if (u_wn.y * u_wn.x > 0.0 && (m > 0.5 || is_spr)) src = src * u_wind.y + src0 * wbounce * (m > 0.5 ? 1.0 : spr);
     vec3 add = (src * l + u_light.z * l) * m + (src * l + 0.5 * u_light.z * l) * spr;
     // the fire lights: their shadow darkens (u_firecfg.z), their light
     // brightens and tints by each light's colour (u_firecol.w the strength), flickering
@@ -422,7 +424,6 @@ void main()
     add += src0 * pc + 0.08 * pc;
     vec3 wp = wpatch * u_wind.z * (m > 0.5 ? 1.0 : 0.5 * spr);
     add += src0 * wp * 1.7 + 0.10 * wp;
-    add += src0 * wbounce * u_wind.x * (m > 0.5 ? 1.0 : spr);
     vec3 c = src + add * (1.0 - src);
     if (u_wn.y > 0.5 && (m > 0.5 || is_spr)) {   // the shafts' lit air and dust, screened over
         vec4 sh = texture(u_sh, v_uv);
