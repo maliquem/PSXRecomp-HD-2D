@@ -4064,6 +4064,18 @@ retry_candidates:
                 if (g_native_bad_entry) {  /* foreign interior entry: fail closed to interp */
                     g_native_bad_entry = 0;
                     s_disp_native--; s_disp_interp++;
+                    /* The range owner has no block for this PC, so it does not
+                     * own it after all, and an exact manifested DLL must not
+                     * stay masked by it (Front Mission 2's kernel 0x281C inside
+                     * 0x27B4: autocompile built the exact shard, this path never
+                     * tried it, and the pressure it left re-ran autocompile
+                     * forever, one rescan hitch per run). */
+                    if (lazy_exact && !lazy_loaded && try_load_region(seg, phys)) {
+                        lazy_loaded = 1;
+                        s_disp_interp--;
+                        goto retry_candidates;
+                    }
+                    lazy_miss_record(addr);
                     return 0;            /* cpu->pc was restored to the requested PC */
                 }
                 return 1;
@@ -5209,13 +5221,20 @@ int overlay_loader_dump_lazy_at(uint32_t addr, char *out, int cap) {
             "%s{\"li\":%d,\"ci\":%d,\"region\":\"0x%08X\","
             "\"entry\":\"0x%08X\",\"file\":\"%s\",\"funcs\":%d,\"indexed\":%d,"
             "\"loaded\":%d,\"crc\":\"0x%08X\",\"live\":\"0x%08X\","
-            "\"match\":%d,\"contains\":%d}",
+            "\"match\":%d,\"contains\":%d,\"failed\":%d,\"suppressed\":%d,"
+            "\"state\":%d,\"delay_ok\":%d,\"loadable\":%d,\"bundle\":%d,"
+            "\"miss_cached\":%d}",
             first ? "" : ",", li, ci, s_cache_idx[ci].region_start,
             lm->fn.entry, base, s_cache_idx[ci].func_count,
             s_cache_idx[ci].indexed_func_count,
             dll_already_loaded(s_cache_idx[ci].path), lm->fn.crc, live,
             live_ok && live == lm->fn.crc,
-            lazy_man_contains(&lm->fn, lm->fn.entry & 0xE0000000u, phys));
+            lazy_man_contains(&lm->fn, lm->fn.entry & 0xE0000000u, phys),
+            s_cache_idx[ci].load_failed, s_cache_idx[ci].capacity_suppressed,
+            (int)lm->state, man_delay_slots_hashed(&lm->fn),
+            lazy_is_loadable(li, s_cache_idx[ci].region_start,
+                             lm->fn.entry & 0xE0000000u, phys, 0),
+            lazy_bundle_matches(ci), lazy_miss_cached(lm->fn.entry));
         first = 0;
     }
     n += snprintf(out + n, cap - n, "]}");

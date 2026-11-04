@@ -14,6 +14,8 @@
 
 uniform vec4 u_light;
 uniform vec4 u_proj;
+uniform vec2 u_pp;    // the projection centre from the picture centre, native px, y down (framework; 0 = the centre)
+uniform float u_natx;   // native width / (240 x 4/3): 0.8 for a 256-wide picture (framework)
 
 const vec3 LUMA = vec3(0.299, 0.587, 0.114);
 vec2 g_grid;
@@ -26,11 +28,11 @@ float sz_at(vec2 uv)
     return d < 0.99999 ? 256.0 / max(1.0 - d, 1e-7) - 256.0 : 0.0;
 }
 
-vec3 pos_at(vec2 uv, float z, vec2 nat) { return vec3((uv - 0.5) * nat * z / u_proj.x, z); }
+vec3 pos_at(vec2 uv, float z, vec2 nat) { return vec3(((uv - 0.5) * nat + vec2(-u_pp.x, u_pp.y)) * z / u_proj.x, z); }
 
 void main()
 {
-    vec2 nat = vec2(u_proj.y * u_size.x / u_size.y, u_proj.y);
+    vec2 nat = vec2(u_proj.y * u_size.x / u_size.y * (u_natx > 0.0 ? u_natx : 1.0), u_proj.y);
     g_grid = nat * max(u_proj.z, 1.0);
     vec2 uv0 = snap(v_uv);
     float z = sz_at(uv0);

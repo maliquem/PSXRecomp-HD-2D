@@ -174,6 +174,21 @@ static void nesting_restore(const RenderPassNesting *n) {
     dirty_ram_span_set(n->span_lo, n->span_hi);
 }
 
+/* The host-fiber thread scheduler (traps.c) gives each BIOS thread its own
+ * native stack, so the nesting set by the frames on that stack belongs to
+ * that thread: saved before a fiber switch, put back when the fiber resumes. */
+void* psx_host_nesting_save_alloc(void) {
+    RenderPassNesting *n = (RenderPassNesting *)calloc(1, sizeof *n);
+    if (n) nesting_save(n);
+    return n;
+}
+
+void psx_host_nesting_restore_free(void *p) {
+    if (!p) return;
+    nesting_restore((const RenderPassNesting *)p);
+    free(p);
+}
+
 /* PSX_RENDER_PASS_VERIFY: a pass that returned normally must leave the
  * nesting balanced; the restore would otherwise hide the imbalance. (The
  * deferred load is not nesting: the interpreter retires it on exit.) */

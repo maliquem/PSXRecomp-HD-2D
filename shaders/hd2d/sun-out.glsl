@@ -14,6 +14,12 @@
 // Night (u_night.x, the framework's: gl_renderer_set_night): the light and the
 // ambient move that far toward u_mooncol and u_moonamb, and the sprites take
 // u_moonspr's tint (they keep their daytime colours in the game).
+// u_nightkeep (0 = off): at night, what the scenery already shows lit (a
+// game that paints its own lights into the scene: a floodlight's pool, lit
+// windows, a fire) keeps its colour. x, y = the brightness (luma) the keeping
+// starts and is full at (warm colours count brighter), z = how much (0..1).
+// The dark keeps the moonlight and its shadows, so the game's lights stand
+// out more against it instead of less.
 // Dim grey dust or smoke drawn over the scenery (u_m alpha 0.5: the framework
 // takes it as lit with the ground under it) that piles up nearly white is
 // mostly the dust: it is not darkened below its own brightness there (a crash's
@@ -23,10 +29,13 @@ uniform vec4 u_suncol;
 uniform vec4 u_amb;
 uniform vec4 u_night;                  // the framework's: x = the night's share of the light
 uniform vec4 u_mooncol, u_moonamb, u_moonspr;
+uniform vec4 u_nightkeep;
 uniform vec4 u_sunview;
 uniform vec4 u_ss;
 uniform vec4 u_worldup, u_shadowdir;   // the framework's (pfx_shadow_uniforms): world up, the light
-uniform vec4 u_proj;                   // y = native height (the view rays)
+uniform vec4 u_proj;
+uniform vec2 u_pp;    // the projection centre from the picture centre, native px, y down (framework; 0 = the centre)
+uniform float u_natx;   // native width / (240 x 4/3): 0.8 for a 256-wide picture (framework)                   // y = native height (the view rays)
 uniform vec4 u_horizon;                // the framework's: world up (view space, y up), w the camera's H (0 = none)
 
 // depth-aware upsample of the lit term (as in ao-out.glsl)
@@ -74,8 +83,8 @@ void main()
         // space y up; the camera's own H), fading in over the first few
         // pixels; the sky and the mountains stay
         vec3 up = normalize(u_horizon.xyz);
-        vec2 nat = vec2(u_proj.y * u_size.x / u_size.y, u_proj.y);
-        vec3 ray = normalize(vec3((v_uv - 0.5) * nat / u_horizon.w, 1.0));
+        vec2 nat = vec2(u_proj.y * u_size.x / u_size.y * (u_natx > 0.0 ? u_natx : 1.0), u_proj.y);
+        vec3 ray = normalize(vec3(((v_uv - 0.5) * nat + vec2(-u_pp.x, u_pp.y)) / u_horizon.w, 1.0));
         float gnd = smoothstep(0.03, 0.06, -dot(ray, up));   // past the far dunes painted at the horizon
         float lg = clamp(dot(up, normalize(u_shadowdir.xyz)), 0.0, 1.0);
         o = vec4(src * mix(vec3(1.0), mix(amb, suncol, lg), gnd), 1.0); return;
@@ -86,6 +95,13 @@ void main()
     if (u_sunview.x > 0.5) { o = vec4(vec3(m > 0.5 ? lit : 0.5), 1.0); return; }
     vec3 shade = u_ss.y > 0.5 ? mix(amb, suncol, lit)
                               : mix(amb / max(suncol, vec3(1e-3)), vec3(1.0), lit);
+    if (u_nightkeep.z > 0.0 && nf > 0.0) {
+        // a lit place (warm or bright as the game painted it) keeps its colour
+        float l = dot(src, vec3(0.299, 0.587, 0.114));
+        float warm = clamp((src.r - src.b) * 2.0, 0.0, 1.0);
+        float keep = smoothstep(u_nightkeep.x, u_nightkeep.y, l + 0.5 * warm * l) * u_nightkeep.z * nf;
+        shade = mix(shade, vec3(1.0), keep);
+    }
     vec3 res = src * mix(vec3(1.0), shade, m);
     float ma = texelFetch(u_m, p, 0).a;
     if (ma > 0.25 && ma < 0.75)

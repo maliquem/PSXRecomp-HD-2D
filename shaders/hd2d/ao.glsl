@@ -18,6 +18,8 @@
 
 uniform vec4 u_ao;
 uniform vec4 u_proj;
+uniform vec2 u_pp;    // the projection centre from the picture centre, native px, y down (framework; 0 = the centre)
+uniform float u_natx;   // native width / (240 x 4/3): 0.8 for a 256-wide picture (framework)
 
 vec2 g_grid;   // depth grid in texels (native grid x internal scale)
 
@@ -32,13 +34,13 @@ float sz_at(vec2 uv)
 // Position on the PS1 camera's terms, from uv and SZ.
 vec3 pos_at(vec2 uv, float z, vec2 nat)
 {
-    vec2 p = (snap(uv) - 0.5) * nat;           // native px from the centre
+    vec2 p = ((snap(uv) - 0.5) * nat + vec2(-u_pp.x, u_pp.y));           // native px from the centre
     return vec3(p * z / u_proj.x, z);
 }
 
 void main()
 {
-    vec2 nat = vec2(u_proj.y * u_size.x / u_size.y, u_proj.y);   // native grid, e.g. 320x240
+    vec2 nat = vec2(u_proj.y * u_size.x / u_size.y * (u_natx > 0.0 ? u_natx : 1.0), u_proj.y);   // native grid, e.g. 320x240
     g_grid = nat * max(u_proj.z, 1.0);
     vec2 uv0 = snap(v_uv);
     float z = sz_at(uv0);

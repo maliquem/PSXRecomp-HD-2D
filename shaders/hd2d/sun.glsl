@@ -55,6 +55,8 @@ uniform vec4 u_fgx, u_fgy, u_fgz;
 uniform vec4 u_ssx, u_ssy, u_ssz, u_sss;   // the sprites' map's own mapping (w 0: none, the scenery's)
 uniform vec4 u_sprsun;   // x: the sprites' sun at most this high (framework); y: their shadow's reach (world units, 0 = any); z: its softness then (world units)
 uniform vec4 u_proj;
+uniform vec2 u_pp;    // the projection centre from the picture centre, native px, y down (framework; 0 = the centre)
+uniform float u_natx;   // native width / (240 x 4/3): 0.8 for a 256-wide picture (framework)
 uniform vec4 u_soft;
 uniform vec4 u_ss;
 
@@ -69,7 +71,7 @@ float sz_at(vec2 uv)
     return d < 0.99999 ? 256.0 / max(1.0 - d, 1e-7) - 256.0 : 0.0;
 }
 
-vec3 pos_at(vec2 uv, float z) { return vec3((uv - 0.5) * g_nat * z / u_proj.x, z); }
+vec3 pos_at(vec2 uv, float z) { return vec3(((uv - 0.5) * g_nat + vec2(-u_pp.x, u_pp.y)) * z / u_proj.x, z); }
 vec2 uv_of(vec3 p) { return p.xy * u_proj.x / (p.z * g_nat) + 0.5; }
 
 // Shadow at P: is something nearer the light in the shadow maps? The
@@ -206,7 +208,7 @@ vec3 face_step(vec2 uv0, vec3 P, float z, vec2 d)
 
 void main()
 {
-    g_nat = vec2(u_proj.y * u_size.x / u_size.y, u_proj.y);
+    g_nat = vec2(u_proj.y * u_size.x / u_size.y * (u_natx > 0.0 ? u_natx : 1.0), u_proj.y);
     g_grid = g_nat * max(u_proj.z, 1.0);
 
     vec3 up = u_worldup.w > 0.5 ? normalize(u_worldup.xyz) : texelFetch(u_up, ivec2(0), 0).rgb;

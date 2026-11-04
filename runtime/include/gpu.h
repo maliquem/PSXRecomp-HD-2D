@@ -451,12 +451,37 @@ void psx_shadow_configure(int camera, int od_x, int od_y, const uint32_t *addr,
                           const uint32_t *size, int nkeys);
 /* camera 2 ("ram:ADDR"): the game's camera MATRIX (9 x s16, pad, 3 x s32). */
 void psx_shadow_camera_ram(uint32_t addr);
+/* More places the camera MATRIX may be (a game with one per mode); the first
+ * set becomes the main one when none is configured. Up to 4 more. */
+void psx_shadow_camera_ram_add(uint32_t addr);
+/* The last camera's own uniform scale (its rotation rows' length; 1 = none)
+ * when psx_shadow_camera_normalize is on: the rotation goes to the renderer
+ * without it, so the effects see the world times it (a mod's map geometry is
+ * scaled by it). */
+float psx_shadow_camera_scale(void);
+/* Opt in to that: a title whose camera rotation carries its zoom (FM2's battle
+ * map). Off, the rotation goes to the renderer as the game wrote it. */
+void psx_shadow_camera_normalize(int on);
 /* sprite_anchors: return addresses of the calls projecting sprite foot points. */
 void psx_shadow_sprite_anchors(const uint32_t *ra, int n);
+/* A sprite's foot point named by a title's plugin (world coordinates), while
+ * the GTE holds the camera that projected the sprite: for a game that projects
+ * its sprites inline, with no call of their own to know them by. */
+void psx_shadow_sprite_anchor_world(const int16_t w[3]);
+/* 0: the game draws no blob shadows under its sprites, so none is looked for
+ * (the blob finders would take its own pieces near a foot point for one: FM2's
+ * cobbles, a near-black palette entry of the ground under a wanzer). Default 1. */
+void psx_shadow_sprite_blobs(int on);
 int  psx_shadow_state(char *out, int cap);   /* JSON fields for TCP shadow_cache */
 /* [video.shadow] hide_textures: textured polygons (page 9 bits + CLUT) not
  * drawn while the shadow map is in use (a game's own blob shadows). */
 void gpu_set_hidden_textures(const uint32_t *tpage, const uint32_t *clut, int n);
+/* Set by a title's plugin: texture page (9 bits) + CLUT (0xFFFF = any)
+ * of glowing pieces that are no light (a movement grid, a cursor): drawn as
+ * before, left out of the fire lights. gpu_prim_nolight_now: the primitive
+ * being drawn is one of them. */
+void gpu_set_nolight_textures(const uint32_t *tpage, const uint32_t *clut, int n);
+int  gpu_prim_nolight_now(void);
 /* [video.shadow] off_textures: textured primitives (page 9 bits + CLUT,
  * 0xFFFF = any) only a screen with no place under the sun draws (a world
  * map); while one was drawn in the last few VBlanks, or in an area with no
@@ -663,7 +688,13 @@ void gpu_ws_set_nw_phase_backdrop(int on);
  *   GPU_WS_WIDE_PRIM_IMAGE: the backdrop-image rule decides (drawn as it is,
  *     its edge colour over the revealed band, or stretched by what it needs;
  *     gpu_ws_set_backdrop_images), else as STRETCH for a polygon, KEEP for the
- *     rest.
+ *     rest;
+ *   GPU_WS_WIDE_PRIM_CLIP: cut at the 4:3 picture's left and right edges, as
+ *     the console's screen cuts it: what it puts in the revealed bands is not
+ *     drawn (a UI panel the game parks just past the screen edge). With the
+ *     canonical centre copied, its wide mirror is skipped; with the wide
+ *     surface drawn whole (a stretched backdrop that frame), its mirror is
+ *     drawn scissored to the 4:3 columns.
  * STRETCH and EDGES apply to polygons. Render-only: guest VRAM and the
  * canonical 4:3 picture are untouched, 4:3 never asks. The pure, cheap
  * predicate runs on the emulation thread: no GPU calls, allocation or guest
@@ -671,8 +702,12 @@ void gpu_ws_set_nw_phase_backdrop(int on);
 #define GPU_WS_WIDE_PRIM_BACKDROP 1u
 #define GPU_WS_WIDE_PRIM_WORLD3D  2u
 enum { GPU_WS_WIDE_PRIM_DEFAULT = 0, GPU_WS_WIDE_PRIM_STRETCH = 1, GPU_WS_WIDE_PRIM_EDGES = 2,
-       GPU_WS_WIDE_PRIM_KEEP = 3, GPU_WS_WIDE_PRIM_IMAGE = 4 };
+       GPU_WS_WIDE_PRIM_KEEP = 3, GPU_WS_WIDE_PRIM_IMAGE = 4, GPU_WS_WIDE_PRIM_CLIP = 5 };
 void gpu_ws_set_wide_prim_predicate(int (*predicate)(uint32_t op, uint32_t ot_rank, uint32_t flags));
+/* For that predicate: the screen-X span of the primitive being asked about
+ * (vertices, a rectangle's width, a line's ends; before the drawing offset)
+ * and the 4:3 picture's width. Returns 0 outside a primitive. */
+int gpu_ws_prim_x_span(int32_t *xmin, int32_t *xmax, int32_t *disp_w);
 /* The primitive being drawn is in its ordering table's last entries, where a
  * game draws its UI over everything (never a sprite standing in the world). */
 int gpu_ot_front_now(void);

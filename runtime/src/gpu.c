@@ -809,6 +809,24 @@ void gpu_set_hidden_textures(const uint32_t *tpage, const uint32_t *clut, int n)
     sh_hide_n = n < 0 ? 0 : n > 16 ? 16 : n;
     for (int i = 0; i < sh_hide_n; i++) { sh_hide_tpage[i] = (uint16_t)(tpage[i] & 0x1FFu); sh_hide_clut[i] = (uint16_t)clut[i]; }
 }
+/* gpu_set_nolight_textures (a title's plugin): texture page
+ * (9 bits) + CLUT (0xFFFF = any) of glowing pieces that are no light: a
+ * tactics game's movement grid and cursor (FM2: additive quads lying on the
+ * ground, steady, that the fire lights took for a fire). They are drawn as
+ * before; the lights and their colour samples leave them out
+ * (gpu_prim_nolight_now while the primitive is drawn). */
+static int      sh_nol_n = 0, s_prim_nolight = 0;
+static uint16_t sh_nol_tpage[16], sh_nol_clut[16];
+void gpu_set_nolight_textures(const uint32_t *tpage, const uint32_t *clut, int n) {
+    sh_nol_n = n < 0 ? 0 : n > 16 ? 16 : n;
+    for (int i = 0; i < sh_nol_n; i++) { sh_nol_tpage[i] = (uint16_t)(tpage[i] & 0x1FFu); sh_nol_clut[i] = (uint16_t)clut[i]; }
+}
+int gpu_prim_nolight_now(void) { return s_prim_nolight; }
+static int nolight_match(uint16_t tpage, uint16_t clut) {
+    for (int i = 0; i < sh_nol_n; i++)
+        if (sh_nol_tpage[i] == (tpage & 0x1FFu) && (sh_nol_clut[i] == 0xFFFFu || sh_nol_clut[i] == clut)) return 1;
+    return 0;
+}
 /* [video.shadow] off_textures: texture page (9 bits) + CLUT, either 0xFFFF =
  * any, of what only a screen with no place under the sun draws (a world
  * map's paper, its frame): while one was drawn in the last few VBlanks the
@@ -1073,12 +1091,32 @@ extern int psx_mod_gte_projection(int32_t out[6]);
  * frame's. When no projection used it for a few VBlanks (a battle, a map
  * screen: another camera, or none) the renderer is told there is none. */
 static uint32_t sh_cam_addr = 0;
+enum { SH_CAM_ADDRS = 4 };
+static uint32_t sh_cam_more[SH_CAM_ADDRS];   /* psx_shadow_camera_ram_add: more places it may be */
+static int      sh_cam_nmore = 0;
 static int16_t  sh_cam_r[2][9];     /* [0] the camera, [1] the last matrix that was not it */
 static int32_t  sh_cam_t[2][3];
 static int      sh_cam_have[2] = {0, 0};
 static float    sh_cam_last[15];    /* r, t, of, h of the camera */
 static int      sh_cam_met = 0, sh_cam_age = 99;   /* used since the last VBlank; VBlanks since */
+static float    sh_cam_scale = 1.0f;                /* the camera rotation's own scale (1 = none) */
+static int      sh_cam_norm = 0;                    /* psx_shadow_camera_normalize */
+float psx_shadow_camera_scale(void) { return sh_cam_scale; }
+void psx_shadow_camera_normalize(int on) { sh_cam_norm = on ? 1 : 0; }
 void psx_shadow_camera_ram(uint32_t addr) { sh_cam_addr = addr; }
+/* A game with a camera MATRIX per mode (FM2: the battle map's, the 3D
+ * combat's) names each place; the first that holds the matrix met is it. */
+void psx_shadow_camera_ram_add(uint32_t addr) {
+    if (!sh_cam_addr) { sh_cam_addr = addr; return; }
+    if (addr == sh_cam_addr) return;
+    for (int i = 0; i < sh_cam_nmore; i++) if (sh_cam_more[i] == addr) return;
+    if (sh_cam_nmore < SH_CAM_ADDRS) sh_cam_more[sh_cam_nmore++] = addr;
+}
+static int sh_cam_at(uint32_t a, const int16_t ri[9], const int32_t pj[6]) {
+    for (int i = 0; i < 9; i++) if ((int16_t)psx_read_half(a + 2u * (uint32_t)i) != ri[i]) return 0;
+    for (int i = 0; i < 3; i++) if ((int32_t)psx_read_word(a + 20u + 4u * (uint32_t)i) != pj[i]) return 0;
+    return 1;
+}
 static void shadow_camera_note(void) {
     int16_t ri[9];
     int32_t pj[6];
@@ -1088,13 +1126,22 @@ static void shadow_camera_note(void) {
             if (k == 0) sh_cam_met = 1;
             return;   /* the camera again, or the matrix just found not to be it */
         }
-    int same = pj[5] > 0;
-    for (int i = 0; i < 9 && same; i++) same = (int16_t)psx_read_half(sh_cam_addr + 2u * (uint32_t)i) == ri[i];
-    for (int i = 0; i < 3 && same; i++) same = (int32_t)psx_read_word(sh_cam_addr + 20u + 4u * (uint32_t)i) == pj[i];
+    int same = pj[5] > 0 && sh_cam_at(sh_cam_addr, ri, pj);
+    for (int i = 0; i < sh_cam_nmore && !same && pj[5] > 0; i++) same = sh_cam_at(sh_cam_more[i], ri, pj);
     const int k = same ? 0 : 1;
     memcpy(sh_cam_r[k], ri, sizeof ri); memcpy(sh_cam_t[k], pj, sizeof sh_cam_t[k]); sh_cam_have[k] = 1;
     if (!same) return;
-    for (int i = 0; i < 9; i++) sh_cam_last[i] = (float)ri[i] * (1.0f / 4096.0f);
+    /* A camera whose rotation carries a uniform scale (FM2's battle map: its
+     * zoom, rows of length ~0.7) goes to the renderer as a pure rotation: the
+     * world the effects rebuild is then the game's times that scale, one size
+     * for the whole picture (a mod's map geometry scales with it). */
+    float rs = 1.0f;
+    if (sh_cam_norm) {
+        const float n = sqrtf((float)ri[0] * ri[0] + (float)ri[1] * ri[1] + (float)ri[2] * ri[2]) * (1.0f / 4096.0f);
+        if (n > 0.05f && fabsf(n - 1.0f) > 0.01f) rs = 1.0f / n;
+    }
+    sh_cam_scale = rs == 1.0f ? 1.0f : 1.0f / rs;
+    for (int i = 0; i < 9; i++) sh_cam_last[i] = (float)ri[i] * (rs / 4096.0f);
     for (int i = 0; i < 3; i++) sh_cam_last[9 + i] = (float)pj[i];
     sh_cam_last[12] = (float)pj[3] / 65536.0f; sh_cam_last[13] = (float)pj[4] / 65536.0f;
     sh_cam_last[14] = (float)pj[5];
@@ -1137,17 +1184,35 @@ static void shadow_point_note(void) {
     if (V[2] < 1.0f) return;
     gl_renderer_shadow_point(V);
 }
+static int sh_anc_ext = 0;   /* a title's plugin names the foot points (psx_shadow_sprite_anchor_world) */
+static int sh_blob_allow = 1;   /* psx_shadow_sprite_blobs: the game has blob shadows to hide */
+void psx_shadow_sprite_blobs(int on) { sh_blob_allow = on != 0; }
+static void shadow_anchor_take(const float w[3]);
 static void shadow_anchor_note(void) {
     const uint32_t ra = psx_mod_cpu_gpr(31);
     int k = 0;
     while (k < sh_anc_n && sh_anc_ra[k] != ra) k++;
     if (k == sh_anc_n) return;
+    uint32_t d[32];
+    if (!psx_mod_gte_data(d)) return;
+    const float w[3] = {(float)(int16_t)d[0], (float)(int16_t)(d[0] >> 16), (float)(int16_t)d[1]};
+    shadow_anchor_take(w);
+}
+/* A game that projects its sprites inline (no call of their own to know them
+ * by, FM2's battle map): its plugin names each foot point, in world
+ * coordinates, while the GTE still holds the camera that projected the sprite
+ * (right after that RTPS). */
+void psx_shadow_sprite_anchor_world(const int16_t w[3]) {
+    sh_anc_ext = 1;
+    if (!sh_anc_live) return;
+    const float f[3] = {(float)w[0], (float)w[1], (float)w[2]};
+    shadow_anchor_take(f);
+}
+static void shadow_anchor_take(const float w[3]) {
     int16_t ri[9];
     int32_t pj[6];
-    uint32_t d[32];
-    if (!psx_mod_gte_rotation(ri) || !psx_mod_gte_projection(pj) || !psx_mod_gte_data(d)) return;
+    if (!psx_mod_gte_rotation(ri) || !psx_mod_gte_projection(pj)) return;
     if (!sh_cam_have[0] || memcmp(ri, sh_cam_r[0], sizeof ri) || memcmp(pj, sh_cam_t[0], sizeof sh_cam_t[0])) return;
-    const float w[3] = {(float)(int16_t)d[0], (float)(int16_t)(d[0] >> 16), (float)(int16_t)d[1]};
     float V[3];
     for (int r = 0; r < 3; r++)
         V[r] = sh_cam_last[r * 3] * w[0] + sh_cam_last[r * 3 + 1] * w[1] + sh_cam_last[r * 3 + 2] * w[2] + sh_cam_last[9 + r];
@@ -1333,8 +1398,8 @@ static void shadow_vblank(void) {
         sh_od_on = wanted;
     }
     sh_bf_on = wanted && sh_camera;
-    sh_anc_live = track && sh_camera == 2 && sh_anc_n > 0 && gl_renderer_shadow_sprites_wanted();
-    sh_blob_on = sh_anc_live && ours;   /* the game's blobs hidden: only under our sun, a fire or the windows */
+    sh_anc_live = track && sh_camera == 2 && (sh_anc_n > 0 || sh_anc_ext) && gl_renderer_shadow_sprites_wanted();
+    sh_blob_on = sh_anc_live && ours && sh_blob_allow;   /* the game's blobs hidden: only under our sun, a fire or the windows */
     if (sh_bf_on) shadow_backfaces_flush();   /* this frame's culled faces, before the camera takes the frame in */
     if (!track) return;
     if (sh_camera == 2) {   /* the camera met lately (a 30 fps game projects every other VBlank) */
@@ -3590,7 +3655,7 @@ int psx_ws_prim_in_backdrop(void) {
     if (g_dbg_mode != 0) return dbg_gate_match();   /* correlation override */
     /* The title's own answer for this primitive (gpu_ws_set_wide_prim_predicate):
      * 4 = stretched, unmarked; 3 = only the vertices on or past the edges;
-     * KEEP = none of the rules below. */
+     * 5 = cut at the 4:3 edges; KEEP = none of the rules below. */
     if (s_ws_wide_prim_predicate && ws_native_wide_active()) {
         const uint32_t op = (gp0_cmd_buf[0] >> 24) & 0xFFu;
         if (op >= 0x20u && op <= 0x7Fu) {
@@ -3599,6 +3664,7 @@ int psx_ws_prim_in_backdrop(void) {
                 (f - ws_last_gte_stamp <= 4u || f - ws_last_world3d_stamp <= 4u ? GPU_WS_WIDE_PRIM_WORLD3D : 0u);
             const int r = s_ws_wide_prim_predicate(op, gp0_ot_rank, flags);
             if (r == GPU_WS_WIDE_PRIM_KEEP) return 0;
+            if (r == GPU_WS_WIDE_PRIM_CLIP) return 5;   /* the renderer skips its wide mirror */
             if ((r == GPU_WS_WIDE_PRIM_STRETCH || r == GPU_WS_WIDE_PRIM_EDGES) && op <= 0x3Fu) {
                 ws_prim_pred_stamp = f;
                 return r == GPU_WS_WIDE_PRIM_STRETCH ? 4 : 3;
@@ -8834,6 +8900,35 @@ static void prim_sx_extent(uint8_t op, int32_t *xmin, int32_t *xmax) {
     *xmin = lo; *xmax = hi;
 }
 
+/* The screen-X span of the primitive being drawn, for a title's native-wide
+ * predicate (gpu.h): polygons by their vertices, rectangles with their width,
+ * lines by both ends; in the coordinates the game sent (before the drawing
+ * offset), with the display width the 4:3 picture has. 0 when no primitive. */
+int gpu_ws_prim_x_span(int32_t *xmin, int32_t *xmax, int32_t *disp_w) {
+    const uint8_t op = (uint8_t)(gp0_cmd_buf[0] >> 24);
+    if (op < 0x20u || op > 0x7Fu) return 0;
+    int32_t lo, hi;
+    prim_sx_extent(op, &lo, &hi);
+    if (op >= 0x40u && op <= 0x5Fu && !(op & 0x08u)) {   /* single line: its far end */
+        int32_t vx, vy;
+        parse_vertex(gp0_cmd_buf[(op & 0x10u) ? 3 : 2], &vx, &vy);
+        if (vx < lo) lo = vx;
+        if (vx > hi) hi = vx;
+    } else if (op >= 0x60u) {   /* rectangle: its width */
+        int32_t w;
+        switch ((op >> 3) & 3u) {
+        case 0:  w = (int32_t)(gp0_cmd_buf[(op & 0x04u) ? 3 : 2] & 0x3FFu); break;
+        case 1:  w = 1; break;
+        case 2:  w = 8; break;
+        default: w = 16; break;
+        }
+        hi = lo + w - 1;
+    }
+    *xmin = lo; *xmax = hi;
+    if (disp_w) *disp_w = ws_disp_w();
+    return 1;
+}
+
 /* Natural-overhang noter (see the ws_ovh_* block up top for the rationale).
  * Called for every draw prim; counts POLYGONS whose raw SX extent crosses
  * outside [0, disp_w] by more than the jitter margin, and stamps the frame
@@ -9077,7 +9172,9 @@ static void gp0_dispatch_command(uint8_t opcode) {
             break;
         case 0x24: case 0x25: case 0x26: case 0x27:
             if (sh_off_n) shadow_off_note((uint16_t)(gp0_cmd_buf[4] >> 16), (uint16_t)(gp0_cmd_buf[2] >> 16), (gp0_cmd_buf[0] >> 25) & 1);
+            s_prim_nolight = sh_nol_n && nolight_match((uint16_t)(gp0_cmd_buf[4] >> 16), (uint16_t)(gp0_cmd_buf[2] >> 16));
             gp0_exec_textured_tri();
+            s_prim_nolight = 0;
             break;
         case 0x28: case 0x29: case 0x2A: case 0x2B:
             gp0_exec_mono_quad();
@@ -9090,7 +9187,9 @@ static void gp0_dispatch_command(uint8_t opcode) {
                                             gp0_cmd_buf[7], (const uint32_t[4]){gp0_cmd_buf[2], gp0_cmd_buf[4],
                                             gp0_cmd_buf[6], gp0_cmd_buf[8]}, &kx, &ky);
             const uint16_t kc = key ? shadow_blob_key_hide(kx, ky) : 0;
+            s_prim_nolight = sh_nol_n && nolight_match((uint16_t)(gp0_cmd_buf[4] >> 16), (uint16_t)(gp0_cmd_buf[2] >> 16));
             gp0_exec_textured_quad();
+            s_prim_nolight = 0;
             if (key) shadow_blob_key_put(kx, ky, kc);
             break;
         }
@@ -9099,7 +9198,9 @@ static void gp0_dispatch_command(uint8_t opcode) {
             break;
         case 0x34: case 0x35: case 0x36: case 0x37:
             if (sh_off_n) shadow_off_note((uint16_t)(gp0_cmd_buf[5] >> 16), (uint16_t)(gp0_cmd_buf[2] >> 16), (gp0_cmd_buf[0] >> 25) & 1);
+            s_prim_nolight = sh_nol_n && nolight_match((uint16_t)(gp0_cmd_buf[5] >> 16), (uint16_t)(gp0_cmd_buf[2] >> 16));
             gp0_exec_shaded_textured_tri();
+            s_prim_nolight = 0;
             break;
         case 0x38: case 0x39: case 0x3A: case 0x3B:
             gp0_exec_shaded_quad();
@@ -9112,7 +9213,9 @@ static void gp0_dispatch_command(uint8_t opcode) {
                                             gp0_cmd_buf[10], (const uint32_t[4]){gp0_cmd_buf[2], gp0_cmd_buf[5],
                                             gp0_cmd_buf[8], gp0_cmd_buf[11]}, &kx, &ky);
             const uint16_t kc = key ? shadow_blob_key_hide(kx, ky) : 0;
+            s_prim_nolight = sh_nol_n && nolight_match((uint16_t)(gp0_cmd_buf[5] >> 16), (uint16_t)(gp0_cmd_buf[2] >> 16));
             gp0_exec_shaded_textured_quad();
+            s_prim_nolight = 0;
             if (key) shadow_blob_key_put(kx, ky, kc);
             break;
         }

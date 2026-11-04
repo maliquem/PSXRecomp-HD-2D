@@ -441,7 +441,7 @@ static uint16_t *s_rth_vram_pub = NULL;   /* gpu.c's VRAM (guest-visible)      *
 static uint16_t *s_rth_vram_priv = NULL;  /* render thread's upload source     */
 /* Replay-side capture of guest state (valid only on the render thread). */
 static int       s_rthx_prim = 0;         /* current record carries prim tags  */
-static int       s_rthx_tagged = 0, s_rthx_backdrop = 0, s_rthx_front = 0;
+static int       s_rthx_tagged = 0, s_rthx_backdrop = 0, s_rthx_front = 0, s_rthx_nolight = 0;
 static int       s_rths_flat_bd = 0, s_rths_vp_w = 0, s_rths_bg_full = 0;
 static inline int rth_replaying(void) { return s_rth_on && rt_on_render_thread(); }
 extern uint64_t psx_present_ref_ticks(void);      /* main.cpp: the pacer's last deadline */
@@ -481,6 +481,10 @@ static int ctx_prim_tagged(void) {
 }
 static int ctx_prim_in_backdrop(void) {
     return rth_replaying() ? (s_rthx_prim ? s_rthx_backdrop : 0) : psx_ws_prim_in_backdrop();
+}
+/* a glowing piece that is no light (gpu_set_nolight_textures) */
+static int ctx_prim_nolight(void) {
+    return rth_replaying() ? (s_rthx_prim ? s_rthx_nolight : 0) : gpu_prim_nolight_now();
 }
 /* in its ordering table's front (gpu_ot_front_now): the game's UI */
 static int ctx_prim_front(void) {
@@ -1106,6 +1110,7 @@ static void tone_flat_rgb(const uint16_t *cs, float *rgb) {
 static void sc_add_emit(int x1, int y1, int x2, int y2, const int *xs, const int *ys, const float *rgb,
                         float share, float wsc, float wce) {
     if (!s_sc_on || s_fg_drawing) return;   /* needs the 3D triangles counted (sl->n) */
+    if (ctx_prim_nolight()) return;          /* a grid or a cursor: no light */
     s_emit_seen[!s_pz_valid ? 2 : s_pc_valid ? 0 : 1]++;
     const int area[4] = {x1, y1, x2, y2};
     ScSlot *sl = sc_slot(area, 1);
@@ -4650,7 +4655,14 @@ static void wide_target_begin(int dx, GLint uXoff, GLint uXhalf) {
     if (s_hiw)
         p_glUniform1f(uXoff == s_tex_uXoff ? s_tex_uShift : s_geo_uShift, s_shift_hi);
     glViewport(0, 0, g_wide_w * s_out_scale, VRAM_H * s_out_scale);
-    wide_band_scissor_x(view_pad_left, g_wide_w - view_pad_left - view_pad_right);
+    if ((s_bd_gate & 7) == 5) {
+        /* cut at the 4:3 picture's edges (GPU_WS_WIDE_PRIM_CLIP) while the wide
+         * surface is drawn whole (no canonical centre to copy): only its columns */
+        const int native_w = g_wide_w - 2 * g_wide_off;
+        wide_band_scissor_x(g_wide_off + view_shift, native_w > 0 ? native_w : g_wide_w);
+    } else {
+        wide_band_scissor_x(view_pad_left, g_wide_w - view_pad_left - view_pad_right);
+    }
     p_glUniform1f(uXoff, (float)dx);
     p_glUniform1f(uXhalf, (float)g_wide_w / 2.0f);
 }
@@ -4783,6 +4795,15 @@ static int mirror_x_center_only(int lo, int hi) {
     if (native_w <= 0) return 0;
     return (lo >= base) && (hi < base + native_w);
 }
+/* A primitive the title cut at the 4:3 picture's edges (GPU_WS_WIDE_PRIM_CLIP,
+ * gate 5): its centre comes from the canonical blit, so not drawing its wide
+ * mirror leaves out exactly what it puts in the revealed bands. Only while the
+ * centre is that blit; otherwise it is drawn as it is. */
+static int mirror_gate_clipped(int gate) {
+    return (gate & 7) == 5 && wide_center_is_canonical();
+}
+/* (Not canonical: the wide surface is drawn whole, and wide_target_begin cuts
+ * a gate-5 mirror to the 4:3 columns with the scissor.) */
 static int mirror_geo_center_only(const int *xs, int n) {
     if (!wide_center_is_canonical()) return 0;
     int lo = xs[0], hi = xs[0];
@@ -4818,7 +4839,9 @@ static void wide_bd_scale_of(int gate, float *out_scale, float *out_center) {
             scale  = g_ws_bd_stretch_pct > 0 ? (float)g_ws_bd_stretch_pct / 100.0f
                                              : (float)g_wide_w / (float)native_w;
             const int kind = gate & 7, share = (gate >> 8) & 0xFF;
-            if (kind == 2) {
+            if (kind == 5) {
+                scale = 1.0f;   /* cut at the 4:3 edges, never stretched */
+            } else if (kind == 2) {
                 scale = g_ws_tex_edge_pct > 0
                       ? (float)g_ws_tex_edge_pct / 100.0f : scale;
                 scale = -scale; /* shader: expand only beyond canonical edges */
@@ -5478,6 +5501,10 @@ static void hiw_wide_set(HiCmd *c, int gate) {
         c->wsw = g_wide_w - view_pad_left - view_pad_right;
         wide_band_rows(&c->wsy, &c->wsh);
     }
+    if ((gate & 7) == 5) {   /* cut at the 4:3 picture's edges (GPU_WS_WIDE_PRIM_CLIP) */
+        const int native_w = g_wide_w - 2 * g_wide_off;
+        if (native_w > 0) { c->wsx = g_wide_off + view_shift; c->wsw = native_w; }
+    }
 }
 
 /* Queue a textured batch for the window, and its native-wide mirror when
@@ -5708,7 +5735,7 @@ static void flush_tex_batch_impl(void) {
      * centre content comes from the present-time canonical blit; nothing to add
      * to the margins). A backdrop-stretched batch (s_tb_gate) widens past the
      * frame, so it is never treated as centre-only. */
-    int mirror = g_wide_cur && s_ws_ablate != 1 &&
+    int mirror = g_wide_cur && s_ws_ablate != 1 && !mirror_gate_clipped(s_tb_gate) &&
                  !(s_tb_gate == 0 && mirror_batch_center_only(nverts));
     if (mirror) {   /* the stencil it may leave behind alpha */
         float sc, ce;
@@ -5844,7 +5871,7 @@ static void flush_flat_batch_impl(void) {
     BCLS_DRAW(semi, dmode, mask, s_mask_check, b3d, if (nl) flat_batch_draw_hr_lines(nverts, nl);
                        else glDrawArrays(fmode, 0, nverts));
     depth_restore_ex(dmode, 0, nverts);
-    int mirror = g_wide_cur && !s_wide_suppress && s_ws_ablate != 1 &&
+    int mirror = g_wide_cur && !s_wide_suppress && s_ws_ablate != 1 && !mirror_gate_clipped(s_fb_gate) &&
                  !(!g_ws_bd_stretch_on && mirror_flat_batch_center_only(nverts));
     if (mirror) {
         float sc, ce;
@@ -5945,13 +5972,21 @@ static void pgxp_tri_log_tri(char kind, int dmode, int semi, const float *v, int
  * the depth buffer: there SZ quantisation and R4's near subdivision make a
  * road decal's depth disagree with its road by more than any sane tolerance
  * (the lane dash cut off at the bottom of the screen), and painter order is
- * what the game was built for. PSX_PGXP_DEPTH_NEAR tunes it (0 = off). */
+ * what the game was built for. PSX_PGXP_DEPTH_NEAR tunes it (0 = off), and a
+ * title whose 3D sits nearer (a small projection distance: Front Mission 2's
+ * map is SZ 100..400) sets its own with gl_renderer_set_pgxp_depth_near. */
 static float s_pgxp_depth_near = -1.0f;
+static float s_pgxp_depth_near_title = 1024.0f;   /* gl_renderer_set_pgxp_depth_near */
+void gl_renderer_set_pgxp_depth_near(float sz) {
+    GL_RT_SYNC("set_pgxp_depth_near");
+    s_pgxp_depth_near_title = sz < 0.0f ? 1024.0f : sz;
+    s_pgxp_depth_near = -1.0f;   /* re-read: the env still wins */
+}
 static int pgxp_tri_depth_mode(int semi) {
     if (!(s_pgxp_depth && semi < 0 && pgxp_tri_is_3d())) return 0;
     if (s_pgxp_depth_near < 0.0f) {
         const char *e = getenv("PSX_PGXP_DEPTH_NEAR");
-        s_pgxp_depth_near = e && *e ? (float)atof(e) : 1024.0f;
+        s_pgxp_depth_near = e && *e ? (float)atof(e) : s_pgxp_depth_near_title;
     }
     const float zmin = fminf(s_pz[0], fminf(s_pz[1], s_pz[2]));
     return zmin >= s_pgxp_depth_near ? 1 : 0;
@@ -6231,6 +6266,7 @@ static void gpu_geometry(GLenum mode, const int *xs, const int *ys,
             draw_mode = GL_TRIANGLES; draw_n = 6;
         }
         int mirror = g_wide_cur && !s_wide_suppress && s_ws_ablate != 1 &&
+                     !mirror_gate_clipped(bd_prim_gate(xs, n, 0)) &&
                      !(!g_ws_bd_stretch_on && mirror_geo_center_only(xs, n));
         if (mirror) {
             float sc, ce;
@@ -8742,6 +8778,12 @@ int gl_renderer_fbo_peek(int x, int y, int w, int h, uint16_t *out) {
     if (!s_raster_ok || !s_ctx) return 0;
     if (x < 0 || y < 0 || w < 1 || h < 1 ||
         x + w > VRAM_W || y + h > VRAM_H) return 0;
+    /* Queued draws are part of s_pack_dirty, which the pack clears: land
+     * them first, or the read misses them and the raw mirror stays without
+     * them for good (as ensure_cpu does). */
+    flush_line_batch();
+    flush_flat_batch();
+    flush_tex_batch();
     flush_cpu_upload();
     rect_add(&s_pack_dirty, x, y, x + w - 1, y + h - 1);
     pack_flush();
@@ -8780,6 +8822,9 @@ int gl_renderer_vram_diff(uint32_t *count, int bbox[4],
     if (!s_raster_ok || !s_ctx) return 0;
     uint16_t *tmp = (uint16_t *)malloc((size_t)VRAM_W * VRAM_H * 2);
     if (!tmp) return 0;
+    flush_line_batch();   /* queued draws first: see gl_renderer_fbo_peek */
+    flush_flat_batch();
+    flush_tex_batch();
     flush_cpu_upload();
     /* Force a full pack: the diff must read FBO truth even where the
      * raw-mirror invariant (raw == FBO outside s_pack_dirty) is broken —
@@ -13295,10 +13340,11 @@ static uint64_t s_rth_presents = 0, s_rth_presents_stale = 0;
 
 #define RTHF_PRIM      0x0001u
 #define RTHF_TAGGED    0x0002u
-#define RTHF_BD_SHIFT  2          /* bits 2-4: psx_ws_prim_in_backdrop() 0..4 */
+#define RTHF_BD_SHIFT  2          /* bits 2-4: psx_ws_prim_in_backdrop() 0..5 */
 #define RTHF_BD_MASK   7u
 #define RTHF_BDQ_SHIFT 5          /* bits 5-12: its stretch share (backdrop images), 0 = the full one */
 #define RTHF_FRONT     0x2000u    /* in the ordering table's front (gpu_ot_front_now): UI */
+#define RTHF_NOLIGHT   0x4000u    /* no light (gpu_prim_nolight_now) */
 static uint16_t rth_bd_flags(int bd) {
     return (uint16_t)(((unsigned)bd & RTHF_BD_MASK) << RTHF_BD_SHIFT |
                       (((unsigned)bd >> 8) & 0xFFu) << RTHF_BDQ_SHIFT);
@@ -13364,7 +13410,8 @@ static void rth_send_state(void) {
  * only when the backend would read them (native-wide on, stretch gate on;
  * or the 3D mark kept: a painted backdrop takes it, b3dm_passes). */
 static uint16_t rth_prim_flags(void) {
-    const uint16_t fr = gpu_ot_front_now() ? (uint16_t)(RTHF_PRIM | RTHF_FRONT) : 0;
+    const uint16_t fr = (gpu_ot_front_now() ? (uint16_t)(RTHF_PRIM | RTHF_FRONT) : 0) |
+                        (gpu_prim_nolight_now() ? (uint16_t)(RTHF_PRIM | RTHF_NOLIGHT) : 0);
     if (s_rthm_wide_w <= 0 || !g_ws_bd_stretch_on) {
         if (!s_b3d_on) return fr;
         return (uint16_t)(RTHF_PRIM | rth_bd_flags(psx_ws_prim_in_backdrop()) | fr);
@@ -14646,6 +14693,7 @@ static void fg_replay(const FgList *a, const FgList *b, double t, GLuint gen_wid
         s_rthx_tagged = (h.flags & RTHF_TAGGED) != 0;
         s_rthx_backdrop = rth_bd_value(h.flags);
         s_rthx_front = (h.flags & RTHF_FRONT) != 0;
+        s_rthx_nolight = (h.flags & RTHF_NOLIGHT) != 0;
         const int area[4] = { s_area_x1, s_area_y1, s_area_x2, s_area_y2 };
         const int in = !s_fg_replay_objects_only && fg_area_meets(area, disp);
         {   /* the object mark (s_fg_obj_mark), set by triangles and cleared by
@@ -16869,6 +16917,7 @@ static void gl_rth_exec(void *user, const RtCmd *c, const void *payload) {
     s_rthx_tagged = (c->flags & RTHF_TAGGED) != 0;
     s_rthx_backdrop = rth_bd_value(c->flags);
     s_rthx_front = (c->flags & RTHF_FRONT) != 0;
+    s_rthx_nolight = (c->flags & RTHF_NOLIGHT) != 0;
     if (c->op == RTH_FRAME) { rthf_end(); return; }
     if (!s_rthf_open && (atomic_load_explicit(&s_rthf_want, memory_order_relaxed) || s_fg_on))
         rthf_begin();
