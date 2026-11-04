@@ -2309,6 +2309,7 @@ static int   s_fl_n = 0, s_fl_nfire = 0;
  * places in view space (y up), colours, spots and flickers, as the fire
  * lights'; the area's ambient (rgb, w 1 = set); the markers (TCP area_lights
  * "mark": the picked light, -1 none, -2 off). */
+#define AL_BOUNCE_LIFT 40.0f       /* the bounce sits this far over the place the beam lands */
 #define AL_FOLLOW_MIN_IN 0.35f    /* a beam following the sun enters at least this straight */
 #define AL_FOLLOW_MIN_DOWN 0.30f  /* and falls at least this much: a low sun still lands in the room */
 #define AL_FOLLOW_AWAY 0.35f      /* a window turned from the sun: this much of its light */
@@ -2324,8 +2325,9 @@ static int   s_al_n = 0;
  * (0..1: the first two, the last two; any four, not only a rectangle); u_wn:
  * count, quality (u_shaft.x, or 2 while a tool edits), the picked window's
  * slot and its corner held by the tool (-1 none). s_alw_set: each one's light
- * in the area's set. Last row: its shape's place in the masks' atlas (u, v, size; z 0: none). */
-enum { ALW_ROWS = 8 };
+ * in the area's set. Then its shape's place in the masks' atlas (u, v, size; z 0: none), and where its
+ * beam lands, the place that bounces the light around the room (w: how much of the light gets in). */
+enum { ALW_ROWS = 9 };
 static float s_alw[AL_WIN_MAX][ALW_ROWS][4];
 /* The windows' shapes in one texture, made once (input `winmask`): a square of tiles, each its own
  * mask, read with linear filtering so an edge is a smooth curve. Never empty: a pass may bind it. */
@@ -2334,6 +2336,19 @@ static int wm_cols(int count) {
     int c = 1;
     while (c * c < count) c++;
     return c;
+}
+/* how much of a mask lets light through (0..1) */
+static float wm_open(int i) {
+    static float cache[4096];
+    int side, count;
+    const unsigned char *m = area_lights_masks(&side, &count);
+    if (!m || i < 0 || i >= count || i >= 4096) return 0.6f;
+    if (cache[i] <= 0.0f) {
+        unsigned long sum = 0;
+        for (int k = 0; k < side * side; k++) sum += m[(size_t)i * side * side + k];
+        cache[i] = fmaxf((float)sum / (255.0f * (float)side * (float)side), 0.01f);
+    }
+    return cache[i];
 }
 static void wm_ensure(void) {
     if (s_wm_tex) return;
@@ -2571,6 +2586,17 @@ static int pfx_area_lights_prep(const PfxPass *ps, int nl, float *mapd) {
                 w[7][0] = (float)((l->mask - 1) % cols) / (float)cols;
                 w[7][1] = (float)((l->mask - 1) / cols) / (float)cols;
                 w[7][2] = w[7][3] = 1.0f / (float)cols;
+            }
+            {   /* the beam's landing: from the window's middle down to the scene's lowest point */
+                float M[3];
+                for (int c = 0; c < 3; c++) M[c] = (C[0][c] + C[1][c] + C[2][c] + C[3][c]) * 0.25f;
+                const float h = M[0] * up[0] + M[1] * up[1] + M[2] * up[2];
+                float t = down > 0.05f && hmin < 1e29f ? (h - hmin) / down : tmax;
+                t = fminf(fmaxf(t, 0.0f), tmax);
+                for (int c = 0; c < 3; c++) w[8][c] = M[c] + D[c] * t + up[c] * AL_BOUNCE_LIFT;
+                float open = 0.6f;
+                if (l->mask > 0 && l->mask <= mcount) open = fminf(1.0f, wm_open(l->mask - 1) * 1.35f);
+                w[8][3] = open * fminf(1.5f, fmaxf(0.5f, sqrtf(sw * rh) / 200.0f));
             }
             s_alw_set[s_alw_n] = i;
             s_alw_n++;
@@ -2823,14 +2849,14 @@ static void pfx_fire_uniforms(GLuint prog) {
         p_glUniform4f(loc, (float)s_al_n, mark >= -1 ? 1.0f : 0.0f, (float)mark, 0.0f);
     if ((loc = p_glGetUniformLocation(prog, "u_alamb")) >= 0) p_glUniform4fv(loc, 1, s_al_amb);
     {   /* the windows (u_win, u_wu, u_wv, u_wd, u_wc, u_wa, u_wb; u_wn count, quality, picked, corner) */
-        static const char *const wn[ALW_ROWS] = {"u_win", "u_wu", "u_wv", "u_wd", "u_wc", "u_wa", "u_wb", "u_wm"};
+        static const char *const wn[ALW_ROWS] = {"u_win", "u_wu", "u_wv", "u_wd", "u_wc", "u_wa", "u_wb", "u_wm", "u_wi"};
         float wv[ALW_ROWS][AL_WIN_MAX][4];
         int picked = -1;
         for (int i = 0; i < s_alw_n; i++)
             for (int k = 0; k < ALW_ROWS; k++) {
                 if (k == 0 && s_alw_set[i] == mark) picked = i;
                 memcpy(wv[k][i], s_alw[i][k], sizeof wv[k][i]);
-                if (s_pfx_vx_on && k == 0) pfx_vx_point(s_alw[i][k], wv[k][i]);
+                if (s_pfx_vx_on && (k == 0 || k == 8)) pfx_vx_point(s_alw[i][k], wv[k][i]);
                 else if (s_pfx_vx_on && k < 4) pfx_vx_dir(s_alw[i][k], wv[k][i]);
             }
         for (int k = 0; k < ALW_ROWS && s_alw_n > 0; k++)

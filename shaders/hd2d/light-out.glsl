@@ -50,7 +50,12 @@ uniform vec2 u_pp;    // the projection centre from the picture centre, native p
 uniform float u_natx;   // native width / (240 x 4/3): 0.8 for a 256-wide picture (framework)
 uniform vec4 u_fl[4], u_fls[4], u_flc[4], u_flx[4], u_fld[4], u_flmap;
 uniform vec4 u_al[8], u_alc[8], u_ald[8], u_alx[8], u_aln, u_alamb;
-uniform vec4 u_win[8], u_wu[8], u_wv[8], u_wd[8], u_wc[8], u_wa[8], u_wb[8], u_wm[8], u_wn;
+uniform vec4 u_win[8], u_wu[8], u_wv[8], u_wd[8], u_wc[8], u_wa[8], u_wb[8], u_wm[8], u_wi[8], u_wn;
+// The room around a beam (u_wind): x how much light its landing bounces, y the ambient where windows
+// light the room, z the beam's own strength, w how far the bounce reaches. A simulated indirect light:
+// no rays, a soft source where the beam lands and a weaker one at the window, each as strong as the
+// beam that makes it (u_wc, so a window turned from the sun bounces less)
+uniform vec4 u_wind;
 uniform vec4 u_firecol, u_firecfg;
 
 float flicker_by(float t, float amount)
@@ -198,6 +203,13 @@ bool spr_plane(vec2 uv, float zp, int c, out vec3 S, out vec3 nS)
 // A window's shape (u_wm: its place in the masks' atlas, z 0: none) at its place q: the mask covers
 // the corners plus 0.08 around them. The edge is the level curve 0.5 of the blurred mask: a smooth
 // line, never the pixels' stairs; softer by rad
+float bounce_from(vec3 P, vec3 n, vec3 B, float reach)
+{
+    vec3 L = B - P;
+    float d2 = dot(L, L), d = sqrt(d2);
+    float wrap = dot(n, n) > 0.0 ? 0.35 + 0.65 * clamp(dot(n, L / max(d, 1.0)), 0.0, 1.0) : 0.7;
+    return wrap / (1.0 + d2 / (reach * reach)) * (1.0 - smoothstep(reach * 1.8, reach * 3.0, d));
+}
 float window_mask(vec2 q, int i, float rad)
 {
     vec2 t = clamp(vec2(q.x + 0.08, 1.08 - q.y) / 1.16, 0.01, 0.99);
@@ -326,6 +338,7 @@ void main()
     vec3 firec = vec3(0.0);   // the lights' colours, each by how much of it reaches here
     vec3 placed = vec3(0.0);  // the lights placed by hand, coloured
     vec3 wpatch = vec3(0.0);   // the windows' light where it lands
+    vec3 wbounce = vec3(0.0);  // and what that light bounces around the room
     g_nat = vec2(u_proj.y * u_size.x / u_size.y * (u_natx > 0.0 ? u_natx : 1.0), u_proj.y);
     g_grid = g_nat * max(u_proj.z, 1.0);
     if ((u_flmap.y > 0.0 || u_aln.x > 0.0 || u_wn.y * u_wn.x > 0.0) && (m > 0.5 || is_spr)) {
@@ -359,6 +372,8 @@ void main()
                     if (float(i) >= u_wn.x) break;
                     // patches that meet are one patch, as shadows are: the brighter, never the sum
                     wpatch = max(wpatch, u_wc[i].rgb * window_light(P, n, i));
+                    vec3 mid = u_win[i].xyz + 0.5 * (u_wu[i].xyz + u_wv[i].xyz);
+                    wbounce += u_wc[i].rgb * u_wi[i].w * (bounce_from(P, n, u_wi[i].xyz, u_wind.w) + 0.45 * bounce_from(P, n, mid, 0.7 * u_wind.w));
                 }
         }
     }
@@ -386,6 +401,8 @@ void main()
         }
     }
     if (u_lightview.y > 0.5) { o = vec4(src * 0.15 + vec3(min(fire.x, 1.0)) + placed, 1.0); return; }
+    wbounce = wbounce / (1.0 + wbounce);   // many windows fill a room, never burn it
+    if (u_lightview.z > 1.5) { o = vec4(src * 0.15 + wbounce, 1.0); return; }
     if (u_lightview.z > 0.5) { o = vec4(src * 0.15 + wpatch, 1.0); return; }
 
     if (u_lightview.x > 0.5) { o = vec4(src * 0.25 + l * max(m, spr), 1.0); return; }
@@ -393,6 +410,7 @@ void main()
     // reaches; the placed lights bring back their light (from the colours as drawn)
     vec3 src0 = src;
     if (u_alamb.w > 0.5 && (m > 0.5 || is_spr)) src *= u_alamb.rgb;
+    if (u_wn.y * u_wn.x > 0.0 && (m > 0.5 || is_spr)) src *= u_wind.y;   // a room lit by its windows, with or without an ambient
     vec3 add = (src * l + u_light.z * l) * m + (src * l + 0.5 * u_light.z * l) * spr;
     // the fire lights: their shadow darkens (u_firecfg.z), their light
     // brightens and tints by each light's colour (u_firecol.w the strength), flickering
@@ -402,12 +420,13 @@ void main()
     add += src * fc + 0.15 * fc;
     vec3 pc = placed * (m > 0.5 ? 1.0 : spr);
     add += src0 * pc + 0.08 * pc;
-    vec3 wp = wpatch * (m > 0.5 ? 1.0 : 0.5 * spr);
+    vec3 wp = wpatch * u_wind.z * (m > 0.5 ? 1.0 : 0.5 * spr);
     add += src0 * wp * 1.7 + 0.10 * wp;
+    add += src0 * wbounce * u_wind.x * (m > 0.5 ? 1.0 : spr);
     vec3 c = src + add * (1.0 - src);
     if (u_wn.y > 0.5 && (m > 0.5 || is_spr)) {   // the shafts' lit air and dust, screened over
         vec4 sh = texture(u_sh, v_uv);
-        vec3 air = sh.rgb + sh.a * (u_wn.x > 0.5 ? u_wc[0].rgb : vec3(1.0)) * 1.5;
+        vec3 air = (sh.rgb + sh.a * (u_wn.x > 0.5 ? u_wc[0].rgb : vec3(1.0)) * 1.5) * u_wind.z;
         c = 1.0 - (1.0 - c) * (1.0 - clamp(air, 0.0, 1.0));
     }
     c = mix(c, vec3(1.0), mk * 0.85);
