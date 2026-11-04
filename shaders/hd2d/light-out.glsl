@@ -229,6 +229,7 @@ float window_light(vec3 P, vec3 n, int i)
         bars *= window_mask(q, i, max(es, er));
         if (bars <= 0.0) return 0.0;
     }
+    bars *= 1.0 - smoothstep(0.8, 1.0, t / u_win[i].w);   // its reach (a window turned from the sun: short)
     float face = dot(n, n) > 0.0 ? clamp(dot(n, -D), 0.0, 1.0) : 0.6;
     if (face <= 0.0) return 0.0;
     // something between: steps back toward the window over the depth. On the

@@ -128,6 +128,7 @@ static int al_parse_line(char *line, AreaLightSet *set, uint32_t *area_out, char
         else if (strcmp(t, "cone") == 0) ok = al_num(&w, &l.cone);
         else if (strcmp(t, "shadow") == 0) l.shadow = 1;
         else if (strcmp(t, "round") == 0 && kind == AREA_LIGHT_WINDOW) l.round = 1;
+        else if (strcmp(t, "follow") == 0 && kind == AREA_LIGHT_WINDOW) l.follow = 1;
         else if (strcmp(t, "mask") == 0 && kind == AREA_LIGHT_WINDOW) {
             float m = 0.0f;
             ok = al_nums(&w, &m, 1);
@@ -300,6 +301,7 @@ static int al_put_light(char *out, int cap, int k, uint32_t area, const AreaLigh
     if (l->kind == AREA_LIGHT_WINDOW && l->has_dir) k = al_put(out, cap, k, " dir %.3f %.3f %.3f", l->dir[0], l->dir[1], l->dir[2]);
     if (l->kind == AREA_LIGHT_WINDOW && l->round) k = al_put(out, cap, k, " round");
     if (l->kind == AREA_LIGHT_WINDOW && l->mask > 0) k = al_put(out, cap, k, " mask %d", l->mask);
+    if (l->kind == AREA_LIGHT_WINDOW && l->follow) k = al_put(out, cap, k, " follow");
     if (l->kind == AREA_LIGHT_SPOT)
         k = al_put(out, cap, k, " at %.1f %.1f %.1f cone %.1f", l->a[0], l->a[1], l->a[2], l->cone);
     k = al_put(out, cap, k, " color %.2f %.2f %.2f power %.2f", l->col[0], l->col[1], l->col[2], l->power);

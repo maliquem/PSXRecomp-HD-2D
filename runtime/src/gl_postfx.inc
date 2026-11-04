@@ -1669,6 +1669,10 @@ static void pfx_sm_init(void) {
 }
 /* The last shadow build's sun (gl_renderer_shadow_sun_info). */
 static _Atomic int      s_sun_el_x100 = -1, s_sun_scenery = 0;
+/* The sun where it last shone (azimuth, elevation): an indoor room has none of its own but its
+ * windows still look at it (`follow`); before any outdoor area, the chain's own sun */
+static float s_sun_last[2], s_sun_chain[2];
+static int   s_sun_last_on = 0, s_sun_chain_on = 0;
 static _Atomic unsigned s_sun_info_at = 0;
 int gl_renderer_shadow_sun_info(float *elevation_deg, int *scenery) {
     const int el = atomic_load_explicit(&s_sun_el_x100, memory_order_relaxed);
@@ -1705,7 +1709,9 @@ static void pfx_shadow_build(const PfxPass *ps, float aspect, int lw, int lh) {
     const float *dir = pfx_pass_uniform(ps, "u_shadowdir"), *proj = pfx_pass_uniform(ps, "u_proj");
     const float *sun = pfx_pass_uniform(ps, "u_sun");
     float area_sun[2];   /* [video.shadow] sun_areas: this area's own sun */
+    if (sun) { s_sun_chain[0] = sun[0]; s_sun_chain[1] = sun[1]; s_sun_chain_on = 1; }
     if (sun && gpu_shadow_sun_area(&area_sun[0], &area_sun[1])) sun = area_sun;
+    if (sun && !gpu_shadow_area_off()) { s_sun_last[0] = sun[0]; s_sun_last[1] = sun[1]; s_sun_last_on = 1; }
     {   /* published for the emulation thread (gl_renderer_shadow_sun_info):
          * whether the scenery casts (u_ss.y), the sun's elevation (below,
          * after the night's move toward the moon) */
@@ -2303,6 +2309,10 @@ static int   s_fl_n = 0, s_fl_nfire = 0;
  * places in view space (y up), colours, spots and flickers, as the fire
  * lights'; the area's ambient (rgb, w 1 = set); the markers (TCP area_lights
  * "mark": the picked light, -1 none, -2 off). */
+#define AL_FOLLOW_MIN_IN 0.35f    /* a beam following the sun enters at least this straight */
+#define AL_FOLLOW_MIN_DOWN 0.30f  /* and falls at least this much: a low sun still lands in the room */
+#define AL_FOLLOW_AWAY 0.35f      /* a window turned from the sun: this much of its light */
+#define AL_FOLLOW_REACH 0.6f      /* and this much of its reach */
 enum { AL_CAST_MAX = 2, AL_FREE_MAX = 8, AL_WIN_MAX = 8 };   /* windows: shaft.glsl, light-out.glsl u_win[8] */
 static float s_al_view[AL_FREE_MAX][4], s_al_col[AL_FREE_MAX][4], s_al_dir[AL_FREE_MAX][4], s_al_ext[AL_FREE_MAX][4];
 static int   s_al_n = 0;
@@ -2505,23 +2515,48 @@ static int pfx_area_lights_prep(const PfxPass *ps, int nl, float *mapd) {
                 for (int c = 0; c < 3; c++) D[c] = N[c] * 0.8f - up[c] * 0.6f;   /* straight in and down */
             }
             al_norm(D);
+            /* following the sun: facing it, its light comes straight along its way, steeper the
+             * higher it is; the wall away from it still gets a beam, mirrored in through the
+             * wall, weaker and reaching less far */
+            float kf = 1.0f, reach = 1.0f;
+            if (l->follow && l->src == AREA_SRC_SUN && (s_sun_last_on || s_sun_chain_on)) {
+                const float *s = s_sun_last_on ? s_sun_last : s_sun_chain;
+                float L[3], T[3];
+                al_sun_way(s[0], s[1], L);
+                for (int c = 0; c < 3; c++) T[c] = -L[c];
+                al_norm(T);
+                const float in = T[0] * N[0] + T[1] * N[1] + T[2] * N[2];
+                if (in < 0.0f) for (int c = 0; c < 3; c++) T[c] -= 2.0f * in * N[c];
+                const float flat = T[0] * N[0] + T[1] * N[1] + T[2] * N[2];
+                if (flat < AL_FOLLOW_MIN_IN) for (int c = 0; c < 3; c++) T[c] += (AL_FOLLOW_MIN_IN - flat) * N[c];
+                const float dropped = -(T[0] * up[0] + T[1] * up[1] + T[2] * up[2]);
+                if (dropped < AL_FOLLOW_MIN_DOWN) for (int c = 0; c < 3; c++) T[c] -= (AL_FOLLOW_MIN_DOWN - dropped) * up[c];
+                al_norm(T);
+                float f = (in + 0.2f) / 0.7f;
+                f = f < 0.0f ? 0.0f : f > 1.0f ? 1.0f : f;
+                f = f * f * (3.0f - 2.0f * f);
+                kf = AL_FOLLOW_AWAY + (1.0f - AL_FOLLOW_AWAY) * f;
+                reach = AL_FOLLOW_REACH + (1.0f - AL_FOLLOW_REACH) * f;
+                for (int c = 0; c < 3; c++) D[c] = T[c];
+            }
             const float dn = D[0] * N[0] + D[1] * N[1] + D[2] * N[2];
             /* the light from the room's side: none comes in (a way set by hand
              * is the light's way in, whichever side the room is on) */
-            if (!l->has_dir && dn < 0.05f) continue;
+            if (!l->has_dir && !l->follow && dn < 0.05f) continue;
             /* how far in: from its highest corner down to the scene's lowest point */
             float top = -1e30f;
             for (int c = 0; c < 4; c++) top = fmaxf(top, C[c][0] * up[0] + C[c][1] * up[1] + C[c][2] * up[2]);
             const float down = -(D[0] * up[0] + D[1] * up[1] + D[2] * up[2]);
             float tmax = 3000.0f;
             if (hmin < 1e29f && down > 0.05f) tmax = fminf(3000.0f, (top - hmin) / down + 20.0f);
+            tmax *= reach;
             /* the day's colour, toward moonlight by the night's share (a moon window: moonlight) */
             static const float moon[3] = {0.55f, 0.68f, 1.0f};
             const float nn = l->src == AREA_SRC_MOON ? 1.0f : l->src == AREA_SRC_FIXED ? 0.0f : n;
             float (*w)[4] = s_alw[s_alw_n];
             for (int c = 0; c < 3; c++) {
                 w[0][c] = O[c]; w[1][c] = U[c]; w[2][c] = V[c]; w[3][c] = D[c];
-                w[4][c] = kw * (l->col[c] + (moon[c] * 0.45f - l->col[c]) * nn);
+                w[4][c] = kw * kf * (l->col[c] + (moon[c] * 0.45f - l->col[c]) * nn);
             }
             w[0][3] = tmax; w[1][3] = (float)l->cols; w[2][3] = (float)l->rows; w[3][3] = l->round ? 2.0f : 1.0f; w[4][3] = l->dust;
             for (int k = 0; k < 4; k++) {

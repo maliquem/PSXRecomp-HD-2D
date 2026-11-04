@@ -50,6 +50,7 @@ typedef struct {
     int   has_dir;        /* window: dir set */
     float dir[3];         /* window: the way its light travels (world) */
     int   mask;           /* window: its shape in window_masks.bin, 1.. (0: its panes and corners) */
+    int   follow;         /* window: its way from the last sun seen outdoors, over `dir` */
     char  note[AREA_LIGHT_NOTE];
 } AreaLight;
 
