@@ -283,3 +283,14 @@ runtime binary, API layer or vendor driver is redistributed.
 The complete SDK and JsonCpp notices are in
 `runtime/licenses/OpenXR-SDK-NOTICES.txt`; both existing release packagers copy
 that directory into player packages. The source dependency is unmodified.
+
+## Monocypher — sealed bug reports
+
+[Monocypher](https://monocypher.org/) 4.0.2, Copyright (c) 2017-2019 Loup Vaillant, is dual-licensed
+**BSD-2-Clause OR CC0-1.0**. The sources are in `runtime/third_party/monocypher/` with `LICENCE.md`.
+It seals the private part of a player's bug report.
+
+## stb_image_write — bug report photos
+
+[stb_image_write](https://github.com/nothings/stb) v1.16 by Sean Barrett is **MIT or public domain**.
+`runtime/third_party/stb_image_write.h` writes the JPEG of a sent bug report.

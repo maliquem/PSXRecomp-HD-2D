@@ -48,6 +48,10 @@ const char *bug_report_tr(const char *english);
 
 #define BUG_REPORT_TEXT_MAX 4000   /* the description, bytes of UTF-8 */
 
+/* A red rectangle on the picture, in 0..1 of the window. */
+typedef struct BugReportMark { float x0, y0, x1, y1; } BugReportMark;
+#define BUG_REPORT_MARKS_MAX 16
+
 /* ---- the form in Dear ImGui (bug_report_ui.cpp) ---------------------------
  * Built with recomp-ui's Dear ImGui and an OpenGL window, the open form is
  * drawn over the presented frame (Unicode text, drop-down lists, mouse)
@@ -61,9 +65,14 @@ typedef struct BugReportUiForm {
     const char *const *frequencies; int frequency_count, frequency;
     const uint32_t *thumb; int thumb_w, thumb_h;               /* the moment, ARGB (copied) */
     int photo, state, clip_frames;                             /* what was taken (PSXModBugReportView) */
+    int can_send;                                              /* the form offers "Save and send" */
 } BugReportUiForm;
-enum { BUG_REPORT_UI_SAVE = 1, BUG_REPORT_UI_DISCARD = 2 };
+enum { BUG_REPORT_UI_SAVE = 1, BUG_REPORT_UI_DISCARD = 2, BUG_REPORT_UI_SEND = 3 };
 
+/* 1 while the player marks the picture (the form hides, the veil goes). */
+int  bug_report_ui_marking(void);
+/* The rectangles the player drew, at most max. */
+int  bug_report_ui_marks(BugReportMark *out, int max);
 /* The game's OpenGL window (NULL: none, the form stays on the canvas). */
 void bug_report_ui_set_window(void *sdl_window);
 /* 1: the form is up in ImGui, with an empty description. */

@@ -15,10 +15,14 @@
  *   state.pst        the save state of the moment
  *   clip.gif         the last seconds as shown (small, every presented frame)
  *   clip_sheet.png   twelve of them in a grid
- *   config/          the settings files */
+ *   config/          the settings files
+ *   photo_marked.png the picture with the player's red rectangles (when any)
+ *   <id>.zip         what a release build sends (docs/BUG_REPORT.md) */
 
 #include "bug_report.h"
 
+#include "bug_report_pack.h"
+#include "execution_profile.h"
 #include "gpu.h"
 #include "gpu_gl_renderer.h"
 #include "host_osd.h"
@@ -36,9 +40,19 @@
 #include <zlib.h>
 #ifdef _WIN32
 #include <windows.h>
+#include <shellapi.h>
 #else
 #include <sys/stat.h>
 #include <unistd.h>
+#endif
+
+#define STBI_WRITE_NO_STDIO
+#define STB_IMAGE_WRITE_STATIC
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#include "../third_party/stb_image_write.h"
+
+#ifndef PSX_GAME_VERSION
+#define PSX_GAME_VERSION "dev"
 #endif
 
 extern int present_shot_request(const char *path);
@@ -57,6 +71,9 @@ extern int debug_server_write_wide_picture(const char *path);
 #define BR_TYPES_MAX    32
 #define BR_FILES_MAX    16
 #define BR_WORDS_MAX    64
+#define BR_JPEG_WIDTH   1920   /* the sent photo, at most */
+#define BR_JPEG_QUALITY 88
+#define BR_URL_MAX      7000   /* a longer address fails on some browsers */
 
 enum { BR_IDLE = 0, BR_CAPTURING, BR_FORM };
 
@@ -74,6 +91,9 @@ static char *s_files[BR_FILES_MAX];
 static int s_file_n;
 static PSXModBugReportRenderer s_render;
 static PSXModBugReportInfo s_info;
+static char s_issue_url[256];
+static uint8_t s_send_key[32];
+static int s_send_has_key;
 static char *s_word_en[BR_WORDS_MAX], *s_word_shown[BR_WORDS_MAX];
 static int s_word_n;
 
@@ -95,6 +115,8 @@ static int s_row, s_type, s_sev = 1, s_freq = 1, s_confirm;
 static char s_text[BR_TEXT_MAX + 1];
 static int s_caret;
 static int s_ui;   /* the form is up in Dear ImGui (bug_report_ui.cpp), not on the canvas */
+static BugReportMark s_marks[BUG_REPORT_MARKS_MAX];
+static int s_mark_n, s_marking_seen;
 
 /* ---- files ---------------------------------------------------------------- */
 
@@ -144,9 +166,18 @@ static void br_path(char *out, size_t cap, const char *file) {
 }
 static uint64_t br_now_ms(void) { return (uint64_t)SDL_GetTicks(); }
 
-static void br_root(void) {
+/* PSX_BUG_REPORT_DIR, else bug_reports/ beside the exe. */
+static void br_root_path(char *out, size_t cap) {
     const char *e = getenv("PSX_BUG_REPORT_DIR");
-    snprintf(s_root, sizeof s_root, "%s", e && *e ? e : "bug_reports");
+    if (e && *e) {
+        snprintf(out, cap, "%s", e);
+        return;
+    }
+    const char *base = SDL_GetBasePath();
+    snprintf(out, cap, "%sbug_reports", base ? base : "");
+}
+static void br_root(void) {
+    br_root_path(s_root, sizeof s_root);
     br_mkdir(s_root);
 }
 
@@ -199,8 +230,9 @@ static int png_write_z(const char *path, const uint8_t *rgb, uint32_t w, uint32_
     return ok;
 }
 
-/* A PNG the framework wrote (8-bit RGB, filter None) written again compressed. */
-static int png_recompress(const char *path) {
+/* A PNG the framework wrote (8-bit RGB, filter None) written again compressed.
+ * keep: the pixels stay with the caller (free them); *w, *h their size. */
+static int png_recompress(const char *path, uint8_t **keep, uint32_t *keep_w, uint32_t *keep_h) {
     FILE *f = fopen(path, "rb");
     if (!f) return 0;
     fseek(f, 0, SEEK_END);
@@ -243,6 +275,12 @@ static int png_recompress(const char *path) {
             ok = png_write_z(tmp, rgb, w, h) && (remove(path) == 0) && rename(tmp, path) == 0;
             if (!ok) remove(tmp);
         }
+    }
+    if (ok && keep) {
+        *keep = rgb;
+        *keep_w = w;
+        *keep_h = h;
+        rgb = NULL;
     }
     free(rgb);
     free(raw);
@@ -551,10 +589,23 @@ int bug_report_begin(void) {
     s_text[0] = 0;
     s_caret = 0;
     s_clip_frames = 0;
+    s_mark_n = s_marking_seen = 0;
     s_t0 = br_now_ms();
     s_stage = BR_CAPTURING;
     s_page_open = 0;
     return 1;
+}
+
+/* The title gave a page to send to, in a release build. A developer's own
+ * builds keep their reports at home (PSX_BUG_REPORT_SEND=1 tests the path). */
+static int send_available(void) {
+    if (!s_issue_url[0]) return 0;
+#ifdef PSX_NO_DEBUG_TOOLS
+    return 1;
+#else
+    const char *e = getenv("PSX_BUG_REPORT_SEND");
+    return e && *e == '1';
+#endif
 }
 
 /* The form in Dear ImGui when the build and the window have it: the names
@@ -575,6 +626,7 @@ static void ui_open(void) {
     f.photo = s_photo > 0;
     f.state = s_state;
     f.clip_frames = s_clip_frames;
+    f.can_send = send_available();
     s_ui = bug_report_ui_open(&f);
 }
 /* What the player chose and wrote, from the ImGui form. */
@@ -582,6 +634,7 @@ static void ui_take(void) {
     if (!s_ui) return;
     bug_report_ui_values(&s_type, &s_sev, &s_freq, s_text, (int)sizeof s_text);
     s_caret = (int)strlen(s_text);
+    s_mark_n = bug_report_ui_marks(s_marks, BUG_REPORT_MARKS_MAX);
 }
 static void ui_end(void) {
     if (!s_ui) return;
@@ -677,44 +730,54 @@ static int copy_config(char names[][96], int max) {
     return n;
 }
 
-static void write_report(void) {
-    char path[800], from[600], typeslug[64];
-    /* the folder's name says the type */
-    slug(s_types[s_type], typeslug, sizeof typeslug);
-    {
-        char renamed[700];
-        snprintf(renamed, sizeof renamed, "%s/%s_%s", s_root, s_name, typeslug);
-        if (br_rename(s_folder, renamed)) {
-            snprintf(s_folder, sizeof s_folder, "%s", renamed);
-            snprintf(s_name + strlen(s_name), sizeof s_name - strlen(s_name), "_%s", typeslug);
-        }
-    }
-    /* the state: a save that ran late may have landed since */
-    int state = 0;
-    if (savestate_slot_path(SAVESTATE_BUG_SLOT, from, sizeof from) && br_exists(from)) {
-        br_path(path, sizeof path, "state.pst");
-        state = br_copy(from, path);
-    }
-    bug_slot_forget();
-    /* the pictures the present and the debug server wrote, compressed */
-    br_path(path, sizeof path, "photo.png");
-    if (s_photo > 0) (void)png_recompress(path);
-    br_path(path, sizeof path, "photo_ps1.png");
-    if (s_photo_ps1) (void)png_recompress(path);
-    int span = 0;
-    const int clip = write_clip(&span);
-    ring_release();
-    char cfg[BR_FILES_MAX + 8][96];
-    const int ncfg = copy_config(cfg, BR_FILES_MAX + 8);
+/* ---- the player's marks --------------------------------------------------- */
 
-    br_path(path, sizeof path, "report.json");
-    FILE *f = fopen(path, "wb");
-    if (!f) {
-        host_osd_push("Bug report: could not write report.json", 3000);
-        return;
+static void rgb_fill(uint8_t *rgb, uint32_t w, uint32_t h, int x0, int y0, int x1, int y1,
+                     uint8_t r, uint8_t g, uint8_t b) {
+    if (x0 < 0) x0 = 0;
+    if (y0 < 0) y0 = 0;
+    if (x1 > (int)w) x1 = (int)w;
+    if (y1 > (int)h) y1 = (int)h;
+    for (int y = y0; y < y1; y++)
+        for (int x = x0; x < x1; x++) {
+            uint8_t *p = rgb + ((size_t)y * w + (size_t)x) * 3;
+            p[0] = r; p[1] = g; p[2] = b;
+        }
+}
+static void rgb_frame(uint8_t *rgb, uint32_t w, uint32_t h, int x0, int y0, int x1, int y1, int t,
+                      uint8_t r, uint8_t g, uint8_t b) {
+    rgb_fill(rgb, w, h, x0, y0, x1, y0 + t, r, g, b);
+    rgb_fill(rgb, w, h, x0, y1 - t, x1, y1, r, g, b);
+    rgb_fill(rgb, w, h, x0, y0, x0 + t, y1, r, g, b);
+    rgb_fill(rgb, w, h, x1 - t, y0, x1, y1, r, g, b);
+}
+/* Red rectangles, with a dark edge so they show on a red scene too. */
+static void marks_draw(uint8_t *rgb, uint32_t w, uint32_t h) {
+    const int t = w / 480 > 3 ? (int)(w / 480) : 3, e = t / 3 > 1 ? t / 3 : 1;
+    for (int i = 0; i < s_mark_n; i++) {
+        const int x0 = (int)(s_marks[i].x0 * (float)w), y0 = (int)(s_marks[i].y0 * (float)h);
+        const int x1 = (int)(s_marks[i].x1 * (float)w), y1 = (int)(s_marks[i].y1 * (float)h);
+        rgb_frame(rgb, w, h, x0 - e, y0 - e, x1 + e, y1 + e, t + 2 * e, 0, 0, 0);
+        rgb_frame(rgb, w, h, x0, y0, x1, y1, t, 255, 32, 32);
     }
+}
+
+/* ---- report.json ---------------------------------------------------------- */
+
+typedef struct BrMade {
+    int state, clip, span, marked, ncfg, sent;
+    char cfg[BR_FILES_MAX + 8][96];
+} BrMade;
+
+/* pub: the copy that goes out. No path of the player's machine in it. */
+static void write_json(FILE *f, const BrMade *m, int pub) {
     char exe[600], exe_mod[32];
     exe_info(exe, sizeof exe, exe_mod, sizeof exe_mod);
+    const char *exe_name = exe;
+    if (pub) {
+        for (const char *p = exe; *p; p++)
+            if (*p == '/' || *p == '\\') exe_name = p + 1;
+    }
     fprintf(f, "{\n  \"format\": 1,\n  \"id\": \"");
     json_str(f, s_name);
     fprintf(f, "\",\n  \"created\": \"%s\",\n  \"status\": \"new\",\n  \"auto\": false,\n", s_created);
@@ -723,24 +786,38 @@ static void write_report(void) {
     fprintf(f, "\",\n  \"frequency\": \""); json_str(f, k_frequencies[s_freq]);
     fprintf(f, "\",\n  \"description\": \""); json_str(f, s_text);
     fprintf(f, "\",\n  \"files\": {\n");
-    fprintf(f, "    \"photo\": %s,\n", s_photo > 0 ? "\"photo.png\"" : "null");
-    fprintf(f, "    \"photo_ps1\": %s,\n", s_photo_ps1 ? "\"photo_ps1.png\"" : "null");
-    fprintf(f, "    \"state\": %s,\n", state ? "\"state.pst\"" : "null");
-    fprintf(f, "    \"clip\": %s,\n", clip ? "\"clip.gif\"" : "null");
-    fprintf(f, "    \"clip_sheet\": %s,\n", clip ? "\"clip_sheet.png\"" : "null");
-    fprintf(f, "    \"config\": [");
-    for (int i = 0; i < ncfg; i++) {
-        fprintf(f, "%s\"config/", i ? ", " : "");
-        json_str(f, cfg[i]);
-        fputc('"', f);
+    if (pub) {
+        fprintf(f, "    \"photo\": %s,\n", s_photo > 0 ? "\"photo.jpg\"" : "null");
+        fprintf(f, "    \"photo_ps1\": %s,\n", s_photo_ps1 ? "\"photo_ps1.png\"" : "null");
+        fprintf(f, "    \"clip_sheet\": %s,\n", m->clip ? "\"clip_sheet.png\"" : "null");
+        fprintf(f, "    \"private\": %s\n", m->sent ? "\"private.bin\"" : "null");
+    } else {
+        fprintf(f, "    \"photo\": %s,\n", s_photo > 0 ? "\"photo.png\"" : "null");
+        fprintf(f, "    \"photo_marked\": %s,\n", m->marked ? "\"photo_marked.png\"" : "null");
+        fprintf(f, "    \"photo_ps1\": %s,\n", s_photo_ps1 ? "\"photo_ps1.png\"" : "null");
+        fprintf(f, "    \"state\": %s,\n", m->state ? "\"state.pst\"" : "null");
+        fprintf(f, "    \"clip\": %s,\n", m->clip ? "\"clip.gif\"" : "null");
+        fprintf(f, "    \"clip_sheet\": %s,\n", m->clip ? "\"clip_sheet.png\"" : "null");
+        fprintf(f, "    \"config\": [");
+        for (int i = 0; i < m->ncfg; i++) {
+            fprintf(f, "%s\"config/", i ? ", " : "");
+            json_str(f, m->cfg[i]);
+            fputc('"', f);
+        }
+        fprintf(f, "]\n");
     }
-    fprintf(f, "]\n  },\n");
-    fprintf(f, "  \"clip\": {\"frames\": %d, \"vblanks\": %d},\n", clip, span);
+    fprintf(f, "  },\n  \"marks\": [");
+    for (int i = 0; i < s_mark_n; i++)
+        fprintf(f, "%s{\"x\": %.4f, \"y\": %.4f, \"w\": %.4f, \"h\": %.4f}", i ? ", " : "", s_marks[i].x0,
+                s_marks[i].y0, s_marks[i].x1 - s_marks[i].x0, s_marks[i].y1 - s_marks[i].y0);
+    fprintf(f, "],\n");
+    fprintf(f, "  \"clip\": {\"frames\": %d, \"vblanks\": %d},\n", m->clip, m->span);
+    fprintf(f, "  \"build\": {\"version\": \"%s\", \"execution\": \"%s\"},\n", PSX_GAME_VERSION, PSX_EXECUTION_ID);
     GlPacing pace;
     memset(&pace, 0, sizeof pace);
     (void)gl_renderer_present_pacing(5.0, &pace);
     fprintf(f, "  \"runtime\": {\n    \"exe\": \"");
-    json_str(f, exe);
+    json_str(f, exe_name);
     fprintf(f, "\",\n    \"exe_modified\": \"%s\",\n    \"frame\": %llu,\n", exe_mod, (unsigned long long)s_frame);
     fprintf(f, "    \"present_fps\": %.1f, \"generated\": %d, \"frame_ms\": %.2f, \"p99_ms\": %.2f, "
                "\"max_ms\": %.2f, \"low1_fps\": %.1f\n  }",
@@ -752,9 +829,241 @@ static void write_report(void) {
             fprintf(f, ",\n  \"game\": {%s}", game);
     }
     fprintf(f, ",\n  \"history\": [{\"at\": \"%s\", \"status\": \"new\", \"by\": \"player\"}]\n}\n", s_created);
+}
+
+/* ---- what a release build sends ------------------------------------------- */
+
+typedef struct BrBuf { uint8_t *p; size_t n, cap; int failed; } BrBuf;
+
+static void buf_put(void *ctx, void *data, int size) {
+    BrBuf *b = (BrBuf *)ctx;
+    if (b->failed || size <= 0) return;
+    if (b->n + (size_t)size > b->cap) {
+        size_t cap = b->cap ? b->cap * 2 : 1u << 20;
+        while (cap < b->n + (size_t)size) cap *= 2;
+        uint8_t *q = (uint8_t *)realloc(b->p, cap);
+        if (!q) { b->failed = 1; return; }
+        b->p = q;
+        b->cap = cap;
+    }
+    memcpy(b->p + b->n, data, (size_t)size);
+    b->n += (size_t)size;
+}
+
+/* The photo, at most BR_JPEG_WIDTH wide (2.3 MB as a PNG, about 0.4 here). */
+static int photo_jpeg(const uint8_t *rgb, uint32_t w, uint32_t h, BrBuf *out) {
+    const uint32_t div = (w + BR_JPEG_WIDTH - 1) / BR_JPEG_WIDTH;
+    const uint32_t sw = w / div, sh = h / div;
+    uint8_t *small = (uint8_t *)malloc((size_t)sw * sh * 3);
+    if (!small) return 0;
+    for (uint32_t y = 0; y < sh; y++)
+        for (uint32_t x = 0; x < sw; x++)
+            for (int c = 0; c < 3; c++) {
+                uint32_t sum = 0;
+                for (uint32_t j = 0; j < div; j++)
+                    for (uint32_t i = 0; i < div; i++)
+                        sum += rgb[((size_t)(y * div + j) * w + (x * div + i)) * 3 + (size_t)c];
+                small[((size_t)y * sw + x) * 3 + (size_t)c] = (uint8_t)(sum / (div * div));
+            }
+    const int ok = stbi_write_jpg_to_func(buf_put, out, (int)sw, (int)sh, 3, small, BR_JPEG_QUALITY);
+    free(small);
+    return ok && !out->failed;
+}
+
+static void url_byte(char *out, size_t *n, unsigned char c) {
+    static const char hex[] = "0123456789ABCDEF";
+    const int plain = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') ||
+                      c == '-' || c == '_' || c == '.' || c == '~';
+    if (plain) {
+        out[(*n)++] = (char)c;
+    } else {
+        out[(*n)++] = '%';
+        out[(*n)++] = hex[c >> 4];
+        out[(*n)++] = hex[c & 15];
+    }
+}
+static void url_text(char *out, size_t *n, const char *s) {
+    for (; *s; s++) url_byte(out, n, (unsigned char)*s);
+}
+
+/* The page of a new issue, filled in. The description stops short rather than
+ * make the address too long: all of it is in the ZIP. */
+static void issue_url(char *out, size_t cap) {
+    char title[140], head[420], tail[300], first[80];
+    size_t n = 0, fl = 0;
+    (void)cap;
+    for (; s_text[fl] && s_text[fl] != '\n' && fl + 1 < sizeof first - 4; fl++) first[fl] = s_text[fl];
+    while (fl > 0 && ((unsigned char)s_text[fl] & 0xC0) == 0x80) fl--;   /* a whole character */
+    first[fl] = 0;
+    snprintf(title, sizeof title, "[%s] %s", s_types[s_type], fl ? first : "Bug report");
+    snprintf(head, sizeof head, "**Type:** %s | **Severity:** %s | **Frequency:** %s\n**Version:** %s (%.12s)\n"
+             "**Report:** %s\n\n", s_types[s_type], k_severities[s_sev], k_frequencies[s_freq], PSX_GAME_VERSION,
+             PSX_EXECUTION_ID, s_name);
+    snprintf(tail, sizeof tail, "\n\n---\n**Before you press Submit:** drag the file `%s.zip` into this box. "
+             "The folder with it has just opened.\n", s_name);
+    n = (size_t)snprintf(out, cap, "%s?title=", s_issue_url);
+    url_text(out, &n, title);
+    memcpy(out + n, "&body=", 6);
+    n += 6;
+    url_text(out, &n, head);
+    size_t tail_n = 0;
+    {
+        static char enc[1024];
+        url_text(enc, &tail_n, tail);
+        const size_t room = BR_URL_MAX - tail_n;
+        for (const char *p = s_text; *p;) {
+            int len = 1;
+            const unsigned char c = (unsigned char)*p;
+            if (c >= 0xF0) len = 4; else if (c >= 0xE0) len = 3; else if (c >= 0xC0) len = 2;
+            if (n + (size_t)len * 3 >= room) break;
+            for (int i = 0; i < len && p[i]; i++) url_byte(out, &n, (unsigned char)p[i]);
+            p += len;
+        }
+        memcpy(out + n, enc, tail_n);
+        n += tail_n;
+    }
+    out[n] = 0;
+}
+
+static void reveal_file(const char *path) {
+#ifdef _WIN32
+    wchar_t wide[1024], args[1100];
+    if (MultiByteToWideChar(CP_UTF8, 0, path, -1, wide, 1024) <= 0) return;
+    for (wchar_t *c = wide; *c; c++) if (*c == L'/') *c = L'\\';
+    _snwprintf(args, 1100, L"/select,\"%ls\"", wide);
+    args[1099] = 0;
+    ShellExecuteW(NULL, L"open", L"explorer.exe", args, NULL, SW_SHOWNORMAL);
+#else
+    char url[1024];
+    snprintf(url, sizeof url, "file://%s", s_folder);
+    (void)path;
+    SDL_OpenURL(url);
+#endif
+}
+
+/* <id>.zip in the folder: what anyone may read, and the save state and the
+ * settings in a box only the title's developer opens. Then the issue's page
+ * and the folder, for the player to drag the file. A title without a key sends
+ * no state and no settings. */
+static int send_report(BrMade *m, const uint8_t *rgb, uint32_t w, uint32_t h) {
+    char path[800], name[160];
+    BrZip inner, zip;
+    uint8_t *box = NULL;
+    size_t box_n = 0;
+    if (s_send_has_key) {
+        br_zip_init(&inner);
+        br_path(path, sizeof path, "state.pst");
+        if (m->state) (void)br_zip_add_file(&inner, "state.pst", path);
+        for (int i = 0; i < m->ncfg; i++) {
+            char member[120];
+            snprintf(member, sizeof member, "config/%s", m->cfg[i]);
+            br_path(path, sizeof path, member);
+            (void)br_zip_add_file(&inner, member, path);
+        }
+        if (br_zip_finish(&inner)) {
+            box = (uint8_t *)malloc(inner.len + BR_SEAL_OVERHEAD);
+            if (box && br_seal(s_send_key, inner.buf, inner.len, box)) box_n = inner.len + BR_SEAL_OVERHEAD;
+        }
+        br_zip_free(&inner);
+    }
+    m->sent = box_n != 0;
+
+    br_zip_init(&zip);
+    br_path(path, sizeof path, "report_public.tmp");
+    FILE *f = fopen(path, "wb");
+    if (f) {
+        write_json(f, m, 1);
+        fclose(f);
+        (void)br_zip_add_file(&zip, "report.json", path);
+        remove(path);
+    }
+    if (rgb) {
+        BrBuf jpg = { 0 };
+        if (photo_jpeg(rgb, w, h, &jpg)) br_zip_add(&zip, "photo.jpg", jpg.p, jpg.n);
+        free(jpg.p);
+    }
+    br_path(path, sizeof path, "photo_ps1.png");
+    if (s_photo_ps1) (void)br_zip_add_file(&zip, "photo_ps1.png", path);
+    br_path(path, sizeof path, "clip_sheet.png");
+    if (m->clip) (void)br_zip_add_file(&zip, "clip_sheet.png", path);
+    if (box_n) br_zip_add(&zip, "private.bin", box, box_n);
+    free(box);
+    int ok = br_zip_finish(&zip);
+    snprintf(name, sizeof name, "%s.zip", s_name);
+    br_path(path, sizeof path, name);
+    if (ok) {
+        f = fopen(path, "wb");
+        ok = f && fwrite(zip.buf, 1, zip.len, f) == zip.len;
+        if (f && fclose(f) != 0) ok = 0;
+    }
+    br_zip_free(&zip);
+    if (!ok) return 0;
+
+    static char url[BR_URL_MAX + 1024];
+    issue_url(url, sizeof url);
+    char url_path[800];
+    br_path(url_path, sizeof url_path, "issue_url.txt");
+    f = fopen(url_path, "wb");
+    if (f) {
+        fputs(url, f);
+        fclose(f);
+    }
+    if (!getenv("PSX_BUG_REPORT_NO_OPEN")) {
+        SDL_OpenURL(url);
+        reveal_file(path);
+    }
+    return 1;
+}
+
+static void write_report(int send) {
+    char path[800], from[600], typeslug[64];
+    BrMade m;
+    memset(&m, 0, sizeof m);
+    /* the folder's name says the type */
+    slug(s_types[s_type], typeslug, sizeof typeslug);
+    {
+        char renamed[700];
+        snprintf(renamed, sizeof renamed, "%s/%s_%s", s_root, s_name, typeslug);
+        if (br_rename(s_folder, renamed)) {
+            snprintf(s_folder, sizeof s_folder, "%s", renamed);
+            snprintf(s_name + strlen(s_name), sizeof s_name - strlen(s_name), "_%s", typeslug);
+        }
+    }
+    /* the state: a save that ran late may have landed since */
+    if (savestate_slot_path(SAVESTATE_BUG_SLOT, from, sizeof from) && br_exists(from)) {
+        br_path(path, sizeof path, "state.pst");
+        m.state = br_copy(from, path);
+    }
+    bug_slot_forget();
+    /* the pictures the present and the debug server wrote, compressed */
+    uint8_t *rgb = NULL;
+    uint32_t pw = 0, ph = 0;
+    br_path(path, sizeof path, "photo.png");
+    if (s_photo > 0) (void)png_recompress(path, &rgb, &pw, &ph);
+    br_path(path, sizeof path, "photo_ps1.png");
+    if (s_photo_ps1) (void)png_recompress(path, NULL, NULL, NULL);
+    if (rgb && s_mark_n) {
+        marks_draw(rgb, pw, ph);
+        br_path(path, sizeof path, "photo_marked.png");
+        m.marked = png_write_z(path, rgb, pw, ph);
+    }
+    m.clip = write_clip(&m.span);
+    ring_release();
+    m.ncfg = copy_config(m.cfg, BR_FILES_MAX + 8);
+    const int sent = send ? send_report(&m, rgb, pw, ph) : 0;
+    free(rgb);
+
+    br_path(path, sizeof path, "report.json");
+    FILE *f = fopen(path, "wb");
+    if (!f) {
+        host_osd_push("Bug report: could not write report.json", 3000);
+        return;
+    }
+    write_json(f, &m, 0);
     fclose(f);
     char msg[300];
-    snprintf(msg, sizeof msg, "%s: %s", bug_report_tr("Bug report saved"), s_name);
+    snprintf(msg, sizeof msg, "%s: %s", bug_report_tr(send && !sent ? "Bug report saved, not packed" :
+                                                      "Bug report saved"), s_name);
     host_osd_push(msg, 3500);
 }
 
@@ -772,10 +1081,11 @@ static void discard_report(void) {
     host_osd_push(bug_report_tr("Bug report discarded"), 1500);
 }
 
-static void finish(int save) {
+/* 0 discard, 1 save, 2 save and send. */
+static void finish(int how) {
     ui_take();
     ui_end();
-    if (save) write_report();
+    if (how) write_report(how == 2);
     else discard_report();
     free(s_thumb);
     s_thumb = NULL;
@@ -798,6 +1108,8 @@ void bug_report_reset(void) {
     s_title_type_n = s_file_n = s_word_n = 0;
     s_render = NULL;
     s_info = NULL;
+    s_issue_url[0] = 0;
+    s_send_has_key = 0;
     s_type = 0;
 }
 
@@ -869,9 +1181,15 @@ int bug_report_page_input(uint32_t pressed, uint32_t held, int key, int mods) {
          * debug server's keys and the player's save / discard */
         if (key) bug_report_ui_key(key, mods);
         else bug_report_ui_pad(held);
+        /* the picture shows bright while the player marks it */
+        const int marking = bug_report_ui_marking();
+        if (marking != s_marking_seen) {
+            s_marking_seen = marking;
+            psx_mod_title_page_redraw();
+        }
         const int act = bug_report_ui_action();
         if (!act) return 1;
-        finish(act == BUG_REPORT_UI_SAVE);
+        finish(act == BUG_REPORT_UI_SEND ? 2 : act == BUG_REPORT_UI_SAVE ? 1 : 0);
         return 0;
     }
     const int was_confirm = s_confirm;
@@ -1066,7 +1384,8 @@ static int default_render(uint32_t *d, int w, int h) {
 int bug_report_page_render(uint32_t *argb, int w, int h) {
     if (s_stage != BR_FORM) return 0;
     if (s_ui) {   /* the frozen game, dimmed, under the ImGui form */
-        for (int i = 0; i < w * h; i++) argb[i] = 0xA8000000u;
+        const uint32_t veil = bug_report_ui_marking() ? 0u : 0xA8000000u;
+        for (int i = 0; i < w * h; i++) argb[i] = veil;
         return 1;
     }
     if (s_render) {
@@ -1094,8 +1413,7 @@ int bug_report_page_render(uint32_t *argb, int w, int h) {
 
 void bug_report_note_freeze(const char *dump_path, unsigned wedge_kind) {
     char root[512], folder[700], path[800], name[96], created[32], full[600];
-    const char *e = getenv("PSX_BUG_REPORT_DIR");
-    snprintf(root, sizeof root, "%s", e && *e ? e : "bug_reports");
+    br_root_path(root, sizeof root);
     br_mkdir(root);
     time_t t = time(NULL);
     struct tm lt = *localtime(&t);
@@ -1130,6 +1448,11 @@ void bug_report_note_freeze(const char *dump_path, unsigned wedge_kind) {
 
 void psx_mod_set_bug_report_renderer(PSXModBugReportRenderer render) { s_render = render; }
 void psx_mod_set_bug_report_info(PSXModBugReportInfo info) { s_info = info; }
+void psx_mod_set_bug_report_send(const char *new_issue_url, const uint8_t public_key[32]) {
+    snprintf(s_issue_url, sizeof s_issue_url, "%s", new_issue_url ? new_issue_url : "");
+    s_send_has_key = public_key != NULL;
+    if (public_key) memcpy(s_send_key, public_key, sizeof s_send_key);
+}
 void psx_mod_bug_report_add_type(const char *name) {
     if (!name || !*name || s_title_type_n >= BR_TYPES_MAX) return;
     for (int i = 0; i < s_title_type_n; i++) if (!strcmp(s_title_types[i], name)) return;
@@ -1196,11 +1519,11 @@ int bug_report_debug(const char *op, const char *text, int key, int row, int val
             if (ok && value >= 0) bug_report_ui_set(row, value);
             psx_mod_title_page_redraw();
         }
-    } else if (!strcmp(op, "save") || !strcmp(op, "discard")) {
-        ok = s_stage == BR_FORM;
+    } else if (!strcmp(op, "save") || !strcmp(op, "discard") || !strcmp(op, "send")) {
+        ok = s_stage == BR_FORM && (strcmp(op, "send") || send_available());
         if (ok) {
             s_confirm = 1;
-            finish(!strcmp(op, "save"));
+            finish(!strcmp(op, "send") ? 2 : !strcmp(op, "save"));
             extern void psx_bug_report_close_page(void);
             psx_bug_report_close_page();
         }
@@ -1212,8 +1535,9 @@ int bug_report_debug(const char *op, const char *text, int key, int row, int val
     for (const char *p = s_folder; *p && (size_t)n + 2 < cap; p++) out[n++] = *p == '\\' ? '/' : *p;
     n += snprintf(out + n, cap > (size_t)n ? cap - (size_t)n : 0,
                   "\",\"row\":%d,\"type\":%d,\"types\":%d,\"severity\":%d,\"frequency\":%d,"
-                  "\"photo\":%d,\"photo_ps1\":%d,\"state\":%d,\"clip_frames\":%d,\"text_bytes\":%d",
+                  "\"photo\":%d,\"photo_ps1\":%d,\"state\":%d,\"clip_frames\":%d,\"text_bytes\":%d,"
+                  "\"marks\":%d,\"marking\":%d,\"can_send\":%d",
                   s_row, s_type, s_type_n, s_sev, s_freq, s_photo, s_photo_ps1, s_state, s_clip_frames,
-                  (int)strlen(s_text));
+                  (int)strlen(s_text), s_mark_n, bug_report_ui_marking(), send_available());
     return n;
 }

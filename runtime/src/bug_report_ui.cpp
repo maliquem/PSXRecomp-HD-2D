@@ -102,6 +102,16 @@ uint32_t g_pad = 0, g_pad_seen = 0; /* PSX_MOD_PAGE_* held / as ImGui last saw i
 float g_pixel_scale = 1.0f;         /* window coordinates -> drawable pixels */
 bool g_popup_was_open = false, g_text_was_active = false;   /* the last frame */
 bool g_leave_text = false;          /* a controller direction while typing: leave the box */
+bool g_can_send = false;            /* the form offers "Save and send" */
+bool g_marking = false;             /* the form is away: the player marks the picture */
+std::vector<BugReportMark> g_marks;
+bool g_mark_drag = false;           /* the mouse's rectangle, from this window pixel */
+ImVec2 g_mark_from;
+ImVec2 g_mark_cursor(0.5f, 0.5f);   /* keys and controller, 0..1 of the window */
+bool g_mark_cursor_shown = false;
+bool g_mark_anchor_on = false;      /* the first corner is set */
+ImVec2 g_mark_anchor;
+uint32_t g_mark_pad = 0;            /* PSX_MOD_PAGE_* held, for the cursor */
 
 /* GL thread (g_mu too). */
 ImGuiContext *g_ctx = nullptr;
@@ -248,6 +258,37 @@ void discard_press(void) {
     else g_action = BUG_REPORT_UI_DISCARD;
 }
 
+float clamp01(float v) { return v < 0 ? 0 : v > 1 ? 1 : v; }
+
+void mark_add(ImVec2 a, ImVec2 b) {
+    BugReportMark m;
+    m.x0 = clamp01(std::min(a.x, b.x));
+    m.y0 = clamp01(std::min(a.y, b.y));
+    m.x1 = clamp01(std::max(a.x, b.x));
+    m.y1 = clamp01(std::max(a.y, b.y));
+    if (m.x1 - m.x0 < 0.004f || m.y1 - m.y0 < 0.004f) return;   /* a click, not a rectangle */
+    if ((int)g_marks.size() < BUG_REPORT_MARKS_MAX) g_marks.push_back(m);
+}
+/* Keys and controller: one press for each corner. */
+void mark_corner(void) {
+    g_mark_cursor_shown = true;
+    if (g_mark_anchor_on) mark_add(g_mark_anchor, g_mark_cursor);
+    else g_mark_anchor = g_mark_cursor;
+    g_mark_anchor_on = !g_mark_anchor_on;
+}
+void mark_undo(void) {
+    if (g_mark_anchor_on) g_mark_anchor_on = false;
+    else if (!g_marks.empty()) g_marks.pop_back();
+}
+void mark_leave(void) {
+    g_marking = g_mark_drag = g_mark_anchor_on = false;
+    g_mark_pad = 0;
+}
+void mark_back(void) {
+    if (g_mark_anchor_on) g_mark_anchor_on = false;
+    else mark_leave();
+}
+
 /* The queued input into ImGui. Escape (no list open) and Circle discard,
  * Ctrl+Enter and Start save: ImGui never sees those, so its Escape cannot
  * revert the description. Text goes to the description, which takes the
@@ -260,6 +301,11 @@ void replay(ImGuiIO &io) {
             io.AddKeyEvent(ImGuiMod_Ctrl, ctrl);
             io.AddKeyEvent(ImGuiMod_Shift, (v.mods & SDL_KMOD_SHIFT) != 0);
             io.AddKeyEvent(ImGuiMod_Alt, (v.mods & SDL_KMOD_ALT) != 0);
+            if (g_marking) {   /* build_marks reads the keys */
+                const ImGuiKey k = imgui_key(v.key);
+                if (k != ImGuiKey_None) io.AddKeyEvent(k, v.down != 0);
+                break;
+            }
             if (v.down && v.key == SDLK_ESCAPE && !g_popup_was_open) { discard_press(); break; }
             if (v.down && ctrl && (v.key == SDLK_RETURN || v.key == SDLK_KP_ENTER)) {
                 g_action = BUG_REPORT_UI_SAVE;
@@ -269,7 +315,7 @@ void replay(ImGuiIO &io) {
             if (k != ImGuiKey_None) io.AddKeyEvent(k, v.down != 0);
             break;
         }
-        case EV_TEXT: g_pending += v.text; break;
+        case EV_TEXT: if (!g_marking) g_pending += v.text; break;
         case EV_MOUSE_POS: io.AddMousePosEvent(v.x, v.y); break;
         case EV_MOUSE_BUTTON:
             io.AddMousePosEvent(v.x, v.y);
@@ -300,6 +346,16 @@ void replay(ImGuiIO &io) {
     };
     for (const auto &p : k_pad)
         if ((now ^ was) & p.bit) io.AddKeyEvent(p.key, (now & p.bit) != 0);
+    if (g_marking) {
+        /* directions move the cursor (build_marks), Cross marks a corner,
+         * Square undoes, Circle or Start go back to the form */
+        g_mark_pad = now;
+        if (down & PSX_MOD_PAGE_SOUTH) mark_corner();
+        if (down & PSX_MOD_PAGE_WEST) mark_undo();
+        if (down & PSX_MOD_PAGE_EAST) mark_back();
+        if (down & PSX_MOD_PAGE_START) mark_leave();
+        return;
+    }
     /* the description keeps every direction for its caret: a press leaves it */
     if (g_text_was_active && (down & (PSX_MOD_PAGE_UP | PSX_MOD_PAGE_DOWN | PSX_MOD_PAGE_LEFT | PSX_MOD_PAGE_RIGHT)))
         g_leave_text = true;
@@ -434,6 +490,84 @@ bool choice_list(const char *id, int which) {
     return picked;
 }
 
+/* The form is away and the picture shows bright: the mouse drags rectangles,
+ * keys and controller move a cross and mark two corners. */
+void build_marks(int w, int h) {
+    const LauncherTheme th = launcher_theme_psx();
+    ImGuiIO &io = ImGui::GetIO();
+    const ImVec2 size((float)w, (float)h);
+    const ImVec2 mouse(io.MousePos.x / size.x, io.MousePos.y / size.y);
+    const float px = (float)g_font_px;
+
+    const bool fast = ImGui::IsKeyDown(ImGuiMod_Shift) || (g_mark_pad & (PSX_MOD_PAGE_L1 | PSX_MOD_PAGE_R1));
+    const float step = (fast ? 0.7f : 0.22f) * io.DeltaTime;
+    float dx = 0, dy = 0;
+    if (ImGui::IsKeyDown(ImGuiKey_LeftArrow) || (g_mark_pad & PSX_MOD_PAGE_LEFT)) dx -= step;
+    if (ImGui::IsKeyDown(ImGuiKey_RightArrow) || (g_mark_pad & PSX_MOD_PAGE_RIGHT)) dx += step;
+    if (ImGui::IsKeyDown(ImGuiKey_UpArrow) || (g_mark_pad & PSX_MOD_PAGE_UP)) dy -= step;
+    if (ImGui::IsKeyDown(ImGuiKey_DownArrow) || (g_mark_pad & PSX_MOD_PAGE_DOWN)) dy += step;
+    if (dx != 0 || dy != 0) {
+        g_mark_cursor = ImVec2(clamp01(g_mark_cursor.x + dx), clamp01(g_mark_cursor.y + dy));
+        g_mark_cursor_shown = true;
+    }
+    if (ImGui::IsKeyPressed(ImGuiKey_Enter, false) || ImGui::IsKeyPressed(ImGuiKey_KeypadEnter, false) ||
+        ImGui::IsKeyPressed(ImGuiKey_Space, false))
+        mark_corner();
+    if (ImGui::IsKeyPressed(ImGuiKey_Backspace, false) || ImGui::IsKeyPressed(ImGuiKey_Delete, false)) mark_undo();
+    if (ImGui::IsKeyPressed(ImGuiKey_Escape, false)) mark_back();
+
+    /* what to do, and the mouse's buttons */
+    ImGui::SetNextWindowPos(ImVec2(size.x * 0.5f, px * 0.6f), ImGuiCond_Always, ImVec2(0.5f, 0));
+    const ImGuiWindowFlags flags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove |
+                                   ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_AlwaysAutoResize |
+                                   ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoFocusOnAppearing;
+    if (ImGui::Begin("##bug_marks", nullptr, flags)) {
+        ImGui::TextColored(col(th.accent), "%s", bug_report_tr("Drag a red rectangle over the problem. Mark as many as you need."));
+        ImGui::TextDisabled("%s", bug_report_tr("Keys or controller: move, Enter or Cross marks each corner, "
+                                                "Backspace or Square undoes, Esc or Circle goes back."));
+        if (ImGui::Button(bug_report_tr("Done"))) mark_leave();
+        ImGui::SameLine();
+        if (ImGui::Button(bug_report_tr("Undo"))) mark_undo();
+        ImGui::SameLine();
+        if (ImGui::Button(bug_report_tr("Clear"))) { g_marks.clear(); g_mark_anchor_on = false; }
+    }
+    ImGui::End();
+
+    if (g_marking) {
+        if (!io.WantCaptureMouse && !g_mark_drag && ImGui::IsMouseClicked(0)) {
+            g_mark_drag = true;
+            g_mark_from = mouse;
+        }
+        if (g_mark_drag && !ImGui::IsMouseDown(0)) {
+            mark_add(g_mark_from, mouse);
+            g_mark_drag = false;
+        }
+        if (!io.WantCaptureMouse && ImGui::IsMouseClicked(1)) mark_undo();
+        if (io.MouseDelta.x != 0 || io.MouseDelta.y != 0) {
+            g_mark_cursor = mouse;
+            g_mark_cursor_shown = false;
+        }
+    }
+
+    ImDrawList *dl = ImGui::GetBackgroundDrawList();
+    const float thick = std::max(2.0f, size.y / 360.0f);
+    const auto frame = [&](ImVec2 a, ImVec2 b) {
+        const ImVec2 lo(std::min(a.x, b.x) * size.x, std::min(a.y, b.y) * size.y);
+        const ImVec2 hi(std::max(a.x, b.x) * size.x, std::max(a.y, b.y) * size.y);
+        dl->AddRect(lo, hi, IM_COL32(0, 0, 0, 170), 0, 0, thick + 2);
+        dl->AddRect(lo, hi, IM_COL32(255, 32, 32, 255), 0, 0, thick);
+    };
+    for (const BugReportMark &m : g_marks) frame(ImVec2(m.x0, m.y0), ImVec2(m.x1, m.y1));
+    if (g_mark_drag) frame(g_mark_from, mouse);
+    if (g_mark_anchor_on) frame(g_mark_anchor, g_mark_cursor);
+    if (g_mark_cursor_shown) {
+        const ImVec2 c(g_mark_cursor.x * size.x, g_mark_cursor.y * size.y);
+        const float r = px * 0.8f;
+        dl->AddLine(ImVec2(c.x - r, c.y), ImVec2(c.x + r, c.y), IM_COL32(255, 255, 255, 255), 2);
+        dl->AddLine(ImVec2(c.x, c.y - r), ImVec2(c.x, c.y + r), IM_COL32(255, 255, 255, 255), 2);
+    }
+}
+
 void build(int w, int h) {
     const LauncherTheme th = launcher_theme_psx();
     const float px = (float)g_font_px;
@@ -478,8 +612,14 @@ void build(int w, int h) {
             if (choice_list(k_id[r], r)) changed = true;
         }
         ImGui::TableSetColumnIndex(1);
-        if (g_tex && g_thumb_w > 0 && g_thumb_h > 0)
+        if (g_tex && g_thumb_w > 0 && g_thumb_h > 0) {
             ImGui::Image((ImTextureID)(intptr_t)g_tex, ImVec2(thumb_w, thumb_w * g_thumb_h / g_thumb_w));
+            const ImVec2 lo = ImGui::GetItemRectMin(), sz = ImGui::GetItemRectSize();
+            for (const BugReportMark &m : g_marks)
+                ImGui::GetWindowDrawList()->AddRect(ImVec2(lo.x + m.x0 * sz.x, lo.y + m.y0 * sz.y),
+                                                    ImVec2(lo.x + m.x1 * sz.x, lo.y + m.y1 * sz.y),
+                                                    IM_COL32(255, 32, 32, 255));
+        }
         const ImVec4 good = col(th.good), missing = col(th.text_muted);
         ImGui::TextColored(g_photo ? good : missing, "%s", bug_report_tr("Photo"));
         ImGui::SameLine();
@@ -490,6 +630,18 @@ void build(int w, int h) {
             ImGui::TextColored(good, "%s (%d)", bug_report_tr("Clip"), g_clip);
         else
             ImGui::TextColored(missing, "%s", bug_report_tr("Clip"));
+        {
+            char label[160];
+            std::snprintf(label, sizeof label, g_marks.empty() ? "%s###mark" : "%s (%d)###mark",
+                          bug_report_tr("Mark on picture"), (int)g_marks.size());
+            ImGui::BeginDisabled(!g_photo);
+            if (ImGui::Button(label, ImVec2(-FLT_MIN, 0))) {
+                g_marking = true;
+                g_mark_anchor_on = g_mark_cursor_shown = false;
+                g_mark_cursor = ImVec2(0.5f, 0.5f);
+            }
+            ImGui::EndDisabled();
+        }
         ImGui::EndTable();
     }
 
@@ -532,6 +684,10 @@ void build(int w, int h) {
     ImGui::PushStyleColor(ImGuiCol_ButtonActive, col(th.accent_dim));
     ImGui::PushStyleColor(ImGuiCol_Text, col(th.accent_text));
     if (ImGui::Button(bug_report_tr("Save report"))) g_action = BUG_REPORT_UI_SAVE;
+    if (g_can_send) {
+        ImGui::SameLine();
+        if (ImGui::Button(bug_report_tr("Save and send"))) g_action = BUG_REPORT_UI_SEND;
+    }
     ImGui::PopStyleColor(4);
     ImGui::SameLine();
     if (g_confirm) ImGui::PushStyleColor(ImGuiCol_Text, col(th.warn));
@@ -545,6 +701,12 @@ void build(int w, int h) {
         if (ImGui::GetCursorPosX() + hw < right) ImGui::SetCursorPosX(right - hw);
         ImGui::AlignTextToFramePadding();
         ImGui::TextDisabled("%s", hint);
+    }
+    if (g_can_send) {
+        ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
+        ImGui::TextWrapped("%s", bug_report_tr("Sending opens GitHub. Your text and the photos become public. "
+                                               "The save state and your settings go encrypted."));
+        ImGui::PopStyleColor();
     }
     if (changed) g_confirm = false;
     g_popup_was_open = ImGui::IsPopupOpen("", ImGuiPopupFlags_AnyPopupId | ImGuiPopupFlags_AnyPopupLevel);
@@ -599,6 +761,10 @@ int bug_report_ui_open(const BugReportUiForm *f) {
     g_pending.clear();
     g_pad = g_pad_seen = 0;
     g_popup_was_open = g_text_was_active = g_leave_text = false;
+    g_can_send = f->can_send != 0;
+    g_marks.clear();
+    g_marking = g_mark_drag = g_mark_anchor_on = g_mark_cursor_shown = false;
+    g_mark_pad = 0;
     const float density = SDL_GetWindowPixelDensity(g_window);
     g_pixel_scale = density > 0 ? density : 1.0f;
     /* the mouse picks from the lists: the system's pointer while the form is up */
@@ -612,6 +778,7 @@ void bug_report_ui_close(void) {
     std::lock_guard<std::mutex> lk(g_mu);
     if (!g_open) return;
     g_open = false;
+    g_marking = false;
     g_queue.clear();
     g_pending.clear();
     g_thumb.clear();
@@ -708,6 +875,18 @@ void bug_report_ui_set(int which, int value) {
     if (which >= 0 && which < 3 && value >= 0 && value < (int)g_choice[which].size()) g_value[which] = value;
 }
 
+int bug_report_ui_marking(void) {
+    std::lock_guard<std::mutex> lk(g_mu);
+    return g_open && g_marking;
+}
+
+int bug_report_ui_marks(BugReportMark *out, int max) {
+    std::lock_guard<std::mutex> lk(g_mu);
+    const int n = std::min(max, (int)g_marks.size());
+    for (int i = 0; i < n; i++) out[i] = g_marks[(size_t)i];
+    return n;
+}
+
 int bug_report_ui_draw(int w, int h) {
     std::lock_guard<std::mutex> lk(g_mu);
     if (!g_open || w <= 0 || h <= 0) return 0;
@@ -751,7 +930,8 @@ int bug_report_ui_draw(int w, int h) {
     replay(io);
     ImGui_ImplOpenGL3_NewFrame();
     ImGui::NewFrame();
-    build(w, h);
+    if (g_marking) build_marks(w, h);
+    else build(w, h);
     ImGui::Render();
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
     ImGui::SetCurrentContext(prev);
@@ -792,6 +972,8 @@ void bug_report_ui_values(int *type, int *severity, int *frequency, char *text, 
     (void)type; (void)severity; (void)frequency; (void)text; (void)cap;
 }
 void bug_report_ui_set(int which, int value) { (void)which; (void)value; }
+int  bug_report_ui_marking(void) { return 0; }
+int  bug_report_ui_marks(BugReportMark *out, int max) { (void)out; (void)max; return 0; }
 int  bug_report_ui_draw(int w, int h) { (void)w; (void)h; return 0; }
 void bug_report_ui_release_gl(void) {}
 }

@@ -1368,12 +1368,19 @@ void psx_mod_bug_report_add_type(const char *name);
 typedef int (*PSXModBugReportInfo)(char *json, int cap);
 void psx_mod_set_bug_report_info(PSXModBugReportInfo info);
 void psx_mod_bug_report_add_file(const char *path);
+/* Where a player's report goes in a release build: the title's "new issue"
+ * page (https://github.com/<owner>/<repo>/issues/new) and the X25519 public
+ * key that seals the save state and the settings (NULL: they stay at home).
+ * The form then offers "Save and send": docs/BUG_REPORT.md. */
+void psx_mod_set_bug_report_send(const char *new_issue_url, const uint8_t public_key[32]);
 /* The ImGui form shows `shown` (UTF-8) where it would show `english`: its
  * labels and buttons ("Report a bug", "Type", "Severity", "Frequency",
  * "Description", "Type here what happened.", "Photo", "State", "Clip",
- * "Save report", "Discard", "Discard? Press again", "Ctrl+Enter saves \xC2\xB7 Esc
- * discards"), the notices "Bug report saved" / "Bug report discarded", and the
- * types', severities' and frequencies' names. report.json keeps the English. */
+ * "Save report", "Save and send", "Discard", "Discard? Press again", "Ctrl+Enter
+ * saves \xC2\xB7 Esc discards", "Mark on picture", "Undo", "Clear", "Done", the
+ * marking hints and the sending note in bug_report_ui.cpp), the notices "Bug report
+ * saved" / "Bug report saved, not packed" / "Bug report discarded", and the types',
+ * severities' and frequencies' names. report.json keeps the English. */
 void psx_mod_bug_report_translate(const char *english, const char *shown);
 int  psx_mod_bug_report_open(void);
 int  psx_mod_bug_report_active(void);

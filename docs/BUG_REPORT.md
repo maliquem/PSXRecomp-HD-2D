@@ -36,16 +36,18 @@ writes everything a developer needs to reproduce it into one folder.
 ## The folder
 
 `<reports>/<YYYY-MM-DD_HHMMSS>_<type>/`, where `<reports>` is `PSX_BUG_REPORT_DIR`, else
-`bug_reports/` in the working directory (a junction there can send it to another disk).
+`bug_reports/` beside the exe (a junction there can send it to another disk).
 
 | File | |
 |---|---|
 | `report.json` | format 1: `id`, `created`, `status` ("new"), `auto`, `type`, `severity`, `frequency`, `description`, `files`, `clip` (frames, VBlanks), `runtime` (exe, its date, frame, presentation pacing of the last 5 s), `game` (the title's members), `history` |
 | `photo.png`, `photo_ps1.png` | compressed PNGs (zlib) |
+| `photo_marked.png` | `photo.png` with the player's rectangles, when there are any |
 | `state.pst` | the save state |
 | `clip.gif` | every presented frame of the last 180 VBlanks (at most 360), 120 lines tall, fixed 6x7x6 palette with ordered dither, delays from the VBlanks between frames (at least 2/100 s) |
 | `clip_sheet.png` | twelve of those frames in a 4 x 3 grid (for reading without a GIF player) |
 | `config/` | settings.toml, config.ini, input.ini, keybinds.ini, game.toml and the title's files |
+| `<id>.zip`, `issue_url.txt` | what a release build sends (below) |
 
 `status` and `history` belong to whoever triages the reports: the framework writes "new".
 
@@ -53,6 +55,50 @@ A **freeze** (frames stopped: wedge kind 1) or a **fatal halt** (kind 4) leaves 
 `<date>_freeze/report.json` with `"auto": true` and the freeze dump's path in
 `files.freeze_dump`. The other wedge kinds are not reported (they also fire while the
 picture keeps going).
+
+## Marking the picture
+
+**Mark on picture** in the ImGui form hides the form and the veil, so the frozen game shows
+bright. The player draws red rectangles on it, any number up to 16, or none:
+
+- **Mouse:** drag; the right button removes the last one.
+- **Keyboard:** arrows move a cross (Shift is faster), Enter or Space sets each of two corners,
+  Backspace undoes, Esc goes back to the form.
+- **Controller:** D-pad, Cross sets each corner, Square undoes, Circle or Start go back.
+
+`report.json` has them in `marks`, as `x`, `y`, `w`, `h` in 0..1 of the picture. `photo.png` stays
+clean, so whoever reads the report still sees what is under the red.
+
+## Sending a report (release builds)
+
+A release build of a title that calls `psx_mod_set_bug_report_send` adds **Save and send**. GitHub
+has no public API for attachments, so the player finishes it in the browser: the game writes
+`<id>.zip`, opens the title's new-issue page already filled in, and opens the folder with the file
+selected. The player drags the file into the page and submits. No account or token goes through
+the game.
+
+Builds with the debug tools keep their reports at home (`PSX_BUG_REPORT_SEND=1` tests the path,
+`PSX_BUG_REPORT_NO_OPEN=1` stops before the browser). Those builds also keep the presented-image
+ring: a release has no clip and no thumbnail.
+
+| In the ZIP | |
+|---|---|
+| `report.json` | the report, with the exe's name only: no path of the player's machine |
+| `photo.jpg` | the picture with its marks, at most 1920 wide, JPEG quality 88 |
+| `photo_ps1.png` | as saved |
+| `clip_sheet.png` | when there is a clip |
+| `private.bin` | the save state and `config/`, sealed: only the title's developer opens it |
+
+The save state holds the game's RAM, VRAM and sound memory, and settings can hold a player's
+paths, so neither goes out readable. `private.bin` is a sealed box (X25519 to the title's public
+key, BLAKE2b, XChaCha20-Poly1305, `runtime/src/bug_report_pack.c`, Monocypher). A title with no key
+sends neither. A ZIP is about 3.6 MB; GitHub takes 25 MB.
+
+`tools/bug_key/bug_key.c` makes the key pair and opens a box. The private key opens every report
+of the title: keep it out of every repository and keep a copy. `tools/bug_issue_import.py` brings
+reports from a title's issues into its reports folder. An issue is written by a stranger: that tool
+treats it as data, reads an attachment member by member against a fixed list, and never runs
+anything from it. Save states from strangers belong in a disposable test folder.
 
 ## For a title (mod_plugins.h)
 
@@ -62,6 +108,8 @@ picture keeps going).
   holding a password, token or key.
 - `psx_mod_set_bug_report_info(fn)`: `fn` writes `"name": value` members of the report's
   `game` object (where the player was, the title's modes).
+- `psx_mod_set_bug_report_send(new_issue_url, public_key)`: where a release build sends a report,
+  above. Each title has its own page and key.
 - `psx_mod_bug_report_translate(english, shown)`: the ImGui form's words in the player's
   language (labels, buttons, the saved / discarded notices, the names of the types,
   severities and frequencies; the list is in mod_plugins.h). `report.json` keeps the
