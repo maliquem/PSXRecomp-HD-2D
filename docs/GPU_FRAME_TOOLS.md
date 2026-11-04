@@ -299,7 +299,7 @@ Studio's Frames tab has a **Save name** box that calls exactly this, so
 driven: it implements `run_to_frame`, psx-runtime does not, so the native side is
 sampled where it already is and DuckStation is advanced to meet it. A residual
 frame mismatch is reported rather than papered over. The DuckStation oracle
-patch (`tools/duckstation/psxrecomp_oracle.patch`) implements `screenshot`,
+patch (`psxrecomp_oracle.patch`, kept outside the repository) implements `screenshot`,
 `read_vram`, `gpu_state`, `run_to_frame`, `step` and `pause` — but not
 `gpu_frame_dump`, so there is no packet stream to compare on that side. Adding
 one to the patch is the obvious next step if image parity keeps saying "the

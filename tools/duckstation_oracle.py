@@ -67,6 +67,8 @@ from typing import Any, Dict, List, Optional, Tuple
 HERE = Path(__file__).resolve().parent
 PIN_PATH = HERE / "duckstation" / "pin.json"
 PATCH_DIR = HERE / "duckstation"
+# The patch is a diff of GPL code: it lives outside this repository (duckstation/README.md).
+ORACLE_PATCHES = Path(os.environ.get("PSX_ORACLE_PATCHES") or HERE.parent.parent / "oracle_patches")
 
 # Platform libraries upstream's install-packages.sh installs on Ubuntu, mapped
 # to what a check can actually see. pkg-config names where one exists; the rest
@@ -495,7 +497,7 @@ def fetch_deps(lay: Layout, force: bool = False) -> None:
 
 
 def apply_patch(lay: Layout, pin: Dict[str, Any]) -> None:
-    patch = PATCH_DIR / pin["patch"]
+    patch = ORACLE_PATCHES / pin["patch"]
     if not patch.is_file():
         raise OracleError(f"missing oracle patch: {patch}")
     rc, _ = capture(["git", "apply", "--reverse", "--check", str(patch)], cwd=lay.src)
@@ -893,7 +895,7 @@ def write_manifest(lay: Layout, pin: Dict[str, Any], stage: str,
                 doc = json.load(f)
         except (OSError, json.JSONDecodeError):
             doc = {}
-    patch = PATCH_DIR / pin["patch"]
+    patch = ORACLE_PATCHES / pin["patch"]
     doc.update({
         "kind": "psxrecomp-duckstation-oracle",
         "version": 1,
@@ -959,7 +961,7 @@ def state(lay: Layout) -> Dict[str, str]:
     except OracleError:
         out["deps"] = "unsupported platform"
     if out["source"] == "present":
-        patch = PATCH_DIR / pin["patch"]
+        patch = ORACLE_PATCHES / pin["patch"]
         rc, _ = capture(["git", "apply", "--reverse", "--check", str(patch)], cwd=lay.src)
         out["patch"] = "applied" if rc == 0 else "not applied"
     if port_open(port):

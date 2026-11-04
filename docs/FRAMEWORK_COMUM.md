@@ -43,6 +43,10 @@ and the PGXP state, over fixed savestates. Run A/B of the same game on the old a
 area cache on both sides, ready, and with automatic compilation frozen (a half-filled cache changes the result).
 Pictures are separate: golden does not see shaders; `tools/mode_check.py` compares photos and sound.
 
+Run both sides back to back, from the same folder. Comparing against a reference saved earlier misleads: the
+plugins' config files count (a perf tool rewrote BoF4's `bof4_cheats.txt` and the same exe stopped matching its
+own reference from frame 0).
+
 Reading the frame counter every few milliseconds over TCP takes 35-40% off the turbo. Read it every 100 ms
 or slower in speed windows, and judge generator changes only with PGO on both sides.
 
@@ -89,3 +93,4 @@ try and the game hitches.
 | Date | What | Proof |
 |---|---|---|
 | 2026-11-03 | BoF4 and FM2 copies merged (`135cbc3d`, generator hash `f6e8251e`, identity `effd3445`) | BoF4 against its previous exe: cycles, CPU, GTE, GPU, SPU identical in 8 scenes x 600 frames; RAM differs only by ChangeTh's result in two TCBs; photos 0 px in 7 scenes (the campfire varies run to run); sound identical. FM2: golden identical in 8 scenes x 600 frames, PGXP included; 0 hitches over 100 ms in 150 s |
+| 2026-11-04 | SPU envelopes rewritten clean-room (`spu_env.inc`, docs/SPU_ENV_CLEAN_ROOM.md) | Against the old code: 0 differences in 134M parameter inputs and 800M random states. BoF4 and FM2 golden identical in 8 scenes x 600 frames, sound included. Hash and identity unchanged |

@@ -1299,7 +1299,7 @@ extern "C" int beetle_history_get_snapshot(int slot, uint32_t *out_addr, int *ou
  * (region mode) each entry is instead the cycles of one A->B pass.
  *
  * Driven by the beetle-psx per-instruction PC hook g_psxrecomp_pc_cb
- * (docs/beetle_guest_cycles_hook.patch). The hook is installed only while a
+ * (beetle_guest_cycles_hook.patch). The hook is installed only while a
  * watch is armed, so an idle oracle pays one untaken branch per instruction.
  * Beetle samples before every instruction; native samples at block leaders,
  * so anchor a block leader (branch target / function entry) on both. */

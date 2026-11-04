@@ -13,7 +13,7 @@ bug has to answer:
                        to look, and tools/cosim.py will bracket where
 
 Scope, stated honestly: this is IMAGE parity, not GP0-stream parity. The
-DuckStation oracle patch (tools/duckstation/psxrecomp_oracle.patch) implements
+DuckStation oracle patch (psxrecomp_oracle.patch, outside the repo) implements
 screenshot / read_vram / gpu_state / run_to_frame / step / pause, but not
 gpu_frame_dump, so there is no packet stream to compare on that side. Adding one
 to the patch is the obvious next step if image parity keeps saying "the streams

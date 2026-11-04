@@ -15,7 +15,9 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 DUCK="$REPO_ROOT/duckstation"
-PATCH="$REPO_ROOT/tools/duckstation/psxrecomp_oracle.patch"
+# The patch is a diff of GPL code: it lives outside this repository (README.md).
+PATCH="${PSX_ORACLE_PATCHES:-$REPO_ROOT/../oracle_patches}/psxrecomp_oracle.patch"
+[ -f "$PATCH" ] || { echo "[duckstation-setup] missing $PATCH: see tools/duckstation/README.md" >&2; exit 1; }
 # The pin lives in pin.json so this script and duckstation_oracle.py (the
 # Linux/macOS path) can never drift onto different upstream bases.
 UPSTREAM_BASE="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["upstream_base"])' "$REPO_ROOT/tools/duckstation/pin.json")"

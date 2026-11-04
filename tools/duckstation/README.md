@@ -5,7 +5,7 @@ PSXRecomp v4 uses a patched build of [stenzek/duckstation](https://github.com/st
 ## Layout
 
 - **`duckstation/`** (git submodule) — pristine upstream DuckStation source tree, pinned to commit `ffb33c281d196eb8ee0f559085ca285de7cdd51b` (release-20260328 era). Never edited directly.
-- **`tools/duckstation/psxrecomp_oracle.patch`** — our changes as a unified diff against the pinned upstream base. Touches 7 files (~1200 lines). Adds `src/core/psxrecomp_debug_server.{cpp,h}`, wires `PSXRecompDebug::Initialize(4371)` into `System::Initialize`, exposes three GPU debug accessors, registers a log channel.
+- **`psxrecomp_oracle.patch`** — not in this repository: it is a diff of GPL code. Keep it in the folder named by `PSX_ORACLE_PATCHES` (default `../oracle_patches`). Our changes as a unified diff against the pinned upstream base. Touches 7 files (~1200 lines). Adds `src/core/psxrecomp_debug_server.{cpp,h}`, wires `PSXRecompDebug::Initialize(4371)` into `System::Initialize`, exposes three GPU debug accessors, registers a log channel.
 - **`tools/duckstation/setup.sh`** — idempotent. Initializes submodule, fetches + verifies + extracts prebuilt Windows deps (SDL3, Qt6, ffmpeg, …), normalizes the absolute paths baked into the prebuilt CMake metadata, applies the oracle patch.
 - **`tools/duckstation/build.sh`** — runs CMake (Visual Studio 17 2022, x64, Release) and MSBuild on `duckstation-qt`. Requires the Visual Studio 2022 "Desktop development with C++" workload (CMake + MSBuild come with it).
 - **`tools/fix_duckstation_deps_paths.py`** — helper used by `setup.sh` to rewrite stale `_IMPORT_PREFIX` values in the extracted prebuilt deps.
@@ -96,7 +96,7 @@ If our oracle changes need to be updated, edit files in `duckstation/` directly,
 
 ```bash
 cd duckstation
-git diff ffb33c281d196eb8ee0f559085ca285de7cdd51b > ../tools/duckstation/psxrecomp_oracle.patch
+git diff ffb33c281d196eb8ee0f559085ca285de7cdd51b > "$PSX_ORACLE_PATCHES/psxrecomp_oracle.patch"
 ```
 
 The pinned base SHA lives in one place only: `UPSTREAM_BASE` at the top of `tools/duckstation/setup.sh`. Update it there if we ever rebase onto a newer upstream commit.
