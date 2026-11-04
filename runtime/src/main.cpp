@@ -8651,6 +8651,10 @@ static int savestate_menu_ignore_toggle_release = 0;
  * that includes a face button) act only after a release. */
 static int savestate_menu_nav_fresh = 0;
 static SDL_Keycode savestate_menu_open_key = 0;
+/* The controller's buttons in the menu (psx_mod_savestate_menu_set_buttons). */
+static int savestate_menu_btn_load = SDL_CONTROLLER_BUTTON_A;
+static int savestate_menu_btn_save = SDL_CONTROLLER_BUTTON_X;
+static int savestate_menu_btn_cancel = SDL_CONTROLLER_BUTTON_B;
 
 static void savestate_menu_sync_overlay(void) {
     int w = 0, h = 0;
@@ -8793,11 +8797,11 @@ static void savestate_menu_poll_nav(uint32_t now_ms) {
             p1_host_button_down(nullptr, SDL_CONTROLLER_BUTTON_DPAD_DOWN) ||
             lx > dz)
             next = 1;
-        if (p1_host_button_down(nullptr, SDL_CONTROLLER_BUTTON_A))
+        if (p1_host_button_down(nullptr, savestate_menu_btn_load))
             load = 1;
-        if (p1_host_button_down(nullptr, SDL_CONTROLLER_BUTTON_X))
+        if (p1_host_button_down(nullptr, savestate_menu_btn_save))
             save = 1;
-        if (p1_host_button_down(nullptr, SDL_CONTROLLER_BUTTON_B))
+        if (p1_host_button_down(nullptr, savestate_menu_btn_cancel))
             cancel = 1;
     }
 
@@ -9302,6 +9306,11 @@ extern "C" int psx_mod_savestate_menu_command(int op, int slot) {
     }
     if (op == PSX_MOD_SSM_LOAD || op == PSX_MOD_SSM_SAVE) savestate_menu_submit(op == PSX_MOD_SSM_SAVE);
     return 1;
+}
+extern "C" void psx_mod_savestate_menu_set_buttons(int load, int save, int cancel) {
+    savestate_menu_btn_load = load;
+    savestate_menu_btn_save = save;
+    savestate_menu_btn_cancel = cancel;
 }
 extern "C" int psx_mod_savestate_menu_selected(void) {
     return savestate_menu_open ? savestate_menu_slot : -1;

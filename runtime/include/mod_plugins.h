@@ -1423,6 +1423,10 @@ enum {
 int  psx_mod_savestate_menu_command(int op, int slot);
 /* The save state menu's selected slot while it is open, else -1. */
 int  psx_mod_savestate_menu_selected(void);
+/* The controller's buttons in the save state menu, as SDL gamepad buttons: for a
+ * title whose confirm is not the south button, or whose player moved it. The
+ * default is south load, west save, east back. */
+void psx_mod_savestate_menu_set_buttons(int load, int save, int cancel);
 
 /* Path of the disc the player picked, never a disc-patching mod's private
  * image: identifies the stock title to outside services (e.g. an achievement
