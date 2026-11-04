@@ -1098,16 +1098,23 @@ static inline void overlay_watch_note_write(uint32_t phys, uint32_t size) {
     uint32_t pg = phys >> DIRTY_RAM_PAGE_SHIFT;
     if (pg >= (RAM_LIVE >> DIRTY_RAM_PAGE_SHIFT)) return;
     /* Never attach pre-write PC evidence to post-write bytes, including for
-     * completely unknown/self-modifying code. This is deliberately a compact
-     * page clear, not a capture: serializing snapshots from this universal
-     * guest-store hook caused unbounded queues and multi-second stalls. CD DMA
-     * and periodic coherent capture remain the durable variant boundaries. */
+     * completely unknown/self-modifying code. Only the words written lose it,
+     * not a capture and not the whole page: the other words' bytes did not
+     * change, and a routine that keeps a variable beside its own code (Front
+     * Mission 2: a frame counter at 0x80036B2C, right before 0x80036B30) wiped
+     * the evidence of its entry on every call, so no capture ever named it and
+     * the hottest routine of the battle map stayed interpreted. Serializing
+     * snapshots from this universal guest-store hook caused unbounded queues
+     * and multi-second stalls; CD DMA and periodic coherent capture remain the
+     * durable variant boundaries. */
     if ((g_dirty_ram_exec_page_bitmap[pg >> 5] >> (pg & 31u)) & 1u) {
-        uint32_t bitmap_word = pg * (4096u / 4u / 32u);
-        memset(&g_dirty_ram_exec_pc_bitmap[bitmap_word], 0,
-               (4096u / 4u / 32u) * sizeof(uint32_t));
-        dirty_ram_dispatch_evidence_clear(bitmap_word, 4096u / 4u / 32u);
-        g_dirty_ram_exec_page_bitmap[pg >> 5] &= ~(1u << (pg & 31u));
+        const uint32_t last = (phys + size - 1u) >> 2;
+        for (uint32_t w = phys >> 2; w <= last; w++) {
+            const uint32_t i = w >> 5, keep = ~(1u << (w & 31u));
+            g_dirty_ram_exec_pc_bitmap[i] &= keep;
+            g_dirty_ram_dispatch_pc_bitmap[i] &= keep;
+            for (int s = 0; s < PSX_CODE_SEGMENT_COUNT; s++) g_dirty_ram_dispatch_seg_bitmap[s][i] &= keep;
+        }
     }
     if ((overlay_watch_bitmap[pg >> 5] >> (pg & 31u)) & 1u) {
         overlay_page_gen[pg]++;
