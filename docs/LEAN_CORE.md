@@ -1,7 +1,7 @@
 # Lean core (`[recompiler] lean`)
 
-Status: in progress on `perf/lean` (2026-11-02/03). Exact (golden, 8 scenes); speed not measured yet
-(the user's PC was busy with other sessions; the measurement waits for her go-ahead).
+Status: on `perf/lean`, not merged. Exact (golden, 8 scenes). Measured 2026-11-03 with PGO + ThinLTO on
+every side: the threshold thesis below did not hold. See "Measured" at the end.
 
 ## Why
 
@@ -110,3 +110,21 @@ Static count of the generated functions in the linked exes, all with PGO + ThinL
 The locals bring a lot of sync code on the cold paths (every slow path stores the dirty set): 5x
 the stack operands of the original. Whether the hot paths gain more than the size costs is what
 the measurement has to say; the no-locals variant is there in case they do not.
+
+## Measured (BoF4, 2026-11-03, idle PC, PGO + ThinLTO on each exe, turbo without a cap)
+
+Median of 3 rounds x 3 windows of 900 VBlanks, the frame counter read every 100 ms (reading it
+every 5 ms over TCP takes 35-40% off the turbo: each query is served by the game thread).
+
+| scene | original | lean | lean, no locals | no locals + x86-64-v3 |
+|---|---|---|---|---|
+| dungeon | 7.58x | +0.9% | +1.6..1.8% | 7.87x (+3.8%) |
+| night | 7.12-7.23x | +1.5% | +1.6..4.4% | 7.52x (+5.6%) |
+| magic | 11.5x | -1.1% | -0.3..+0.3% | +0.7% |
+| battle | 16.0x | -0.5% | +0.1..0.6% | +0.7% |
+| field | 16.7x | -1.2% | -0.9..+0.6% | -0.2% |
+
+The B2 forms alone: -1.5..-3.2% (magic +4%, noisy). Thread affinity: +0.5%, noise. So the locals
+hurt, the lean pieces give 0-2%, and the profile stays flat (generated code 23% of the time inside
+the exe, PGXP 16, GTE 12, emulated GPU 10, cycles 7): there was no threshold to cross. Without PGO
+the lean forms looked like +2..7%: judge generator changes only with PGO on both sides.
