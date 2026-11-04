@@ -12,6 +12,8 @@
 
 #include "golden_hash.h"
 #include "gpu.h"
+#include "gpu_edge.h"
+#include "gpu_edge.inc"
 #include "gpu_gl_renderer.h"
 #include "mod_texture_banks.h"
 #include "display_scanout.h"
@@ -6004,21 +6006,16 @@ static void raster_triangle(int32_t x0, int32_t y0,
     if ((x2 - x0) > 1023 || (x0 - x2) > 1023) return;
     if ((y2 - y0) > 511) return;
 
-    /* 64-bit fixed-point DDA (32.32) matching PS1 hardware behavior.
-     * Reference: DuckStation gpu_sw_rasterizer.inl makefp_xy / makestep_xy */
-    #define FP_ONE  (1LL << 32)
-    #define MAKE_FP(v) (((int64_t)(v) << 32) + (FP_ONE - (1 << 11)))
-    #define MAKE_STEP(dx, dy) \
-        ((((int64_t)(dx) << 32) + ((dx) < 0 ? -((dy)-1) : (((dx) > 0) ? ((dy)-1) : 0))) / (dy))
+    /* Edges walked in 32.32 fixed point (gpu_edge.inc). */
     #define UNFP(fp) ((int32_t)((uint64_t)(fp) >> 32))
 
     /* Upper half: y0 to y1 */
     if (y1 > y0) {
         int32_t dy_long  = y2 - y0;
         int32_t dy_short = y1 - y0;
-        int64_t base   = MAKE_FP(x0);
-        int64_t step_long  = MAKE_STEP(x2 - x0, dy_long);
-        int64_t step_short = MAKE_STEP(x1 - x0, dy_short);
+        int64_t base   = gpu_edge_start(x0);
+        int64_t step_long  = gpu_edge_step(x2 - x0, dy_long);
+        int64_t step_short = gpu_edge_step(x1 - x0, dy_short);
         /* Determine which edge is left vs right */
         int64_t lx, rx, ls, rs;
         if (step_long < step_short) {
@@ -6040,13 +6037,13 @@ static void raster_triangle(int32_t x0, int32_t y0,
         int32_t dy_long  = y2 - y0;
         int32_t dy_short = y2 - y1;
         /* Long edge continues from y0 to y2 */
-        int64_t step_long  = MAKE_STEP(x2 - x0, dy_long);
-        int64_t long_at_y1 = MAKE_FP(x0) + step_long * (y1 - y0);
-        int64_t short_start = MAKE_FP(x1);
-        int64_t step_short = MAKE_STEP(x2 - x1, dy_short);
+        int64_t step_long  = gpu_edge_step(x2 - x0, dy_long);
+        int64_t long_at_y1 = gpu_edge_start(x0) + step_long * (y1 - y0);
+        int64_t short_start = gpu_edge_start(x1);
+        int64_t step_short = gpu_edge_step(x2 - x1, dy_short);
         /* Determine left/right from the upper half's orientation */
         int64_t lx, rx, ls, rs;
-        int64_t full_step_short_upper = (y1 > y0) ? MAKE_STEP(x1 - x0, y1 - y0) : 0;
+        int64_t full_step_short_upper = (y1 > y0) ? gpu_edge_step(x1 - x0, y1 - y0) : 0;
         if (step_long < full_step_short_upper ||
             (y1 == y0 && long_at_y1 <= short_start)) {
             lx = long_at_y1; ls = step_long; rx = short_start; rs = step_short;
@@ -6062,9 +6059,6 @@ static void raster_triangle(int32_t x0, int32_t y0,
         }
     }
 
-    #undef FP_ONE
-    #undef MAKE_FP
-    #undef MAKE_STEP
     #undef UNFP
 }
 
