@@ -17,6 +17,9 @@ int autocompile_test_ready_count(void);
 int autocompile_test_ready_highwater(void);
 int autocompile_test_preparing_count(void);
 void autocompile_test_discard_all(void);
+int autocompile_test_pick_core(const DWORD_PTR *masks,
+                               const unsigned char *classes, int count,
+                               unsigned cpu);
 
 struct OverlayPreparedImage {
     unsigned id;
@@ -67,9 +70,29 @@ static DWORD WINAPI feed_thread(void *opaque) {
     return 0;
 }
 
+static int pick_core_tests(void) {
+    const DWORD_PTR smt[3] = { 0x3, 0xC, 0x30 };
+    const unsigned char same[3] = { 0, 0, 0 };
+    /* Performance cores first, then single-thread efficiency cores. */
+    const DWORD_PTR hybrid[4] = { 0x3, 0xC, 0x10, 0x20 };
+    const unsigned char hybrid_class[4] = { 1, 1, 0, 0 };
+    int bad = 0;
+    bad |= autocompile_test_pick_core(smt, same, 1, 0) != -1;
+    bad |= autocompile_test_pick_core(smt, same, 3, 3) != 1;
+    bad |= autocompile_test_pick_core(smt, same, 3, 5) != 2;
+    bad |= autocompile_test_pick_core(smt, same, 3, 63) != 0;
+    bad |= autocompile_test_pick_core(hybrid, hybrid_class, 4, 2) != 1;
+    bad |= autocompile_test_pick_core(hybrid, hybrid_class, 4, 4) != 0;
+    return bad;
+}
+
 int main(void) {
     enum { ITEM_COUNT = 300 };
     s_main_thread = GetCurrentThreadId();
+    if (pick_core_tests()) {
+        fprintf(stderr, "FAIL: compile core choice\n");
+        return 1;
+    }
     /* The shared runtime polls every title. A title with overlay autocompile
      * disabled must not touch the publication lock before configuration. */
     autocompile_poll_main();
