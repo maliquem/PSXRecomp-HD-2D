@@ -82,7 +82,8 @@ moon shines through: a shaft of lit air and dust, and the patch it lands on).
   looking at it; none yet: the chain's u_sun; no chain: `dir`): straight along it when the window
   faces it, mirrored in through the wall, weaker and shorter, when it does not. A beam also lights
   the room around it, a simulated bounce from where it lands and from the window, as strong as the
-  beam and darker ambient to make room for it (light.pfx u_wind). '#' starts
+  beam and darker ambient to make room for it (light.pfx u_wind); the window itself shines through
+  its mask, with a halo on its wall, as strong as its beam (u_wglow). '#' starts
   a note, kept with the light.
 - **Drawing** (`shaders/hd2d/light.pfx`, `light-out.glsl`, `shaft.glsl`; uniforms set by
   `gl_postfx.inc`): `u_placed.x` 1 turns on the lamps and the ambient, `u_shaft.x` 1 Low / 2
