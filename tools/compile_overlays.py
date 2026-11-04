@@ -114,6 +114,16 @@ def codegen_hash(runtime_include: str) -> int:
     return 0
 
 
+# autocompile.c stops trying for the session on this exit code: the toolchain
+# beside the exe does not match the game, and no retry can change that.
+EXIT_STALE_TOOLCHAIN = 77
+
+
+def stale_toolchain(message: str) -> None:
+    print(message, file=sys.stderr, flush=True)
+    sys.exit(EXIT_STALE_TOOLCHAIN)
+
+
 def verify_recompiler_matches_tag(recompiler: str, tag_hash: int) -> None:
     """Stale-recompiler-binary guard. The cg tag hash is computed from the
     EMITTER SOURCES (via --runtime-include's overlay_codegen_hash.h), but the
@@ -125,8 +135,19 @@ def verify_recompiler_matches_tag(recompiler: str, tag_hash: int) -> None:
 
     psxrecomp-game bakes the same hash at ITS build time and prints it via
     --codegen-hash. Any mismatch — including a binary too old to support the
-    flag — is a HARD failure: rebuild the recompiler, never build shards."""
+    flag — is a HARD failure: rebuild the recompiler, never build shards.
+
+    The running game names the tag it reads (PSX_OVERLAY_EXPECT_CODEGEN_HASH).
+    A whole toolchain older than the game passes the check above, emits shards
+    under its own tag and the game never sees them, so that is a failure too."""
     import subprocess
+    expect = os.environ.get('PSX_OVERLAY_EXPECT_CODEGEN_HASH', '')
+    if expect and int(expect, 16) != tag_hash:
+        stale_toolchain(
+            f'FATAL: STALE OVERLAY TOOLCHAIN.\n'
+            f'  The game reads cache tag hash {expect} but this toolchain stamps\n'
+            f'  {tag_hash:08x}. Refresh overlay_toolchain/: tools/ci/build_emitters.sh, then\n'
+            f'  copy psxrecomp-game and runtime/include/overlay_codegen_hash.h there.')
     try:
         out = subprocess.run([recompiler, '--codegen-hash'],
                              capture_output=True, text=True, timeout=30)
@@ -136,13 +157,13 @@ def verify_recompiler_matches_tag(recompiler: str, tag_hash: int) -> None:
     line = (out.stdout or '').strip().splitlines()
     baked = line[0].strip() if line else ''
     if out.returncode != 0 or not re.fullmatch(r'[0-9a-fA-F]{8}', baked or ''):
-        raise SystemExit(
+        stale_toolchain(
             f'FATAL: {recompiler} does not support --codegen-hash (or errored).\n'
             f'  This binary predates the stale-recompiler guard and CANNOT be\n'
             f'  verified against the emitter sources. Rebuild it:\n'
             f'    cmake --build <recompiler-build-dir> --target psxrecomp-game')
     if int(baked, 16) != tag_hash:
-        raise SystemExit(
+        stale_toolchain(
             f'FATAL: STALE RECOMPILER BINARY.\n'
             f'  {recompiler}\n'
             f'  was built from emitter sources hashing {baked}, but the runtime\n'

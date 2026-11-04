@@ -2205,6 +2205,22 @@ def overlay_compiler(project_root: Path) -> Optional[Path]:
     return None
 
 
+def warn_if_toolchain_stale(tk: Path, progress) -> None:
+    """The staged emitter comes from wherever find_psxrecomp_game looks, and a rebuild does
+    not rebuild it. Say so here: in the game this only shows as areas that stay interpreted."""
+    exe = next((p for p in (tk / "psxrecomp-game.exe", tk / "psxrecomp-game") if p.is_file()), None)
+    hdr = tk / "include" / "overlay_codegen_hash.h"
+    if exe is None or not hdr.is_file():
+        return
+    want = re.search(r"PSX_OVERLAY_CODEGEN_HASH\s+0x([0-9A-Fa-f]+)", hdr.read_text(encoding="utf-8"))
+    out = subprocess.run([str(exe), "--codegen-hash"], capture_output=True, text=True, timeout=30)
+    have = (out.stdout or "").strip().splitlines()[:1]
+    if want and (not have or have[0].strip().lower() != want.group(1).lower()):
+        progress.log(
+            f"WARNING: {exe} has generator hash {have[0] if have else '?'}, the game has {want.group(1)}. "
+            "Live overlay compiles will refuse to run. Run tools/ci/build_emitters.sh and rebuild.")
+
+
 def stage_overlay_toolchain_for_product(project_root: Path, exe_dir: Path, progress) -> Optional[Path]:
     """Stage overlay_toolchain/ beside a built product so the runtime's autocompile gate is
     true for every player build (wave-5 F1), and name the compiler the wizard already has so
@@ -2232,6 +2248,7 @@ def stage_overlay_toolchain_for_product(project_root: Path, exe_dir: Path, progr
             if cand.is_file():
                 shutil.copy2(cand, tk / "include" / "overlay_codegen_hash.h")
                 break
+        warn_if_toolchain_stale(Path(tk), progress)
         compiler = overlay_compiler(project_root)
         if compiler:
             (tk / "compiler.txt").write_text(str(compiler) + "\n", encoding="utf-8")

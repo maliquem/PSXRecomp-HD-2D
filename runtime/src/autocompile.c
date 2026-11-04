@@ -4,6 +4,7 @@
  * and pick every shard up with the batch-end cache rescan. The manual
  * compile_overlays.py flow still works everywhere. */
 #include "autocompile.h"
+#include "overlay_api.h"   /* PSX_OVERLAY_CODEGEN_HASH */
 #include "overlay_loader.h"
 
 #include <stdarg.h>   /* autocompile_set_degraded takes a format + varargs */
@@ -104,8 +105,24 @@ static int s_reported_broken = 0;
 /* Defined below, once the child-output tail ring it reads is declared. */
 static void autocompile_report_broken_once(void);
 
+/* compile_overlays.py's EXIT_STALE_TOOLCHAIN: overlay_toolchain/ does not match
+ * this exe. No retry can change that, and each one would stall the game while it
+ * rescans the cache, so stop for the session and say why. */
+#define AC_EXIT_STALE_TOOLCHAIN 77
+static int s_stale_toolchain = 0;
+
 static void autocompile_note_failure(void) {
     s_fails++;
+    if (s_exit_code == AC_EXIT_STALE_TOOLCHAIN) {
+        if (!s_stale_toolchain)
+            fprintf(stderr, "psxrecomp: overlay_toolchain/ does not match this exe (generator hash "
+                    "%08x): autocompile is OFF for this session and new overlays run interpreted. "
+                    "Refresh it: tools/ci/build_emitters.sh, then copy psxrecomp-game and "
+                    "overlay_codegen_hash.h there.\n", (unsigned)PSX_OVERLAY_CODEGEN_HASH);
+        s_stale_toolchain = 1;
+        s_retry_not_before_ms = UINT64_MAX;
+        return;
+    }
     if (s_consecutive_fails < 31u) s_consecutive_fails++;
     unsigned shift = s_consecutive_fails > 1u
                    ? s_consecutive_fails - 1u : 0u;
@@ -1000,6 +1017,11 @@ void autocompile_configure(const char *cmd, const char *cwd) {
      * arm64-only binary and defaults to arm64, so an x86_64 runtime under
      * Rosetta used to get arm64 shards it could never load. */
     setenv("PSX_OVERLAY_ARCH_ABI", PSX_OVERLAY_ARCH_ABI, 1);
+    {
+        char hash_buf[16];
+        snprintf(hash_buf, sizeof hash_buf, "%08x", (unsigned)PSX_OVERLAY_CODEGEN_HASH);
+        setenv("PSX_OVERLAY_EXPECT_CODEGEN_HASH", hash_buf, 1);
+    }
     if (s_cmd[0]) autocompile_report_interpreter();
 #endif
 }
@@ -1110,6 +1132,11 @@ int autocompile_request(void) {
      * names what the tool derives anyway; on macOS it is what makes an x64
      * runtime under Rosetta get x86_64 shards from an arm64-only clang. */
     SetEnvironmentVariableA("PSX_OVERLAY_ARCH_ABI", PSX_OVERLAY_ARCH_ABI);
+    {
+        char hash_buf[16];
+        snprintf(hash_buf, sizeof hash_buf, "%08x", (unsigned)PSX_OVERLAY_CODEGEN_HASH);
+        SetEnvironmentVariableA("PSX_OVERLAY_EXPECT_CODEGEN_HASH", hash_buf);
+    }
 
     /* cmd.exe /C resolves the command via PATH and supports the relative
      * paths in the configured line (cwd = project root). The WHOLE command is
