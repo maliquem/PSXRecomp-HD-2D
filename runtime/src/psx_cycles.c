@@ -953,6 +953,65 @@ void psx_idle_note_check(CPUState *cpu, uint32_t check_pc) {
 #endif
 }
 
+/* A title's idle loop that does its waiting through other functions, with
+ * stores on the stack, so the detector above never sees it (Front Mission 2's
+ * job thread: every pass enters a critical section, finds the queue empty and
+ * leaves it). The loop's call of EnterCriticalSection is the anchor: same
+ * return address, the title's is_idle() true, and the same cycles and no MMIO
+ * since the last pass. Whole passes are skipped up to the pass before the next
+ * observable event, so that event lands at the same point of a pass and the
+ * guest sees the clock it would have seen. The title's audit: a pass with
+ * is_idle() true leaves memory as it found it. PSX_IDLE_ANCHOR=0 turns it off. */
+uint32_t g_idle_anchor_ra = 0;
+uint64_t g_idle_anchor_skips = 0, g_idle_anchor_cycles = 0;
+static int (*s_anchor_is_idle)(void);
+static uint64_t s_anchor_cycle, s_anchor_mmio;
+static uint32_t s_anchor_quantum, s_anchor_streak;
+
+void psx_idle_anchor_set(uint32_t ra, int (*is_idle)(void)) {
+    const char *e = getenv("PSX_IDLE_ANCHOR");
+    g_idle_anchor_ra = (e && e[0] == '0') || !is_idle ? 0u : ra;
+    s_anchor_is_idle = is_idle;
+    s_anchor_streak = 0;
+}
+
+void psx_idle_anchor_check(void) {
+#ifndef PSX_COSIM
+    extern int g_psx_call_bail, g_precise_mode, g_ls_mode, g_ls_replay_active;
+    extern int psx_get_in_exception(void);
+    extern int psx_netplay_active(void);
+    extern int psx_selfcheck_enabled(void);
+    extern uint64_t g_mmio_access_count;
+    if (g_ls_replay_active) return;
+    const uint64_t cyc = psx_cycle_count;
+    const uint64_t delta = cyc - s_anchor_cycle;
+    const int same_pass = delta == s_anchor_quantum && g_mmio_access_count == s_anchor_mmio;
+    s_anchor_quantum = delta <= IDLE_QUANTUM_MAX ? (uint32_t)delta : 0u;
+    s_anchor_cycle = cyc;
+    s_anchor_mmio = g_mmio_access_count;
+    if (!same_pass || !s_anchor_is_idle() || g_ls_mode != 0 || g_precise_mode || g_psx_call_bail ||
+        psx_get_in_exception() || psx_netplay_active() || psx_selfcheck_enabled()) {
+        s_anchor_streak = 0;
+        return;
+    }
+    if (++s_anchor_streak < IDLE_STREAK_MIN) return;
+    const uint32_t q = s_anchor_quantum;
+    uint32_t dist = devices_cycles_to_next_idle_event();
+    const uint64_t lag = cyc > s_devices_synced_cycle ? cyc - s_devices_synced_cycle : 0;
+    if ((uint64_t)dist <= lag) return;
+    dist -= (uint32_t)lag;
+    if (dist <= q) return;
+    const uint64_t skip = (uint64_t)((dist - 1u) / q) * q;
+    if (skip == 0 || skip > IDLE_SKIP_MAX_CYCLES) return;
+    g_idle_anchor_skips++;
+    g_idle_anchor_cycles += skip;
+    psx_advance_cycles((uint32_t)skip);
+    s_anchor_cycle = psx_cycle_count;
+    s_anchor_mmio = g_mmio_access_count;
+    s_anchor_streak = 0;
+#endif
+}
+
 /* Save-state restore: psx_cycle_count was just overwritten from the snapshot, so
  * the deadline-model bookkeeping (synced position + next deadline) is stale and
  * would try to replay a bogus gap. Re-anchor devices at the restored cycle and

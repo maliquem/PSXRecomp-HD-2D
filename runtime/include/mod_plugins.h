@@ -90,6 +90,13 @@ extern uint32_t g_psx_mod_function_entry_hooks;
  * kept, further names are counted in an overflow bucket. Emulation-thread only.
  * TCP: {"cmd":"mod_counters"} lists every counter with its last frame. */
 void psx_mod_counter_add(const char* name, uint32_t delta);
+/* A title's idle loop that waits through its own calls and stores: `ra` is
+ * where the loop's call of EnterCriticalSection returns to, and is_idle() says
+ * this pass will find nothing to do. Whole passes are then skipped up to the
+ * pass before the next interrupt, with the same cycles the guest would have
+ * spent (psx_cycles.c). The title audits that an idle pass changes no memory
+ * that matters. TCP: {"cmd":"core_rates"} anchor_skips, anchor_cycles. */
+void psx_mod_set_idle_loop(uint32_t ra, int (*is_idle)(void));
 /* Presentation-only filtering: 0 nearest, 1 bilinear, 2 stable minification.
  * Mode 2 uses a bounded palette-aware footprint for proven 3D polygons on
  * OpenGL; untracked UI stays nearest. Other backends use bilinear. A session

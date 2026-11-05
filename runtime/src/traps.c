@@ -1100,6 +1100,9 @@ void psx_scheduler_run(CPUState* cpu)
     }
 }
 
+extern uint32_t g_idle_anchor_ra;              /* psx_cycles.c */
+extern void psx_idle_anchor_check(void);
+
 int psx_syscall(CPUState* cpu, uint32_t code) {
     /*
      * PS1 BIOS SYSCALL convention:
@@ -1120,6 +1123,7 @@ int psx_syscall(CPUState* cpu, uint32_t code) {
 
     switch (func) {
         case 1: /* EnterCriticalSection: disable interrupts */
+            if (cpu->gpr[31] == g_idle_anchor_ra && g_idle_anchor_ra) psx_idle_anchor_check();
             cpu->cop0[12] = sr & ~1u; /* clear IEc (bit 0) */
             cpu->gpr[2] = sr & 1u; /* return old IEc */
             g_pc0_reason = PSX_PC0_CRIT_SECTION;

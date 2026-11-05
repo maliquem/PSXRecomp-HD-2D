@@ -84,7 +84,11 @@ void freeze_dump_policy_record_result(FreezeDumpPolicy *policy, int written) {
 
 uint32_t freeze_wedge_classify(const FreezeWedgeWindow *w) {
     if (!w) return 0;
-    if (w->frame_delta == 0) return 1;
+    if (w->frame_delta == 0) {
+        if (w->newest_frame == 0 && w->uptime_ticks < FREEZE_BOOT_GRACE_TICKS)
+            return 0;
+        return 1;
+    }
     if (w->exc_reentry_delta / w->frame_delta > FREEZE_WEDGE_EXC_REENTRY_PER_FRAME)
         return 2;
     if (w->frame_delta < FREEZE_WEDGE_SLOW_FRAMES_MAX_DELTA) return 3;

@@ -55,7 +55,18 @@ int main(void) {
     CHECK(starvation_watchdog_stale(0, T, TIMEOUT) == 0,
           "no heartbeat yet never fires");
 
-    /* 5. Wrap is impossible for any pair, not just the observed one. */
+    /* 5. A host stall is not starvation (Front Mission 2 2026-11-05: 4.7 s
+     *    stale with one frame of guest time, 550852 cycles, behind it). */
+    CHECK(starvation_watchdog_host_stall(58627457280ull, 58627457280ull + 550852) == 1,
+          "one guest frame behind a stale heartbeat is a host stall");
+    CHECK(starvation_watchdog_host_stall(1000, 1000) == 1,
+          "no guest time at all is a host stall");
+    CHECK(starvation_watchdog_host_stall(2000, 1000) == 1,
+          "a stamp newer than the cycle sample is a host stall");
+    CHECK(starvation_watchdog_host_stall(1000, 1000 + STARVATION_GUEST_CYCLES_MIN) == 0,
+          "a full guest second without polling is starvation");
+
+    /* 6. Wrap is impossible for any pair, not just the observed one. */
     CHECK(starvation_watchdog_stale(UINT64_MAX, 1, TIMEOUT) == 0,
           "max heartbeat vs tiny clock does not fire");
     CHECK(starvation_watchdog_stale(1, UINT64_MAX, TIMEOUT) == 1,

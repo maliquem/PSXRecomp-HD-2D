@@ -6050,6 +6050,7 @@ static void handle_core_rates(int id, const char *json)
     (void)json;
     extern uint64_t g_psx_svc_calls, g_psx_mmio_sync_calls, g_psx_icache_misses;
     extern uint64_t g_disp_tail_seq, g_idle_skip_count, g_idle_skip_cycles;
+    extern uint64_t g_idle_anchor_skips, g_idle_anchor_cycles;
     extern uint64_t psx_get_cycle_count(void);
     extern uint64_t g_psx_store_slow[4], g_psx_store_raw[3], g_guest_store_count;
     extern uint64_t g_psx_mmio_hist[16];
@@ -6068,7 +6069,7 @@ static void handle_core_rates(int id, const char *json)
              "\"mmio_sync\":%llu,\"irq_entry\":%llu,\"irq_fast_sr\":%llu,"
              "\"irq_fast_none\":%llu,\"irq_mid\":%llu,\"irq_deliver\":%llu,"
              "\"dispatch\":%llu,\"icache_miss\":%llu,\"idle_skips\":%llu,"
-             "\"idle_skip_cycles\":%llu,\"stores\":%llu,\"st_kernel\":%llu,"
+             "\"idle_skip_cycles\":%llu,\"anchor_skips\":%llu,\"anchor_cycles\":%llu,\"stores\":%llu,\"st_kernel\":%llu,"
              "\"st_exec\":%llu,\"st_watch\":%llu,\"st_text\":%llu,"
              "\"ovl_reval\":%u,\"ovl_fast\":%llu,\"raw_cpu\":%llu,\"raw_dma\":%llu,\"raw_io\":%llu,"
              "\"cyc_gate_stale\":%llu,\"mem_gate_stale\":%llu,\"spu_blocks\":%llu,\"spu_blocks_voice\":%llu,\"spu_frames_voice\":%llu,\"text_cmp\":%llu,\"text_cmp_bytes\":%llu,\"text_ok_cached\":%llu,"
@@ -6079,6 +6080,7 @@ static void handle_core_rates(int id, const char *json)
              (unsigned long long)mid, (unsigned long long)deliv,
              (unsigned long long)g_disp_tail_seq, (unsigned long long)g_psx_icache_misses,
              (unsigned long long)g_idle_skip_count, (unsigned long long)g_idle_skip_cycles,
+             (unsigned long long)g_idle_anchor_skips, (unsigned long long)g_idle_anchor_cycles,
              (unsigned long long)g_guest_store_count, (unsigned long long)g_psx_store_slow[0],
              (unsigned long long)g_psx_store_slow[1], (unsigned long long)g_psx_store_slow[2],
              (unsigned long long)g_psx_store_slow[3], reval,

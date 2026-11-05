@@ -46,6 +46,13 @@ static void check_wedge_classification(void) {
     FreezeWedgeWindow w = {0};
     w.logic_pinned = 1;
     w.output_still_ticks = FREEZE_SPIN_STILL_TICKS;
+    w.newest_frame = 1800;
+    EXPECT_EQ(freeze_wedge_classify(&w), 1);
+    /* A slow graphics start is not a freeze; a boot that never draws is. */
+    w.newest_frame = 0;
+    w.uptime_ticks = FREEZE_BOOT_GRACE_TICKS - 1u;
+    EXPECT_EQ(freeze_wedge_classify(&w), 0);
+    w.uptime_ticks = FREEZE_BOOT_GRACE_TICKS;
     EXPECT_EQ(freeze_wedge_classify(&w), 1);
     w.frame_delta = 120;
     w.exc_reentry_delta = 120u * (FREEZE_WEDGE_EXC_REENTRY_PER_FRAME + 1u);
