@@ -1,7 +1,7 @@
 # The common framework copy
 
 Every game recomp keeps its own working copy of this framework, and every improvement or fix ends up in
-one shared place, so all games stay at the same level of features and speed.
+one shared place, so all games stay at the same level of features and speed. A nightly job does the merging.
 
 - **Common copy:** a bare repository on the development machine, branch `main`. Local only; nothing here
   goes to GitHub by itself. A mirror on a second drive follows it on every push (hook `post-receive`).
@@ -10,21 +10,26 @@ one shared place, so all games stay at the same level of features and speed.
 
 ## The rule
 
-1. Work on your own branch, as always. Commit small.
-2. When a change works in your game, bring it to the common copy the same day:
+One session owns `main`: the framework manager. Every night at 02:00 it collects what every game changed in the
+framework, proves it, merges it into `main` and brings `main` back into each game. Games no longer push to `comum`
+and no longer need to merge `comum/main`. Its procedure lives outside this repository, in
+`K:/src/psxrecomp-gestao/ROTINA.md`.
 
-   ```sh
-   git fetch comum
-   git merge comum/main          # your branch now has everybody's work
-   # rebuild your game, run your golden check (below)
-   git push comum HEAD:main      # fast-forward only; if refused, fetch and merge again
-   ```
-
-3. When you start a session, or before any framework change: `git fetch comum` and merge `comum/main`.
-4. Generator changes: if `psxrecomp-game --codegen-hash` moved, every game must regenerate, restamp its
-   savestates (word at offset 16) and move its area cache to the new tag. Say so in the commit message.
-5. Execution identity (`gte.cpp`, `pgxp.cpp`, `hle_gte.h`, `gte.h`, `cpu_state.h`, `pgxp.h`,
+1. Work on your own branch, as always. Commit small, and commit the `psxrecomp` pointer in the game when the change
+   works there.
+2. A committed change goes out that night. Uncommitted changes stay behind. If a commit is not ready to go, put
+   `WIP` in its subject: its whole line waits until a later commit has no such mark.
+3. Do not push to `comum`. If you need another game's work today, `git fetch comum` and `git merge comum/main` on your
+   branch are fine.
+4. Each night the manager merges `main` into the game's branch and commits the pointer, but only if nobody is
+   working in that game and its framework copy is clean. It does not build the game: `build-dev` keeps the game's
+   own approval rule and picks the update up at its next rebuild.
+5. Generator changes: if `psxrecomp-game --codegen-hash` moved, every game must regenerate, restamp its savestates
+   (word at offset 16) and move its area cache to the new tag. Say so in the commit message. The manager holds these
+   out of `main` until the user approves.
+6. Execution identity (`gte.cpp`, `pgxp.cpp`, `hle_gte.h`, `gte.h`, `cpu_state.h`, `pgxp.h`,
    `render_pass_projection.h`): one byte changes the cookie (offset 32) and old savestates are refused. Say so too.
+   Held the same way.
 
 ## What belongs in the framework
 
