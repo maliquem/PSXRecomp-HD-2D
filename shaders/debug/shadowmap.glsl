@@ -3,7 +3,8 @@
 // (u_smx..u_sms): green = the map holds this very surface (the mapping
 // agrees), red = something nearer the light in the map (shadowed), blue = the
 // map is empty there; the picture dimmed underneath.
-// u_view.x = 1 shows the map's depth instead.
+// u_view.x = 1 shows the map's depth instead; 2 how far behind the map this pixel
+// is (0.5 = on it, 1 unit = 1/400; 0 = map empty).
 
 uniform vec4 u_view;
 uniform vec4 u_proj;
@@ -24,6 +25,8 @@ void main()
     vec2 suv = vec2((dot(P, u_smx.xyz) - u_smx.w) * u_sms.x, (dot(P, u_smy.xyz) - u_smy.w) * u_sms.y);
     float own = (u_smz.w - dot(P, u_smz.xyz)) * u_sms.z;
     float m = texture(u_sm, suv).r;
+    if (u_view.x > 2.5) { float v = u_view.x > 3.5 ? m / u_sms.z - u_smz.w : z; v = abs(v); o = vec4(floor(v / 16.0) / 255.0, fract(v / 16.0), 0.0, 1.0); return; }   // 3: this pixel's Z, 4: the map's (light at the camera): x 16 in red, the rest in green
+    if (u_view.x > 1.5) { o = vec4(vec3(m >= 0.99999 ? 0.0 : 0.5 + (own - m) / u_sms.z / 400.0), 1.0); return; }   // how far behind the map, +-200 units around 0.5
     if (u_view.x > 0.5) { o = vec4(vec3(m), 1.0); return; }
     vec3 c;
     float tol = 0.004;
