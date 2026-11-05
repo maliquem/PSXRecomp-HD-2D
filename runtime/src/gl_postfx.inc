@@ -2096,7 +2096,7 @@ typedef struct { float w[3]; float sx, sy, z, size, after, c[3], ramp, glow; uns
 static PfxLight s_lit[LIT_MAX];
 static int      s_lit_n = 0;
 /* gl_renderer_set_fire_steady: how much of the way a fire light goes, each present,
- * to its flame's size and to on or off; 0: at once. A title whose flames are
+ * to its flame's place and size and to on or off; 0: at once (the place, a fifth). A title whose flames are
  * animated sprites of wildly different sizes (FM2's) gets a light that follows
  * the fire and not each of its frames. */
 static float    s_lit_steady = 0.0f;
@@ -2215,7 +2215,8 @@ static void pfx_lights_update(void) {
                 for (int c = 0; c < 3; c++) s_lit[m].c[c] = g[k][7 + c] / g[k][2];
             }
             PfxLight *L = &s_lit[m];
-            for (int c = 0; c < 3; c++) L->w[c] = 0.8f * L->w[c] + 0.2f * w[c];   /* a flame moves; its light, less */
+            const float wk = s_lit_steady > 0.0f ? s_lit_steady : 0.2f;
+            for (int c = 0; c < 3; c++) L->w[c] = (1.0f - wk) * L->w[c] + wk * w[c];   /* a flame moves; its light, less */
             for (int c = 0; c < 3; c++) L->c[c] = 0.9f * L->c[c] + 0.1f * g[k][7 + c] / g[k][2];   /* its colour: the pieces' (emit_tex_rgb) */
             L->sx = sx; L->sy = sy; L->z = z;
             L->size = s_lit_steady > 0.0f && L->size > 0.0f ? L->size + s_lit_steady * (g[k][2] - L->size) : g[k][2];
