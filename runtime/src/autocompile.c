@@ -1072,6 +1072,134 @@ int autocompile_toolchain_available(void) {
     return found;
 }
 
+#ifdef _WIN32
+/* While a compile tree runs, the emulation thread keeps one physical core and
+ * the tree gets every other one. Below-normal priority alone still lets a
+ * compiler sit on the same core or its SMT sibling, and a run can last the
+ * whole session. The hold ends with the run, so the scheduler is free to move
+ * the emulation thread again. PSX_AUTOCOMPILE_CORE=0 turns it off. */
+enum { AC_CORE_NONE = 0, AC_CORE_HELD = 1, AC_CORE_STARTING = 2 };
+static HANDLE s_game_thread;
+static volatile LONG s_game_cpu = -1;
+static volatile LONG s_game_group;
+static volatile LONG s_core_hold;
+static DWORD_PTR s_core_mask;
+static DWORD_PTR s_compile_mask;
+static DWORD_PTR s_game_prev_mask;
+
+/* One core for the emulation thread: the one it is on, unless that is a slower
+ * class of core on a hybrid CPU. -1 when no second core is left to compile on. */
+static int ac_pick_core(const DWORD_PTR *masks, const unsigned char *classes,
+                        int count, unsigned cpu) {
+    if (count < 2) return -1;
+    int fastest = 0, current = -1;
+    for (int i = 0; i < count; i++) {
+        if (classes[i] > classes[fastest]) fastest = i;
+        if (cpu < sizeof(DWORD_PTR) * 8 && ((masks[i] >> cpu) & 1)) current = i;
+    }
+    return current >= 0 && classes[current] == classes[fastest] ? current : fastest;
+}
+
+#ifdef PSX_AUTOCOMPILE_TEST
+int autocompile_test_pick_core(const DWORD_PTR *masks,
+                               const unsigned char *classes, int count,
+                               unsigned cpu) {
+    return ac_pick_core(masks, classes, count, cpu);
+}
+#endif
+
+static int ac_core_list(DWORD_PTR process_mask, DWORD_PTR *masks,
+                        unsigned char *classes, int capacity) {
+    DWORD length = 0;
+    (void)GetLogicalProcessorInformationEx(RelationProcessorCore, NULL, &length);
+    if (!length) return 0;
+    unsigned char *buffer = (unsigned char *)malloc(length);
+    if (!buffer) return 0;
+    int count = 0;
+    if (GetLogicalProcessorInformationEx(
+            RelationProcessorCore,
+            (PSYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX)buffer, &length)) {
+        for (DWORD at = 0; at < length && count < capacity;) {
+            PSYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX info =
+                (PSYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX)(buffer + at);
+            at += info->Size;
+            const GROUP_AFFINITY *group = &info->Processor.GroupMask[0];
+            if (group->Group != (WORD)s_game_group) continue;
+            const DWORD_PTR mask = group->Mask & process_mask;
+            if (!mask) continue;
+            masks[count] = mask;
+            classes[count] = info->Processor.EfficiencyClass;
+            count++;
+        }
+    }
+    free(buffer);
+    return count;
+}
+
+static void ac_release_core(void) {
+    if (InterlockedExchange(&s_core_hold, AC_CORE_NONE) != AC_CORE_NONE)
+        (void)SetThreadAffinityMask(s_game_thread, s_game_prev_mask);
+    s_core_mask = 0;
+    s_compile_mask = 0;
+}
+
+/* Runs with the child still suspended, so nothing in the tree ever executes on
+ * the reserved core. The job limit binds grandchildren; the process mask is the
+ * fallback for a host whose job objects ignore it. */
+static void ac_reserve_core(HANDLE child, HANDLE job) {
+    const char *setting = getenv("PSX_AUTOCOMPILE_CORE");
+    if ((setting && setting[0] == '0') || !s_game_thread) return;
+    DWORD_PTR process_mask = 0, system_mask = 0;
+    if (!GetProcessAffinityMask(GetCurrentProcess(), &process_mask, &system_mask) ||
+        !process_mask)
+        return;
+    enum { CORE_CAPACITY = sizeof(DWORD_PTR) * 8 };
+    DWORD_PTR masks[CORE_CAPACITY];
+    unsigned char classes[CORE_CAPACITY];
+    const int count = ac_core_list(process_mask, masks, classes, CORE_CAPACITY);
+    const int picked = ac_pick_core(masks, classes, count, (unsigned)s_game_cpu);
+    if (picked < 0) return;
+    DWORD_PTR core = masks[picked];
+    const DWORD_PTR previous = SetThreadAffinityMask(s_game_thread, core);
+    if (!previous) return;
+    if (previous == process_mask) {
+        s_game_prev_mask = previous;
+        InterlockedExchange(&s_core_hold, AC_CORE_STARTING);
+    } else {
+        /* PSX_GAME_THREAD_CPU already holds the thread: keep that core. */
+        (void)SetThreadAffinityMask(s_game_thread, previous);
+        for (int i = 0; i < count; i++)
+            if (masks[i] & previous) core = masks[i];
+    }
+    const DWORD_PTR compile = process_mask & ~core;
+    if (job) {
+        JOBOBJECT_EXTENDED_LIMIT_INFORMATION limits;
+        memset(&limits, 0, sizeof(limits));
+        limits.BasicLimitInformation.LimitFlags =
+            JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE | JOB_OBJECT_LIMIT_AFFINITY;
+        limits.BasicLimitInformation.Affinity = compile;
+        (void)SetInformationJobObject(job, JobObjectExtendedLimitInformation,
+                                      &limits, sizeof(limits));
+    }
+    (void)SetProcessAffinityMask(child, compile);
+    s_core_mask = core;
+    s_compile_mask = compile;
+}
+
+static void ac_game_thread_tick(void) {
+    if (!s_game_thread)
+        (void)DuplicateHandle(GetCurrentProcess(), GetCurrentThread(),
+                              GetCurrentProcess(), &s_game_thread, 0, FALSE,
+                              DUPLICATE_SAME_ACCESS);
+    PROCESSOR_NUMBER number;
+    GetCurrentProcessorNumberEx(&number);
+    s_game_group = number.Group;
+    s_game_cpu = number.Number;
+    if (s_core_hold == AC_CORE_HELD && ac_state_load() == AC_IDLE)
+        ac_release_core();
+}
+#endif
+
 int autocompile_request(void) {
     /* DONE owns an unconsumed cache rescan/result. Only the emulation-thread
      * poll may return it to IDLE; never overwrite it with another child. */
@@ -1194,6 +1322,7 @@ int autocompile_request(void) {
         CloseHandle(job);
         job = NULL;
     }
+    ac_reserve_core(pi.hProcess, job);
     ResumeThread(pi.hThread);
     CloseHandle(pi.hThread);
 
@@ -1206,6 +1335,7 @@ int autocompile_request(void) {
         CloseHandle(rd);
         CloseHandle(pi.hProcess);
         if (job) CloseHandle(job);   /* reaps any grandchild */
+        ac_release_core();
         autocompile_note_failure();
         return 0;
     }
@@ -1214,9 +1344,12 @@ int autocompile_request(void) {
     s_proc = pi.hProcess;
     s_job  = job;
     ac_state_store(AC_RUNNING);
+    (void)InterlockedCompareExchange(&s_core_hold, AC_CORE_HELD, AC_CORE_STARTING);
     s_runs++;
     s_prepare_thread = CreateThread(NULL, 0, publish_prepare_thread_main,
                                     NULL, 0, NULL);
+    if (s_prepare_thread && s_compile_mask)
+        (void)SetThreadAffinityMask(s_prepare_thread, s_compile_mask);
     if (!s_prepare_thread) {
         TerminateProcess(pi.hProcess, ERROR_NOT_ENOUGH_MEMORY);
         WaitForSingleObject(pi.hProcess, INFINITE);
@@ -1230,6 +1363,8 @@ int autocompile_request(void) {
         return 0;
     }
     s_watch_thread = CreateThread(NULL, 0, watch_thread, ctx, 0, NULL);
+    if (s_watch_thread && s_compile_mask)
+        (void)SetThreadAffinityMask(s_watch_thread, s_compile_mask);
     if (!s_watch_thread) {
         /* Without the watcher nobody drains stdout, observes completion, or
          * closes the process handle. Cancel the just-created child fail-closed. */
@@ -1400,6 +1535,7 @@ void autocompile_poll_main(void) {
      * so their publication lock does not exist. Poll is still called by the
      * shared maintenance path; keep that unconfigured path a strict no-op. */
     if (!s_out_lock_init) return;
+    ac_game_thread_tick();
     PublishItem *published = publish_ready_pop();
     if (published) {
         if (overlay_loader_commit_published(published->image) <= 0)
@@ -1554,6 +1690,8 @@ int autocompile_status_json(char *out, int cap) {
     unsigned publish_prepare_retry = 0, publish_prepare_giveup = 0;
     uint64_t publish_prepare_total_us = 0, publish_prepare_max_us = 0;
     uint64_t publish_prepare_last_us = 0;
+    int game_cpu = -1, core_hold = 0;
+    unsigned long long core_mask = 0, compile_mask = 0;
     tail[0] = '\0';
 #ifdef _WIN32
     if (s_out_lock_init) {
@@ -1573,6 +1711,10 @@ int autocompile_status_json(char *out, int cap) {
         publish_prepare_last_us = s_publish_prepare_last_us;
         LeaveCriticalSection(&s_out_lock);
     }
+    game_cpu = (int)s_game_cpu;
+    core_hold = (int)s_core_hold;
+    core_mask = (unsigned long long)s_core_mask;
+    compile_mask = (unsigned long long)s_compile_mask;
 #else
     if (s_out_lock_init) {
         pthread_mutex_lock(&s_out_lock);
@@ -1610,6 +1752,8 @@ int autocompile_status_json(char *out, int cap) {
         "\"publish_prepare_total_us\":%llu,"
         "\"publish_prepare_max_us\":%llu,"
         "\"publish_prepare_last_us\":%llu,"
+        "\"game_cpu\":%d,\"core_hold\":%d,"
+        "\"core_mask\":%llu,\"compile_mask\":%llu,"
         "\"output_tail\":\"%s\"}",
         s_degraded[0] ? 1 : 0, degr,
         autocompile_configured(), names[ac_state_load() & 3], s_runs, s_fails,
@@ -1622,5 +1766,6 @@ int autocompile_status_json(char *out, int cap) {
         publish_prepare_retry, publish_prepare_giveup,
         (unsigned long long)publish_prepare_total_us,
         (unsigned long long)publish_prepare_max_us,
-        (unsigned long long)publish_prepare_last_us, tail);
+        (unsigned long long)publish_prepare_last_us,
+        game_cpu, core_hold, core_mask, compile_mask, tail);
 }

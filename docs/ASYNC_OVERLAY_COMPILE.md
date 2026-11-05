@@ -200,3 +200,19 @@ overlay_loader_dispatch(addr):
   capture at the same moment / validate CRC before enqueue, else the DLL is rejected on load.
 - Do not regress the committed CPS leak fix: everything here is additive + gated on the active
   tier; legacy (non-CPS) overlays still use the existing sync paths.
+
+## The emulation thread keeps a core during a compile
+
+On Windows, while a compile tree runs, the emulation thread is held on one
+physical core (both SMT siblings) and the tree gets every other core:
+
+- the core is the one the emulation thread is on, or a faster class on a hybrid CPU;
+- the mask is set while the child is suspended, on the job and on the process, so
+  grandchildren inherit it and cannot widen it;
+- the speculative prepare and watcher threads use the same mask;
+- the hold ends on the first poll after the run;
+- with one physical core there is no reservation, only below-normal priority;
+- `PSX_GAME_THREAD_CPU` keeps its CPU, and `PSX_AUTOCOMPILE_CORE=0` turns this off.
+
+`autocompile_status` reports `game_cpu`, `core_hold`, `core_mask` and `compile_mask`.
+POSIX hosts still rely on `nice(10)`.

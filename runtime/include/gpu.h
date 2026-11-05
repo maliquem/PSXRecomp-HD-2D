@@ -460,7 +460,9 @@ void psx_shadow_camera_ram_add(uint32_t addr);
  * scaled by it). */
 float psx_shadow_camera_scale(void);
 /* Opt in to that: a title whose camera rotation carries its zoom (FM2's battle
- * map). Off, the rotation goes to the renderer as the game wrote it. */
+ * map). Off, the rotation goes to the renderer as the game wrote it. 2: each
+ * row to length 1 on its own, for a zoom that differs a little per axis (WA2);
+ * a mod's map geometry then no longer lands exactly on the picture. */
 void psx_shadow_camera_normalize(int on);
 /* sprite_anchors: return addresses of the calls projecting sprite foot points. */
 void psx_shadow_sprite_anchors(const uint32_t *ra, int n);
@@ -472,6 +474,18 @@ void psx_shadow_sprite_anchor_world(const int16_t w[3]);
  * (the blob finders would take its own pieces near a foot point for one: FM2's
  * cobbles, a near-black palette entry of the ground under a wanzer). Default 1. */
 void psx_shadow_sprite_blobs(int on);
+/* 1: a sprite_anchors call made with the identity rotation draws a billboard
+ * around the GTE's translation, and that translation is its foot point (WA2's
+ * characters: each part a quad on one TR). Off, such a call is no foot point. */
+void psx_shadow_sprite_billboards(int on);
+/* 1: while our shadows stand in for the game's, nothing is drawn in the subtractive
+ * blend (shaded triangles, textured quads): for a title that only uses it for its
+ * own round shadows, in shapes no page or CLUT names. Off by default. */
+void psx_shadow_hide_subtractive(int on);
+/* 0: the faces the game culls cast no shadow. Default 1 (a closed object casts
+ * whole). For a title whose maps carry back-facing sheets nobody sees over their
+ * floors: the faces cast on what they cover, and WA2's whole ground went dark. */
+void psx_shadow_backfaces(int on);
 int  psx_shadow_state(char *out, int cap);   /* JSON fields for TCP shadow_cache */
 /* [video.shadow] hide_textures: textured polygons (page 9 bits + CLUT) not
  * drawn while the shadow map is in use (a game's own blob shadows). */

@@ -128,6 +128,12 @@ static int al_parse_line(char *line, AreaLightSet *set, uint32_t *area_out, char
         else if (strcmp(t, "cone") == 0) ok = al_num(&w, &l.cone);
         else if (strcmp(t, "shadow") == 0) l.shadow = 1;
         else if (strcmp(t, "round") == 0 && kind == AREA_LIGHT_WINDOW) l.round = 1;
+        else if (strcmp(t, "follow") == 0 && kind == AREA_LIGHT_WINDOW) l.follow = 1;
+        else if (strcmp(t, "mask") == 0 && kind == AREA_LIGHT_WINDOW) {
+            float m = 0.0f;
+            ok = al_nums(&w, &m, 1);
+            l.mask = m < 0.0f ? 0 : (int)m;
+        }
         else if (strcmp(t, "at") == 0) ok = al_nums(&w, l.a, 3);
         else if (strcmp(t, "corner") == 0 && kind == AREA_LIGHT_WINDOW) { ok = al_nums(&w, l.q, 3); has_q = ok; }
         else if (strcmp(t, "dir") == 0) { ok = al_nums(&w, l.dir, 3); l.has_dir = ok; }
@@ -202,7 +208,41 @@ int area_lights_set_text(uint32_t area, const char *lines, char *err, int errcap
     free(set); free(buf);
     return ok;
 }
+static unsigned char *s_masks = NULL;
+static int s_mask_side = 0, s_mask_count = 0;
+const unsigned char *area_lights_masks(int *side, int *count) {
+    *side = s_mask_side;
+    *count = s_mask_count;
+    return s_masks;
+}
+/* window_masks.bin beside the lights' file; none or a bad one: the windows keep their panes */
+static void al_load_masks(const char *path) {
+    char name[1024];
+    const char *end = strrchr(path, '/'), *end2 = strrchr(path, '\\');
+    if (!end || (end2 && end2 > end)) end = end2;
+    const int dir = end ? (int)(end - path) + 1 : 0;
+    if (snprintf(name, sizeof name, "%.*swindow_masks.bin", dir, path) >= (int)sizeof name) return;
+    FILE *f = fopen(name, "rb");
+    if (!f) return;
+    char magic[4];
+    int head[2];
+    if (fread(magic, 1, 4, f) == 4 && memcmp(magic, "WMSK", 4) == 0 && fread(head, sizeof(int), 2, f) == 2 &&
+        head[0] > 0 && head[0] <= 256 && head[1] > 0 && head[1] <= 4096) {
+        const size_t n = (size_t)head[0] * head[0] * head[1];
+        unsigned char *m = (unsigned char *)malloc(n);
+        if (m && fread(m, 1, n, f) == n) {
+            free(s_masks);
+            s_masks = m;
+            s_mask_side = head[0];
+            s_mask_count = head[1];
+        } else {
+            free(m);
+        }
+    }
+    fclose(f);
+}
 int area_lights_load(const char *path) {
+    al_load_masks(path);
     FILE *f = fopen(path, "r");
     if (!f) return -1;
     char line[512];
@@ -260,6 +300,8 @@ static int al_put_light(char *out, int cap, int k, uint32_t area, const AreaLigh
     }
     if (l->kind == AREA_LIGHT_WINDOW && l->has_dir) k = al_put(out, cap, k, " dir %.3f %.3f %.3f", l->dir[0], l->dir[1], l->dir[2]);
     if (l->kind == AREA_LIGHT_WINDOW && l->round) k = al_put(out, cap, k, " round");
+    if (l->kind == AREA_LIGHT_WINDOW && l->mask > 0) k = al_put(out, cap, k, " mask %d", l->mask);
+    if (l->kind == AREA_LIGHT_WINDOW && l->follow) k = al_put(out, cap, k, " follow");
     if (l->kind == AREA_LIGHT_SPOT)
         k = al_put(out, cap, k, " at %.1f %.1f %.1f cone %.1f", l->a[0], l->a[1], l->a[2], l->cone);
     k = al_put(out, cap, k, " color %.2f %.2f %.2f power %.2f", l->col[0], l->col[1], l->col[2], l->power);
