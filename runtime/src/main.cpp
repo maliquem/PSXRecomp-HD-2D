@@ -1791,6 +1791,10 @@ static int g_mod_fast_forward_blocked = 0;
 extern "C" void psx_mod_set_fast_forward_blocked(int blocked) {
     g_mod_fast_forward_blocked = blocked != 0;
 }
+extern "C" void psx_idle_anchor_set(uint32_t ra, int (*is_idle)(void));   /* psx_cycles.c */
+extern "C" void psx_mod_set_idle_loop(uint32_t ra, int (*is_idle)(void)) {
+    psx_idle_anchor_set(ra, is_idle);
+}
 extern "C" int psx_mod_set_fast_forward_speed(int multiplier) {
     if (multiplier != 0 && multiplier != -1 && (multiplier < 2 || multiplier > 16)) return 0;
     g_mod_fast_forward_speed = multiplier;
