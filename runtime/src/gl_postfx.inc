@@ -554,7 +554,7 @@ static void pfx_depth_fill(int lw, int lh) {
             p_glUniform3f(r ? p_glGetUniformLocation(s_dfill_prog, an[r]) : s_dfill_uA,
                           s_pfx_vx_a[3 * r], s_pfx_vx_a[3 * r + 1], s_pfx_vx_a[3 * r + 2]);
         p_glUniform3f(s_dfill_uB, s_pfx_vx_b[0], s_pfx_vx_b[1], s_pfx_vx_b[2]);
-        p_glUniform2f(s_dfill_uNat, 240.0f * (float)lw / (float)lh * s_pfx_natx, 240.0f);
+        p_glUniform2f(s_dfill_uNat, s_sc_nh * (float)lw / (float)lh * s_pfx_natx, s_sc_nh);
         p_glUniform1f(s_dfill_uH, s_cam_h);
     }
     p_glActiveTexture(PSXGL_TEXTURE0);

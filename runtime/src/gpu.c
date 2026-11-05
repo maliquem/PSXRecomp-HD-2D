@@ -1007,6 +1007,15 @@ int gpu_shadow_area_off(void) {
     }
     return sh_light_now(0, NULL, NULL) == GPU_LIGHT_OFF;
 }
+/* psx_shadow_hide_subtractive: every polygon drawn subtractive is the game's own
+ * shadow (WA2: a textured disc in the field, a fan of shaded triangles in battle). */
+static int sh_sub_allow = 0, sh_sub_on = 0;
+void psx_shadow_hide_subtractive(int on) { sh_sub_allow = on != 0; }
+static int gp0_sub_hidden(int semi, int mode) {
+    if (!sh_sub_on || !semi || mode != 2) return 0;
+    sh_hidden++;
+    return 1;
+}
 static int gp0_tex_hidden(uint16_t tpage, uint16_t clut) {
     if (!sh_hide_on) return 0;
     for (int i = 0; i < sh_hide_n; i++)
@@ -1079,6 +1088,8 @@ void psx_shadow_configure(int camera, int od_x, int od_y, const uint32_t *addr,
 }
 static void shadow_backfaces_flush(void);   /* below, after the drawing state */
 static int  sh_bf_on = 0;
+static int  sh_bf_allow = 1;   /* psx_shadow_backfaces */
+void psx_shadow_backfaces(int on) { sh_bf_allow = on != 0; }
 int psx_shadow_backfaces_on(void) { return sh_bf_on; }
 /* Through the mod services (mod_guest_services.c), which see the CPU state
  * as the running build lays it out. */
@@ -1104,7 +1115,7 @@ static int      sh_cam_met = 0, sh_cam_age = 99;   /* used since the last VBlank
 static float    sh_cam_scale = 1.0f;                /* the camera rotation's own scale (1 = none) */
 static int      sh_cam_norm = 0;                    /* psx_shadow_camera_normalize */
 float psx_shadow_camera_scale(void) { return sh_cam_scale; }
-void psx_shadow_camera_normalize(int on) { sh_cam_norm = on ? 1 : 0; }
+void psx_shadow_camera_normalize(int on) { sh_cam_norm = on; }
 void psx_shadow_camera_ram(uint32_t addr) { sh_cam_addr = addr; }
 /* A game with a camera MATRIX per mode (FM2: the battle map's, the 3D
  * combat's) names each place; the first that holds the matrix met is it. */
@@ -1144,6 +1155,15 @@ static void shadow_camera_note(void) {
     }
     sh_cam_scale = rs == 1.0f ? 1.0f : 1.0f / rs;
     for (int i = 0; i < 9; i++) sh_cam_last[i] = (float)ri[i] * (rs / 4096.0f);
+    /* 2: rows of slightly different lengths (WA2: 3.004, 3.022, 3.018). The renderer
+     * takes a rotation's transpose for its inverse: a picture sent to the world and
+     * back would come out moved, its floor 18 units off its own shadow map. */
+    if (sh_cam_norm == 2)
+        for (int r = 0; r < 3; r++) {
+            const float *q = &sh_cam_last[r * 3];
+            const float l = sqrtf(q[0] * q[0] + q[1] * q[1] + q[2] * q[2]);
+            if (l > 1e-3f) for (int c = 0; c < 3; c++) sh_cam_last[r * 3 + c] /= l;
+        }
     for (int i = 0; i < 3; i++) sh_cam_last[9 + i] = (float)pj[i];
     sh_cam_last[12] = (float)pj[3] / 65536.0f; sh_cam_last[13] = (float)pj[4] / 65536.0f;
     sh_cam_last[14] = (float)pj[5];
@@ -1190,11 +1210,24 @@ static int sh_anc_ext = 0;   /* a title's plugin names the foot points (psx_shad
 static int sh_blob_allow = 1;   /* psx_shadow_sprite_blobs: the game has blob shadows to hide */
 void psx_shadow_sprite_blobs(int on) { sh_blob_allow = on != 0; }
 static void shadow_anchor_take(const float w[3]);
+static void shadow_anchor_view(const float V[3]);
+static int sh_anc_board = 0;   /* psx_shadow_sprite_billboards */
+void psx_shadow_sprite_billboards(int on) { sh_anc_board = on != 0; }
 static void shadow_anchor_note(void) {
     const uint32_t ra = psx_mod_cpu_gpr(31);
     int k = 0;
     while (k < sh_anc_n && sh_anc_ra[k] != ra) k++;
     if (k == sh_anc_n) return;
+    if (sh_anc_board) {
+        int16_t ri[9];
+        int32_t pj[6];
+        static const int16_t id[9] = {4096, 0, 0, 0, 4096, 0, 0, 0, 4096};
+        if (psx_mod_gte_rotation(ri) && psx_mod_gte_projection(pj) && !memcmp(ri, id, sizeof ri)) {
+            const float V[3] = {(float)pj[0], (float)pj[1], (float)pj[2]};
+            if (sh_cam_have[0] && V[2] >= 1.0f) shadow_anchor_view(V);
+            return;
+        }
+    }
     uint32_t d[32];
     if (!psx_mod_gte_data(d)) return;
     const float w[3] = {(float)(int16_t)d[0], (float)(int16_t)(d[0] >> 16), (float)(int16_t)d[1]};
@@ -1219,6 +1252,9 @@ static void shadow_anchor_take(const float w[3]) {
     for (int r = 0; r < 3; r++)
         V[r] = sh_cam_last[r * 3] * w[0] + sh_cam_last[r * 3 + 1] * w[1] + sh_cam_last[r * 3 + 2] * w[2] + sh_cam_last[9 + r];
     if (V[2] < 1.0f) return;
+    shadow_anchor_view(V);
+}
+static void shadow_anchor_view(const float V[3]) {
     const int sx = (int)lroundf(sh_cam_last[12] + sh_cam_last[14] * V[0] / V[2]);
     const int sy = (int)lroundf(sh_cam_last[13] + sh_cam_last[14] * V[1] / V[2]);
     /* the same point projected again (a second call for the same sprite) */
@@ -1394,12 +1430,13 @@ static void shadow_vblank(void) {
      * the light of the windows placed by hand */
     const int ours = wanted || (track && (gl_renderer_fire_casting() || gl_renderer_windows_casting()));
     sh_hide_on = ours && sh_hide_n > 0;
+    sh_sub_on = ours && sh_sub_allow;
     sh_disc_on = ours;
     if (wanted != sh_od_on && (sh_od_x || sh_od_y)) {
         gpu_set_overdraw(wanted ? sh_od_x : 0, wanted ? sh_od_y : 0);
         sh_od_on = wanted;
     }
-    sh_bf_on = wanted && sh_camera;
+    sh_bf_on = wanted && sh_camera && sh_bf_allow;
     sh_anc_live = track && sh_camera == 2 && (sh_anc_n > 0 || sh_anc_ext) && gl_renderer_shadow_sprites_wanted();
     sh_blob_on = sh_anc_live && ours && sh_blob_allow;   /* the game's blobs hidden: only under our sun, a fire or the windows */
     if (sh_bf_on) shadow_backfaces_flush();   /* this frame's culled faces, before the camera takes the frame in */
@@ -6206,6 +6243,7 @@ static void gp0_exec_mono_quad(void) {
 /* Execute shaded triangle (GP0 0x30-0x33) — Gouraud shaded */
 static void gp0_exec_shaded_tri(void) {
     int semi_trans = (gp0_cmd_buf[0] >> 25) & 1;
+    if (gp0_sub_hidden(semi_trans, (int)semi_transparency)) return;
     int32_t vx[3], vy[3];
     uint16_t c[3];
     /* Layout: C0, V0, C1, V1, C2, V2 */
@@ -6410,6 +6448,7 @@ static void gp0_exec_textured_quad(void) {
     if (native_wide_projective_draw()) return;
     const uint32_t disc_uv[4] = { gp0_cmd_buf[2], gp0_cmd_buf[4], gp0_cmd_buf[6], gp0_cmd_buf[8] };
     if (gp0_tex_hidden((uint16_t)(gp0_cmd_buf[4] >> 16), (uint16_t)(gp0_cmd_buf[2] >> 16)) ||
+        gp0_sub_hidden((gp0_cmd_buf[0] >> 25) & 1, (int)(gp0_cmd_buf[4] >> 21) & 3) ||
         shadow_blob_quad((gp0_cmd_buf[0] >> 25) & 1, gp0_cmd_buf[1], gp0_cmd_buf[3], gp0_cmd_buf[5], gp0_cmd_buf[7]) ||
         shadow_disc_quad((gp0_cmd_buf[0] >> 25) & 1, (uint16_t)(gp0_cmd_buf[4] >> 16), (uint16_t)(gp0_cmd_buf[2] >> 16), disc_uv)) {
         set_tpage_from_poly((uint16_t)(gp0_cmd_buf[4] >> 16)); return;
