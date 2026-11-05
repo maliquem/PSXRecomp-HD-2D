@@ -180,6 +180,7 @@ typedef struct {
 static HbRingEntry s_ring[RING_CAP];
 static uint32_t    s_ring_head = 0;
 static uint32_t    s_ring_count = 0;
+static uint32_t    s_uptime_ticks = 0;  /* never reset: paused time counts */
 
 /* Automatic full dumps are bounded independently from deliberate fatal dumps.
  * The heartbeat JSON reports both written and suppressed event counts. */
@@ -859,6 +860,7 @@ static void heartbeat_write(void) {
     re->output = hb_guest_output();
     s_ring_head = (s_ring_head + 1) % RING_CAP;
     if (s_ring_count < RING_CAP) s_ring_count++;
+    if (s_uptime_ticks < UINT32_MAX) s_uptime_ticks++;
 
     /* ---- Wedge detection: bounded automatic dump ----
      * Walk back WEDGE_WINDOW_TICKS in the heartbeat ring (just pushed
@@ -912,6 +914,8 @@ static void heartbeat_write(void) {
          * activity inside the window rules the spin classification out. */
         FreezeWedgeWindow w = {0};
         w.frame_delta = frame_delta;
+        w.newest_frame = newest_frame;
+        w.uptime_ticks = s_uptime_ticks;
         w.exc_reentry_delta = excre_delta;
         w.logic_pinned = logic_pinned;
         w.mdec_active = mdec_recently_active((uint32_t)frame_delta + 1u);

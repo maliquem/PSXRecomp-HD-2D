@@ -3,8 +3,9 @@
  * Always-on ring of the last 16K SIO/MMIO events with full SIO state
  * snapshot at each event. Watchdog flushes the ring to a file and
  * aborts cleanly when host wall-clock since the last
- * debug_server_poll exceeds the threshold (TCP listener has stopped
- * draining the connection — symptom of dispatch-loop starvation).
+ * debug_server_poll exceeds the threshold AND the guest kept running
+ * through it (TCP listener has stopped draining the connection —
+ * symptom of dispatch-loop starvation). A host stall is logged only.
  *
  * The dumped file is plain JSON-lines (one event per line) so it can
  * be inspected with grep/jq even after the process terminated. */
@@ -14,6 +15,7 @@
 #include "psx_cycles.h"
 #include "psx_netplay.h"
 #include "crash_trace.h"
+#include "mod_plugins.h"
 #include <stdatomic.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -52,6 +54,9 @@ static uint64_t        s_seq = 0;
  * (send_all_blocking); read by the emu thread's watchdog. Atomic so the
  * cross-thread store/load is single-copy atomic on every target. */
 static _Atomic uint64_t s_last_heartbeat_us = 0;
+/* Guest time at that heartbeat: psx_cycle_count alone, because the IO thread
+ * stamps too and must not chase the emu thread's cycle accumulator. */
+static _Atomic uint64_t s_last_heartbeat_cycles = 0;
 static int             s_dump_done = 0;
 
 static uint64_t heartbeat_load(void) {
@@ -79,6 +84,8 @@ static uint64_t starvation_timeout_us(void) {
 }
 
 void starvation_watchdog_heartbeat(void) {
+    atomic_store_explicit(&s_last_heartbeat_cycles, psx_cycle_count,
+                          memory_order_relaxed);
     atomic_store_explicit(&s_last_heartbeat_us, host_us_now(),
                           memory_order_relaxed);
 }
@@ -87,6 +94,7 @@ void starvation_ring_reset(void) {
     memset(s_ring, 0, sizeof(s_ring));
     s_seq = 0;
     atomic_store_explicit(&s_last_heartbeat_us, 0, memory_order_relaxed);
+    atomic_store_explicit(&s_last_heartbeat_cycles, 0, memory_order_relaxed);
     s_dump_done = 0;
 }
 
@@ -264,6 +272,19 @@ void starvation_watchdog_check(void) {
     if (timeout == 0) return;              /* watchdog disabled (renderer bring-up) */
     uint64_t now = host_us_now();
     if (starvation_watchdog_stale(last, now, timeout)) {
+        /* The check runs on the emu thread, so it only gets here once that
+         * thread is back. If the guest barely moved meanwhile, the whole
+         * thread was stopped by the host (a graphics driver wait took 1.8 to
+         * 28 s under a full CPU, Front Mission 2 2026-11-05): nothing starved,
+         * and the player must not lose the game to it. */
+        uint64_t beat_cycles = atomic_load_explicit(&s_last_heartbeat_cycles,
+                                                    memory_order_relaxed);
+        if (starvation_watchdog_host_stall(beat_cycles, psx_cycle_count)) {
+            psx_mod_counter_add("starvation.host_stalls", 1);
+            psx_mod_counter_add("starvation.host_stall_ms", (uint32_t)((now - last) / 1000u));
+            starvation_watchdog_heartbeat();
+            return;
+        }
         starvation_ring_dump(NULL);
         /* Abort cleanly so the dump file is preserved and the user knows
          * the runtime starved. Tag the exit so psx_last_run_report.json

@@ -50,8 +50,15 @@ void freeze_dump_policy_record_result(FreezeDumpPolicy *policy, int written);
  * nothing drawn) finishes well inside it. A real hang never does. */
 #define FREEZE_SPIN_STILL_TICKS 100u              /* 10 s at the 100 ms tick */
 
+/* Until the first frame, no frames over the window is the normal state of a
+ * graphics driver coming up, which a loaded machine can stretch past the 2 s
+ * window. Only this long at frame 0 is a hang. */
+#define FREEZE_BOOT_GRACE_TICKS 300u              /* 30 s at the 100 ms tick */
+
 typedef struct FreezeWedgeWindow {
     uint64_t frame_delta;        /* host frames over the window */
+    uint64_t newest_frame;       /* frame count at the end of the window */
+    uint32_t uptime_ticks;       /* heartbeat ticks since the process began */
     uint64_t exc_reentry_delta;  /* exception re-entry blocks over the window */
     int logic_pinned;            /* cur_fn, store_pc, dirty insns unchanged */
     int mdec_active;             /* an MDEC decode inside the window (FMV) */

@@ -118,6 +118,17 @@ static inline int starvation_watchdog_stale(uint64_t last, uint64_t now,
     return (now - last) > timeout;
 }
 
+/* Second half of the decision: guest cycles run since the heartbeat. Polling
+ * happens at least once per vblank, so a stale heartbeat with less than a guest
+ * second behind it means the host stopped the emu thread, and only a guest that
+ * ran on without polling is the starvation this watchdog exists for. */
+#define STARVATION_GUEST_CYCLES_MIN 33868800ULL  /* 1 s of guest time */
+static inline int starvation_watchdog_host_stall(uint64_t beat_cycles,
+                                                 uint64_t now_cycles) {
+    if (now_cycles <= beat_cycles) return 1;
+    return (now_cycles - beat_cycles) < STARVATION_GUEST_CYCLES_MIN;
+}
+
 /* Manual dump-to-file (for testing / TCP probe). Filename can be NULL. */
 void starvation_ring_dump(const char *path);
 
