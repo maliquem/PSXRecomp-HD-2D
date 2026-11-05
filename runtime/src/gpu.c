@@ -9046,16 +9046,45 @@ static int s_draw_skip;
 static int s_draw_skip_vblanks;
 static int s_draw_skip_dropped, s_draw_skip_shown_dropped;   /* this frame / the one on screen */
 static uint64_t s_draw_skip_frames, s_draw_skip_drawn, s_draw_skip_prims;
+
+/* Turbo PGXP skip (psx_mod_set_turbo_pgxp_skip; PSX_TURBO_PGXP_SKIP=0 off): a
+ * frame that draws nothing needs no vertex shadows. The title audited that it
+ * computes a frame's geometry before the flip that starts its draw list, so
+ * the skip is decided one flip early (s_draw_skip_plan) and the PGXP hooks stay
+ * in the same bracket as a speculative pass while that geometry is computed.
+ * Host state only: never with an NCLIP that gives the guest PGXP's sign. */
+static int s_draw_skip_ahead, s_draw_skip_plan, s_draw_skip_held;
+static uint64_t s_draw_skip_held_frames;
+void psx_mod_set_turbo_pgxp_skip(int on) {
+    const char *e = getenv("PSX_TURBO_PGXP_SKIP");
+    s_draw_skip_ahead = (on && !(e && e[0] == '0')) ? 1 : 0;
+}
+static void draw_skip_hold(int hold) {
+    if (s_draw_skip_held && pgxp_test_suppress_depth() == 0)
+        s_draw_skip_held = 0;   /* a rolled-back pass closed the bracket */
+    if (hold == s_draw_skip_held) return;
+    s_draw_skip_held = hold;
+    if (hold) pgxp_suppress_begin(); else pgxp_suppress_end();
+}
+
 int gpu_draw_skip_shown_partial(void) { return s_draw_skip_shown_dropped; }
 void gpu_draw_skip_vblank(int fast_forward) {
-    if (!fast_forward) { s_draw_skip = 0; s_draw_skip_shown_dropped = 0; return; }
-    if (s_draw_skip && ++s_draw_skip_vblanks > 4) s_draw_skip = 0;
+    if (!fast_forward) {
+        s_draw_skip = 0; s_draw_skip_shown_dropped = 0; s_draw_skip_plan = 0;
+        draw_skip_hold(0);
+        return;
+    }
+    if ((s_draw_skip || s_draw_skip_plan) && ++s_draw_skip_vblanks > 4) {
+        s_draw_skip = 0; s_draw_skip_plan = 0;
+        draw_skip_hold(0);
+    }
 }
 void gpu_draw_skip_counts(uint64_t *skipped, uint64_t *drawn, uint64_t *prims) {
     if (skipped) *skipped = s_draw_skip_frames;
     if (drawn) *drawn = s_draw_skip_drawn;
     if (prims) *prims = s_draw_skip_prims;
 }
+uint64_t gpu_draw_skip_pgxp_frames(void) { return s_draw_skip_held_frames; }
 
 static void gp0_execute_command(void) {
     uint8_t opcode = (gp0_cmd_buf[0] >> 24) & 0xFF;
@@ -9654,11 +9683,18 @@ static void gp1_display_area_start(uint32_t val) {
      * bits 0-9: X (in halfwords, 0-1023)
      * bits 10-18: Y (0-511) */
     if ((val & 0x3FFu) != display_area_x || ((val >> 10) & 0x1FFu) != display_area_y) {
-        extern int psx_turbo_skip_next_frame(void);   /* main.cpp */
+        extern int psx_turbo_skip_next_frame(int lead);   /* main.cpp */
         s_display_flips++;
         s_draw_skip_shown_dropped = s_draw_skip_dropped;   /* the frame this flip shows */
         s_draw_skip_dropped = 0;
-        s_draw_skip = psx_turbo_skip_next_frame();
+        if (s_draw_skip_ahead && !pgxp_culling() && !ws_precise_nclip_cfg) {
+            s_draw_skip = s_draw_skip_plan;
+            s_draw_skip_plan = psx_turbo_skip_next_frame(1);
+            draw_skip_hold(s_draw_skip_plan);
+            if (s_draw_skip_plan) s_draw_skip_held_frames++;
+        } else {
+            s_draw_skip = psx_turbo_skip_next_frame(0);
+        }
         s_draw_skip_vblanks = 0;
         if (s_draw_skip) s_draw_skip_frames++; else s_draw_skip_drawn++;
     }

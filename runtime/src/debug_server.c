@@ -11427,14 +11427,16 @@ static void handle_sgl(int id, const char *json)
     extern void gpu_draw_skip_counts(uint64_t *skipped, uint64_t *drawn, uint64_t *prims);
     uint64_t sk = 0, dr = 0, pr = 0;
     gpu_draw_skip_counts(&sk, &dr, &pr);
+    extern uint64_t gpu_draw_skip_pgxp_frames(void);
     extern void psx_turbo_present_counts(uint64_t *shown, uint64_t *partial, uint64_t *waits);
     uint64_t ts = 0, tp = 0, tw = 0;
     psx_turbo_present_counts(&ts, &tp, &tw);
     send_fmt("{\"id\":%d,\"ok\":true,\"sgl\":%s,\"turbo_draw_skip\":{\"frames_skipped\":%llu,"
              "\"frames_drawn\":%llu,\"prims_dropped\":%llu,\"shown\":%llu,\"shown_partial\":%llu,"
-             "\"waits\":%llu}}", id, buf,
+             "\"waits\":%llu,\"pgxp_frames\":%llu}}", id, buf,
              (unsigned long long)sk, (unsigned long long)dr, (unsigned long long)pr,
-             (unsigned long long)ts, (unsigned long long)tp, (unsigned long long)tw);
+             (unsigned long long)ts, (unsigned long long)tp, (unsigned long long)tw,
+             (unsigned long long)gpu_draw_skip_pgxp_frames());
 }
 
 /* Smooth motion (frame generation; [video] frame_generation, docs/FRAME_GENERATION.md):

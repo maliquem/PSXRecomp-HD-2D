@@ -2061,18 +2061,28 @@ extern "C" void psx_turbo_present_counts(uint64_t *shown, uint64_t *partial, uin
     *shown = s_turbo_presents; *partial = s_turbo_partial_presents; *waits = s_turbo_present_waits;
 }
 static int           s_turbo_clock_present = 0;
-/* Turbo draw skip (on by default; PSX_TURBO_DRAW_SKIP=0 draws every frame):
- * asked by gpu.c at each flip. The frame starting now (t) is on screen from its own flip, about one
+/* Turbo draw skip (on by default; PSX_TURBO_DRAW_SKIP=0 draws every frame,
+ * =force skips three frames in four, turbo or not, to compare the guest):
+ * asked by gpu.c at each flip, about the frame `lead` flips after this one
+ * (1 when the skip is planned ahead, gpu.c). With lead 0 the frame starting now (t) is on screen from its own flip, about one
  * game frame (d) later, until the next one: [t+d, t+2d). It is drawn when the
  * turbo's next shown frame falls in that window (a fifth of a frame early
  * too, for the error in d) or is already due (a late present waits for a
  * drawn frame on screen: sdl_vblank_present_body), else its drawing is
  * dropped (gpu.c). Never more than 30 dropped in a row. */
-extern "C" int psx_turbo_skip_next_frame(void) {
+static int turbo_draw_skip_mode(void) {
     static int s_on = -1;
     if (s_on < 0) {
         const char *e = std::getenv("PSX_TURBO_DRAW_SKIP");
-        s_on = (e && e[0] == '0') ? 0 : 1;
+        s_on = (e && e[0] == '0') ? 0 : (e && e[0] == 'f') ? 2 : 1;
+    }
+    return s_on;
+}
+extern "C" int psx_turbo_skip_next_frame(int lead) {
+    const int s_on = turbo_draw_skip_mode();
+    if (s_on == 2) {
+        static uint32_t s_forced = 0;
+        return (++s_forced & 3u) != 0;
     }
     static uint64_t s_last_flip = 0;
     static double s_frame_ticks = 0.0;
@@ -2089,7 +2099,14 @@ extern "C" int psx_turbo_skip_next_frame(void) {
         return 0;
     }
     const double next = (double)s_turbo_next_present, t = (double)now;
-    const int shown = next < t || (next >= t + 0.8 * s_frame_ticks && next < t + 2.0 * s_frame_ticks);
+    /* Planned ahead: one frame for each shown one, the first that ends after
+     * it. Overdue, a dropped frame on the way draws again. 1.7: FM2 measured
+     * 1.4 to 2.25; above 2 the frame leaves the screen before the present. */
+    static uint64_t s_covered = 0;
+    const int shown = lead ? next < t + (lead + 1.7) * s_frame_ticks &&
+                                 (next < t ? s_run > 0 : s_turbo_next_present != s_covered)
+                           : next < t || (next >= t + 0.8 * s_frame_ticks && next < t + 2.0 * s_frame_ticks);
+    if (lead && shown) s_covered = s_turbo_next_present;
     const int skip = !shown && s_run < 30;
     s_run = skip ? s_run + 1 : 0;
     return skip;
@@ -11789,7 +11806,7 @@ static void sdl_vblank_present_(void) {
     sync_guest_cadence_to_video_standard();
     NetplayVblankEpilogue ep = sdl_vblank_present_body();
     /* turbo draw skip (gpu.c): off with the turbo, and after a few VBlanks with no flip */
-    gpu_draw_skip_vblank(s_presentation_fast_forward);
+    gpu_draw_skip_vblank(s_presentation_fast_forward || turbo_draw_skip_mode() == 2);
     PERF_BEGIN(PM_PRESENT);
     render_thread_vblank();
     PERF_END(PM_PRESENT);
