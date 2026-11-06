@@ -5303,6 +5303,8 @@ int gpu_depth24_present_hold_tick(void) {
 }
 
 void gpu_depth24_on_savestate_loaded(void) {
+    s_idle_frames = 0;    /* a held 2D stretch says nothing about the loaded scene */
+    pgxp_idle_release();
     /* Hold skips Swap — after restore we want the restored VRAM visible now.
      * Upload span / prev_h were restored from the GPU snap. */
     s_d24_present_hold = 0;
