@@ -1573,6 +1573,10 @@ if(BUILD_TESTING)
     target_include_directories(audio_depletion_test PRIVATE src)
     add_test(NAME audio_depletion_test COMMAND audio_depletion_test)
 
+    add_executable(cdrom_read_motor_test tests/test_cdrom_read_motor.c)
+    target_include_directories(cdrom_read_motor_test PRIVATE include src)
+    add_test(NAME cdrom_read_motor_test COMMAND cdrom_read_motor_test)
+
     add_executable(cdrom_getlocl_test tests/test_cdrom_getlocl.c)
     target_include_directories(cdrom_getlocl_test PRIVATE include src)
     add_test(NAME cdrom_getlocl_test COMMAND cdrom_getlocl_test)
