@@ -2533,6 +2533,17 @@ def print_generated_c_audit(load_addr: int, size: int, crc32: int,
 # breaking every shard compile against a moved-on runtime. Loaded once by
 # load_dispatch_preamble(); patch_generated_c() reads this global.
 DISPATCH_PREAMBLE = None
+
+# [recompiler] overlay_perf_modes with [video] pgxp_alu = "moves": a DLL cannot read
+# the host's class mask, so the classes the mode leaves out are left out at compile
+# time. Set in main() from game.toml. pgxp_hooks.h stays as it is: it feeds the
+# generator hash.
+OVERLAY_ALU_LIGHT = False
+OVERLAY_ALU_LIGHT_H = """#include "pgxp_hooks.h"
+#undef PGXP_ALU_K
+#define PGXP_ALU_K(k, instr, res, s1, s2) \\
+    do { if (PGXP_ALU_MASK_MOVES & (1u << (k))) PGXP_ALU(instr, res, s1, s2); } while (0)
+"""
 PREAMBLE_INC_NAME = "overlay_dispatch_preamble.c.inc"
 
 
@@ -5172,6 +5183,12 @@ def _compile_dll_direct(c_path: str, out_dll: str, include_dirs: list[str],
     # On Windows, DLLs use PE relocations — -fPIC triggers GCC CRT init
     # that conflicts with the host process. Use -shared without -fPIC.
     pic_flag = [] if is_windows() else ['-fPIC']
+    alu_light = []
+    if OVERLAY_ALU_LIGHT and int(flavor) & 2:
+        forced = c_path + '.alu_light.h'
+        with open(forced, 'w', encoding='utf-8') as f:
+            f.write(OVERLAY_ALU_LIGHT_H)
+        alu_light = ['-include', forced]
     cmd = [
         gcc, '-shared', *pic_flag, *target_arch_flags('gcc'), '-O2',
         '-DPSX_OVERLAY_DLL_BUILD',
@@ -5196,6 +5213,7 @@ def _compile_dll_direct(c_path: str, out_dll: str, include_dirs: list[str],
         # PGXP flavor bit (overlay_api.h PSX_OVERLAY_FLAVOR_PGXP): arm the
         # PGXP_*() hook macros the emitter writes into every overlay C.
         *(['-DPSX_PGXP=1'] if int(flavor) & 2 else []),
+        *alu_light,
         c_path,
         '-o', out_dll,
         *includes,
@@ -6776,6 +6794,10 @@ def main():
     toml = tomllib.loads(raw.decode('utf-8'))
     game_id = toml.get('game', {}).get('id', 'UNKNOWN')
     print(f'Game ID: {game_id}')
+    global OVERLAY_ALU_LIGHT
+    OVERLAY_ALU_LIGHT = (toml.get('recompiler', {}).get('overlay_perf_modes', False)
+                         and toml.get('video', {}).get('pgxp_alu') == 'moves'
+                         and not toml.get('video', {}).get('pgxp_cpu_mode', False))
 
     # Stale-recompiler-binary guard — BOTH modes (static overlays are just as
     # wrong when emitted by a stale binary; they simply have no tag to hide in).

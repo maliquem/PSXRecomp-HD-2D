@@ -1623,6 +1623,11 @@ struct GameConfig {
     // [recompiler] lean_no_locals: the lean forms with the guest registers left
     // in cpu->gpr. With PGO the locals' sync code costs more than they save.
     bool lean_no_locals = false;
+    // [recompiler] overlay_perf_modes (docs/PERFORMANCE_MODES.md): the modes that
+    // shape a translated instruction reach the overlay DLLs too: ram_fast_path,
+    // cpu_timing = "block" and pgxp_alu = "moves". Not exact, like block timing
+    // itself; off by default; needs a new overlay cache.
+    bool overlay_perf_modes = false;
     // [quality.low/medium/high/ultra] -- graphics presets, lowest first. Empty:
     // the title has no presets and [video] alone applies (unchanged).
     std::vector<QualityPreset> quality_presets;

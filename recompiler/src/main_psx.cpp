@@ -415,6 +415,13 @@ static int psxrecomp_game_main(int argc, char** argv) {
     // sites (same TOML) — std::set insert dedupes.
     if (!ws_config_path.empty()) {
         const auto wscfg = PSXRecompV4::load_game_config(ws_config_path);
+        // The overlay path has no --config: [recompiler] overlay_perf_modes brings
+        // the modes that shape a translated instruction here. Without it a title's
+        // DLLs keep the per-instruction pipeline under a block-mode executable.
+        if (overlay_mode && wscfg.overlay_perf_modes) {
+            ram_fast_path = wscfg.ram_fast_path;
+            cpu_timing_block = wscfg.cpu_timing_block;
+        }
         ws_tag_funcs.insert(wscfg.ws_sprite_tag_funcs.begin(), wscfg.ws_sprite_tag_funcs.end());
         mod_entry_funcs.insert(wscfg.mod_function_entry_funcs.begin(),
                                wscfg.mod_function_entry_funcs.end());

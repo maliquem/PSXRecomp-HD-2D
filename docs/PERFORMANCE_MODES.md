@@ -129,6 +129,18 @@ Fire IV: same PGXP coverage and frame-identical in 8 scenes and the cold boot,
 +1.5..3.6% in turbo (same exe, `PSX_PGXP_MEM=live` against `words`).
 `PSX_PGXP_MEM=live` turns it on for a run, any other value off.
 
+## `[recompiler] overlay_perf_modes` (not exact, like block timing)
+
+The overlay path has no `--config`, so `ram_fast_path`, `cpu_timing = "block"` and `pgxp_alu = "moves"` stop at
+the executable: a title's DLLs keep the per-instruction pipeline and call the PGXP engine for every ALU
+instruction. With this on they reach the DLLs. The classes `pgxp_alu = "moves"` leaves out are left out at
+compile time, so `PSX_PGXP_ALU=full` no longer brings them back in DLLs, and `pgxp_cpu_mode` turns that part off.
+
+Off by default. It joins the overlay config hash, so a title that turns it on starts from an empty area cache.
+The generator hash and savestates do not move. Wild Arms 2, without PGO: battle 4.38x to 5.40x, speech 3.45x to
+4.19x, interior 5.29x to 6.45x; every GPU word identical in 8 scenes x 600 frames, while RAM, CPU, PGXP and the
+SPU's timing move.
+
 ## `[runtime] overlay_precompile` (exact)
 
 A captured overlay runs in the dirty-RAM interpreter until its DLL is built,

@@ -236,6 +236,7 @@ uint32_t overlay_codegen_config_hash(const GameConfig& c) {
     // a title on the default path keeps the hash and its overlay cache.
     if (c.ram_fast_path) h.tag("ram_fast_path");
     if (c.cpu_timing_block) h.tag("cpu_timing_block_pipe");
+    if (c.overlay_perf_modes) h.tag("overlay_perf_modes");
     return h.value;
 }
 
@@ -3035,6 +3036,8 @@ GameConfig load_game_config(const fs::path& config_path_in) {
                 "{}: [recompiler].cpu_timing must be 'pipeline' or 'block'", config_path.string()));
         loaded.cpu_timing_block = (t == "block");
     }
+    loaded.overlay_perf_modes = recomp.contains("overlay_perf_modes") &&
+                                toml::find<bool>(recomp, "overlay_perf_modes");
     loaded.gpr_locals = recomp.contains("gpr_locals") &&
                         toml::find<bool>(recomp, "gpr_locals");
     if (recomp.contains("gpr_locals_flush_max"))
