@@ -106,10 +106,11 @@ as what it decodes with is the S held in this table.
 
 a. If *pos >= end, return 0 and consume nothing. **[project]**
 
-b. Words equal to 0xFE00 before a block are padding and are skipped while
-   more input remains. **[psx-spx]** If the input runs out while skipping,
-   the last 0xFE00 read becomes the block's first word: qscale 63, value
-   -512. **[project]**
+b. Words equal to 0xFE00 before a block are padding and are skipped.
+   **[psx-spx]** If the input runs out while skipping, there is no block:
+   the padding is consumed and the call returns 0. (Until 2026-11-08 the
+   last 0xFE00 became a block, qscale 63 and value -512; upstream
+   `bb47ac5d`.)
 
 c. The first word gives `qscale` = bits 15..10 (0..63) and the DC value
    `sext10` of bits 9..0, at scan index k = 0. Report qscale through
@@ -240,9 +241,12 @@ set, XOR w with 0x8000. **[psx-spx]** Store w as two bytes, low byte first.
 - **Colour decode** (depth 2 or 3): macroblocks are decoded while input
   remains. A macroblock whose blocks run out of input is discarded.
 - **Monochrome decode** (depth 0 or 1): each block that
-  `mdec_core_decode_block` returns becomes 64 bytes in row-major order,
-  `Y + 128` or Y as a signed byte. Depth 0 produces the same bytes as depth
-  1 (section 7).
+  `mdec_core_decode_block` returns becomes, in row-major order:
+  - depth 1: 64 bytes, `Y + 128` or Y as a signed byte;
+  - depth 0: 32 bytes, two pixels per byte with the first in the low nibble,
+    each `(Y + 136) >> 4` capped at 15; signed output XORs the byte with
+    0x88. (Until 2026-11-08 depth 0 gave the depth-1 bytes; upstream
+    `bb47ac5d`.)
 - **Counters**: a block counter in the snapshot goes up once per block
   returned. `mdec_mean_qscale_x16` is the rounded mean, times 16, of the
   qscale of every block in the last colour decode.
@@ -253,10 +257,10 @@ The rewrite must keep these, because the output has to stay identical. Fix
 them later, one change each, with the pinned fingerprints updated knowingly:
 
 - q = 0 still uses the zig-zag placement (4.3).
-- Depth 0 (4-bit) outputs one byte per pixel, the same as depth 1. Going by
-  its name, a 4-bit depth packs two pixels per byte.
 - The status register's current-block field stays 4.
-- A final run of 0xFE00 at the end of the input becomes a block (4.1b).
+
+The 4-bit packing and the trailing 0xFE00 were fixed on 2026-11-08, with the
+synthetic fingerprint moved from `d3c6fd9fc4d8bf4f` to `7a3a8b70a625b3c6`.
 
 ## 8. Proving it
 

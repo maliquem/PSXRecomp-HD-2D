@@ -115,10 +115,14 @@ int mdec_core_decode_block(int16_t out[64], const uint16_t *in,
 
     if (p >= end) return 0; /* 4.1a */
 
-    /* 4.1b: end codes before a block are padding while input remains; when it
-     * runs out, the last one read is the block's first word. */
+    /* 4.1b: end codes before a block are padding. When the input runs out
+     * inside them there is no block: they are consumed and nothing returns. */
     w = in[p++];
     while (w == MDEC_END_OF_BLOCK && p < end) w = in[p++];
+    if (w == MDEC_END_OF_BLOCK) {
+        *pos = p;
+        return 0;
+    }
 
     /* 4.1c: qscale and the DC value at scan index 0. */
     scale = w >> 10;
