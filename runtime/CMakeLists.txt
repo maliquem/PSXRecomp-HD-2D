@@ -2083,6 +2083,10 @@ if(BUILD_TESTING)
                      COMMAND ${Python3_EXECUTABLE}
                              ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_memory_debug_trace_guard.py
                              --cc ${CMAKE_C_COMPILER})
+            add_test(NAME memory_byte_recorder_test
+                     COMMAND ${Python3_EXECUTABLE}
+                             ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_memory_byte_recorder.py
+                             --cc ${CMAKE_C_COMPILER})
         endif()
         add_test(NAME fntrace_c_linkage_test COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_fntrace_c_linkage.py)
         add_test(NAME depth24_present_hold_vblank_test
