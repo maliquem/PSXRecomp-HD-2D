@@ -141,6 +141,12 @@ The generator hash and savestates do not move. Wild Arms 2, without PGO: battle 
 4.19x, interior 5.29x to 6.45x; every GPU word identical in 8 scenes x 600 frames, while RAM, CPU, PGXP and the
 SPU's timing move.
 
+## `PSX_MDEC_DMA_BATCH` (not exact)
+
+Experiment, off by default. The MDEC-to-RAM channel wakes the devices once per word, which is about 14,000 wakes per
+VBlank in a 320x240 video by estimate. `PSX_MDEC_DMA_BATCH=N` (2 to 256) wakes every N words. The last word and the IRQ
+keep their cycle, but a guest polling the destination can see a word late.
+
 ## `[runtime] overlay_precompile` (exact)
 
 A captured overlay runs in the dirty-RAM interpreter until its DLL is built,
