@@ -335,10 +335,11 @@ static void spu_irq_check_enabled(uint32_t addr, uint32_t len) {
     }
 }
 
-/* The SPUCNT.6 test inline: every capture write and reverb access runs it,
- * and with the IRQ off (the usual case) it is all they do here. */
+/* The SPUCNT test inline: every capture write and reverb access runs it,
+ * and with the IRQ off (the usual case) it is all they do here. IRQ9 needs
+ * both the unit and its IRQ enabled (SPUCNT.15 and .6). */
 static inline void spu_irq_check(uint32_t addr, uint32_t len) {
-    if (RREG(0x1F801DAAu) & 0x0040u)   /* SPUCNT.6 IRQ enable */
+    if ((RREG(0x1F801DAAu) & 0x8040u) == 0x8040u)
         spu_irq_check_enabled(addr, len);
 }
 
