@@ -746,6 +746,9 @@ int psx_idle_skip_area_site(uint32_t pc) {
         if (s_idle_area_sites[i] == pc) return 1;
     return 0;
 }
+/* [runtime] idle_skip_audited_only: skip at the listed sites and nowhere else. */
+static int s_idle_audited_only = 0;
+void psx_idle_skip_set_audited_only(int on) { s_idle_audited_only = on; }
 static int idle_site_listed(uint32_t pc) {
     for (int i = 0; i < s_idle_site_count; i++)
         if (s_idle_sites[i] == pc) return 1;
@@ -906,6 +909,7 @@ void psx_idle_note_check(CPUState *cpu, uint32_t check_pc) {
     s_idle_last_mmio   = g_mmio_access_count;
 
     if (s_idle_streak < IDLE_STREAK_MIN) return;
+    if (s_idle_audited_only && !ext && !psx_idle_skip_area_site(check_pc)) return;
     /* Several edges per pass are accepted only for the store-counter shape
      * (v_wait) and at audited sites (a retry loop with its counter in a
      * register). Other multi-edge loops with no counter store -- OpenBIOS's

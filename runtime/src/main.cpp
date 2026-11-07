@@ -1794,6 +1794,7 @@ extern "C" void psx_mod_set_fast_forward_blocked(int blocked) {
     g_mod_fast_forward_blocked = blocked != 0;
 }
 extern "C" void psx_idle_anchor_set(uint32_t ra, int (*is_idle)(void));   /* psx_cycles.c */
+extern "C" void psx_idle_skip_set_audited_only(int on);
 extern "C" void psx_idle_skip_set_area_sites(const uint32_t *pcs, int n);   /* psx_cycles.c */
 extern "C" void psx_mod_set_idle_loop(uint32_t ra, int (*is_idle)(void)) {
     psx_idle_anchor_set(ra, is_idle);
@@ -18821,6 +18822,7 @@ int main(int argc, char** argv) {
                     (int)gc.runtime.idle_skip_store_counter_sites.size());
                 psx_idle_skip_set_area_sites(gc.runtime.idle_skip_area_sites.data(),
                                              (int)gc.runtime.idle_skip_area_sites.size());
+                psx_idle_skip_set_audited_only(gc.runtime.idle_skip_audited_only ? 1 : 0);
                 if (g_idle_skip_enabled && g_idle_skip_ext)
                     std::fprintf(stdout, "psxrecomp: idle_skip store-counter loops on%s, "
                                  "%zu audited site(s)%s\n",
