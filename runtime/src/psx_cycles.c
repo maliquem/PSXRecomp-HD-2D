@@ -731,6 +731,21 @@ void psx_idle_skip_set_store_counter_sites(const uint32_t *pcs, int n) {
     for (int i = 0; i < n; i++) s_idle_sites[i] = pcs[i];
     s_idle_site_count = n;
 }
+/* [runtime] idle_skip_area_sites: the audited poll loops in areas, by the PC of
+ * their one back edge. Area edges reach the detector only here (overlay_loader.c). */
+static uint32_t s_idle_area_sites[8];
+static int s_idle_area_count = 0;
+void psx_idle_skip_set_area_sites(const uint32_t *pcs, int n) {
+    if (n < 0 || !pcs) n = 0;
+    if (n > 8) n = 8;
+    for (int i = 0; i < n; i++) s_idle_area_sites[i] = pcs[i];
+    s_idle_area_count = n;
+}
+int psx_idle_skip_area_site(uint32_t pc) {
+    for (int i = 0; i < s_idle_area_count; i++)
+        if (s_idle_area_sites[i] == pc) return 1;
+    return 0;
+}
 static int idle_site_listed(uint32_t pc) {
     for (int i = 0; i < s_idle_site_count; i++)
         if (s_idle_sites[i] == pc) return 1;
@@ -903,7 +918,7 @@ void psx_idle_note_check(CPUState *cpu, uint32_t check_pc) {
      * hundred cycles. For the store-counter shape, measure from now: an
      * overstated distance lands the skip after the event and delivers the
      * IRQ late (R4 boot, frame 961: +402 cycles). */
-    if (s_idle_iter_edges || s_idle_mem_progress) {
+    if (s_idle_iter_edges || s_idle_mem_progress || psx_idle_skip_area_site(check_pc)) {
         const uint64_t lag = psx_cycle_count > s_devices_synced_cycle
             ? psx_cycle_count - s_devices_synced_cycle : 0;
         if ((uint64_t)dist <= lag) return;
