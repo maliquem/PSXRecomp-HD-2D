@@ -49,6 +49,8 @@
 extern "C" void psx_event_step_conservative_env_init(void);
 /* [runtime] overlay_precompile: 1 = request pending, 2 = requested. */
 static int g_overlay_precompile = 0;
+extern "C" void psx_dma_set_mdec_batch(int n);        /* [runtime] mdec_dma_batch */
+extern "C" void psx_gpu_set_pgxp_idle_hold(int vblanks); /* [runtime] pgxp_idle_hold */
 /* memory.c's last-word-store record for the idle-loop detector. */
 extern "C" int g_psx_track_last_store;
 extern "C" void gpu_draw_skip_vblank(int fast_forward);
@@ -18786,6 +18788,8 @@ int main(int argc, char** argv) {
                                                     &g_guest_last_store_addr,
                                                     &g_guest_last_store_val);
                 }
+                psx_dma_set_mdec_batch(gc.runtime.mdec_dma_batch);
+                psx_gpu_set_pgxp_idle_hold(gc.runtime.pgxp_idle_hold);
                 {   /* [runtime] overlay_precompile (the request in the frame tick) */
                     const char *pe = std::getenv("PSX_OVERLAY_PRECOMPILE");
                     g_overlay_precompile = pe && pe[0] ? (pe[0] == '1')

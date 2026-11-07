@@ -412,8 +412,9 @@ static void shadow_note_projection(int nverts);   /* below */
  * reopen in time for it, and every shadow of the held stretch is dropped: stale
  * ones cannot survive. Host state only. Not while another bracket is open: a
  * speculative pass rolls the depth back. */
-static int s_idle_hold, s_idle_after = -1, s_idle_projected;
+static int s_idle_hold, s_idle_after = -1, s_idle_projected, s_idle_cfg;
 static uint32_t s_idle_frames;
+void psx_gpu_set_pgxp_idle_hold(int vblanks) { s_idle_cfg = vblanks; }
 static void pgxp_idle_release(void) {
     if (s_idle_hold && pgxp_test_suppress_depth() == 1) {
         s_idle_hold = 0;
@@ -424,7 +425,7 @@ static void pgxp_idle_release(void) {
 static void pgxp_idle_vblank(void) {
     if (s_idle_after < 0) {
         const char *e = getenv("PSX_PGXP_IDLE_HOLD");
-        s_idle_after = e ? atoi(e) : 0;
+        s_idle_after = e ? atoi(e) : s_idle_cfg;
     }
     if (!s_idle_after) return;
     if (s_idle_hold && pgxp_test_suppress_depth() == 0)

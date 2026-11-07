@@ -552,6 +552,12 @@ static RuntimeConfig parse_runtime_block(const toml::value& cfg, const fs::path&
     if (runtime.contains("overlay_precompile")) {
         rt.overlay_precompile = toml::find<bool>(runtime, "overlay_precompile");
     }
+    if (runtime.contains("mdec_dma_batch")) {
+        rt.mdec_dma_batch = toml::find<int>(runtime, "mdec_dma_batch");
+    }
+    if (runtime.contains("pgxp_idle_hold")) {
+        rt.pgxp_idle_hold = toml::find<int>(runtime, "pgxp_idle_hold");
+    }
     if (runtime.contains("idle_skip_store_counters")) {
         rt.idle_skip_store_counters =
             toml::find<bool>(runtime, "idle_skip_store_counters");
