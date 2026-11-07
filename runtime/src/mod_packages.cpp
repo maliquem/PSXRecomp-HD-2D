@@ -1,3 +1,4 @@
+#include "psx_path_utf8.h"
 #include "mod_packages.h"
 #include "host_launch_timing.h"
 
@@ -777,7 +778,7 @@ std::string canonical_resolution(const std::vector<const ModPackage*>& ordered,
             out << resource.format << ':' << resource.bytes->size() << ':'
                 << resource.sha256;
         else
-            out << resource.path.u8string();
+            out << psx_path::utf8(resource.path);
         out << '\n';
     }
     return out.str();
@@ -3292,7 +3293,7 @@ bool ModPackageManager::set_feature_resource_path(
         return false;
     }
     if (!resource->shared_source.empty()) sources_[resource->shared_source] = path;
-    else selections_[package_id].features[feature_id].resources[resource_id] = path.u8string();
+    else selections_[package_id].features[feature_id].resources[resource_id] = psx_path::utf8(path);
     return true;
 }
 
@@ -3553,7 +3554,7 @@ bool ModPackageManager::prepare_resources(const std::string& game_id,
                     const auto* resource = find_resource(*package, feature.id, name);
                     if (!resource || resource->input_only || resource->sha256.empty())
                         throw std::runtime_error("preparer returned an undeclared or unverified output");
-                    pending[id].features[feature.id].resources[name] = path.u8string();
+                    pending[id].features[feature.id].resources[name] = psx_path::utf8(path);
                 }
                 for (const auto& r : package->resources)
                     if (r.feature_id == feature.id && !r.input_only && r.required && !outputs.count(r.id))

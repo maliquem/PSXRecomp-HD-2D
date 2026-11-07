@@ -1,3 +1,4 @@
+#include "psx_path_utf8.h"
 #include "mod_runtime.h"
 #include "host_launch_timing.h"
 #include "cpu_state.h"
@@ -1276,7 +1277,7 @@ int provider_feature_resource_get(void*, const char* package_id,
         copy_text(out->label, sizeof(out->label), resource.label);
         copy_text(out->description, sizeof(out->description),
                   resource.description);
-        copy_text(out->path, sizeof(out->path), path.u8string());
+        copy_text(out->path, sizeof(out->path), psx_path::utf8(path));
         copy_text(out->status, sizeof(out->status),
                   path.empty() ? "Not selected" :
                       (verified ? "Selected" : "Selected path is missing"));
@@ -3031,7 +3032,7 @@ extern "C" int psx_mod_current_resource_path(const char* resource_id,
             resource.feature_id != s.current_plugin->feature_id ||
             resource.id != resource_id)
             continue;
-        const std::string text = resource.path.u8string();
+        const std::string text = psx_path::utf8(resource.path);
         if (text.empty() || text.size() + 1 > (size_t)out_size) return 0;
         std::memcpy(out, text.c_str(), text.size() + 1);
         return 1;

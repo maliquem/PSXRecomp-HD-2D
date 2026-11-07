@@ -203,6 +203,7 @@ extern "C" void psx_game_codegen_forward_if_built(int argc, char** argv);
 #include <exception>
 #include <array>
 #include <filesystem>
+#include "psx_path_utf8.h"
 #include <fstream>
 #include <iterator>
 #include <sstream>
