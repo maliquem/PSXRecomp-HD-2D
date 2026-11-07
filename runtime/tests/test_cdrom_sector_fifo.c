@@ -8,7 +8,7 @@ static int test_dma_active;
 int dma_cdrom_transfer_active(void) { return test_dma_active; }
 void psx_irq_raise(uint32_t bit, uint32_t detail) { (void)detail; i_stat |= bit; }
 int iso_read_raw_sector(void* h, uint32_t lba, uint8_t* out, int size) {
-    (void)h; memset(out, 0, size); out[15]=2; out[18]=out[22]=8;
+    (void)h; memset(out, 0, size); out[15]=2; out[16]=out[20]=9; out[17]=out[21]=7; out[18]=out[22]=8;
     memset(out+24, (unsigned char)lba, 2048); return 1;
 }
 int iso_read_sector(void* h,uint32_t lba,uint8_t* out,int size) {(void)h;memset(out,(unsigned char)lba,size);return 1;}
