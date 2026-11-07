@@ -406,8 +406,44 @@ static uint32_t ws_last_ovh_stamp = (uint32_t)-1000;
 static uint32_t ws_sust_ovh_stamp = (uint32_t)-1000;
 
 static void shadow_note_projection(int nverts);   /* below */
+/* PSX_PGXP_IDLE_HOLD=N (unset or 0 = off): N VBlanks without a perspective
+ * projection hold the PGXP hooks. Video and 2D screens spend them on code whose
+ * values never reach a vertex. This note runs before the RTPS/RTPT, so the hooks
+ * reopen in time for it, and every shadow of the held stretch is dropped: stale
+ * ones cannot survive. Host state only. Not while another bracket is open: a
+ * speculative pass rolls the depth back. */
+static int s_idle_hold, s_idle_after = -1, s_idle_projected, s_idle_cfg;
+static uint32_t s_idle_frames;
+void psx_gpu_set_pgxp_idle_hold(int vblanks) { s_idle_cfg = vblanks; }
+static void pgxp_idle_release(void) {
+    if (s_idle_hold && pgxp_test_suppress_depth() == 1) {
+        s_idle_hold = 0;
+        pgxp_suppress_end();
+        pgxp_invalidate_all();
+    }
+}
+static void pgxp_idle_vblank(void) {
+    if (s_idle_after < 0) {
+        const char *e = getenv("PSX_PGXP_IDLE_HOLD");
+        s_idle_after = e ? atoi(e) : s_idle_cfg;
+    }
+    if (!s_idle_after) return;
+    if (s_idle_hold && pgxp_test_suppress_depth() == 0)
+        s_idle_hold = 0;   /* a rolled-back pass closed the bracket */
+    if (s_idle_projected) {
+        s_idle_projected = 0;
+        s_idle_frames = 0;
+        pgxp_idle_release();
+    } else if (!s_idle_hold && ++s_idle_frames >= (uint32_t)s_idle_after && pgxp_test_suppress_depth() == 0) {
+        s_idle_hold = 1;
+        pgxp_suppress_begin();
+    }
+}
+
 void psx_ws_note_gte_project(int nverts) {
     shadow_note_projection(nverts);
+    s_idle_projected = 1;
+    pgxp_idle_release();
     uint32_t f = (uint32_t)s_frame_count;
     if (f != ws_gte_frame) {
         if (f == ws_gte_frame + 1u) ws_gte_prev_verts = ws_gte_count;
@@ -5268,6 +5304,8 @@ int gpu_depth24_present_hold_tick(void) {
 }
 
 void gpu_depth24_on_savestate_loaded(void) {
+    s_idle_frames = 0;    /* a held 2D stretch says nothing about the loaded scene */
+    pgxp_idle_release();
     /* Hold skips Swap — after restore we want the restored VRAM visible now.
      * Upload span / prev_h were restored from the GPU snap. */
     s_d24_present_hold = 0;
@@ -9108,6 +9146,7 @@ static void draw_skip_hold(int hold) {
 
 int gpu_draw_skip_shown_partial(void) { return s_draw_skip_shown_dropped; }
 void gpu_draw_skip_vblank(int fast_forward) {
+    pgxp_idle_vblank();
     if (!fast_forward) {
         s_draw_skip = 0; s_draw_skip_shown_dropped = 0; s_draw_skip_plan = 0;
         draw_skip_hold(0);

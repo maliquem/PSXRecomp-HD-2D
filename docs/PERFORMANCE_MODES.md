@@ -13,6 +13,8 @@ mode" below). A game that misbehaves with one simply leaves it off.
 | `[video] pgxp_alu` | `"full"` (default) / `"moves"` | no (sub-pixel only) | no (runtime) | the PGXP engine call on most ALU instructions |
 | `[recompiler] cpu_timing` | `"pipeline"` (default) / `"block"` | no (block edges) | yes | the per-instruction pipeline bookkeeping at run time |
 | `[video] pgxp_mem` | `"all"` (default) / `"words"` / `"live"` | no (sub-pixel only) | no (runtime) | the PGXP engine call on byte and halfword loads/stores; `"live"` also the RAM shadow work of word accesses that carry no vertex |
+| `[runtime] mdec_dma_batch` | `1` (default) to `256` | no (a polling guest) | no (runtime) | the device wake on every MDEC-to-RAM word |
+| `[runtime] pgxp_idle_hold` | `0` (default) or VBlanks | yes for the guest | no (runtime) | the PGXP hooks on frames without a projection |
 | `[runtime] overlay_precompile` | `false` (default) / `true` | yes | no | nothing: compiles the captured overlays at boot instead of at first visit |
 
 All three change the generator's output, so the codegen hash moves once when
@@ -140,6 +142,23 @@ Off by default. It joins the overlay config hash, so a title that turns it on st
 The generator hash and savestates do not move. Wild Arms 2, without PGO: battle 4.38x to 5.40x, speech 3.45x to
 4.19x, interior 5.29x to 6.45x; every GPU word identical in 8 scenes x 600 frames, while RAM, CPU, PGXP and the
 SPU's timing move.
+
+## `[runtime] mdec_dma_batch` (not exact)
+
+The MDEC-to-RAM channel wakes the devices once per word, which is about 14,000 wakes per VBlank in a 320x240 video by
+estimate. `mdec_dma_batch = N` (2 to 256) wakes every N words. The last word and the IRQ keep their cycle, but a guest
+polling the destination can see a word late. Runtime only: the hash, the cache key and savestates do not move.
+`PSX_MDEC_DMA_BATCH=N` overrides it for one run. With 64, 8x, PGXP on and no effects: Front Mission 2 video 3.21x to
+4.35x with PGO, Breath of Fire IV video 2.05x to 2.90x without; 1,800 frames of golden identical in both, RAM included.
+
+## `[runtime] pgxp_idle_hold` (exact for the guest)
+
+After N VBlanks without an RTPS/RTPT the PGXP hooks close; video, title and menu screens spend them on values that
+never reach a vertex. The first projection reopens them before it runs and drops every shadow of the held stretch, and
+a savestate load reopens them too. Only host state moves, so cycles, RAM, CPU and every GPU word stay identical; the
+golden's `pgxp` field differs from frame N on in scenes that project nothing, which is the mode working. Use 30: with 2
+the hooks closed inside 20 fps 3D scenes and lost shadows between frames. `PSX_PGXP_IDLE_HOLD=N` overrides it for one
+run. With 30: Wild Arms 2 title +34%, Breath of Fire IV video +16%, menu +10%, 3D scenes unchanged.
 
 ## `[runtime] overlay_precompile` (exact)
 

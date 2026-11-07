@@ -596,6 +596,23 @@ static void finish_async_cdrom_transfer(uint32_t final_addr) {
     complete_transfer(3);
 }
 
+/* [runtime] mdec_dma_batch = N (2..256): the MDEC->RAM channel wakes every N
+ * words instead of every word. The last word and the IRQ keep their cycle; a
+ * guest polling the destination can see a word up to N-1 words late, so this is
+ * not exact and stays off (1) unless a title turns it on. PSX_MDEC_DMA_BATCH
+ * overrides it for one run. */
+static int s_mdec_batch_cfg = 1;
+void psx_dma_set_mdec_batch(int n) { s_mdec_batch_cfg = n; }
+static uint32_t mdec_out_batch(void) {
+    static uint32_t n;
+    if (n == 0) {
+        const char *v = getenv("PSX_MDEC_DMA_BATCH");
+        int e = v ? atoi(v) : s_mdec_batch_cfg;
+        n = e < 1 ? 1u : e > 256 ? 256u : (uint32_t)e;
+    }
+    return n;
+}
+
 static void advance_mdec_channel(int ch, uint32_t cycles) {
     DMAAsyncChannel *a = &mdec_async[ch];
     if (!a->active) return;
@@ -1238,7 +1255,10 @@ uint32_t dma_cycles_to_internal_event(void) {
             continue;
         uint32_t cpw = ch == 0 ? DMA_MDEC_IN_CYCLES_PER_WORD
                                : DMA_MDEC_OUT_CYCLES_PER_WORD;
-        uint32_t d = a->cycles_accum < cpw ? cpw - a->cycles_accum : 1u;
+        uint32_t batch = ch == 1 ? mdec_out_batch() : 1u;
+        if (batch > a->remaining_words) batch = a->remaining_words;
+        uint32_t need = cpw * batch;
+        uint32_t d = a->cycles_accum < need ? need - a->cycles_accum : 1u;
         if (d < best) best = d;
     }
 

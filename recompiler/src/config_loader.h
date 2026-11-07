@@ -391,6 +391,13 @@ struct RuntimeConfig {
     // until its compile lands. The same DLLs; only when they are built changes.
     // PSX_OVERLAY_PRECOMPILE=0/1 overrides it for one run.
     bool                  overlay_precompile = false;
+    // mdec_dma_batch (docs/PERFORMANCE_MODES.md): the MDEC-to-RAM channel wakes
+    // the devices every N words (1 = every word, 256 at most). Not exact.
+    // PSX_MDEC_DMA_BATCH overrides it for one run.
+    int                   mdec_dma_batch = 1;
+    // pgxp_idle_hold: VBlanks without an RTPS/RTPT before the PGXP hooks close
+    // (0 = never). PSX_PGXP_IDLE_HOLD overrides it for one run.
+    int                   pgxp_idle_hold = 0;
     // idle_skip_store_counter_sites: the audited loop sites (block-edge PCs
     // the detector anchors on) where the store-counter extension may skip.
     // Unlisted sites are never skipped; an empty list disables the extension.
