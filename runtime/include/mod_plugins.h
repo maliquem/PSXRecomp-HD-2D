@@ -97,6 +97,11 @@ void psx_mod_counter_add(const char* name, uint32_t delta);
  * spent (psx_cycles.c). The title audits that an idle pass changes no memory
  * that matters. TCP: {"cmd":"core_rates"} anchor_skips, anchor_cycles. */
 void psx_mod_set_idle_loop(uint32_t ra, int (*is_idle)(void));
+/* The turbo keeps the PGXP hooks off while a frame it will not show computes
+ * its geometry (gpu.c). The title audits that its geometry comes before the
+ * flip that starts the frame's draw list, so a drawn frame still has its
+ * shadows. TCP: {"cmd":"sgl"} turbo_draw_skip.pgxp_frames. */
+void psx_mod_set_turbo_pgxp_skip(int on);
 /* Presentation-only filtering: 0 nearest, 1 bilinear, 2 stable minification.
  * Mode 2 uses a bounded palette-aware footprint for proven 3D polygons on
  * OpenGL; untracked UI stays nearest. Other backends use bilinear. A session
