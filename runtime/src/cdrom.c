@@ -3404,9 +3404,11 @@ static int cdrom_snap_emit(PstW *w, int extended) {
             WI(s_sector_ring[slot].pos); WI(s_sector_ring[slot].size);
         }
         if (extended >= 2) {
-            WU(0x34464443u); /* CDF4: Setloc and decoded-header validity */
+            /* CDF3: unconsumed Setloc, distinct from drive head. CDF4: plus
+             * decoded-header validity. */
+            WU(extended >= 3 ? 0x34464443u : 0x33464443u);
             W8(setloc_pending);
-            W8(last_sector_header_stale);
+            if (extended >= 3) W8(last_sector_header_stale);
         }
     }
 
@@ -3479,9 +3481,9 @@ static int cdrom_snap_parse(PstR *r, int extended) {
             RI(s_sector_ring[slot].pos); RI(s_sector_ring[slot].size);
         }
         if (extended >= 2) {
-            RU(u); /* validated CDF4 marker */
+            RU(u); /* validated CDF3 or CDF4 marker */
             R8(setloc_pending);
-            R8(last_sector_header_stale);
+            if (extended >= 3) R8(last_sector_header_stale);
         }
     }
 
@@ -3510,7 +3512,8 @@ int cdrom_snapshot_validate(const uint8_t *p, uint32_t len) {
     const uint32_t current = cdrom_snapshot_bytes();
     if (!p) return 0;
     if (len == legacy) return 1;
-    if (len != current && len != current - 6u) return 0; /* CDF4 or CDF2 */
+    if (len != current && len != current - 1u && len != current - 6u)
+        return 0; /* CDF4, CDF3 or CDF2 */
     PstR r;
     uint32_t magic;
     int32_t index, pos, size, delay;
@@ -3528,11 +3531,13 @@ int cdrom_snapshot_validate(const uint8_t *p, uint32_t len) {
             size < 0 || size > SECTOR_BUFFER_SIZE || pos < 0 || pos > size)
             return 0;
     }
-    if (len == current) {
-        uint8_t pending_loc, stale_header;
-        if (!pst_r_u32(&r, &magic) || magic != 0x34464443u ||
-            !pst_r_u8(&r, &pending_loc) || pending_loc > 1 ||
-            !pst_r_u8(&r, &stale_header) || stale_header > 1) return 0;
+    if (len != current - 6u) {
+        uint8_t pending_loc, stale_header = 0;
+        if (!pst_r_u32(&r, &magic) ||
+            magic != (len == current ? 0x34464443u : 0x33464443u) ||
+            !pst_r_u8(&r, &pending_loc) || pending_loc > 1) return 0;
+        if (len == current &&
+            (!pst_r_u8(&r, &stale_header) || stale_header > 1)) return 0;
     }
     return r.p == r.end;
 }
@@ -3540,21 +3545,22 @@ int cdrom_snapshot_validate(const uint8_t *p, uint32_t len) {
 uint32_t cdrom_snapshot_bytes(void) {
     PstW w;
     pst_w_init(&w, NULL, 0);
-    (void)cdrom_snap_emit(&w, 2);
+    (void)cdrom_snap_emit(&w, 3);
     return (uint32_t)w.written;
 }
 void cdrom_snapshot_write(uint8_t *p) {
     PstW w;
     uint32_t n = cdrom_snapshot_bytes();
     pst_w_init(&w, p, n);
-    (void)cdrom_snap_emit(&w, 2);
+    (void)cdrom_snap_emit(&w, 3);
 }
 int cdrom_snapshot_read(const uint8_t *p, uint32_t len) {
     PstR r;
     if (!cdrom_snapshot_validate(p, len)) return 0;
     pst_r_init(&r, p, len);
+    const uint32_t current = cdrom_snapshot_bytes();
     const int extended = len == cdrom_snapshot_legacy_bytes() ? 0 :
-                         len == cdrom_snapshot_bytes() ? 2 : 1;
+                         len == current ? 3 : len == current - 1u ? 2 : 1;
     if (!cdrom_snap_parse(&r, extended))
         return 0;
     /* Absolute host deadlines are not on the wire — rebuild from restored
