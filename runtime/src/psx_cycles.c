@@ -907,10 +907,11 @@ void psx_idle_note_check(CPUState *cpu, uint32_t check_pc) {
 
     if (s_idle_streak < IDLE_STREAK_MIN) return;
     /* Several edges per pass are accepted only for the store-counter shape
-     * (v_wait). Multi-edge loops with no counter store -- OpenBIOS's
+     * (v_wait) and at audited sites (a retry loop with its counter in a
+     * register). Other multi-edge loops with no counter store -- OpenBIOS's
      * 0xBFC057C0 poll, kernel 0x16BC -- moved R4's boot timing when skipped
      * (frame 192, cyc +3857), so they keep running for real. */
-    if (s_idle_iter_edges && !s_idle_mem_progress) return;
+    if (s_idle_iter_edges && !s_idle_mem_progress && !ext) return;
     uint32_t q = s_idle_quantum;
     uint32_t dist = devices_cycles_to_next_idle_event();
     /* The devices report distances from where they were last serviced
@@ -918,7 +919,8 @@ void psx_idle_note_check(CPUState *cpu, uint32_t check_pc) {
      * hundred cycles. For the store-counter shape, measure from now: an
      * overstated distance lands the skip after the event and delivers the
      * IRQ late (R4 boot, frame 961: +402 cycles). */
-    if (s_idle_iter_edges || s_idle_mem_progress || psx_idle_skip_area_site(check_pc)) {
+    const int area = psx_idle_skip_area_site(check_pc);
+    if (s_idle_iter_edges || s_idle_mem_progress || area) {
         const uint64_t lag = psx_cycle_count > s_devices_synced_cycle
             ? psx_cycle_count - s_devices_synced_cycle : 0;
         if ((uint64_t)dist <= lag) return;
@@ -926,7 +928,7 @@ void psx_idle_note_check(CPUState *cpu, uint32_t check_pc) {
     }
     if (dist <= q) return;               /* one real iteration reaches it */
     uint32_t k;
-    if (s_idle_iter_edges == 0)
+    if (s_idle_iter_edges == 0 && !area)
         k = (dist + q - 1u) / q;         /* first check boundary >= event */
     else
         k = (dist - 1u) / q;             /* land on the anchor before it */
