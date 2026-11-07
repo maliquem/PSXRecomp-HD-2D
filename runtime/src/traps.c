@@ -998,7 +998,7 @@ void psx_scheduler_run(CPUState* cpu)
              * or dispatch_nonlocal_call) would skip its depth restore; clear the
              * nested-unit gate so IRQ checks are not wedged-off after the escape
              * (backstop for the Ape memcard native<->interp fix). */
-            { extern int g_call_unit_depth; g_call_unit_depth = 0; }
+            { extern int g_call_unit_depth, g_idle_note_suppress; g_call_unit_depth = 0; g_idle_note_suppress = 0; }
             /* flush_resume / savestate longjmp skips generated bb_defer cleanup. */
             {
                 extern int g_psx_cyc_bb_defer;

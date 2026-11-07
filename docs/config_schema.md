@@ -494,6 +494,14 @@ overlay_region_floor = "0x10000"   # optional: lowest RAM address treated as ove
 ```
 
 `idle_skip` only elides loops with no stores and one interrupt-check edge.
+Code in an area reaches the detector only at the PCs listed in
+`idle_skip_area_sites = ["0x8002A624"]`: the back edge of a poll loop that
+reads memory and stores nothing, audited by hand. Find one with `gcp_ring`
+(key `ra` and `native`, since the block key goes stale in a native loop).
+`idle_skip_audited_only = true` skips at the listed sites and nowhere else: for
+a title whose other loops move under the general detector (Front Mission 2's
+opening: +354 cycles on frame 6). An audited retry loop may span several edges
+with its counter in a register: list the edge where only that counter changes.
 `idle_skip_store_counters = true` (with `idle_skip`; `PSX_IDLE_SKIP_EXT=0/1`
 overrides it for one run) also elides loops that count a stack timeout down
 by one each pass and span up to eight block edges: PsyQ libetc's `v_wait`,

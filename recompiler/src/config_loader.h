@@ -402,6 +402,12 @@ struct RuntimeConfig {
     // the detector anchors on) where the store-counter extension may skip.
     // Unlisted sites are never skipped; an empty list disables the extension.
     std::vector<uint32_t> idle_skip_store_counter_sites;
+    // idle_skip_area_sites: the audited poll loops that run in areas, by the
+    // PC of their one back edge. Needs idle_skip.
+    std::vector<uint32_t> idle_skip_area_sites;
+    // idle_skip_audited_only: skip only at the sites listed above. For a title
+    // whose other loops are not exact under the general detector.
+    bool                  idle_skip_audited_only = false;
 
     // overlay_autocompile_cmd: variant-capture automation (step 2.8). A
     // shell command (run via cmd.exe /C, cwd = project root) that compiles

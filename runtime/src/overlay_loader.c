@@ -2460,13 +2460,24 @@ static int overlay_idle_note_is_internal_or_return(const CPUState *cpu,
     return 0;
 }
 
+extern int psx_idle_skip_area_site(uint32_t pc);   /* psx_cycles.c */
 static void overlay_ci_at_wrapper(CPUState *cpu, uint32_t resume_pc) {
     /* Defer while inside a nested call unit (see g_call_unit_depth): suspending
      * here would save resume_pc at the callee's block leader while the enclosing
      * dirty caller expects an atomic unit — the resume-desync bug. */
     if (g_call_unit_depth > 0) { s_ci_skip_unit++; return; }
     if (overlay_irq_suppressed_now()) { s_ci_skip_supp++; return; }
-    if ((i_stat & i_mask) == 0) { s_ci_skip_none++; return; }
+    if ((i_stat & i_mask) == 0) {
+        s_ci_skip_none++;
+        /* An area's poll loop sees no interrupt on nearly every back edge, so
+         * the detector has to look from here. A skip can raise the event the
+         * loop waits for: it is then delivered on this edge, as a real pass. */
+        if (g_idle_skip_enabled > 0 && psx_idle_skip_area_site(resume_pc)) {
+            psx_cyc_batch_flush();
+            psx_idle_note_check(cpu, resume_pc);
+        }
+        if ((i_stat & i_mask) == 0) return;
+    }
     if ((cpu->cop0[12] & ((1u << 10) | 1u)) != ((1u << 10) | 1u)) {
         s_ci_skip_sr++;
         return;
