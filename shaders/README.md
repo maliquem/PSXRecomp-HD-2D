@@ -8,6 +8,7 @@ for psxrecomp (no third-party code) and staged next to every game runtime as
 | Preset | What it does | Needs |
 |---|---|---|
 | `hd2d/ao.pfx` | ambient occlusion of the 3D scenery from the PGXP depth | PGXP depth |
+| `hd2d/ao-low.pfx` | the same at a quarter of the pixels (estimate at 240 lines), for weak GPUs | PGXP depth |
 | `hd2d/sun.pfx` | sun/moon: faces lit by direction, cast shadows from a shadow map of the scenery seen so far, fixed in the world | PGXP depth, `[video.shadow]` |
 | `hd2d/light.pfx` | glowing effects (spells) light the 3D scenery near them; a steady glow (a campfire, a lamp) becomes a light with its own colour, flicker and shadows on the scenery and the sprites (`firemap`) | PGXP depth, bloom mask, camera |
 | `hd2d/grade.pfx` | colour grade and vignette on the 3D scenery | mask3d |
