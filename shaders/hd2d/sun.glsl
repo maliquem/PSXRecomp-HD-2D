@@ -102,7 +102,8 @@ float shadow_at(vec3 P, float bias, float tilt, float spr, float scn)
     // deck over the sand), as under the real noon sun
     float sfar = sown_map && u_sprsun.y > 0.0 ? u_sprsun.y * u_sss.z : 1e9;
     float bs = 0.0;
-    if (u_soft.z > 0.0) {
+    // spr 0 (a sprite's own pixel, Sprite Light Off): the term is multiplied by 0 below, so its taps are skipped
+    if (spr > 0.0 && u_soft.z > 0.0) {
         // the sprites' soft too: the spread grows with how far above P the
         // sprite is (u_soft.w per unit), from a texel at its feet up to
         // u_soft.z; 5x5 samples turned per pixel (no steps of the map's texels)
@@ -130,7 +131,7 @@ float shadow_at(vec3 P, float bias, float tilt, float spr, float scn)
                 }
             bs /= 25.0;
         }
-    } else {
+    } else if (spr > 0.0) {
         for (int j = -1; j <= 1; j++)
             for (int i = -1; i <= 1; i++) {
                 vec2 q = spv + vec2(i, j) / ssm.w;

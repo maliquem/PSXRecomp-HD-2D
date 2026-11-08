@@ -6,8 +6,12 @@
 // rgb = sum of n x w, a = sum of w; 1: all blocks of the previous pass summed,
 // output rgb = up (unit), a = 1 (0 = nothing found: a default tilt is used);
 // every texel holds the same answer (the framework's smallest pass is 16 lines).
+// u_worldup.w 1: the framework gives the world's up from the camera, and
+// sun.glsl reads that instead of this pass: nothing to measure (the .pfx
+// sets w 0 every frame, so a frame without a camera measures).
 
 uniform vec4 u_upstage;
+uniform vec4 u_worldup;
 uniform vec4 u_proj;
 uniform float u_natx;   // native width / (240 x 4/3): 0.8 for a 256-wide picture (framework)
 uniform vec2 u_pp;    // the projection centre from the picture centre, native px, y down (framework; 0 = the centre)
@@ -24,6 +28,7 @@ vec3 pos_at(vec2 uv, float z) { return vec3(((uv - 0.5) * g_nat + vec2(-u_pp.x, 
 
 void main()
 {
+    if (u_worldup.w > 0.5) { o = vec4(0.0); return; }
     if (u_upstage.x > 0.5) {
         ivec2 n = textureSize(u_n, 0);
         vec4 s = vec4(0.0);
