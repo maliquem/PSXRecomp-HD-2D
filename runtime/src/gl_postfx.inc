@@ -153,9 +153,9 @@ static float  s_dfill_ctr_x0 = 0.0f, s_dfill_ctr_x1 = 0.0f;
 static GLuint s_dep2_tex = 0, s_dep2_fbo = 0, s_dfill_prog = 0;
 static GLint  s_dfill_uMode = -1, s_dfill_uD = -1, s_dfill_uA = -1, s_dfill_uB = -1, s_dfill_uNat = -1, s_dfill_uH = -1;
 static int    s_dep2_w = 0, s_dep2_h = 0;
-/* Work that cannot change a pixel, skipped (the mask's clear, the picture
- * kept between stages below). TCP postfx_cuts {on:0} goes back to the old
- * way, to compare both in one game. */
+/* Work that cannot change a pixel, skipped (the picture kept between stages
+ * below). TCP postfx_cuts {on:0} goes back to the old way, to compare both
+ * in one game. */
 static int s_pfx_cuts = 1;
 /* The picture between stages: a stage's last pass draws into s_pp_tex (one of
  * two, in turn) and the next stage reads it as its `source`, instead of
@@ -428,22 +428,12 @@ static int pfx_surf_mask(int k, GLuint rb, int tw, int th, const int r[4]) {
     }
     p_glBindFramebuffer(PSXGL_FRAMEBUFFER, m->fbo);
     glViewport(r[0], r[1], r[2] - r[0], r[3] - r[1]);
-    if (s_pfx_cuts) {
-        /* 0 over the whole texture, not a quad over the rect: only the rect is
-         * read (pfx_mask_map), and a clear costs next to nothing (in the sgl, a
-         * render pass that starts cleared) */
-        GLfloat cc[4];
-        glGetFloatv(GL_COLOR_CLEAR_VALUE, cc);
-        glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
-        glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
-        glClear(GL_COLOR_BUFFER_BIT);
-        glClearColor(cc[0], cc[1], cc[2], cc[3]);
-        p_glUseProgram(s_mask_prog);
-    } else {
-        p_glUseProgram(s_mask_prog);
-        p_glUniform1f(s_mask_uV, 0.0f);
-        post_fullscreen(s_mask_prog, s_mask_uUv);
-    }
+    /* A quad of zeros over the rect, not glClear: the texture is the whole
+     * surface and only the rect is read (pfx_mask_map); a clear of all of it
+     * cost more (the sgl, 4070 SUPER, 2026-11-08: 425 against 364 us) */
+    p_glUseProgram(s_mask_prog);
+    p_glUniform1f(s_mask_uV, 0.0f);
+    post_fullscreen(s_mask_prog, s_mask_uUv);
     glEnable(GL_STENCIL_TEST);
     glStencilOp(GL_KEEP, GL_KEEP, GL_KEEP);
     if (r8) {   /* each mark's bit added (exact in 8 bits: distinct bits) */

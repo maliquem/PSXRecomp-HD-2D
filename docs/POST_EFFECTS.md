@@ -34,11 +34,12 @@ no HDR (a float window: `[video] hdr` asked for is enough to keep the old way);
 and a last pass that blends goes into the window, which takes the picture
 first. Not on GL: there (NVIDIA, 2026-11-08) the same pass drawn into an RGBA8
 texture instead of the window came out a level or two apart on a few dozen
-pixels of a frame, so the window keeps the picture. The 3D mask's
-slots start cleared (`glClear`, a render pass that starts cleared in the
-sgl) instead of a quad of zeros. TCP `postfx_cuts {"on":0}` puts back the old
-way (each stage from a copy of the window, the quad), to compare both in one
-game; `{"on":1}` (the default) back, `{}` reads.
+pixels of a frame, so the window keeps the picture. TCP `postfx_cuts {"on":0}`
+puts back the old way (each stage from a copy of the window), to compare both
+in one game; `{"on":1}` (the default) back, `{}` reads. The 3D mask's slots
+start from a quad of zeros over the rect, not a `glClear`: the slot is the size
+of the whole surface and only the rect is read, so clearing all of it cost more
+(tried 2026-11-08).
 Bloom reads only `source_down` and composites with `blend screen`, so it never
 copies the full image. The executor
 owns targets, programs, uniforms and GL state, and puts back everything it
