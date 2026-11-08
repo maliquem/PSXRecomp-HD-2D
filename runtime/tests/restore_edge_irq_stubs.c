@@ -20,6 +20,17 @@ uint32_t i_mask = 0;
 uint32_t g_psx_ram_size = 0x200000u;
 uint32_t g_psx_vblank_cycles = 564480u;
 
+/* The cycle gate and the idle anchor (psx_cycles.c), and the fiber nesting
+ * save (render_pass.c), that the scheduler reaches: inert here. The gate
+ * starts at depth 0 (PSX_CYC_GATE_NODEFER), as in the runtime. */
+uint32_t g_psx_cyc_gate = 32u;
+int      g_idle_note_suppress = 0;
+uint32_t g_idle_anchor_ra = 0;
+void psx_cyc_gate_refresh(void) {}
+void psx_idle_anchor_check(void) {}
+void *psx_host_nesting_save_alloc(void) { return NULL; }
+void psx_host_nesting_restore_free(void *p) { (void)p; }
+
 uint64_t psx_get_cycle_count(void) { return psx_cycle_count; }
 void psx_advance_cycles_slow(uint32_t cycles) { psx_cycle_count += cycles; }
 

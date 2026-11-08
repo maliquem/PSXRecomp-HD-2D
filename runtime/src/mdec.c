@@ -343,6 +343,22 @@ static uint8_t to_output_u8(int value) {
 }
 
 static void append_luma_block(const int16_t *yblk) {
+    if (mdec.output_depth == 0) {
+        /* 4-bit: two pixels per byte, the first in the low nibble, Y + 128
+         * rounded to 4 bits; signed output flips each nibble's top bit. */
+        uint8_t *out = output_reserve(32u);
+        if (!out) return;
+        for (unsigned i = 0; i < 64; i += 2) {
+            unsigned low = (unsigned)(clamp_int(yblk[i], -128, 127) + 136) >> 4;
+            unsigned high = (unsigned)(clamp_int(yblk[i + 1], -128, 127) + 136) >> 4;
+            if (low > 15) low = 15;
+            if (high > 15) high = 15;
+            out[i / 2] = (uint8_t)((low | (high << 4)) ^
+                                   (mdec.output_signed ? 0x88u : 0u));
+        }
+        mdec.output_size += 32u;
+        return;
+    }
     uint8_t *out = output_reserve(64u);
     if (!out) return;
     for (int i = 0; i < 64; i++) out[i] = to_output_u8(yblk[i]);

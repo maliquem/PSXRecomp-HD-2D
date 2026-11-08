@@ -430,7 +430,7 @@ if(BUILD_TESTING)
     target_include_directories(mdec_replay PRIVATE ../runtime/include)
     set(_mdec_synth_cap "${CMAKE_CURRENT_BINARY_DIR}/mdec_replay_synthetic.cap")
     add_test(NAME mdec_replay_synthetic_test
-             COMMAND mdec_replay --synthetic 1 6000 --expect d3c6fd9fc4d8bf4f
+             COMMAND mdec_replay --synthetic 1 6000 --expect 7a3a8b70a625b3c6
                      --capture ${_mdec_synth_cap})
     set_tests_properties(mdec_replay_synthetic_test PROPERTIES
         FIXTURES_SETUP mdec_replay_capture)
@@ -1499,6 +1499,11 @@ if(BUILD_TESTING AND Python3_Interpreter_FOUND AND CMAKE_C_COMPILER_ID STREQUAL 
     add_test(NAME fiber_state_restore
         COMMAND ${Python3_EXECUTABLE}
             "${CMAKE_CURRENT_SOURCE_DIR}/../runtime/tests/test_fiber_state_restore.py"
+            --cc ${CMAKE_C_COMPILER})
+    # CloseTh(current); ChangeTh(other) still saves the outgoing registers.
+    add_test(NAME syscall_closed_thread_context
+        COMMAND ${Python3_EXECUTABLE}
+            "${CMAKE_CURRENT_SOURCE_DIR}/../runtime/tests/test_syscall_closed_thread_context.py"
             --cc ${CMAKE_C_COMPILER})
 endif()
 

@@ -160,6 +160,10 @@ if(BUILD_TESTING)
     add_executable(mdec_snapshot_capacity_test tests/test_mdec_snapshot_capacity.c)
     target_include_directories(mdec_snapshot_capacity_test PRIVATE include src)
     add_test(NAME mdec_snapshot_capacity_test COMMAND mdec_snapshot_capacity_test)
+    add_executable(mdec_mono_packing_test tests/test_mdec_mono_packing.c src/mdec.c
+        src/mdec_core.c)
+    target_include_directories(mdec_mono_packing_test PRIVATE include)
+    add_test(NAME mdec_mono_packing_test COMMAND mdec_mono_packing_test)
     add_executable(mod_texture_banks_test tests/test_mod_texture_banks.c src/mod_texture_banks.c)
     target_include_directories(mod_texture_banks_test PRIVATE include)
     add_test(NAME mod_texture_banks_test COMMAND mod_texture_banks_test)
@@ -262,6 +266,12 @@ if(BUILD_TESTING)
     set(PSX_GL_READBACK_COMPILER_BIN "${_gl_test_default_bin}" CACHE PATH "GCC/MinGW bin for GL fixture")
     find_package(Python3 QUIET COMPONENTS Interpreter)
     if(Python3_Interpreter_FOUND)
+        if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang" AND NOT CMAKE_C_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC")
+            add_test(NAME display_ring_capture_test COMMAND "${Python3_EXECUTABLE}"
+                "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_display_ring_capture.py"
+                --cc "${CMAKE_C_COMPILER}" --work-dir "${CMAKE_CURRENT_BINARY_DIR}/display-ring-fixture")
+            set_tests_properties(display_ring_capture_test PROPERTIES RUN_SERIAL TRUE)
+        endif()
         if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
             add_test(NAME menu_video_snapshot_test COMMAND ${Python3_EXECUTABLE}
                 ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_menu_video_snapshot.py
@@ -303,6 +313,8 @@ if(BUILD_TESTING)
             "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_mirror_pc_preserved_guards.py")
         add_test(NAME segment_miss_wiring_test COMMAND "${Python3_EXECUTABLE}"
             "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_segment_miss_wiring.py")
+        add_test(NAME overlay_unit_defer_wiring_test COMMAND "${Python3_EXECUTABLE}"
+            "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_overlay_unit_defer_wiring.py")
         if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
             add_test(NAME ws_screen_tags_exec_test COMMAND "${Python3_EXECUTABLE}"
                 "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_ws_screen_tags_exec.py"
@@ -1179,6 +1191,18 @@ if(BUILD_TESTING)
     # the real scheduler (traps.c) and IRQ delivery (interrupts.c). Compiled
     # game, BIOS ROM, CPS continuation and interpreted resumes; no pending
     # IRQ; I_MASK/SR gating; same-edge dedup; null-PC recovery.
+    add_executable(same_thread_rfe_k0_test
+        tests/test_same_thread_rfe_k0.c
+        tests/restore_edge_irq_stubs.c
+        src/traps.c
+        src/interrupts.c)
+    target_include_directories(same_thread_rfe_k0_test PRIVATE include src)
+    foreach(_rfe_mode RANGE 0 3)
+        add_test(NAME same_thread_rfe_k0_mode${_rfe_mode}
+            COMMAND same_thread_rfe_k0_test ${_rfe_mode})
+        set_tests_properties(same_thread_rfe_k0_mode${_rfe_mode} PROPERTIES
+            ENVIRONMENT "PSX_SAME_THREAD_RESTORE=${_rfe_mode}" TIMEOUT 30)
+    endforeach()
     add_executable(restore_edge_irq_replay_test
         tests/test_restore_edge_irq_replay.c
         tests/restore_edge_irq_stubs.c
@@ -1207,6 +1231,9 @@ if(BUILD_TESTING)
     add_executable(spu_fidelity_test tests/test_spu_fidelity.c src/crc32.c)
     target_include_directories(spu_fidelity_test PRIVATE include)
     add_test(NAME spu_fidelity_test COMMAND spu_fidelity_test)
+    add_executable(spu_irq_enable_test tests/test_spu_irq_enable.c src/crc32.c)
+    target_include_directories(spu_irq_enable_test PRIVATE include)
+    add_test(NAME spu_irq_enable_test COMMAND spu_irq_enable_test)
     add_executable(spu_signed_nibble_test tests/test_spu_signed_nibble.c src/crc32.c)
     target_include_directories(spu_signed_nibble_test PRIVATE include)
     add_test(NAME spu_signed_nibble_test COMMAND spu_signed_nibble_test)
@@ -1499,6 +1526,10 @@ if(BUILD_TESTING)
     add_test(NAME mod_resident_test COMMAND mod_resident_test)
 
     if(WIN32)
+        add_executable(autocompile_child_env_test tests/test_autocompile_child_env.c)
+        target_include_directories(autocompile_child_env_test PRIVATE src)
+        add_test(NAME autocompile_child_env_test COMMAND autocompile_child_env_test)
+
         add_executable(autocompile_publication_test
             tests/test_autocompile_publication.c
             src/autocompile.c)
@@ -1554,6 +1585,10 @@ if(BUILD_TESTING)
     add_executable(audio_depletion_test tests/test_audio_depletion.c)
     target_include_directories(audio_depletion_test PRIVATE src)
     add_test(NAME audio_depletion_test COMMAND audio_depletion_test)
+
+    add_executable(cdrom_read_motor_test tests/test_cdrom_read_motor.c)
+    target_include_directories(cdrom_read_motor_test PRIVATE include src)
+    add_test(NAME cdrom_read_motor_test COMMAND cdrom_read_motor_test)
 
     add_executable(cdrom_getlocl_test tests/test_cdrom_getlocl.c)
     target_include_directories(cdrom_getlocl_test PRIVATE include src)
@@ -1896,6 +1931,13 @@ if(BUILD_TESTING)
         add_test(NAME netplay_input_hist_test COMMAND netplay_input_hist_test)
     endif()
 
+    # IRQ policy for nested overlay call units: IRQs are delivered inside a
+    # unit (a callee that polls for an IRQ-set flag, libcard MemCardSync, must
+    # not starve: LoD "Checking MEMORY CARD" hang). Header-only, no runtime link.
+    add_executable(overlay_unit_defer_test tests/test_overlay_unit_defer.c)
+    target_include_directories(overlay_unit_defer_test PRIVATE src)
+    add_test(NAME overlay_unit_defer_test COMMAND overlay_unit_defer_test)
+
     add_executable(overlay_store_cycle_barrier_test
         tests/test_overlay_store_cycle_barrier.c)
     target_include_directories(overlay_store_cycle_barrier_test PRIVATE include)
@@ -1954,6 +1996,15 @@ if(BUILD_TESTING)
     target_include_directories(spu_pitch_zero_test PRIVATE include)
     add_test(NAME spu_pitch_zero_test
              COMMAND spu_pitch_zero_test)
+
+    add_executable(spu_pitch_modulation_test tests/test_spu_pitch_modulation.c)
+    target_include_directories(spu_pitch_modulation_test PRIVATE include)
+    add_test(NAME spu_pitch_modulation_test COMMAND spu_pitch_modulation_test)
+    # Our voice-by-voice render carries the previous voice per frame for PMON:
+    # it must give the frame-by-frame render's samples.
+    add_executable(spu_pmon_render_paths_test tests/test_spu_pmon_render_paths.c)
+    target_include_directories(spu_pmon_render_paths_test PRIVATE include)
+    add_test(NAME spu_pmon_render_paths_test COMMAND spu_pmon_render_paths_test)
 
     # Guest-clocked SPU: accesses advance it to the current cycle (beads-eio.3.321).
     add_executable(spu_guest_clock_test tests/test_spu_guest_clock.c)
@@ -2266,4 +2317,16 @@ if(NOT MSVC AND EXISTS "${BEETLE_LIB}")
     endif()
 elseif(NOT MSVC)
     message(STATUS "psx-beetle: libmednafen_psx.a not found - skipping psx-beetle")
+endif()
+
+# Focused GPUSTAT fixture: whole-program optimization discards unused renderer paths.
+if(BUILD_TESTING AND CMAKE_C_COMPILER_ID STREQUAL "GNU")
+    add_executable(gpu_texture_disable_status_test tests/test_gpu_texture_disable_status.c)
+    target_include_directories(gpu_texture_disable_status_test PRIVATE include)
+    target_compile_definitions(gpu_texture_disable_status_test PRIVATE PSX_ENABLE_BLOCK_CYCLES=1 PSX_NO_DEBUG_TOOLS=1)
+    target_compile_options(gpu_texture_disable_status_test PRIVATE -O2 -fwhole-program)
+    if(NOT WIN32)
+        target_link_libraries(gpu_texture_disable_status_test PRIVATE m)
+    endif()
+    add_test(NAME gpu_texture_disable_status_test COMMAND gpu_texture_disable_status_test)
 endif()

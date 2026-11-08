@@ -45,9 +45,6 @@ been checked against real hardware here.
 
 ## 3. Open gaps
 
-- **G1 [MED] 4-bit output.** Depth 0 outputs one byte per pixel, like depth
-  1. Going by its name, a 4-bit depth packs two pixels per byte. This affects
-  MDEC texture decompression only, not FMV. (Spec section 7.)
 - **G2 [MED] No FIFO / streaming model.** With a one-shot decode:
   - the remaining-words field (status bits 0-15) collapses as soon as the
     input is buffered;
@@ -62,10 +59,10 @@ been checked against real hardware here.
 - **G4 [LOW] q = 0 placement.** The decoder keeps the zig-zag placement when
   the quantiser product is 0. psx-spx describes that mode as storing without
   the zig-zag. Unverified on hardware. (Spec 4.3 and section 7.)
-- **G5 [LOW] Trailing padding.** A run of 0xFE00 at the very end of a
-  command's input becomes one more block (qscale 63, DC -512). In
-  monochrome mode it is emitted. Movies are unaffected, because the colour
-  path discards the incomplete macroblock.
+- **G1 and G5, closed 2026-11-08** (upstream `bb47ac5d`): depth 0 packs two
+  pixels per byte, and a trailing run of 0xFE00 no longer becomes a block.
+  Both touch monochrome decodes (texture decompression) only; movies were
+  unaffected.
 
 ## 4. Validation
 
