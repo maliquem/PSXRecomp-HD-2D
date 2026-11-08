@@ -8438,6 +8438,7 @@ int gl_renderer_init_context(SDL_Window *win) {
         return 0;
     }
     hdr_init_context();   /* PSX_HDR: did the window get its float buffer? */
+    pp_init_context();    /* the picture between post-effect stages takes the window's format */
     return 1;
 }
 

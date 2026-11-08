@@ -315,6 +315,9 @@ int   gl_renderer_shadow_front_sign(void);
  * (keep), reset clears the means. */
 void  gl_renderer_postfx_timing(int on, int reset);
 int   gl_renderer_postfx_timing_json(char *out, int cap);
+/* Work skipped that cannot change a pixel (gl_postfx.inc s_pfx_cuts): 1 on,
+ * 0 the old way (TCP postfx_cuts, to compare); -1 reads. Returns the state. */
+int   gl_renderer_postfx_cuts(int on);
 void  gl_renderer_clear_post_uniforms(void);
 int   gl_renderer_post_shader_loaded(void);
 typedef struct {

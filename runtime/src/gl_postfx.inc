@@ -153,6 +153,23 @@ static float  s_dfill_ctr_x0 = 0.0f, s_dfill_ctr_x1 = 0.0f;
 static GLuint s_dep2_tex = 0, s_dep2_fbo = 0, s_dfill_prog = 0;
 static GLint  s_dfill_uMode = -1, s_dfill_uD = -1, s_dfill_uA = -1, s_dfill_uB = -1, s_dfill_uNat = -1, s_dfill_uH = -1;
 static int    s_dep2_w = 0, s_dep2_h = 0;
+/* Work that cannot change a pixel, skipped (the mask's clear, the picture
+ * kept between stages below). TCP postfx_cuts {on:0} goes back to the old
+ * way, to compare both in one game. */
+static int s_pfx_cuts = 1;
+/* The picture between stages: a stage's last pass draws into s_pp_tex (one of
+ * two, in turn) and the next stage reads it as its `source`, instead of
+ * drawing into the window and the next stage copying the window back
+ * (post_copy_window, a full-size copy per stage). The window takes the picture
+ * once, after the last stage (pp_flush). The same pixels: the textures take the
+ * window's own format (s_pp_fmt), filtered as the copy is, and the pass covers
+ * the same pixels at the same gl_FragCoord, as the rect starts at the window's
+ * corner (anywhere else the window keeps the picture, as before). Not with HDR
+ * (a float window rounds twice) nor before a last pass that blends into the
+ * window. s_pp_cur: the texture holding the picture, -1 the window. */
+static GLuint s_pp_tex[2], s_pp_fbo[2];
+static int    s_pp_w = 0, s_pp_h = 0, s_pp_cur = -1;
+static GLenum s_pp_fmt = 0;   /* GL_RGBA8 or GL_RGB8 (a window without alpha); 0 none */
 static GLuint s_mask_tex = 0, s_mask_fbo = 0, s_mask_prog = 0, s_mask_map_prog = 0;
 /* the TCP postfx_timing stamps of the inputs (below): PXI_MASK_MAP is the part
  * of PXI_MASK that maps the marks to the window, stamped while s_pxi_inner */
@@ -406,9 +423,22 @@ static int pfx_surf_mask(int k, GLuint rb, int tw, int th, const int r[4]) {
     }
     p_glBindFramebuffer(PSXGL_FRAMEBUFFER, m->fbo);
     glViewport(r[0], r[1], r[2] - r[0], r[3] - r[1]);
-    p_glUseProgram(s_mask_prog);
-    p_glUniform1f(s_mask_uV, 0.0f);
-    post_fullscreen(s_mask_prog, s_mask_uUv);
+    if (s_pfx_cuts) {
+        /* 0 over the whole texture, not a quad over the rect: only the rect is
+         * read (pfx_mask_map), and a clear costs next to nothing (in the sgl, a
+         * render pass that starts cleared) */
+        GLfloat cc[4];
+        glGetFloatv(GL_COLOR_CLEAR_VALUE, cc);
+        glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+        glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+        glClear(GL_COLOR_BUFFER_BIT);
+        glClearColor(cc[0], cc[1], cc[2], cc[3]);
+        p_glUseProgram(s_mask_prog);
+    } else {
+        p_glUseProgram(s_mask_prog);
+        p_glUniform1f(s_mask_uV, 0.0f);
+        post_fullscreen(s_mask_prog, s_mask_uUv);
+    }
     glEnable(GL_STENCIL_TEST);
     glStencilOp(GL_KEEP, GL_KEEP, GL_KEEP);
     if (r8) {   /* each mark's bit added (exact in 8 bits: distinct bits) */
@@ -3122,6 +3152,12 @@ static void pxi_stamp(int which, int end) {
     if (end) s_pxi_used[s_pxt_slot][which] = 1;
 }
 void gl_renderer_postfx_timing_auto(int on) { atomic_store(&s_pxt_meter, on ? 1 : 0); }
+/* TCP postfx_cuts: 1 on (the default), 0 the old way; -1 reads */
+int gl_renderer_postfx_cuts(int on) {
+    GL_RT_SYNC("postfx_cuts");
+    if (on >= 0) s_pfx_cuts = on ? 1 : 0;
+    return s_pfx_cuts;
+}
 void gl_renderer_postfx_gpu_totals(uint64_t *presents, uint64_t *ns) {
     *ns = atomic_load(&s_pxt_tot_ns);
     *presents = atomic_load(&s_pxt_tot_presents);
@@ -3224,9 +3260,64 @@ int gl_renderer_postfx_timing_json(char *out, int cap) {
     return k;
 }
 
-static int pfx_stage_run(PfxStage *st, int generated, int lx, int ly, int lw, int lh) {
+/* After the context exists: the window's colour format, which the picture
+ * between stages takes (s_pp_fmt). The sgl's default framebuffer is RGBA8
+ * without HDR; GL's is asked (8 bits a channel, fixed point). */
+static void pp_init_context(void) {
+    s_pp_fmt = 0;
+    s_pp_w = s_pp_h = 0; s_pp_cur = -1;
+    s_pp_tex[0] = s_pp_tex[1] = s_pp_fbo[0] = s_pp_fbo[1] = 0;
+    if (gl_renderer_hdr_wanted() || s_hdr_on) return;
+    if (gl_api_impl() == 1) { s_pp_fmt = GL_RGBA8; return; }
+    typedef void (APIENTRY *PFN_gfap)(GLenum, GLenum, GLenum, GLint *);
+    PFN_gfap gfap = (PFN_gfap)SDL_GL_GetProcAddress("glGetFramebufferAttachmentParameteriv");
+    if (!gfap) return;
+    GLint type = 0, r = 0, g = 0, b = 0, a = -1;
+    p_glBindFramebuffer_raw(PSXGL_FRAMEBUFFER, 0);
+    while (glGetError() != GL_NO_ERROR) {}
+    gfap(PSXGL_FRAMEBUFFER, GL_BACK_LEFT, 0x8211 /* COMPONENT_TYPE */, &type);
+    gfap(PSXGL_FRAMEBUFFER, GL_BACK_LEFT, 0x8212 /* RED_SIZE */, &r);
+    gfap(PSXGL_FRAMEBUFFER, GL_BACK_LEFT, 0x8213 /* GREEN_SIZE */, &g);
+    gfap(PSXGL_FRAMEBUFFER, GL_BACK_LEFT, 0x8214 /* BLUE_SIZE */, &b);
+    gfap(PSXGL_FRAMEBUFFER, GL_BACK_LEFT, 0x8215 /* ALPHA_SIZE */, &a);
+    if (glGetError() != GL_NO_ERROR) return;
+    if (type != 0x8C17 /* UNSIGNED_NORMALIZED */ || r != 8 || g != 8 || b != 8) return;
+    s_pp_fmt = a == 8 ? GL_RGBA8 : a == 0 ? GL_RGB8 : 0;
+}
+static void pp_ensure(int lw, int lh) {
+    if (s_pp_w == lw && s_pp_h == lh && s_pp_tex[0]) return;
+    for (int k = 0; k < 2; k++) {
+        if (!s_pp_tex[k]) glGenTextures(1, &s_pp_tex[k]);
+        glBindTexture(GL_TEXTURE_2D, s_pp_tex[k]);
+        glTexImage2D(GL_TEXTURE_2D, 0, (GLint)s_pp_fmt, lw, lh, 0, s_pp_fmt == GL_RGB8 ? GL_RGB : GL_RGBA,
+                     GL_UNSIGNED_BYTE, NULL);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);   /* as s_post_copy_tex */
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        pfx_fbo_attach(&s_pp_fbo[k], s_pp_tex[k]);
+    }
+    glBindTexture(GL_TEXTURE_2D, 0);
+    s_pp_w = lw; s_pp_h = lh;
+}
+/* The picture back into the window rect (an exact copy: the same format). */
+static void pp_flush(int lx, int ly, int lw, int lh) {
+    if (s_pp_cur < 0) return;
+    p_glBindFramebuffer(PSXGL_READ_FRAMEBUFFER, s_pp_fbo[s_pp_cur]);
+    p_glBindFramebuffer(PSXGL_DRAW_FRAMEBUFFER, 0);
+    p_glBlitFramebuffer(0, 0, lw, lh, lx, ly, lx + lw, ly + lh, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+    p_glBindFramebuffer(PSXGL_FRAMEBUFFER, 0);
+    s_pp_cur = -1;
+}
+
+/* pp: the last pass may draw into s_pp_tex (the caller knows the rect starts
+ * at the window's corner and the format allows it) */
+static int pfx_stage_run(PfxStage *st, int generated, int lx, int ly, int lw, int lh, int pp) {
     PfxChain *c = &st->chain;
     int copied = 0;
+    /* where this stage reads the picture: the texture holding it, or the copy of the window */
+    const GLuint src_tex = s_pp_cur >= 0 ? s_pp_tex[s_pp_cur] : 0;
+    const int src_fbo = s_pp_cur;
     for (int i = 0; i < c->npasses; i++) {
         const PfxPass *ps = &c->pass[i];
         const int last = i == c->npasses - 1;
@@ -3288,8 +3379,10 @@ static int pfx_stage_run(PfxStage *st, int generated, int lx, int ly, int lw, in
         if (reads_fire && s_fire_built != s_pfx_presents) pfx_fire_build(ps, (float)lw / (float)lh * s_pfx_natx, lw, lh);
         for (int k = 0; k < ps->ninputs; k++) {
             if (ps->in[k].from == PFX_IN_SOURCE && !copied) {
-                post_copy_bind(lw, lh);
-                post_copy_window(lx, ly, lw, lh);
+                if (!src_tex) {
+                    post_copy_bind(lw, lh);
+                    post_copy_window(lx, ly, lw, lh);
+                }
                 copied = 1;
             } else if (ps->in[k].from == PFX_IN_SOURCE_DOWN) {
                 if (st->dw[i] != w || st->dh[i] != h) {
@@ -3297,19 +3390,31 @@ static int pfx_stage_run(PfxStage *st, int generated, int lx, int ly, int lw, in
                     pfx_fbo_attach(&st->dfbo[i], st->dtex[i]);
                     st->dw[i] = w; st->dh[i] = h;
                 }
-                p_glBindFramebuffer(PSXGL_READ_FRAMEBUFFER, 0);
+                p_glBindFramebuffer(PSXGL_READ_FRAMEBUFFER, src_tex ? s_pp_fbo[src_fbo] : 0);
                 p_glBindFramebuffer(PSXGL_DRAW_FRAMEBUFFER, st->dfbo[i]);
-                p_glBlitFramebuffer(lx, ly, lx + lw, ly + lh, 0, 0, w, h, GL_COLOR_BUFFER_BIT, GL_LINEAR);
+                if (src_tex) p_glBlitFramebuffer(0, 0, lw, lh, 0, 0, w, h, GL_COLOR_BUFFER_BIT, GL_LINEAR);
+                else p_glBlitFramebuffer(lx, ly, lx + lw, ly + lh, 0, 0, w, h, GL_COLOR_BUFFER_BIT, GL_LINEAR);
             }
         }
-        if (last) { p_glBindFramebuffer(PSXGL_FRAMEBUFFER, 0); glViewport(lx, ly, lw, lh); }
+        /* the last pass into the other texture (pp), or into the window: a
+         * blending one blends into the picture there, so it goes back first */
+        const int to_pp = last && pp && ps->blend == PFX_BLEND_REPLACE;
+        const int pp_next = src_fbo >= 0 ? 1 - src_fbo : 0;
+        if (last && to_pp) {
+            pp_ensure(lw, lh);
+            p_glBindFramebuffer(PSXGL_FRAMEBUFFER, s_pp_fbo[pp_next]);
+            glViewport(0, 0, lw, lh);   /* lx = ly = 0: the window's own gl_FragCoord */
+        } else if (last) {
+            pp_flush(lx, ly, lw, lh);
+            p_glBindFramebuffer(PSXGL_FRAMEBUFFER, 0); glViewport(lx, ly, lw, lh);
+        }
         else { p_glBindFramebuffer(PSXGL_FRAMEBUFFER, st->fbo[i]); glViewport(0, 0, w, h); }
         const GLuint prog = st->prog[i];
         const PfxLocs *L = &st->loc[i];
         p_glUseProgram(prog);
         for (int k = 0; k < ps->ninputs; k++) {
             const int from = ps->in[k].from;
-            const GLuint t = from == PFX_IN_SOURCE ? s_post_copy_tex
+            const GLuint t = from == PFX_IN_SOURCE ? (src_tex ? src_tex : s_post_copy_tex)
                            : from == PFX_IN_SOURCE_DOWN ? st->dtex[i]
                            : (from == PFX_IN_MASK || from == PFX_IN_MASK3D) ? s_mask_tex
                            : from == PFX_IN_DEPTH ? s_dep_tex
@@ -3352,6 +3457,7 @@ static int pfx_stage_run(PfxStage *st, int generated, int lx, int ly, int lw, in
         }
         post_fullscreen(prog, L->fixed[PFX_LOC_UV]);
         if (ps->blend != PFX_BLEND_REPLACE) glDisable(GL_BLEND);
+        if (to_pp) s_pp_cur = pp_next;
     }
     pxt_stamp(c->npasses);
     if (s_pxt_live && s_pxt_stage >= 0) s_pxt_used[s_pxt_slot][s_pxt_stage] = (uint8_t)(c->npasses + 1);
@@ -3410,6 +3516,8 @@ static void postfx_present(int fresh, int with_aa, int lx, int ly, int lw, int l
     pfx_state_save(&saved);
     glDisable(GL_BLEND); glDisable(GL_DEPTH_TEST); glDisable(GL_SCISSOR_TEST); glDisable(GL_STENCIL_TEST);
     int mask_done = 0, mask_ok = 0, dep_done = 0, dep_ok = 0;
+    const int pp = s_pfx_cuts && s_pp_fmt && lx == 0 && ly == 0;
+    s_pp_cur = -1;
     for (int i = 0; i < PFX_NSTAGES; i++) {
         if (!pfx_stage_on(i)) continue;
         if ((i == PFX_STAGE_AA || i == PFX_STAGE_HQ) && !with_aa) continue;
@@ -3463,7 +3571,8 @@ static void postfx_present(int fresh, int with_aa, int lx, int ly, int lw, int l
 #endif
         int ran = 0;
         s_pxt_stage = with_aa ? i : -1;
-        for (int r = 0; r < reps; r++) ran = pfx_stage_run(st, !with_aa, lx, ly, lw, lh);
+        if (reps > 1) pp_flush(lx, ly, lw, lh);   /* timed repeats: each from the window */
+        for (int r = 0; r < reps; r++) ran = pfx_stage_run(st, !with_aa, lx, ly, lw, lh, pp && reps == 1);
         s_pxt_stage = -1;
 #ifndef PSX_NO_DEBUG_TOOLS
         if (sum && ran) {
@@ -3477,6 +3586,7 @@ static void postfx_present(int fresh, int with_aa, int lx, int ly, int lw, int l
         if (i == PFX_STAGE_BLOOM) s_bloom_passes++;
         if (i == PFX_STAGE_AA || i == PFX_STAGE_HQ) s_paa_passes++;
     }
+    pp_flush(lx, ly, lw, lh);   /* the picture back into the window */
     if (hdr_mask_wanted()) {    /* HDR reads the masks at the swap (gl_hdr.inc) */
         if (!mask_done) { mask_ok = pfx_mask_build(src_fresh, lw, lh); mask_done = 1; }
         hdr_mask_noted(mask_ok, lx, ly, lw, lh);
@@ -3737,6 +3847,7 @@ static void postfx_release(void) {
     memset(s_smask, 0, sizeof s_smask);
     s_mask_w = s_mask_h = 0; s_mask_ok = 0; s_mask_src_valid = 0;
     s_dep_tex = s_dep_fbo = 0; s_dep_w = s_dep_h = 0; s_dep_ok = 0;
+    s_pp_tex[0] = s_pp_tex[1] = s_pp_fbo[0] = s_pp_fbo[1] = 0; s_pp_w = s_pp_h = 0; s_pp_cur = -1;
     pillar_release();
 }
 

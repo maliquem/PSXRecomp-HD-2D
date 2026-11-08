@@ -30,13 +30,29 @@ float sz_at(vec2 uv)
 
 vec3 pos_at(vec2 uv, float z, vec2 nat) { return vec3(((uv - 0.5) * nat + vec2(-u_pp.x, u_pp.y)) * z / u_proj.x, z); }
 
+// the scenery's normal at uv0 (depth z, place P), from the closer neighbour on
+// each axis (as in ao.glsl)
+vec3 scenery_normal(vec2 uv0, float z, vec3 P, vec2 nat)
+{
+    vec2 px = max(1.0 / u_size, 1.0 / g_grid);
+    float zr = sz_at(uv0 + vec2(px.x, 0.0)), zl = sz_at(uv0 - vec2(px.x, 0.0));
+    float zu = sz_at(uv0 + vec2(0.0, px.y)), zd = sz_at(uv0 - vec2(0.0, px.y));
+    vec3 dx = (zr > 0.0 && (abs(zr - z) <= abs(zl - z) || zl <= 0.0))
+            ? pos_at(uv0 + vec2(px.x, 0.0), zr, nat) - P : P - pos_at(uv0 - vec2(px.x, 0.0), zl, nat);
+    vec3 dy = (zu > 0.0 && (abs(zu - z) <= abs(zd - z) || zd <= 0.0))
+            ? pos_at(uv0 + vec2(0.0, px.y), zu, nat) - P : P - pos_at(uv0 - vec2(0.0, px.y), zd, nat);
+    vec3 n = normalize(cross(dx, dy));
+    return dot(n, P) > 0.0 ? -n : n;   // face the camera, along its ray
+}
+
 void main()
 {
     vec2 nat = vec2(u_proj.y * u_size.x / u_size.y * (u_natx > 0.0 ? u_natx : 1.0), u_proj.y);
     g_grid = nat * max(u_proj.z, 1.0);
     vec2 uv0 = snap(v_uv);
     float z = sz_at(uv0);
-    vec3 P, n;
+    vec3 P, n = vec3(0.0);
+    bool scenery = false;   // its normal taken at the first emitter seen (none around: not needed)
     float zs = texture(u_spr, v_uv).r;
     if (zs > 0.0 && zs < 50000.0 && texture(u_m3, v_uv).g < 0.5) {   // a sprite standing here
         uv0 = v_uv; z = zs;
@@ -45,17 +61,7 @@ void main()
     } else {
         if (z <= 0.0) { o = vec4(0.0); return; }
         P = pos_at(uv0, z, nat);
-
-        // normal from the closer neighbour on each axis (as in ao.glsl)
-        vec2 px = max(1.0 / u_size, 1.0 / g_grid);
-        float zr = sz_at(uv0 + vec2(px.x, 0.0)), zl = sz_at(uv0 - vec2(px.x, 0.0));
-        float zu = sz_at(uv0 + vec2(0.0, px.y)), zd = sz_at(uv0 - vec2(0.0, px.y));
-        vec3 dx = (zr > 0.0 && (abs(zr - z) <= abs(zl - z) || zl <= 0.0))
-                ? pos_at(uv0 + vec2(px.x, 0.0), zr, nat) - P : P - pos_at(uv0 - vec2(px.x, 0.0), zl, nat);
-        vec3 dy = (zu > 0.0 && (abs(zu - z) <= abs(zd - z) || zd <= 0.0))
-                ? pos_at(uv0 + vec2(0.0, px.y), zu, nat) - P : P - pos_at(uv0 - vec2(0.0, px.y), zd, nat);
-        n = normalize(cross(dx, dy));
-        if (dot(n, P) > 0.0) n = -n;   // face the camera, along its ray
+        scenery = true;
     }
 
     float rw = u_light.x * z / u_proj.x;        // reach in world units at this depth
@@ -70,6 +76,7 @@ void main()
         vec4 e = texture(u_e, suv);
         float y = dot(e.rgb, LUMA);
         if (y < 1e-4) continue;
+        if (scenery) { n = scenery_normal(uv0, z, P, nat); scenery = false; }
         float zs = e.a / y;
         if (zs < 1.0) zs = z;                    // emitter over the void: take this depth
         vec3 v = pos_at(suv, zs, nat) - P;
