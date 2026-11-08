@@ -27,6 +27,9 @@ bool spu_shadow_enabled(void) { return false; }
 bool spu_shadow_active(void) { return false; }
 void spu_shadow_reset(void) {}
 void spu_shadow_process(int16_t *canon, int frames) { (void)canon; (void)frames; }
+/* tools/golden.py hook (golden_hash.c): off here. */
+int g_golden_on;
+void golden_spu_block(const int16_t *stereo, uint32_t frames) { (void)stereo; (void)frames; }
 
 static int failures;
 #define CHECK(condition, message)                                               \
