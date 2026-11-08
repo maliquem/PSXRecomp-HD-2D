@@ -2000,6 +2000,11 @@ if(BUILD_TESTING)
     add_executable(spu_pitch_modulation_test tests/test_spu_pitch_modulation.c)
     target_include_directories(spu_pitch_modulation_test PRIVATE include)
     add_test(NAME spu_pitch_modulation_test COMMAND spu_pitch_modulation_test)
+    # Our voice-by-voice render carries the previous voice per frame for PMON:
+    # it must give the frame-by-frame render's samples.
+    add_executable(spu_pmon_render_paths_test tests/test_spu_pmon_render_paths.c)
+    target_include_directories(spu_pmon_render_paths_test PRIVATE include)
+    add_test(NAME spu_pmon_render_paths_test COMMAND spu_pmon_render_paths_test)
 
     # Guest-clocked SPU: accesses advance it to the current cycle (beads-eio.3.321).
     add_executable(spu_guest_clock_test tests/test_spu_guest_clock.c)
