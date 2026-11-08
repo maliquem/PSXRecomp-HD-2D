@@ -164,12 +164,13 @@ static int s_pfx_cuts = 1;
  * once, after the last stage (pp_flush). The same pixels: the textures take the
  * window's own format (s_pp_fmt), filtered as the copy is, and the pass covers
  * the same pixels at the same gl_FragCoord, as the rect starts at the window's
- * corner (anywhere else the window keeps the picture, as before). Not with HDR
- * (a float window rounds twice) nor before a last pass that blends into the
+ * corner (anywhere else the window keeps the picture, as before). Only in the
+ * sgl (pp_init_context: GL drew a few pixels a level apart), not with HDR (a
+ * float window rounds twice), nor before a last pass that blends into the
  * window. s_pp_cur: the texture holding the picture, -1 the window. */
 static GLuint s_pp_tex[2], s_pp_fbo[2];
 static int    s_pp_w = 0, s_pp_h = 0, s_pp_cur = -1;
-static GLenum s_pp_fmt = 0;   /* GL_RGBA8 or GL_RGB8 (a window without alpha); 0 none */
+static GLenum s_pp_fmt = 0;   /* GL_RGBA8 (the sgl without HDR); 0: the window keeps the picture */
 /* TCP postfx_cuts: presents with effects, the window copies skipped (a stage that read
  * the picture kept off the window), and the last present's rect corner */
 static uint64_t s_pp_presents = 0, s_pp_skipped = 0;
@@ -3268,36 +3269,26 @@ int gl_renderer_postfx_timing_json(char *out, int cap) {
     return k;
 }
 
-/* After the context exists: the window's colour format, which the picture
- * between stages takes (s_pp_fmt). The sgl's default framebuffer is RGBA8
- * without HDR; GL's is asked (8 bits a channel, fixed point). */
+/* After the context exists: the format the picture between stages takes
+ * (s_pp_fmt), the window's. Only the sgl, without HDR: its default
+ * framebuffer is RGBA8 as the textures, the same pipeline writes both. On GL
+ * (NVIDIA, 2026-11-08) the same pass drawn into an RGBA8 texture instead of
+ * the window came out 1 or 2 levels apart on a few dozen pixels of a frame
+ * (the AO's and the grade's last passes, not the light's): the window keeps
+ * the picture there. */
 static void pp_init_context(void) {
     s_pp_fmt = 0;
     s_pp_w = s_pp_h = 0; s_pp_cur = -1;
     s_pp_tex[0] = s_pp_tex[1] = s_pp_fbo[0] = s_pp_fbo[1] = 0;
     if (gl_renderer_hdr_wanted() || s_hdr_on) return;
-    if (gl_api_impl() == 1) { s_pp_fmt = GL_RGBA8; return; }
-    typedef void (APIENTRY *PFN_gfap)(GLenum, GLenum, GLenum, GLint *);
-    PFN_gfap gfap = (PFN_gfap)SDL_GL_GetProcAddress("glGetFramebufferAttachmentParameteriv");
-    if (!gfap) return;
-    GLint type = 0, r = 0, g = 0, b = 0, a = -1;
-    p_glBindFramebuffer_raw(PSXGL_FRAMEBUFFER, 0);
-    while (glGetError() != GL_NO_ERROR) {}
-    gfap(PSXGL_FRAMEBUFFER, GL_BACK_LEFT, 0x8211 /* COMPONENT_TYPE */, &type);
-    gfap(PSXGL_FRAMEBUFFER, GL_BACK_LEFT, 0x8212 /* RED_SIZE */, &r);
-    gfap(PSXGL_FRAMEBUFFER, GL_BACK_LEFT, 0x8213 /* GREEN_SIZE */, &g);
-    gfap(PSXGL_FRAMEBUFFER, GL_BACK_LEFT, 0x8214 /* BLUE_SIZE */, &b);
-    gfap(PSXGL_FRAMEBUFFER, GL_BACK_LEFT, 0x8215 /* ALPHA_SIZE */, &a);
-    if (glGetError() != GL_NO_ERROR) return;
-    if (type != 0x8C17 /* UNSIGNED_NORMALIZED */ || r != 8 || g != 8 || b != 8) return;
-    s_pp_fmt = a == 8 ? GL_RGBA8 : a == 0 ? GL_RGB8 : 0;
+    if (gl_api_impl() == 1) s_pp_fmt = GL_RGBA8;
 }
 static void pp_ensure(int lw, int lh) {
     if (s_pp_w == lw && s_pp_h == lh && s_pp_tex[0]) return;
     for (int k = 0; k < 2; k++) {
         if (!s_pp_tex[k]) glGenTextures(1, &s_pp_tex[k]);
         glBindTexture(GL_TEXTURE_2D, s_pp_tex[k]);
-        glTexImage2D(GL_TEXTURE_2D, 0, (GLint)s_pp_fmt, lw, lh, 0, s_pp_fmt == GL_RGB8 ? GL_RGB : GL_RGBA,
+        glTexImage2D(GL_TEXTURE_2D, 0, (GLint)s_pp_fmt, lw, lh, 0, GL_RGBA,
                      GL_UNSIGNED_BYTE, NULL);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);   /* as s_post_copy_tex */
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);

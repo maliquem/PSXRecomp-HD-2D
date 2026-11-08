@@ -26,11 +26,15 @@ The picture between stages stays off the window: a stage's last pass draws
 into one of two textures and the next stage reads that one as its `source`,
 with no copy; the window takes the picture once, after the last stage. Same
 pixels as copying the window each time: the textures take the window's own
-format (RGBA8, or RGB8 for a window without alpha), filtered as the copy is,
+format (RGBA8), filtered as the copy is,
 and a pass covers the same pixels at the same `gl_FragCoord`. So it runs only
-where that holds: the image starts at the window's corner (a pillarboxed
-picture keeps the old way), no HDR (a float window), and a last pass that
-blends goes into the window, which takes the picture first. The 3D mask's
+where that holds: the sgl (Vulkan), whose window is RGBA8 as the textures; the
+image starts at the window's corner (a pillarboxed picture keeps the old way);
+no HDR (a float window: `[video] hdr` asked for is enough to keep the old way);
+and a last pass that blends goes into the window, which takes the picture
+first. Not on GL: there (NVIDIA, 2026-11-08) the same pass drawn into an RGBA8
+texture instead of the window came out a level or two apart on a few dozen
+pixels of a frame, so the window keeps the picture. The 3D mask's
 slots start cleared (`glClear`, a render pass that starts cleared in the
 sgl) instead of a quad of zeros. TCP `postfx_cuts {"on":0}` puts back the old
 way (each stage from a copy of the window, the quad), to compare both in one
