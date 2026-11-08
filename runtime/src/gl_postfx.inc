@@ -170,7 +170,10 @@ static int s_pfx_cuts = 1;
 static GLuint s_pp_tex[2], s_pp_fbo[2];
 static int    s_pp_w = 0, s_pp_h = 0, s_pp_cur = -1;
 static GLenum s_pp_fmt = 0;   /* GL_RGBA8 or GL_RGB8 (a window without alpha); 0 none */
-static uint64_t s_pp_presents = 0, s_pp_kept = 0;   /* TCP postfx_cuts: presents, and those that kept the picture off the window */
+/* TCP postfx_cuts: presents with effects, the window copies skipped (a stage that read
+ * the picture kept off the window), and the last present's rect corner */
+static uint64_t s_pp_presents = 0, s_pp_skipped = 0;
+static int s_pp_lx = 0, s_pp_ly = 0;
 static GLuint s_mask_tex = 0, s_mask_fbo = 0, s_mask_prog = 0, s_mask_map_prog = 0;
 /* the TCP postfx_timing stamps of the inputs (below): PXI_MASK_MAP is the part
  * of PXI_MASK that maps the marks to the window, stamped while s_pxi_inner */
@@ -3153,12 +3156,14 @@ static void pxi_stamp(int which, int end) {
     if (end) s_pxi_used[s_pxt_slot][which] = 1;
 }
 void gl_renderer_postfx_timing_auto(int on) { atomic_store(&s_pxt_meter, on ? 1 : 0); }
-/* TCP postfx_cuts: 1 on (the default), 0 the old way; -1 reads. counts:
- * the presents with effects, and those that kept the picture off the window */
-int gl_renderer_postfx_cuts(int on, uint64_t counts[2]) {
+/* TCP postfx_cuts: 1 on (the default), 0 the old way; -1 reads. info: the
+ * presents with effects, the window copies skipped, the picture's format
+ * between stages (0: none, the window keeps it), the last rect's corner */
+int gl_renderer_postfx_cuts(int on, uint64_t info[5]) {
     GL_RT_SYNC("postfx_cuts");
     if (on >= 0) s_pfx_cuts = on ? 1 : 0;
-    counts[0] = s_pp_presents; counts[1] = s_pp_kept;
+    info[0] = s_pp_presents; info[1] = s_pp_skipped; info[2] = s_pp_fmt;
+    info[3] = (uint64_t)s_pp_lx; info[4] = (uint64_t)s_pp_ly;
     return s_pfx_cuts;
 }
 void gl_renderer_postfx_gpu_totals(uint64_t *presents, uint64_t *ns) {
@@ -3385,6 +3390,8 @@ static int pfx_stage_run(PfxStage *st, int generated, int lx, int ly, int lw, in
                 if (!src_tex) {
                     post_copy_bind(lw, lh);
                     post_copy_window(lx, ly, lw, lh);
+                } else {
+                    s_pp_skipped++;
                 }
                 copied = 1;
             } else if (ps->in[k].from == PFX_IN_SOURCE_DOWN) {
@@ -3590,7 +3597,7 @@ static void postfx_present(int fresh, int with_aa, int lx, int ly, int lw, int l
         if (i == PFX_STAGE_AA || i == PFX_STAGE_HQ) s_paa_passes++;
     }
     s_pp_presents++;
-    if (s_pp_cur >= 0) s_pp_kept++;
+    s_pp_lx = lx; s_pp_ly = ly;
     pp_flush(lx, ly, lw, lh);   /* the picture back into the window */
     if (hdr_mask_wanted()) {    /* HDR reads the masks at the swap (gl_hdr.inc) */
         if (!mask_done) { mask_ok = pfx_mask_build(src_fresh, lw, lh); mask_done = 1; }
