@@ -148,6 +148,9 @@ float light_reach(vec3 P, vec3 n, vec3 L, float R, vec4 s)
     float face = dot(n, n) > 0.0 ? clamp(0.25 + 0.75 * dot(n, d / dist), 0.0, 1.0) : 0.7;
     return att * face * spot(s, -d / max(dist, 1e-4));
 }
+// could a light at L reaching R reach P? (false: light_reach gives 0 there,
+// whatever the normal; the margin keeps a point at the very edge as before)
+bool reach_near(vec3 P, vec3 L, float R) { return R > 0.0 && length(L - P) < R * 1.001 + 0.01; }
 // light li at P with normal n: x = how much reaches it, y = how much would
 // but something stands in the way (its shadow); k: its size (1 = a
 // campfire's), its reach fl.w * k (the map's depth: fl.w)
@@ -379,7 +382,19 @@ void main()
         if (z > 0.0) {
             vec3 P = pos_at(v_uv, z);
             vec3 n = vec3(0.0);
-            if (!is_spr) {
+            // the normal (8 depth reads) only where something takes it: the
+            // windows' light (its bounce, at every point) or a light whose
+            // reach takes in P
+            bool need = u_wn.y > 0.5 && u_wn.x > 0.0;
+            for (int i = 0; i < 4; i++) {
+                if (need || float(i) >= u_flmap.y) break;
+                need = reach_near(P, u_fl[i].xyz, u_fl[i].w * u_flx[i].x);
+            }
+            for (int i = 0; i < 8; i++) {
+                if (need || float(i) >= u_aln.x) break;
+                need = reach_near(P, u_al[i].xyz, u_al[i].w);
+            }
+            if (!is_spr && need) {
                 vec2 p1 = 1.0 / g_nat;
                 n = normalize(cross(face_step(v_uv, P, z, vec2(p1.x, 0.0)),
                                     face_step(v_uv, P, z, vec2(0.0, p1.y))) + vec3(0.0, 0.0, -1e-6));
