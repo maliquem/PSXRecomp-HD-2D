@@ -241,6 +241,11 @@ above a deck), and each sprite's silhouette laid along that light onto the
 floor at its feet, so its shadow lies there whole; it reaches `u_sprsun` y
 world units down at most (40: none on a floor far below, the sand under a
 deck) and is `u_sprsun` z units soft (3). The scenery keeps the real sun.
+`u_ssbox` (framework): where the sprites land in `sprshadow`, centre and half
+size in map units with two texels more for the filter (half size x < 0: none
+drawn; 0: not known, every search runs). A pixel whose search reaches none of
+them would read the cleared depth at every tap and find no blocker, so
+`sun.glsl` skips it (`spr_out`): the same picture, fewer reads.
 The bias that keeps a face from shading itself (tens of world
 units on a floor under a low sun) also lifts a wall's shadow off its foot,
 a lit line where wall and floor meet: `u_shadow` w (2 in the presets, 0 =
