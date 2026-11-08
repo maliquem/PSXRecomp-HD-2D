@@ -139,6 +139,8 @@ float shadow_at(vec3 P, float bias, float tilt, float spr, float scn)
         bs /= 9.0;
     }
     bs *= spr;
+    // sprites only (u_ss.y 0): the scenery's term is multiplied by 0 below, so its taps are skipped
+    if (scn < 0.5) return 1.0 - bs * u_shadow.z;
     float bw = 0.0;
     if (u_soft.x > 0.0) {
         float w = u_soft.x;
