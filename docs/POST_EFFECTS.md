@@ -5,7 +5,7 @@ default. With none active, nothing below runs and the frame is the stock one.
 
 Every effect is a **chain** of full-screen fragment passes run by one
 executor (`runtime/src/gl_postfx.inc`). Three stages run in order, each from
-a fresh copy of the image:
+the image the one before left (below: how it is kept between them):
 
 | stage | switch | chain |
 |---|---|---|
@@ -22,6 +22,19 @@ only the rest (bloom's masked composite, over their own picture).
 
 `source` is a full-size copy of the image, made only when a pass that runs
 reads it; `source_down` is the image blitted straight to that pass's size.
+The picture between stages stays off the window: a stage's last pass draws
+into one of two textures and the next stage reads that one as its `source`,
+with no copy; the window takes the picture once, after the last stage. Same
+pixels as copying the window each time: the textures take the window's own
+format (RGBA8, or RGB8 for a window without alpha), filtered as the copy is,
+and a pass covers the same pixels at the same `gl_FragCoord`. So it runs only
+where that holds: the image starts at the window's corner (a pillarboxed
+picture keeps the old way), no HDR (a float window), and a last pass that
+blends goes into the window, which takes the picture first. The 3D mask's
+slots start cleared (`glClear`, a render pass that starts cleared in the
+sgl) instead of a quad of zeros. TCP `postfx_cuts {"on":0}` puts back the old
+way (each stage from a copy of the window, the quad), to compare both in one
+game; `{"on":1}` (the default) back, `{}` reads.
 Bloom reads only `source_down` and composites with `blend screen`, so it never
 copies the full image. The executor
 owns targets, programs, uniforms and GL state, and puts back everything it
@@ -314,6 +327,13 @@ flickers it (`u_flicker`, over `u_time`). `u_firecol` w is the strength (0:
 off, nothing built); its rgb is the colour of a light whose glow gives none.
 While a light casts, the game's own blobs are hidden in an area with no sun
 too. A light whose `u_firecol` w is 0 casts nothing.
+The scenery's normal (eight depth reads in `light-out.glsl`, four in
+`light-gather.glsl`) is taken only where something uses it: in the out pass,
+when a window's light is on (its bounce reaches every point) or a light's
+reach takes in the point (farther off a light gives 0 whatever the normal; a
+small margin keeps a point at the very edge as it was), in the gather at the
+first emitter its spiral finds. The same light where it reaches, less work
+where none does.
 
 TCP `shadow_cache` adds `lights` (each: world, screen, z, size, 3D after it,
 rgb, hits, active), `glow_pieces`, `glow_now`, `points_now`, `tris_now` and

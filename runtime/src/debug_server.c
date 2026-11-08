@@ -9124,11 +9124,15 @@ static void handle_shadow_hide(int id, const char *json)
 }
 
 /* postfx_cuts: {"on":0} draws the effects the old way (every stage from a
- * copy of the window, the mask cleared by a quad), {"on":1} back; {} reads */
+ * copy of the window, the mask cleared by a quad), {"on":1} back; {} reads.
+ * The reply counts the presents with effects and those that kept the
+ * picture off the window between stages. */
 static void handle_postfx_cuts(int id, const char *json)
 {
-    const int on = gl_renderer_postfx_cuts(json_get_int(json, "on", -1));
-    send_fmt("{\"id\":%d,\"ok\":true,\"on\":%d}", id, on);
+    uint64_t c[2];
+    const int on = gl_renderer_postfx_cuts(json_get_int(json, "on", -1), c);
+    send_fmt("{\"id\":%d,\"ok\":true,\"on\":%d,\"presents\":%llu,\"kept\":%llu}", id, on,
+             (unsigned long long)c[0], (unsigned long long)c[1]);
 }
 
 static void handle_postfx_timing(int id, const char *json)
