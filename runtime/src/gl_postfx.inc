@@ -154,6 +154,11 @@ static GLuint s_dep2_tex = 0, s_dep2_fbo = 0, s_dfill_prog = 0;
 static GLint  s_dfill_uMode = -1, s_dfill_uD = -1, s_dfill_uA = -1, s_dfill_uB = -1, s_dfill_uNat = -1, s_dfill_uH = -1;
 static int    s_dep2_w = 0, s_dep2_h = 0;
 static GLuint s_mask_tex = 0, s_mask_fbo = 0, s_mask_prog = 0, s_mask_map_prog = 0;
+/* the TCP postfx_timing stamps of the inputs (below): PXI_MASK_MAP is the part
+ * of PXI_MASK that maps the marks to the window, stamped while s_pxi_inner */
+enum { PXI_MASK = 0, PXI_DEPTH, PXI_MASK_MAP, PXI_N };
+static void pxi_stamp(int which, int end);
+static int s_pxi_inner = 0;
 static GLint  s_mask_uUv = -1, s_mask_uV = -1;
 static GLint  s_mmap_uUv = -1, s_mmap_uS = -1, s_mmap_uSrc = -1, s_mmap_uDst = -1, s_mmap_uBits = -1;
 /* Marks resolved in the surfaces' own px: a texture per surface,
@@ -760,12 +765,14 @@ static int pfx_mask_build(int fresh, int lw, int lh) {
         pfx_surf_mask(0, s_mask_src_rb, s_mask_src_tw, s_mask_src_th, s_mask_src);
         if (s_mask_ctr_valid)
             pfx_surf_mask(1, s_mask_ctr_rb, s_mask_ctr_tw, s_mask_ctr_th, s_mask_ctr);
+        if (s_pxi_inner) pxi_stamp(PXI_MASK_MAP, 0);
         pfx_mask_map(0, s_mask_src, 0, lw, lh);
         if (s_mask_ctr_valid) {
             const int c0 = (int)lrintf(s_mask_ctr_x0 * (float)lw), c1 = (int)lrintf(s_mask_ctr_x1 * (float)lw);
             if (c1 > c0) pfx_mask_map(1, s_mask_ctr, c0, c1, lh);
         }
         pfx_mask_uncover(lw, lh);
+        if (s_pxi_inner) pxi_stamp(PXI_MASK_MAP, 1);
         s_mask_ok = 1;
     }
     return s_mask_ok;
@@ -3104,8 +3111,7 @@ static _Atomic int      s_pxt_meter = 0;
 static _Atomic uint64_t s_pxt_tot_presents = 0, s_pxt_tot_ns = 0;
 static int      s_pxt_live = 0;
 /* the inputs built outside the stages (the 3D mask, the depth): their own
- * stamp pairs, per ring slot; "inputs" in the TCP report */
-enum { PXI_MASK = 0, PXI_DEPTH, PXI_N };
+ * stamp pairs, per ring slot; "inputs" in the TCP report (PXI_ above) */
 static GLuint   s_pxi_q[PT_RING][PXI_N][2];
 static uint8_t  s_pxi_used[PT_RING][PXI_N];
 static double   s_pxi_sum[PXI_N];
@@ -3161,7 +3167,7 @@ static void pxt_frame_begin(void) {
         p_glGetQueryObjectui64v(s_pxi_q[s_pxt_slot][w][0], GL_QUERY_RESULT, &a);
         p_glGetQueryObjectui64v(s_pxi_q[s_pxt_slot][w][1], GL_QUERY_RESULT, &b);
         if (b > a) {
-            slot_ns += b - a;
+            if (w != PXI_MASK_MAP) slot_ns += b - a;   /* inside PXI_MASK */
             if (s_pxt_on) { s_pxi_sum[w] += (double)(b - a) * 1e-3; s_pxi_n[w]++; }
         }
         s_pxi_used[s_pxt_slot][w] = 0;
@@ -3207,9 +3213,12 @@ int gl_renderer_postfx_timing_json(char *out, int cap) {
     if (s_pxi_n[PXI_MASK] || s_pxi_n[PXI_DEPTH]) {
         const double m = s_pxi_n[PXI_MASK] ? s_pxi_sum[PXI_MASK] / s_pxi_n[PXI_MASK] : 0.0;
         const double d = s_pxi_n[PXI_DEPTH] ? s_pxi_sum[PXI_DEPTH] / s_pxi_n[PXI_DEPTH] : 0.0;
+        const double mm = s_pxi_n[PXI_MASK_MAP] ? s_pxi_sum[PXI_MASK_MAP] / s_pxi_n[PXI_MASK_MAP] : 0.0;
+        /* mask_map: the part of mask that maps the marks to the window */
         k += snprintf(out + k, (size_t)(cap - k),
                       "%s{\"stage\":\"inputs\",\"file\":\"\",\"us\":%.1f,\"passes\":[{\"pass\":\"mask\",\"us\":%.1f},"
-                      "{\"pass\":\"depth\",\"us\":%.1f}]}", first ? "" : ",", m + d, m, d);
+                      "{\"pass\":\"mask_map\",\"us\":%.1f},{\"pass\":\"depth\",\"us\":%.1f}]}",
+                      first ? "" : ",", m + d, m, mm, d);
     }
     k += snprintf(out + k, (size_t)(cap - k), "]");
     return k;
@@ -3410,7 +3419,9 @@ static void postfx_present(int fresh, int with_aa, int lx, int ly, int lw, int l
         if (st->chain.uses_mask || st->chain.uses_mask3d) {
             if (!mask_done) {
                 if (with_aa) pxi_stamp(PXI_MASK, 0);
+                s_pxi_inner = with_aa;
                 mask_ok = pfx_mask_build(src_fresh, lw, lh); mask_done = 1;
+                s_pxi_inner = 0;
                 if (with_aa) pxi_stamp(PXI_MASK, 1);
             }
             if (!mask_ok) continue;                  /* no marks yet */
