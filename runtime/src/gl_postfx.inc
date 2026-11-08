@@ -812,6 +812,11 @@ static GLuint s_sm2_tex = 0, s_sm2_fbo = 0;
  * short shadow from their feet, and their map its own mapping (u_ssx, u_ssy,
  * u_ssz, u_sss, as u_smx..u_sms; w 0 = the scenery's). */
 static float  s_ss_u[4][4];
+/* Where the sprites land in their map (u_ssbox: centre and half size in map
+ * units, two texels more for the reader's filter; half size x < 0: none drawn,
+ * 0: not known): a reader skips a search whose taps reach none of them
+ * (sun.glsl spr_out). */
+static float  s_ss_box[4];
 /* In that mode a sprite's foot point is dropped onto the surface under it:
  * the game's point can sit a little above the floor drawn there (BoF4: Cray
  * on the sandflier's deck), hidden in a long shadow but floating under a
@@ -1749,6 +1754,7 @@ static void pfx_shadow_build(const PfxPass *ps, float aspect, int lw, int lh) {
     float Ls[3] = {L[0], L[1], L[2]};   /* the sprites' light (u_sprsun) */
     int spr_own = 0;                    /* the sprites' map has its own mapping */
     memset(s_ss_u, 0, sizeof s_ss_u);
+    memset(s_ss_box, 0, sizeof s_ss_box);
     const ScSlot *sc = sc_presented();
     /* The scene's own geometry (gl_renderer_shadow_world) and the camera the
      * picture on screen was drawn with: the whole scenery, placed exactly. */
@@ -2016,6 +2022,7 @@ static void pfx_shadow_build(const PfxPass *ps, float aspect, int lw, int lh) {
     glClearDepth(1.0);
     p_glBindFramebuffer(PSXGL_FRAMEBUFFER, s_sm2_fbo);
     glClear(GL_DEPTH_BUFFER_BIT);
+    s_ss_box[2] = s_ss_box[3] = -1.0f;
     p_glBindFramebuffer(PSXGL_FRAMEBUFFER, s_sm_fbo);
     glClear(GL_DEPTH_BUFFER_BIT);
     if (n > 0 && x1 > x0 && y1 > y0 && d1 > d0) {
@@ -2061,6 +2068,15 @@ static void pfx_shadow_build(const PfxPass *ps, float aspect, int lw, int lh) {
         if (n > nsc) {
             p_glBindFramebuffer(PSXGL_FRAMEBUFFER, s_sm2_fbo);
             glDrawArrays(GL_TRIANGLES, nsc, n - nsc);
+            float b0 = 1e9f, b1 = 1e9f, b2 = -1e9f, b3 = -1e9f;   /* their box in the map (uv) */
+            for (int i = nsc; i < n; i++) {
+                const float *o = s_sm_buf + (size_t)i * SC_V;
+                const float u = o[0] * 0.5f + 0.5f, v = o[1] * 0.5f + 0.5f;
+                if (u < b0) b0 = u; if (u > b2) b2 = u; if (v < b1) b1 = v; if (v > b3) b3 = v;
+            }
+            const float m = 2.0f / (float)s_sm_size;
+            s_ss_box[0] = 0.5f * (b0 + b2); s_ss_box[1] = 0.5f * (b1 + b3);
+            s_ss_box[2] = 0.5f * (b2 - b0) + m; s_ss_box[3] = 0.5f * (b3 - b1) + m;
         }
         glDisable(GL_DEPTH_TEST);
         p_glActiveTexture(PSXGL_TEXTURE0 + 1);
@@ -3020,6 +3036,10 @@ static void pfx_shadow_uniforms(GLuint prog) {
         float u[4];
         if (k < 3 && s_pfx_vx_on && s_ss_u[3][3] > 0.0f) pfx_vx_row(s_ss_u[k], u); else memcpy(u, s_ss_u[k], sizeof u);
         if (loc >= 0) p_glUniform4f(loc, u[0], u[1], u[2], u[3]);
+    }
+    {
+        const GLint loc = p_glGetUniformLocation(prog, "u_ssbox");
+        if (loc >= 0) p_glUniform4f(loc, s_ss_box[0], s_ss_box[1], s_ss_box[2], s_ss_box[3]);
     }
     /* the camera's world axes and the light, when the framework knows them
      * (after the preset's own values, which they replace) */

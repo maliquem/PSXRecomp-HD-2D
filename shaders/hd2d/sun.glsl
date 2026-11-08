@@ -53,6 +53,7 @@ uniform vec4 u_smx, u_smy, u_smz, u_sms;
 // of P' = A P + b applied before the u_sm/u_ss rows (identity otherwise)
 uniform vec4 u_fgx, u_fgy, u_fgz;
 uniform vec4 u_ssx, u_ssy, u_ssz, u_sss;   // the sprites' map's own mapping (w 0: none, the scenery's)
+uniform vec4 u_ssbox;   // where the sprites land in their map (framework): centre, half size; z < 0 none drawn, 0 not known
 uniform vec4 u_sprsun;   // x: the sprites' sun at most this high (framework); y: their shadow's reach (world units, 0 = any); z: its softness then (world units)
 uniform vec4 u_proj;
 uniform vec2 u_pp;    // the projection centre from the picture centre, native px, y down (framework; 0 = the centre)
@@ -84,6 +85,13 @@ vec2 uv_of(vec3 p) { return p.xy * u_proj.x / (p.z * g_nat) + 0.5; }
 // bent down to the floor sit off their own plane). 1 = lit, down to
 // 1 - u_shadow.z.
 bool sm_in(vec2 q) { return all(greaterThanEqual(q, vec2(0.0))) && all(lessThanEqual(q, vec2(1.0))); }
+// No sprite within reach of q in their map: every tap there reads the cleared
+// depth (1), so no blocker is found while sown <= 1 and the search is skipped
+bool spr_out(vec2 q, vec2 reach, float sown)
+{
+    if (sown > 1.0 || u_ssbox.z == 0.0) return false;
+    return u_ssbox.z < 0.0 || any(greaterThan(abs(q - u_ssbox.xy), u_ssbox.zw + reach));
+}
 float shadow_at(vec3 P, float bias, float tilt, float spr, float scn)
 {
     if (u_sms.w <= 0.0 || u_sms.z <= 0.0) return 1.0;
@@ -102,7 +110,8 @@ float shadow_at(vec3 P, float bias, float tilt, float spr, float scn)
     // deck over the sand), as under the real noon sun
     float sfar = sown_map && u_sprsun.y > 0.0 ? u_sprsun.y * u_sss.z : 1e9;
     float bs = 0.0;
-    if (u_soft.z > 0.0) {
+    // spr 0 (a sprite's own pixel, Sprite Light Off): the term is multiplied by 0 below, so its taps are skipped
+    if (spr > 0.0 && u_soft.z > 0.0) {
         // the sprites' soft too: the spread grows with how far above P the
         // sprite is (u_soft.w per unit), from a texel at its feet up to
         // u_soft.z; 5x5 samples turned per pixel (no steps of the map's texels)
@@ -111,6 +120,7 @@ float shadow_at(vec3 P, float bias, float tilt, float spr, float scn)
         float smax = sown_map && u_sprsun.z > 0.0 ? u_sprsun.z : u_soft.z;
         vec2 st0 = 0.5 * smax * ssm.xy;
         float sum = 0.0, n = 0.0;
+        if (!spr_out(spv, 2.0 * abs(st0), sown))
         for (int j = -2; j <= 2; j++)
             for (int i = -2; i <= 2; i++) {
                 vec2 q = spv + vec2(i, j) * st0;
@@ -130,7 +140,7 @@ float shadow_at(vec3 P, float bias, float tilt, float spr, float scn)
                 }
             bs /= 25.0;
         }
-    } else {
+    } else if (spr > 0.0 && !spr_out(spv, vec2(1.0 / ssm.w), sown)) {
         for (int j = -1; j <= 1; j++)
             for (int i = -1; i <= 1; i++) {
                 vec2 q = spv + vec2(i, j) / ssm.w;
@@ -139,6 +149,8 @@ float shadow_at(vec3 P, float bias, float tilt, float spr, float scn)
         bs /= 9.0;
     }
     bs *= spr;
+    // sprites only (u_ss.y 0): the scenery's term is multiplied by 0 below, so its taps are skipped
+    if (scn < 0.5) return 1.0 - bs * u_shadow.z;
     float bw = 0.0;
     if (u_soft.x > 0.0) {
         float w = u_soft.x;
