@@ -558,6 +558,9 @@ static RuntimeConfig parse_runtime_block(const toml::value& cfg, const fs::path&
     if (runtime.contains("pgxp_idle_hold")) {
         rt.pgxp_idle_hold = toml::find<int>(runtime, "pgxp_idle_hold");
     }
+    if (runtime.contains("game_core")) {
+        rt.game_core = toml::find<bool>(runtime, "game_core");
+    }
     if (runtime.contains("idle_skip_store_counters")) {
         rt.idle_skip_store_counters =
             toml::find<bool>(runtime, "idle_skip_store_counters");

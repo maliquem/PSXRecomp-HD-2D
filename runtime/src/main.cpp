@@ -18810,6 +18810,7 @@ int main(int argc, char** argv) {
                 }
                 psx_dma_set_mdec_batch(gc.runtime.mdec_dma_batch);
                 psx_gpu_set_pgxp_idle_hold(gc.runtime.pgxp_idle_hold);
+                psx_game_core_configure(gc.runtime.game_core ? 1 : 0);
                 {   /* [runtime] overlay_precompile (the request in the frame tick) */
                     const char *pe = std::getenv("PSX_OVERLAY_PRECOMPILE");
                     g_overlay_precompile = pe && pe[0] ? (pe[0] == '1')
@@ -22529,9 +22530,13 @@ session_reboot:
             SetThreadAffinityMask(GetCurrentThread(), (DWORD_PTR)1 << n) != 0)
             fprintf(stderr, "[perf] game thread pinned to CPU %d\n", n);
     }
-    /* PSX_GAME_CORE=1 (experiment): this thread gets a physical core and the
-     * rest of the process stays off it, SMT sibling included (game_core.c). */
-    (void)psx_game_core_reserve();
+    /* [runtime] game_core: this thread gets a physical core and the rest of
+     * the process stays off it, SMT sibling included (game_core.c). */
+    {
+        const int core = psx_game_core_reserve();
+        if (core >= 0)
+            std::fprintf(stdout, "psxrecomp: game_core on, physical core %d\n", core);
+    }
 #endif
 
     /* Wire the CAUSE.IP2 mirror. IP2 is combinational on real hardware and has

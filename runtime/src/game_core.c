@@ -18,20 +18,34 @@
  * device interrupts land. The autocompile core hold (autocompile.c) picks the
  * core the thread is on, so the two agree.
  *
- * PSX_GAME_CORE=1 turns it on (experiment; off by default). The tooling hold
- * PSX_GAME_THREAD_CPU wins over it. */
+ * Measured in the three titles with the render thread on, sdl_gpu, exes
+ * without PGO: +6% to +12% at max speed; BoF4 golden identical (8 scenes).
+ *
+ * [runtime] game_core = true turns it on (off by default); PSX_GAME_CORE=0/1
+ * overrides it for one run. The tooling hold PSX_GAME_THREAD_CPU wins over
+ * both. It moves only where threads run: no guest state, no generator hash. */
 #include "game_core.h"
 
+#include <stdlib.h>
+
 static int s_core = -1;
+static int s_config = 0;
+
+void psx_game_core_configure(int on) { s_config = on ? 1 : 0; }
 
 int psx_game_core_index(void) { return s_core; }
 
+static int game_core_wanted(void) {
+    const char *env = getenv("PSX_GAME_CORE");
+    if (env && env[0]) return env[0] == '1';
+    return s_config;
+}
+
 #ifndef _WIN32
-int psx_game_core_reserve(void) { return -1; }
+int psx_game_core_reserve(void) { (void)game_core_wanted; return -1; }
 #else
 #include <windows.h>
 #include <tlhelp32.h>
-#include <stdlib.h>
 #include <string.h>
 
 /* SYSTEM_CPU_SET_INFORMATION, spelled out: the SDK only declares it for
@@ -57,8 +71,7 @@ typedef BOOL(WINAPI *GcSetSets)(HANDLE, const ULONG *, ULONG);
 enum { GC_MAX = 256 };
 
 int psx_game_core_reserve(void) {
-    const char *on = getenv("PSX_GAME_CORE");
-    if (!on || on[0] != '1' || getenv("PSX_GAME_THREAD_CPU") || s_core >= 0) return -1;
+    if (!game_core_wanted() || getenv("PSX_GAME_THREAD_CPU") || s_core >= 0) return -1;
     HMODULE k32 = GetModuleHandleA("kernel32.dll");
     GcGetInfo get_info = k32 ? (GcGetInfo)(void *)GetProcAddress(k32, "GetSystemCpuSetInformation") : NULL;
     GcSetSets set_process = k32 ? (GcSetSets)(void *)GetProcAddress(k32, "SetProcessDefaultCpuSets") : NULL;
@@ -126,7 +139,12 @@ int psx_game_core_reserve(void) {
     }
     if (!n_game || !n_rest) return -1;
 
-    if (!set_process(GetCurrentProcess(), rest, n_rest)) return -1;
+    /* The emulation thread first: if it refuses, nothing has changed. */
+    if (!set_thread(GetCurrentThread(), game, n_game)) return -1;
+    if (!set_process(GetCurrentProcess(), rest, n_rest)) {
+        (void)set_thread(GetCurrentThread(), NULL, 0);
+        return -1;
+    }
     /* Threads that already exist: the same set as their own selection. */
     const DWORD self = GetCurrentThreadId(), pid = GetCurrentProcessId();
     HANDLE snap = CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0);
@@ -143,10 +161,6 @@ int psx_game_core_reserve(void) {
             CloseHandle(t);
         }
         CloseHandle(snap);
-    }
-    if (!set_thread(GetCurrentThread(), game, n_game)) {
-        (void)set_process(GetCurrentProcess(), NULL, 0);
-        return -1;
     }
     s_core = pick;
     return pick;
