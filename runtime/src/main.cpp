@@ -45,6 +45,7 @@
 #include "overlay_capture.h"
 #include "overlay_loader.h"
 #include "autocompile.h"
+#include "game_core.h"
 #include "code_provider.h"
 extern "C" void psx_event_step_conservative_env_init(void);
 /* [runtime] overlay_precompile: 1 = request pending, 2 = requested. */
@@ -22528,6 +22529,9 @@ session_reboot:
             SetThreadAffinityMask(GetCurrentThread(), (DWORD_PTR)1 << n) != 0)
             fprintf(stderr, "[perf] game thread pinned to CPU %d\n", n);
     }
+    /* PSX_GAME_CORE=1 (experiment): this thread gets a physical core and the
+     * rest of the process stays off it, SMT sibling included (game_core.c). */
+    (void)psx_game_core_reserve();
 #endif
 
     /* Wire the CAUSE.IP2 mirror. IP2 is combinational on real hardware and has
