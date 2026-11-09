@@ -16,6 +16,7 @@ mode" below). A game that misbehaves with one simply leaves it off.
 | `[runtime] mdec_dma_batch` | `1` (default) to `256` | no (a polling guest) | no (runtime) | the device wake on every MDEC-to-RAM word |
 | `[runtime] pgxp_idle_hold` | `0` (default) or VBlanks | yes for the guest | no (runtime) | the PGXP hooks on frames without a projection |
 | `[runtime] overlay_precompile` | `false` (default) / `true` | yes | no | nothing: compiles the captured overlays at boot instead of at first visit |
+| `[runtime] game_core` | `false` (default) / `true` | yes | no (runtime) | nothing: keeps the process's other threads off the emulation thread's physical core |
 
 All three change the generator's output, so the codegen hash moves once when
 this code lands (savestates of the old exe need the hash re-stamped; their
@@ -169,6 +170,20 @@ VBlanks after boot the runtime asks the code provider once for every captured
 overlay missing from the cache (the request `autocompile_run` makes; it skips
 what is built). The same DLLs, built earlier. `PSX_OVERLAY_PRECOMPILE=0/1`
 overrides it for a run.
+
+## `[runtime] game_core` (exact)
+
+In 3D scenes the emulation thread is the bottleneck, and it runs short of the host's instruction fetch and decode (BoF4
+boat at 8x: 3.0 instructions per cycle, 40% of fetches missing the op cache). Another thread of the same process on the
+SMT sibling takes part of that. With this on, at boot the emulation thread selects one physical core through the
+Windows CPU Sets, and the rest of the process (render, audio, driver and compile threads, those that exist and those
+created later) gets every other core (`runtime/src/game_core.c`). CPU Sets are a scheduler preference, not a hard
+affinity. Only with SMT and at least 4 cores; the core is the one the thread is on, unless it is a slower class or holds
+logical processor 0. `PSX_GAME_CORE=0/1` overrides it for a run, and the tooling hold `PSX_GAME_THREAD_CPU` wins over
+both. Only where threads run changes: the golden is identical. Ryzen 7 5800X, render thread on, sdl_gpu, exes without
+PGO, max speed: BoF4 boat 8.45x to 9.30x (+10%), FM2 battle +6%, WA2 battle +8%. With affinity masks on the PGO exe in
+OpenGL the boat gained 4%: threads free 12.35x, emulation thread held alone 12.37x, others off its CPU 12.40x, others off
+the whole core 12.84x. Not measured without SMT (it stays off) or on hybrid CPUs.
 
 ## Exact host work removed (no option: always on)
 

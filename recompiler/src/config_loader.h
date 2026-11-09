@@ -398,6 +398,11 @@ struct RuntimeConfig {
     // pgxp_idle_hold: VBlanks without an RTPS/RTPT before the PGXP hooks close
     // (0 = never). PSX_PGXP_IDLE_HOLD overrides it for one run.
     int                   pgxp_idle_hold = 0;
+    // game_core (docs/PERFORMANCE_MODES.md): the emulation thread gets one
+    // physical core and the rest of the process stays off it, SMT sibling
+    // included (Windows CPU Sets; only with SMT and 4+ cores). Moves only where
+    // threads run. PSX_GAME_CORE=0/1 overrides it for one run.
+    bool                  game_core = false;
     // idle_skip_store_counter_sites: the audited loop sites (block-edge PCs
     // the detector anchors on) where the store-counter extension may skip.
     // Unlisted sites are never skipped; an empty list disables the extension.

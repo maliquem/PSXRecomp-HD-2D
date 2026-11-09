@@ -522,6 +522,7 @@ set(PSXRECOMP_RUNTIME_SOURCES
     ${PSXRECOMP_ROOT}/runtime/src/overlay_posix.c
     ${PSXRECOMP_ROOT}/runtime/src/overlay_backend.c
     ${PSXRECOMP_ROOT}/runtime/src/autocompile.c
+    ${PSXRECOMP_ROOT}/runtime/src/game_core.c
     ${PSXRECOMP_ROOT}/runtime/src/code_provider.c
     ${PSXRECOMP_ROOT}/runtime/src/event_ring.c
     ${PSXRECOMP_ROOT}/runtime/src/game_options.c
