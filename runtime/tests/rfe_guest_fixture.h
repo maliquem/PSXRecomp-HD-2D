@@ -125,6 +125,25 @@ void psx_publish_note(uint32_t site, uint32_t target, uint32_t origin) {
 void ls_note_exception_entry(void) {}
 void psx_idle_note_check(CPUState *cpu, uint32_t pc) { (void)cpu; (void)pc; }
 int psx_idle_skip_is_enabled(void) { return 0; }
+/* Our traps.c and interrupts.c also reach the cycle gate and idle anchor
+ * (psx_cycles.c), the guest cycle scale batch, the RAM size and VBlank period,
+ * and the host nesting save (render_pass.c). Inert here, as in
+ * restore_edge_irq_stubs.c; the gate starts at depth 0, as in the runtime. */
+uint32_t g_psx_cyc_gate = 32u;
+int g_psx_gcs_batch;
+int g_idle_note_suppress;
+uint32_t g_idle_anchor_ra;
+uint32_t g_psx_ram_size = 0x200000u;
+uint32_t g_psx_vblank_cycles = 564480u;
+void psx_cyc_gate_refresh(void) {}
+void psx_idle_anchor_check(void) {}
+void *psx_host_nesting_save_alloc(void) { return NULL; }
+void psx_host_nesting_restore_free(void *p) { (void)p; }
+/* Our psx_icache.h maps psx_icache_fetch to the inline tag check; the fixture
+ * stubs the out-of-line entry, so drop the macro first. */
+#ifdef psx_icache_fetch
+#undef psx_icache_fetch
+#endif
 void psx_icache_fetch(CPUState *cpu, uint32_t pc) { (void)cpu; (void)pc; }
 void dirty_ram_checkpoint_enter(uint32_t pc, int slot, uint32_t target, int taken) {
     (void)pc; (void)slot; (void)target; (void)taken;

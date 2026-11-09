@@ -5,8 +5,10 @@ import subprocess
 from pathlib import Path
 
 SYMBOL = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
-MULTIPLE = re.compile(r"multiple definition of [`']([^`']+)[`']")
-UNDEFINED = re.compile(r"undefined reference to [`']([^`']+)[`']")
+# GNU ld quotes the symbol; lld (clang) names it after "duplicate symbol:" or
+# "undefined symbol:". Each pattern has one group, so findall stays a list of names.
+MULTIPLE = re.compile(r"(?:multiple definition of [`']|duplicate symbol: )([^`'\s]+)")
+UNDEFINED = re.compile(r"(?:undefined reference to [`']|undefined symbol: )([^`'\s]+)")
 
 # A definition in our stub object would silently override a symbol that the C
 # library would otherwise satisfy from an archive/shared object, so anything
@@ -86,7 +88,10 @@ def build_and_run(cc, here, src_root, opt, work, modules, test_name, defines=())
 
     test_c = here / test_name
     test_o = work / ("sectionwire" + tag + ".o")
+    # psx_cyc.h keeps unused static helpers and an inline+noinline helper; those
+    # two warnings say nothing about the fixture, everything else stays fatal.
     subprocess.run([cc, "-std=c11", opt, "-Wall", "-Wextra", "-Werror",
+                    "-Wno-unused-function", "-Wno-attributes",
                     "-I", include, "-c", str(test_c), "-o", str(test_o)],
                    check=True)
     exe = work / ("sectionwire" + tag + (".exe" if os.name == "nt" else ""))
