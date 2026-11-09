@@ -141,6 +141,9 @@ if(BUILD_TESTING)
         src/netplay_ice_hub.c)
     target_include_directories(netplay_ice_hub_test PRIVATE include)
     add_test(NAME netplay_ice_hub_test COMMAND netplay_ice_hub_test)
+    add_executable(ws_mixed_world_test tests/test_ws_mixed_world.c)
+    target_include_directories(ws_mixed_world_test PRIVATE include)
+    add_test(NAME ws_mixed_world COMMAND ws_mixed_world_test)
     add_executable(ws_scene_hold_test tests/test_ws_scene_hold.c)
     target_include_directories(ws_scene_hold_test PRIVATE include)
     add_test(NAME ws_scene_hold_test COMMAND ws_scene_hold_test)
@@ -266,6 +269,11 @@ if(BUILD_TESTING)
     set(PSX_GL_READBACK_COMPILER_BIN "${_gl_test_default_bin}" CACHE PATH "GCC/MinGW bin for GL fixture")
     find_package(Python3 QUIET COMPONENTS Interpreter)
     if(Python3_Interpreter_FOUND)
+        if(CMAKE_C_COMPILER_ID STREQUAL "GNU")
+            add_test(NAME rfe_host_reads_test COMMAND ${Python3_EXECUTABLE} -B ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_rfe_host_reads.py --cc ${CMAKE_C_COMPILER})
+            add_test(NAME rfe_irq_context_test COMMAND ${Python3_EXECUTABLE} -B ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_rfe_irq_context.py --cc ${CMAKE_C_COMPILER})
+            add_test(NAME rfe_syscall_depth_test COMMAND ${Python3_EXECUTABLE} -B ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_rfe_syscall_depth.py --cc ${CMAKE_C_COMPILER})
+        endif()
         if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang" AND NOT CMAKE_C_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC")
             add_test(NAME display_ring_capture_test COMMAND "${Python3_EXECUTABLE}"
                 "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_display_ring_capture.py"
@@ -1004,7 +1012,7 @@ if(BUILD_TESTING)
     endforeach()
 
     foreach(_pgxp_isolated_test
-            gte_register_access_test gte_hle_contract_test pgxp_test pgxp_session_test)
+            gte_register_access_test gte_hle_contract_test pgxp_test pgxp_session_test pgxp_session_hooks_test)
         target_sources(${_pgxp_isolated_test} PRIVATE tests/pgxp_test_mod_memory.cpp)
     endforeach()
 
@@ -1152,12 +1160,34 @@ if(BUILD_TESTING)
     add_executable(ws_repeat_rect_test tests/test_ws_repeat_rect.c)
     target_include_directories(ws_repeat_rect_test PRIVATE include)
     add_test(NAME ws_repeat_rect_test COMMAND ws_repeat_rect_test)
+    add_executable(ws_feedback_rect_test tests/test_ws_feedback_rect.c)
+    target_include_directories(ws_feedback_rect_test PRIVATE include)
+    add_test(NAME ws_feedback_rect_test COMMAND ws_feedback_rect_test)
     add_executable(ws_screen_mask_test tests/test_ws_screen_mask.c)
     target_include_directories(ws_screen_mask_test PRIVATE include)
     if(UNIX)
         target_link_libraries(ws_screen_mask_test PRIVATE m)
     endif()
     add_test(NAME ws_screen_mask_test COMMAND ws_screen_mask_test)
+    add_executable(ws_reveal_edge_test tests/test_ws_reveal_edge.c)
+    target_include_directories(ws_reveal_edge_test PRIVATE include)
+    add_test(NAME ws_reveal_edge_test COMMAND ws_reveal_edge_test)
+    # Reveal-edge quads through the real GP0 flat/textured quad handlers.
+    add_executable(ws_reveal_edge_exec_test
+        tests/test_ws_reveal_edge_exec.c
+        src/psx_video_timing.c
+        src/gpu_timeline.c)
+    target_include_directories(ws_reveal_edge_exec_test PRIVATE include src)
+    if(UNIX)
+        target_link_libraries(ws_reveal_edge_exec_test PRIVATE m)
+    endif()
+    if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+        target_compile_options(ws_reveal_edge_exec_test PRIVATE
+            -ffunction-sections -fdata-sections)
+        target_link_options(ws_reveal_edge_exec_test PRIVATE
+            $<IF:$<PLATFORM_ID:Darwin>,-Wl$<COMMA>-dead_strip,-Wl$<COMMA>--gc-sections>)
+    endif()
+    add_test(NAME ws_reveal_edge_exec_test COMMAND ws_reveal_edge_exec_test)
 
     add_executable(mod_gpu_dma_aperture_test
         tests/test_mod_gpu_dma_aperture.c
@@ -2114,6 +2144,9 @@ if(BUILD_TESTING)
         add_test(NAME bios_registry_zero_entry_guard_test
                  COMMAND ${Python3_EXECUTABLE}
                          ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_bios_registry_zero_entry.py)
+        add_test(NAME game_runtime_bios_test
+                 COMMAND ${Python3_EXECUTABLE}
+                         ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_game_runtime_bios.py)
         # Exercises runtime/psx_check_mod_catalog.cmake -- the build-time guard
         # that fails a build when a title's mod packages land in the legacy
         # mods/packages layout instead of mods/bundled (bead beads-eio.3.101).

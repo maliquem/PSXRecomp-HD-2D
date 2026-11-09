@@ -315,6 +315,9 @@ void gr_draw_textured_triangle(int x0, int y0, int u0, int v0,
                                uint16_t clut_x, uint16_t clut_y,
                                uint16_t texpage) {
     g_test_textured_triangles++;
+#ifdef GPU_EXEC_RECORD_TEXTURED
+    gpu_exec_record_triangle(x0, y0, x1, y1, x2, y2);
+#endif
     (void)x0; (void)y0; (void)u0; (void)v0; (void)x1; (void)y1; (void)u1;
     (void)v1; (void)x2; (void)y2; (void)u2; (void)v2; (void)clut_x;
     (void)clut_y; (void)texpage;
@@ -414,6 +417,11 @@ void gr_wide_clear(int base_x, int y, int h, uint16_t color) {
 }
 void gr_wide_clear_margins(int base_x, int y, int h, uint16_t color, int sides) {
     (void)base_x; (void)y; (void)h; (void)color; (void)sides;
+}
+void gr_wide_feedback_rect(int src_base, int src_x, int src_y, int dst_x, int dst_y,
+                           int w, int h, int r, int g, int b, int raw, int semi) {
+    (void)src_base; (void)src_x; (void)src_y; (void)dst_x; (void)dst_y;
+    (void)w; (void)h; (void)r; (void)g; (void)b; (void)raw; (void)semi;
 }
 int gr_wide_dump_full(uint32_t *out, int cap_pixels, int *ow, int *oh, int base_x) {
     (void)out; (void)cap_pixels; (void)ow; (void)oh; (void)base_x;

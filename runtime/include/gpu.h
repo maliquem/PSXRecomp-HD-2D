@@ -648,10 +648,23 @@ void gpu_ws_tag_black_reveal_rect(uint32_t prim);
  * reveal margins only. The caller verifies the composite's source period.
  * Original UVs, texel density, and canonical VRAM writes are unchanged. */
 void gpu_ws_tag_repeat_rect(uint32_t prim, int32_t period);
+/* Title-identified 15-bit sprite (0x64-0x67) that copies a framebuffer 1:1,
+ * e.g. a motion trail. Where it touches the draw area's edge, native-wide
+ * continues it into the bands from the source buffer's wide surface.
+ * Packet-guarded for the current frame; canonical VRAM is untouched. */
+void gpu_ws_tag_feedback_rect(uint32_t prim);
 /* Title-identified flat screen mask: extend vertical sides or horizontal
  * letterbox panels to adaptive edges, preserving the interior opening.
  * Packet guarded, cleared on reset/load, inert outside native-wide gameplay. */
 void gpu_ws_tag_screen_mask_quad(uint32_t prim);
+/* Title-identified axis-aligned flat quad, or textured quad whose four UVs
+ * name one texel: grow an outer vertical boundary that lies on or beyond the
+ * canonical display edge into the visible reveal. edges: 1 left, 2 right,
+ * 3 both. Only the part outside the quad is drawn, in its OT position with
+ * its colour, CLUT, texture page and blend; the tagged quad skips automatic
+ * UI layout. Packet guarded, expires after two frames, cleared on
+ * reset/load, inert outside native-wide. */
+void gpu_ws_tag_reveal_edge_quad(uint32_t prim, int edges);
 /* Title-owned flat/Gouraud radial screen mask. Render-only scale about the
  * display centre; guest coordinates and timing stay unchanged. Scale >= 1,
  * inert at 4:3, packet guarded and reset alongside other transient tags. */

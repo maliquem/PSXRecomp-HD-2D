@@ -355,9 +355,31 @@ void psx_mod_anchor_hud_primitive(uint32_t primitive, int edge);
  * Both services are render-only, word guarded and inert at native 4:3. */
 void psx_mod_tag_screen_mask_quad(uint32_t primitive);
 void psx_mod_tag_radial_screen_mask_quad(uint32_t primitive, float scale);
+/* Frame pieces identified by their title's producer, P_TAG addresses: an
+ * axis-aligned flat quad (GP0 0x28-0x2B) or a textured quad (0x2C-0x2F)
+ * whose four UVs name one texel, such as a menu bar, divider line or tint
+ * panel. A requested outer vertical boundary that lies on or beyond the
+ * canonical display edge grows to the visible native-wide edge; interior
+ * boundaries stay put. Only the part outside the quad is drawn, right where
+ * the packet executes, with its colour, CLUT, texture page and blend, so a
+ * translucent piece never blends twice. Word guarded, expires after two
+ * frames, cleared on reset/load, inert at native 4:3 and in squash mode.
+ * edges is PSX_MOD_REVEAL_EDGE_LEFT, PSX_MOD_REVEAL_EDGE_RIGHT or both
+ * OR-ed together. A tagged quad bypasses automatic UI layout even when no
+ * band is drawn; an explicit HUD anchor on the same packet takes precedence
+ * over the tag. */
+enum {
+    PSX_MOD_REVEAL_EDGE_LEFT = 1,
+    PSX_MOD_REVEAL_EDGE_RIGHT = 2
+};
+void psx_mod_tag_reveal_edge_quad(uint32_t primitive, int edges);
 /* Exclude a known world packet from screen-space backdrop stretching, even
  * if it sorts before the first shaded polygon. Zero clears a recycled tag. */
 void psx_mod_tag_world_primitive(uint32_t primitive, int is_world);
+/* A 15-bit sprite (P_TAG address) that copies a framebuffer 1:1, such as a
+ * motion trail: native-wide continues it into the bands. Tag it each frame
+ * after the title built it; inert at native 4:3. */
+void psx_mod_tag_feedback_rect(uint32_t primitive);
 /* Enable aspect-derived column selection for a title that opted into the
  * auto_backdrop detector. No effect on titles that did not opt in. */
 void psx_mod_set_adaptive_backdrop_preload(int enabled);
