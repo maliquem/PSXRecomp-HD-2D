@@ -583,6 +583,10 @@ uint32_t psx_ws_cull_lui_hi(uint32_t imm);
 int  psx_ws_cull_bltz_hi(uint32_t v);
 void gpu_ws_set_cull_screen_x_sites(const uint32_t *sites, int nsites);
 int  psx_ws_is_cull_screen_x_site(uint32_t pc);
+/* Guarded screen_x sites ("0xADDR:0xWORD"); applies = a plain site, or a
+ * guarded one whose word is the instruction at pc. */
+void gpu_ws_set_cull_screen_x_guarded(const uint32_t *sites, const uint32_t *words, int n);
+int  psx_ws_cull_screen_x_applies(uint32_t pc, uint32_t insn);
 int  psx_ws_cull_vxrange(uint32_t x, uint32_t imm);
 /* True if a run of instruction words carries the screen-extent reject signature
  * (a width compare AND a height compare from the configured immediate sets).

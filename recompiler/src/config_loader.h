@@ -22,6 +22,7 @@
 #include <array>
 #include <filesystem>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "bios_address_model.h"   // BiosAddrCopy (BiosConfig::address_copies)
@@ -1335,6 +1336,12 @@ struct GameConfig {
     // the two forms of a screen X kept in the high half of a register:
     // `lui rt,W` (the edge as W << 16) and `bltz` on `sx << 16`.
     std::vector<uint32_t> ws_cull_screen_x_sites;
+    // Guarded screen_x sites, written "0xADDR:0xWORD": the site applies only
+    // where the instruction at ADDR is WORD, in the main EXE and in every area,
+    // compiled or interpreted. For code in an area loaded at an address the
+    // boot EXE also uses: a different word elsewhere is skipped, never an
+    // error. Unguarded sites (above) keep the strict main-EXE check.
+    std::vector<std::pair<uint32_t, uint32_t>> ws_cull_screen_x_guarded;
 
     // [widescreen.cull] slti_sites — explicit signed right-edge widen sites
     // (`slti rt, sx, W` → psx_ws_cull_slti) for funnel functions the

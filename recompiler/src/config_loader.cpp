@@ -87,6 +87,13 @@ uint32_t overlay_codegen_config_hash(const GameConfig& c) {
     h.words("cull_range", c.ws_cull_range_sites);
     h.words("cull_a1", c.ws_cull_a1_sites);
     h.words("cull_screen_x", c.ws_cull_screen_x_sites);
+    if (!c.ws_cull_screen_x_guarded.empty()) {
+        auto pairs = c.ws_cull_screen_x_guarded;
+        std::sort(pairs.begin(), pairs.end());
+        std::vector<uint32_t> flat;
+        for (const auto& [addr, word] : pairs) { flat.push_back(addr); flat.push_back(word); }
+        h.words("cull_screen_x_guarded", flat);
+    }
     h.words("cull_slti", c.ws_cull_slti_sites);
     h.words("cull_slti_lower", c.ws_cull_slti_lower_sites);
     h.words("cull_bltz", c.ws_cull_bltz_sites);
@@ -2556,6 +2563,7 @@ GameConfig load_game_config(const fs::path& config_path_in) {
     std::vector<uint32_t> ws_cull_bias_sites, ws_cull_range_sites, ws_cull_a1_sites;
     std::vector<uint32_t> ws_cull_bias_lower_sites;
     std::vector<uint32_t> ws_cull_screen_x_sites;
+    std::vector<std::pair<uint32_t, uint32_t>> ws_cull_screen_x_guarded;
     std::vector<uint32_t> ws_cull_slti_sites;
     std::vector<uint32_t> ws_cull_slti_lower_sites;
     std::vector<uint32_t> ws_cull_bltz_sites;
@@ -2598,7 +2606,20 @@ GameConfig load_game_config(const fs::path& config_path_in) {
             load_sites("bias_lower_sites", ws_cull_bias_lower_sites);
             load_sites("range_sites", ws_cull_range_sites);
             load_sites("a1_sites",    ws_cull_a1_sites);
-            load_sites("screen_x_sites", ws_cull_screen_x_sites);
+            // screen_x_sites: "0xADDR" (strict) or "0xADDR:0xWORD" (guarded).
+            if (cull.contains("screen_x_sites")) {
+                for (const auto& a : toml::find<std::vector<std::string>>(cull, "screen_x_sites")) {
+                    const auto colon = a.find(':');
+                    if (colon == std::string::npos) {
+                        ws_cull_screen_x_sites.push_back(
+                            parse_hex(a, "widescreen.cull.screen_x_sites"));
+                    } else {
+                        ws_cull_screen_x_guarded.emplace_back(
+                            parse_hex(a.substr(0, colon), "widescreen.cull.screen_x_sites"),
+                            parse_hex(a.substr(colon + 1), "widescreen.cull.screen_x_sites word"));
+                    }
+                }
+            }
             load_sites("slti_sites",  ws_cull_slti_sites);
             load_sites("slti_lower_sites", ws_cull_slti_lower_sites);
             load_sites("bltz_sites",  ws_cull_bltz_sites);
@@ -3113,6 +3134,7 @@ GameConfig load_game_config(const fs::path& config_path_in) {
         /*ws_cull_range_sites*/   ws_cull_range_sites,
         /*ws_cull_a1_sites*/      ws_cull_a1_sites,
         /*ws_cull_screen_x_sites*/ ws_cull_screen_x_sites,
+        /*ws_cull_screen_x_guarded*/ ws_cull_screen_x_guarded,
         /*ws_cull_slti_sites*/    ws_cull_slti_sites,
         /*ws_cull_slti_lower_sites*/ ws_cull_slti_lower_sites,
         /*ws_cull_bltz_sites*/    ws_cull_bltz_sites,

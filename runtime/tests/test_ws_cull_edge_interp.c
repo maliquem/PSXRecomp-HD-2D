@@ -256,6 +256,30 @@ static void test_store(void) {
     CHECK(!psx_ws_is_cull_screen_x_site(0x80030020u),
           "empty screen_x_sites clears prior entries");
 
+    /* Guarded screen_x sites: only where the instruction is the word written. */
+    {
+        const uint32_t gsites[] = { 0x80030040u, 0x80030040u, 0x00030050u };
+        const uint32_t gwords[] = { 0x3C160200u, 0x2C620200u, 0x05000002u };
+        const uint32_t plain[] = { 0x80030060u };
+        gpu_ws_set_cull_screen_x_sites(plain, 1);
+        gpu_ws_set_cull_screen_x_guarded(gsites, gwords, 3);
+        CHECK(psx_ws_cull_screen_x_applies(0x80030040u, 0x3C160200u) &&
+              psx_ws_cull_screen_x_applies(0xA0030040u, 0x2C620200u) &&
+              psx_ws_cull_screen_x_applies(0x80030050u, 0x05000002u),
+              "a guarded site applies where its word matches (any segment)");
+        CHECK(!psx_ws_cull_screen_x_applies(0x80030040u, 0x24820070u) &&
+              !psx_ws_cull_screen_x_applies(0x80030050u, 0x3C160200u),
+              "a guarded site holding another word does not apply");
+        CHECK(!psx_ws_is_cull_screen_x_site(0x80030040u),
+              "a guarded site is not a plain site");
+        CHECK(psx_ws_cull_screen_x_applies(0x80030060u, 0x24820070u),
+              "a plain site applies whatever the word");
+        gpu_ws_set_cull_screen_x_guarded(NULL, NULL, 0);
+        gpu_ws_set_cull_screen_x_sites(NULL, 0);
+        CHECK(!psx_ws_cull_screen_x_applies(0x80030040u, 0x3C160200u),
+              "empty guarded list clears prior entries");
+    }
+
     /* Cap: exactly 256 is silent and complete. */
     for (int i = 0; i < 300; i++)
         big_list[i] = 0x80040000u + 4u * (uint32_t)(299 - i); /* descending */

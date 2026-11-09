@@ -783,6 +783,16 @@ std::string CodeGenerator::translate_mtlo(uint32_t instr) {
 // (REGIMM rt=1), branch_keep_sites a conditional branch the emitter can keep
 // (REGIMM, beq, bne, blez, bgtz). Overlay variants at the same address keep
 // their vanilla code.
+// [widescreen.cull] screen_x_sites: a plain site always applies (the main EXE
+// checks its form); a guarded site ("0xADDR:0xWORD") only where the word is
+// the one written, so an area loaded over the boot EXE's addresses can list
+// its sites without touching the boot code.
+static bool ws_screen_x_site(const CodeGenConfig& c, uint32_t addr, uint32_t instr) {
+    if (c.ws_cull_screen_x_sites.count(addr)) return true;
+    const auto it = c.ws_cull_screen_x_words.find(addr);
+    return it != c.ws_cull_screen_x_words.end() && it->second.count(instr) != 0;
+}
+
 void CodeGenerator::check_explicit_branch_site(uint32_t addr, uint32_t instr) const {
     if (config_.overlay_mode) return;
     const uint32_t op = (instr >> 26) & 0x3Fu;
@@ -872,7 +882,7 @@ std::string CodeGenerator::generate_branch_condition(uint32_t instr, uint32_t ad
             // compares the whole register with -margin and so never widens
             // this form; take the branch only while SX < -margin. Identity at
             // 4:3.
-            if (regimm_op == 0x00 && config_.ws_cull_screen_x_sites.count(addr))
+            if (regimm_op == 0x00 && ws_screen_x_site(config_, addr, instr))
                 return fmt::format("psx_ws_cull_bltz_hi({}) /* ws cull (left edge, X in the high half) */",
                                    reg_name(rs));
             if (regimm_op == 0x00) {
@@ -1599,7 +1609,7 @@ std::string CodeGenerator::translate_instruction_core(uint32_t addr, uint32_t in
         }
         // overlay variant: addr is different code here — fall through to vanilla.
     }
-    if (config_.ws_cull_screen_x_sites.count(addr)) {
+    if (ws_screen_x_site(config_, addr, instr)) {
         if (opcode == 0x0B) {  // sltiu rt,rs,imm
             uint32_t rs = get_rs(instr), rt = get_rt(instr);
             uint16_t imm = get_imm16_u(instr);
@@ -4002,7 +4012,7 @@ void CodeGenerator::emit_runtime_externs(std::ostream& ss) const {
     ss << "extern uint32_t psx_ws_clip_edge_x(uint32_t v, uint32_t w); /* ws cull clip-edge bound load (gpu.c) */\n";
     // Only for a config that lists screen_x_sites, so the declarations of
     // every other title stay byte-identical.
-    if (!config_.ws_cull_screen_x_sites.empty()) {
+    if (!config_.ws_cull_screen_x_sites.empty() || !config_.ws_cull_screen_x_words.empty()) {
         ss << "extern uint32_t psx_ws_cull_lui_hi(uint32_t imm);          /* ws screen-x edge in the high half (gpu.c) */\n";
         ss << "extern int  psx_ws_cull_bltz_hi(uint32_t v);               /* ws cull left edge, X in the high half (gpu.c) */\n";
         ss << "extern int  psx_ws_cull_sltu_band(uint32_t sx, uint32_t bound); /* ws screen-x band, W in a register (gpu.c) */\n";

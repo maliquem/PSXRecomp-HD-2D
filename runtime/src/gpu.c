@@ -1620,6 +1620,40 @@ int psx_ws_is_cull_screen_x_site(uint32_t pc) {
     return ws_explicit_site(ws_explicit_screen_x_sites,
                             ws_explicit_screen_x_n, pc);
 }
+/* Guarded screen_x sites ("0xADDR:0xWORD"): a site applies only while the
+ * instruction at its address is the word written, as in the code generator. */
+static uint64_t ws_screen_x_guarded[WS_EXPLICIT_CULL_SITES_MAX];
+static int ws_screen_x_guarded_n = 0;
+static int ws_guarded_cmp(const void *a, const void *b) {
+    uint64_t x = *(const uint64_t *)a, y = *(const uint64_t *)b;
+    return x < y ? -1 : x > y ? 1 : 0;
+}
+void gpu_ws_set_cull_screen_x_guarded(const uint32_t *sites, const uint32_t *words, int n) {
+    if (n < 0 || !sites || !words) n = 0;
+    if (n > WS_EXPLICIT_CULL_SITES_MAX) {
+        fprintf(stderr,
+                "[widescreen] screen_x_sites: %d guarded sites exceed the interpreter cap of %d; "
+                "sites past the cap stay vanilla in interpreted code\n",
+                n, WS_EXPLICIT_CULL_SITES_MAX);
+        n = WS_EXPLICIT_CULL_SITES_MAX;
+    }
+    for (int i = 0; i < n; i++)
+        ws_screen_x_guarded[i] = ((uint64_t)(sites[i] & 0x1FFFFFFFu) << 32) | words[i];
+    qsort(ws_screen_x_guarded, (size_t)n, sizeof(ws_screen_x_guarded[0]), ws_guarded_cmp);
+    ws_screen_x_guarded_n = n;
+}
+int psx_ws_cull_screen_x_applies(uint32_t pc, uint32_t insn) {
+    if (psx_ws_is_cull_screen_x_site(pc)) return 1;
+    if (ws_screen_x_guarded_n == 0) return 0;
+    const uint64_t key = ((uint64_t)(pc & 0x1FFFFFFFu) << 32) | insn;
+    int lo = 0, hi = ws_screen_x_guarded_n;
+    while (lo < hi) {
+        int mid = lo + (hi - lo) / 2;
+        if (ws_screen_x_guarded[mid] < key) lo = mid + 1;
+        else hi = mid;
+    }
+    return lo < ws_screen_x_guarded_n && ws_screen_x_guarded[lo] == key;
+}
 
 void gpu_ws_set_explicit_cull_sites(const uint32_t *bias, int nbias,
                                     const uint32_t *slti, int nslti,

@@ -253,6 +253,42 @@ void main_exe_guard_and_overlay_variants() {
 
 // The two prototypes are written only for a config that lists screen_x_sites,
 // so every other title's generated declarations are byte-identical.
+// Guarded sites ("0xADDR:0xWORD"): an area loaded at an address the boot EXE
+// also uses lists its sites with the word they hold. Where the word matches the
+// site applies as a plain one; elsewhere the code stays vanilla, with no
+// main-EXE error.
+void guarded_sites_apply_only_to_their_word() {
+    PSXRecomp::CodeGenConfig config{};
+    config.emit_comments = true;
+    config.ws_cull_screen_x_words[kBase] = {kLuiS6, kSltiuV0};
+    check(has(generate_first_instruction(kLuiS6, config), "psx_ws_cull_lui_hi(0x0200u)"),
+          "a guarded site whose word matches (lui) is widened");
+    check(has(generate_first_instruction(kSltiuV0, config), "psx_ws_cull_sltiu(cpu->gpr[3], 512)"),
+          "a second word at the same guarded site (sltiu) is widened");
+    const auto other = generate_first_instruction(kBltzT0, config);
+    check(has(other, "(int32_t)cpu->gpr[8] < 0") && !has(other, "psx_ws_cull_"),
+          "a guarded site holding another word (bltz) stays vanilla");
+    check(!exits_with_failure([&] { generate_first_instruction(kAddiuV0, config); }),
+          "a guarded site holding another word does not fail main-EXE generation");
+    check(!has(generate_first_instruction(kAddiuV0, config), "psx_ws_cull_"),
+          "a guarded site holding addiu stays vanilla");
+    config.ws_cull_screen_x_words[kBase] = {kBltzT0};
+    check(has(generate_first_instruction(kBltzT0, config), "psx_ws_cull_bltz_hi(cpu->gpr[8])"),
+          "a guarded bltz whose word matches is widened");
+    // A guarded word that is not a screen_x form is a config mistake: the
+    // main EXE fails as for a plain site.
+    config.ws_cull_screen_x_words[kBase] = {kAddiuV0};
+    check(exits_with_failure([&] { generate_first_instruction(kAddiuV0, config); }),
+          "a guarded word that is not a screen_x form fails main-EXE generation");
+    // Overlay mode: the same rule.
+    config.overlay_mode = true;
+    config.ws_cull_screen_x_words[kBase] = {kLuiS6};
+    check(has(generate_first_instruction(kLuiS6, config), "psx_ws_cull_lui_hi(0x0200u)"),
+          "an overlay lui whose guarded word matches is widened");
+    check(!has(generate_first_instruction(kSltiuV0, config), "psx_ws_cull_"),
+          "an overlay sltiu at a site guarded for lui stays vanilla");
+}
+
 void declarations_only_when_the_key_is_used() {
     PSXRecomp::PS1Executable exe{};
     exe.header.load_address = kBase;
@@ -271,6 +307,13 @@ void declarations_only_when_the_key_is_used() {
           "a config with screen_x_sites declares psx_ws_cull_lui_hi");
     check(has(with, "extern int  psx_ws_cull_bltz_hi(uint32_t v);"),
           "a config with screen_x_sites declares psx_ws_cull_bltz_hi");
+
+    PSXRecomp::CodeGenConfig guarded{};
+    guarded.ws_cull_screen_x_words[kBase] = {kLuiS6};
+    PSXRecomp::CodeGenerator only_guarded(exe, guarded);
+    check(has(only_guarded.build_shared_decls_header(functions),
+              "extern uint32_t psx_ws_cull_lui_hi(uint32_t imm);"),
+          "a config with only guarded screen_x sites declares the helpers");
 }
 
 void runtime_math() {
@@ -333,6 +376,7 @@ int main(int argc, char** argv) {
     listed_slti_zero_emits_the_high_half_test();
     bltz_sites_wins_over_screen_x_sites();
     main_exe_guard_and_overlay_variants();
+    guarded_sites_apply_only_to_their_word();
     declarations_only_when_the_key_is_used();
     runtime_math();
 

@@ -19181,6 +19181,14 @@ int main(int argc, char** argv) {
             gpu_ws_set_cull_screen_x_sites(
                 gc.ws_cull_screen_x_sites.data(),
                 (int)gc.ws_cull_screen_x_sites.size());
+            {
+                std::vector<uint32_t> sites, words;
+                for (const auto& [addr, word] : gc.ws_cull_screen_x_guarded) {
+                    sites.push_back(addr);
+                    words.push_back(word);
+                }
+                gpu_ws_set_cull_screen_x_guarded(sites.data(), words.data(), (int)sites.size());
+            }
             if (!gc.ws_cull_w_imms.empty() || !gc.ws_cull_h_imms.empty())
                 gpu_ws_set_cull_imms(gc.ws_cull_w_imms.data(), (int)gc.ws_cull_w_imms.size(),
                                      gc.ws_cull_h_imms.data(), (int)gc.ws_cull_h_imms.size());

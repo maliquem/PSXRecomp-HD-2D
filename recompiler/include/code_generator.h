@@ -108,6 +108,9 @@ struct CodeGenConfig {
     std::set<uint32_t> ws_cull_range_sites;
     std::set<uint32_t> ws_cull_a1_sites;
     std::set<uint32_t> ws_cull_screen_x_sites;
+    // Guarded screen_x sites: address -> the instruction words it applies to.
+    // A guarded site whose word differs is plain code here (no error).
+    std::map<uint32_t, std::set<uint32_t>> ws_cull_screen_x_words;
     // Extra lead for bias/range activation windows only. Render/terrain
     // helpers continue to use psx_ws_x_margin() without this term.
     int ws_cull_activation_guard_pixels = 0;

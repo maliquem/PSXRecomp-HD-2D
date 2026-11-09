@@ -228,6 +228,7 @@ static int psxrecomp_game_main(int argc, char** argv) {
     std::set<uint32_t>    ws_cull_bias, ws_cull_range, ws_cull_a1; // [widescreen.cull]
     std::set<uint32_t>    ws_cull_bias_lower;
     std::set<uint32_t>    ws_cull_screen_x;    // [widescreen.cull] screen_x_sites
+    std::map<uint32_t, std::set<uint32_t>> ws_cull_screen_x_words; // guarded "0xADDR:0xWORD"
     std::set<uint32_t>    ws_cull_slti;         // [widescreen.cull] slti_sites
     std::set<uint32_t>    ws_cull_slti_lower;   // [widescreen.cull] slti_lower_sites
     std::set<uint32_t>    ws_cull_bltz;         // [widescreen.cull] bltz_sites
@@ -310,6 +311,8 @@ static int psxrecomp_game_main(int argc, char** argv) {
         ws_cull_range.insert(cfg.ws_cull_range_sites.begin(), cfg.ws_cull_range_sites.end());
         ws_cull_a1.insert(cfg.ws_cull_a1_sites.begin(), cfg.ws_cull_a1_sites.end());
         ws_cull_screen_x.insert(cfg.ws_cull_screen_x_sites.begin(), cfg.ws_cull_screen_x_sites.end());
+        for (const auto& [addr, word] : cfg.ws_cull_screen_x_guarded)
+            ws_cull_screen_x_words[addr].insert(word);
         ws_cull_slti.insert(cfg.ws_cull_slti_sites.begin(), cfg.ws_cull_slti_sites.end());
         ws_cull_slti_lower.insert(cfg.ws_cull_slti_lower_sites.begin(),
                                   cfg.ws_cull_slti_lower_sites.end());
@@ -433,6 +436,8 @@ static int psxrecomp_game_main(int argc, char** argv) {
         ws_cull_range.insert(wscfg.ws_cull_range_sites.begin(), wscfg.ws_cull_range_sites.end());
         ws_cull_a1.insert(wscfg.ws_cull_a1_sites.begin(), wscfg.ws_cull_a1_sites.end());
         ws_cull_screen_x.insert(wscfg.ws_cull_screen_x_sites.begin(), wscfg.ws_cull_screen_x_sites.end());
+        for (const auto& [addr, word] : wscfg.ws_cull_screen_x_guarded)
+            ws_cull_screen_x_words[addr].insert(word);
         ws_cull_slti.insert(wscfg.ws_cull_slti_sites.begin(), wscfg.ws_cull_slti_sites.end());
         ws_cull_slti_lower.insert(wscfg.ws_cull_slti_lower_sites.begin(),
                                   wscfg.ws_cull_slti_lower_sites.end());
@@ -1529,6 +1534,7 @@ static int psxrecomp_game_main(int argc, char** argv) {
     codegen_config.ws_cull_range_sites = ws_cull_range;
     codegen_config.ws_cull_a1_sites    = ws_cull_a1;
     codegen_config.ws_cull_screen_x_sites = ws_cull_screen_x;
+    codegen_config.ws_cull_screen_x_words = ws_cull_screen_x_words;
     codegen_config.ws_cull_activation_guard_pixels =
         ws_cull_activation_guard_pixels;
     codegen_config.ws_cull_slti_sites  = ws_cull_slti;

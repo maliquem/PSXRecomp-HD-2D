@@ -231,6 +231,24 @@ clip_edge_width = 320
                                          "clip_edge_width = 368\n");
     check(clip_hash != PSXRecompV4::overlay_codegen_config_hash(with_clip_w),
           "clip_edge_width enters the hash with its sites");
+
+    // screen_x_sites: "0xADDR" (plain) and "0xADDR:0xWORD" (guarded) in one list.
+    const auto mixed = load(body + "screen_x_sites = [\"0x80010030\", \"0x80010040:0x3C160200\"]\n");
+    check(mixed.ws_cull_screen_x_sites.size() == 1 &&
+          mixed.ws_cull_screen_x_sites[0] == 0x80010030u,
+          "a plain screen_x site stays in the plain list");
+    check(mixed.ws_cull_screen_x_guarded.size() == 1 &&
+          mixed.ws_cull_screen_x_guarded[0].first == 0x80010040u &&
+          mixed.ws_cull_screen_x_guarded[0].second == 0x3C160200u,
+          "a guarded screen_x site keeps its address and word");
+    const auto plain_x = load(body + "screen_x_sites = [\"0x80010030\"]\n");
+    check(PSXRecompV4::overlay_codegen_config_hash(plain_x) !=
+          PSXRecompV4::overlay_codegen_config_hash(mixed),
+          "guarded screen_x sites enter the overlay hash");
+    const auto other_word = load(body + "screen_x_sites = [\"0x80010030\", \"0x80010040:0x2C620200\"]\n");
+    check(PSXRecompV4::overlay_codegen_config_hash(other_word) !=
+          PSXRecompV4::overlay_codegen_config_hash(mixed),
+          "the guard word enters the overlay hash");
 }
 
 void codegen_emits_bgez() {

@@ -364,6 +364,25 @@ a listed address holding another non-branch instruction is a hard build error;
 a branch other than `bltz` at a listed address is left as it is, and a
 `slti` with a nonzero immediate is a build error (it is not this form).
 
+**Guarded sites** (`"0xADDR:0xWORD"`): for code in an area that loads at
+addresses the boot EXE also uses (Wild Arms 2's `WILDARM2.EXE` over
+`SCPS_100.89`), a site is written with the instruction word it must hold. It
+applies only where that word is the instruction at the address, in the main
+EXE, in every overlay shard and in the dirty-RAM interpreter; anywhere else the
+code stays as it is, with no main-EXE error. The same address may be listed
+with several words, and plain and guarded entries mix in one list. A guarded
+word that is not one of the forms above is still a main-EXE build error when it
+matches. The pairs enter the overlay config hash only when present, so a title
+without them keeps its cache identity. A plain site is still checked strictly:
+it also widens a matching instruction that happens to sit at the address in
+unrelated code, which a guarded site cannot.
+
+```toml
+screen_x_sites = [
+  "0x80039420:0x2C620140",   # only where the code holds sltiu v0,v1,0x140
+]
+```
+
 ### Packed-SXY all-vertices reject (`[[widescreen.cull.sxy]]`)
 
 Some renderers trivially reject a whole triangle or quad by ANDing the packed

@@ -1988,7 +1988,7 @@ static int exec_one_fetched_inner(CPUState *cpu, uint32_t pc, uint32_t insn,
             /* Same precedence as the code generator: scale and keep sites first. */
             if (!psx_ws_cull_scale_site(pc, insn, cpu->gpr[rs], cpu->gpr[rt], &kept) &&
                 !psx_ws_cull_keep_site(pc, insn, vanilla, &kept) &&
-                psx_ws_is_cull_screen_x_site(pc))
+                psx_ws_cull_screen_x_applies(pc, insn))
                 kept = (uint32_t)psx_ws_cull_sltu_band(cpu->gpr[rs], cpu->gpr[rt]);
             cpu->gpr[rd] = kept;
             psx_pgxp_alu(cpu, insn, kept, 0, 0);
@@ -2109,7 +2109,7 @@ static int exec_one_fetched_inner(CPUState *cpu, uint32_t pc, uint32_t insn,
              * Identity at 4:3 (margin 0). Gated per-game, cheap cached scan. */
             if (psx_ws_is_cull_bltz_site(pc))
                 taken = psx_ws_cull_bltz(cpu->gpr[rs]);
-            else if (psx_ws_is_cull_screen_x_site(pc))
+            else if (psx_ws_cull_screen_x_applies(pc, insn))
                 taken = psx_ws_cull_bltz_hi(cpu->gpr[rs]);
             else if (psx_ws_auto_cull_on() && ws_cull_bltz_site(pc))
                 taken = psx_ws_cull_bltz(cpu->gpr[rs]);
@@ -2183,7 +2183,7 @@ static int exec_one_fetched_inner(CPUState *cpu, uint32_t pc, uint32_t insn,
             cpu->gpr[rt] = ((int32_t)cpu->gpr[rs] < psx_ws_depth_bound(simm)) ? 1u : 0u;
         /* screen_x_sites on `slti rt, x, 0` with `x = SX << 16`: the bltz
          * sign test as a flag (same order as the recompiled emit). */
-        else if (imm == 0u && psx_ws_is_cull_screen_x_site(pc))
+        else if (imm == 0u && psx_ws_cull_screen_x_applies(pc, insn))
             cpu->gpr[rt] = (uint32_t)psx_ws_cull_bltz_hi(cpu->gpr[rs]);
         /* Widescreen render-funnel RIGHT-edge widen (auto_screen_x) for the
          * signed min/max funnel idiom (`slti v, minSX, W`) — the paired left
@@ -2222,7 +2222,7 @@ static int exec_one_fetched_inner(CPUState *cpu, uint32_t pc, uint32_t insn,
                             ((uint32_t)simm + 2u *
                              (uint32_t)psx_ws_activation_margin())) ? 1u : 0u;
         }
-        else if (psx_ws_is_cull_screen_x_site(pc))
+        else if (psx_ws_cull_screen_x_applies(pc, insn))
             cpu->gpr[rt] = (uint32_t)psx_ws_cull_sltiu(cpu->gpr[rs], imm);
         else if (psx_ws_auto_cull_on() && psx_ws_is_cull_w_imm(imm) && ws_cull_site(pc))
             cpu->gpr[rt] = (uint32_t)psx_ws_cull_sltiu(cpu->gpr[rs], imm);
@@ -2261,7 +2261,7 @@ static int exec_one_fetched_inner(CPUState *cpu, uint32_t pc, uint32_t insn,
     case 0x0F: /* LUI rt, imm */
         if (psx_ws_is_signed_x_bound_site(pc, insn))
             cpu->gpr[rt] = (uint32_t)psx_ws_player_x_bound((int32_t)(imm << 16));
-        else if (psx_ws_is_cull_screen_x_site(pc))
+        else if (psx_ws_cull_screen_x_applies(pc, insn))
             cpu->gpr[rt] = psx_ws_cull_lui_hi(imm);
         else
             cpu->gpr[rt] = imm << 16;
