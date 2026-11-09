@@ -355,6 +355,17 @@ void gpu_ws_set_clip_edge_x_load_sites(const uint32_t *sites, int nsites,
 void gpu_ws_set_cull_keep_sites(const uint32_t *addresses,
                                 const uint32_t *expected,
                                 const uint32_t *results, int nsites);
+/* [[widescreen.cull.sxy]]: packed-SXY all-vertices reject folds. Per site i,
+ * vertices[i] (3 or 4) ANDs at fold_addresses[i*4 + k] with words
+ * fold_expected[i*4 + k] and SXY operand vertex_regs[i*4 + k], then the
+ * beq/bne consumer. The recompiler config loader has validated the shape. */
+#define PSX_WS_SXY_CULL_SITES_MAX 64
+void gpu_ws_set_sxy_cull_sites(const uint32_t *vertices,
+                               const uint32_t *fold_addresses,
+                               const uint32_t *fold_expected,
+                               const uint32_t *vertex_regs,
+                               const uint32_t *consumer_addresses,
+                               const uint32_t *consumer_expected, int nsites);
 void gpu_ws_set_angle_sites(const uint32_t *addresses,
                             const uint32_t *expected, int nsites);
 /* [[widescreen.cull.scale]]: full-word-guarded SLT/SLTU sites whose rs (0) or
@@ -408,6 +419,14 @@ uint32_t psx_ws_clip_edge_width(void);
 uint32_t psx_ws_cull_keep_result(uint32_t vanilla, uint32_t forced);
 int psx_ws_cull_keep_site(uint32_t pc, uint32_t instr, uint32_t vanilla,
                           uint32_t *out);
+/* One AND of a [[widescreen.cull.sxy]] fold (ws_cull_edge.h); identity at 4:3. */
+uint32_t psx_ws_cull_sxy_and(uint32_t acc, uint32_t sxy);
+/* Interpreter lookup: the SXY operand register (1..31) when `instr` at `pc`
+ * is an AND of a configured fold and every fold and consumer word, read
+ * through `read_word` (physical address), matches; else 0. */
+extern int g_psx_ws_sxy_cull_n;
+uint32_t psx_ws_sxy_cull_vertex_reg(uint32_t pc, uint32_t instr,
+                                    uint32_t (*read_word)(uint32_t phys));
 uint32_t psx_ws_angle_widen(uint32_t vanilla);
 int psx_ws_angle_site(uint32_t pc, uint32_t instr, uint32_t *out);
 /* bound * (half_extent + margin) / half_extent; identity at 4:3. */
@@ -541,6 +560,8 @@ int  gpu_shadow_time_now(void);
  * time day|night (none = the title's detector), '#' a comment.
  * Returns the entries set, -1 with no file. */
 int  gpu_shadow_lights_load(const char *path);
+/* screen_x_sites on `sltu rd, SX, W` (W in a register): -4m <= SX < W. */
+int  psx_ws_cull_sltu_band(uint32_t sx, uint32_t bound);
 /* Signed-funnel variants (min/max + center±halfwidth idioms — see
  * ws_cull_detect.h): right-edge widen for `slti v, minSX, W` and left-edge
  * widen for the paired `bltz maxSX` reject. Identity at 4:3. */
@@ -560,6 +581,12 @@ uint32_t psx_ws_clip_edge_x(uint32_t v, uint32_t w);
  * 4:3. */
 uint32_t psx_ws_cull_lui_hi(uint32_t imm);
 int  psx_ws_cull_bltz_hi(uint32_t v);
+void gpu_ws_set_cull_screen_x_sites(const uint32_t *sites, int nsites);
+int  psx_ws_is_cull_screen_x_site(uint32_t pc);
+/* Guarded screen_x sites ("0xADDR:0xWORD"); applies = a plain site, or a
+ * guarded one whose word is the instruction at pc. */
+void gpu_ws_set_cull_screen_x_guarded(const uint32_t *sites, const uint32_t *words, int n);
+int  psx_ws_cull_screen_x_applies(uint32_t pc, uint32_t insn);
 int  psx_ws_cull_vxrange(uint32_t x, uint32_t imm);
 /* True if a run of instruction words carries the screen-extent reject signature
  * (a width compare AND a height compare from the configured immediate sets).

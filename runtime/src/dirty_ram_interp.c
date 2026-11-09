@@ -576,6 +576,12 @@ static inline uint32_t fetch_word(uint32_t phys) {
          | ((uint32_t)ram[phys + 3] << 24);
 }
 
+/* Word reader for the [[widescreen.cull.sxy]] whole-fold check: the fold
+ * words around an interpreted PC are in main RAM like the PC itself. */
+static uint32_t sxy_fold_word(uint32_t phys) {
+    return phys < 0x00800000u ? fetch_word(phys) : 0xFFFFFFFFu;
+}
+
 /* Widescreen render-funnel cull detection for the interpreter ([widescreen.cull]
  * auto_screen_x). A `sltiu …,0x140/0x141` is widened ONLY when its enclosing
  * render function also carries a `sltiu …,0xE0/0xF1` (the GTE per-vertex trivial-
@@ -1928,7 +1934,15 @@ static int exec_one_fetched_inner(CPUState *cpu, uint32_t pc, uint32_t insn,
         }
         case 0x24: { /* AND */
             uint32_t a = cpu->gpr[rs], b = cpu->gpr[rt];
-            cpu->gpr[rd] = a & b;
+            /* [[widescreen.cull.sxy]] fold AND: the same helper and the same
+             * whole-fold word check as the recompiled emit. */
+            const uint32_t sxy_v = g_psx_ws_sxy_cull_n > 0
+                ? psx_ws_sxy_cull_vertex_reg(pc, insn, sxy_fold_word) : 0u;
+            if (sxy_v != 0u)
+                cpu->gpr[rd] = psx_ws_cull_sxy_and(rs == sxy_v ? b : a,
+                                                   cpu->gpr[sxy_v]);
+            else
+                cpu->gpr[rd] = a & b;
             psx_pgxp_alu(cpu, insn, cpu->gpr[rd], a, b);
             cpu->gpr[0] = 0;
             return 0;
@@ -1971,8 +1985,11 @@ static int exec_one_fetched_inner(CPUState *cpu, uint32_t pc, uint32_t insn,
         {
             uint32_t vanilla = (cpu->gpr[rs] < cpu->gpr[rt]) ? 1u : 0u;
             uint32_t kept = vanilla;
-            if (!psx_ws_cull_scale_site(pc, insn, cpu->gpr[rs], cpu->gpr[rt], &kept))
-                (void)psx_ws_cull_keep_site(pc, insn, vanilla, &kept);
+            /* Same precedence as the code generator: scale and keep sites first. */
+            if (!psx_ws_cull_scale_site(pc, insn, cpu->gpr[rs], cpu->gpr[rt], &kept) &&
+                !psx_ws_cull_keep_site(pc, insn, vanilla, &kept) &&
+                psx_ws_cull_screen_x_applies(pc, insn))
+                kept = (uint32_t)psx_ws_cull_sltu_band(cpu->gpr[rs], cpu->gpr[rt]);
             cpu->gpr[rd] = kept;
             psx_pgxp_alu(cpu, insn, kept, 0, 0);
             cpu->gpr[0] = 0;
@@ -2090,8 +2107,11 @@ static int exec_one_fetched_inner(CPUState *cpu, uint32_t pc, uint32_t insn,
             /* Widescreen render-funnel LEFT-edge widen (auto_screen_x): a
              * classified funnel bltz rejects only past the revealed margin.
              * Identity at 4:3 (margin 0). Gated per-game, cheap cached scan. */
-            if (psx_ws_is_cull_bltz_site(pc) ||
-                (psx_ws_auto_cull_on() && ws_cull_bltz_site(pc)))
+            if (psx_ws_is_cull_bltz_site(pc))
+                taken = psx_ws_cull_bltz(cpu->gpr[rs]);
+            else if (psx_ws_cull_screen_x_applies(pc, insn))
+                taken = psx_ws_cull_bltz_hi(cpu->gpr[rs]);
+            else if (psx_ws_auto_cull_on() && ws_cull_bltz_site(pc))
                 taken = psx_ws_cull_bltz(cpu->gpr[rs]);
             else
                 taken = ((int32_t)cpu->gpr[rs] <  0);
@@ -2161,6 +2181,10 @@ static int exec_one_fetched_inner(CPUState *cpu, uint32_t pc, uint32_t insn,
             cpu->gpr[rt] = kept;
         else if (psx_ws_is_cull_depth_site(pc))
             cpu->gpr[rt] = ((int32_t)cpu->gpr[rs] < psx_ws_depth_bound(simm)) ? 1u : 0u;
+        /* screen_x_sites on `slti rt, x, 0` with `x = SX << 16`: the bltz
+         * sign test as a flag (same order as the recompiled emit). */
+        else if (imm == 0u && psx_ws_cull_screen_x_applies(pc, insn))
+            cpu->gpr[rt] = (uint32_t)psx_ws_cull_bltz_hi(cpu->gpr[rs]);
         /* Widescreen render-funnel RIGHT-edge widen (auto_screen_x) for the
          * signed min/max funnel idiom (`slti v, minSX, W`) — the paired left
          * edge is the bltz above. Identity at 4:3 (margin 0). */
@@ -2198,6 +2222,8 @@ static int exec_one_fetched_inner(CPUState *cpu, uint32_t pc, uint32_t insn,
                             ((uint32_t)simm + 2u *
                              (uint32_t)psx_ws_activation_margin())) ? 1u : 0u;
         }
+        else if (psx_ws_cull_screen_x_applies(pc, insn))
+            cpu->gpr[rt] = (uint32_t)psx_ws_cull_sltiu(cpu->gpr[rs], imm);
         else if (psx_ws_auto_cull_on() && psx_ws_is_cull_w_imm(imm) && ws_cull_site(pc))
             cpu->gpr[rt] = (uint32_t)psx_ws_cull_sltiu(cpu->gpr[rs], imm);
         else if (psx_ws_auto_cull_on() && psx_ws_is_cull_h_imm(imm) && ws_cull_site(pc))
@@ -2235,6 +2261,8 @@ static int exec_one_fetched_inner(CPUState *cpu, uint32_t pc, uint32_t insn,
     case 0x0F: /* LUI rt, imm */
         if (psx_ws_is_signed_x_bound_site(pc, insn))
             cpu->gpr[rt] = (uint32_t)psx_ws_player_x_bound((int32_t)(imm << 16));
+        else if (psx_ws_cull_screen_x_applies(pc, insn))
+            cpu->gpr[rt] = psx_ws_cull_lui_hi(imm);
         else
             cpu->gpr[rt] = imm << 16;
         psx_pgxp_alu(cpu, insn, cpu->gpr[rt], 0, 0);

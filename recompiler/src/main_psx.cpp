@@ -228,6 +228,7 @@ static int psxrecomp_game_main(int argc, char** argv) {
     std::set<uint32_t>    ws_cull_bias, ws_cull_range, ws_cull_a1; // [widescreen.cull]
     std::set<uint32_t>    ws_cull_bias_lower;
     std::set<uint32_t>    ws_cull_screen_x;    // [widescreen.cull] screen_x_sites
+    std::map<uint32_t, std::set<uint32_t>> ws_cull_screen_x_words; // guarded "0xADDR:0xWORD"
     std::set<uint32_t>    ws_cull_slti;         // [widescreen.cull] slti_sites
     std::set<uint32_t>    ws_cull_slti_lower;   // [widescreen.cull] slti_lower_sites
     std::set<uint32_t>    ws_cull_bltz;         // [widescreen.cull] bltz_sites
@@ -244,6 +245,7 @@ static int psxrecomp_game_main(int argc, char** argv) {
     std::set<uint32_t>    ws_cull_clip_edge_x_load; // [widescreen.cull] clip_edge_x_load_sites
     uint32_t              ws_cull_clip_edge_width = 0; // [widescreen.cull] clip_edge_width
     std::vector<PSXRecompV4::WidescreenCullKeepSite> ws_cull_keep;
+    std::vector<PSXRecompV4::WidescreenSxyCullSite> ws_cull_sxy;
     std::vector<PSXRecompV4::WidescreenCullScaleSite> ws_cull_scale;
     std::vector<PSXRecompV4::WidescreenAngleSite> ws_cull_angle;
     std::vector<PSXRecompV4::DrawDistanceClampSite> draw_distance_clamps; // [[draw_distance.clamp]]
@@ -309,6 +311,8 @@ static int psxrecomp_game_main(int argc, char** argv) {
         ws_cull_range.insert(cfg.ws_cull_range_sites.begin(), cfg.ws_cull_range_sites.end());
         ws_cull_a1.insert(cfg.ws_cull_a1_sites.begin(), cfg.ws_cull_a1_sites.end());
         ws_cull_screen_x.insert(cfg.ws_cull_screen_x_sites.begin(), cfg.ws_cull_screen_x_sites.end());
+        for (const auto& [addr, word] : cfg.ws_cull_screen_x_guarded)
+            ws_cull_screen_x_words[addr].insert(word);
         ws_cull_slti.insert(cfg.ws_cull_slti_sites.begin(), cfg.ws_cull_slti_sites.end());
         ws_cull_slti_lower.insert(cfg.ws_cull_slti_lower_sites.begin(),
                                   cfg.ws_cull_slti_lower_sites.end());
@@ -328,6 +332,7 @@ static int psxrecomp_game_main(int argc, char** argv) {
         if (!cfg.ws_cull_clip_edge_x_load_sites.empty())
             ws_cull_clip_edge_width = PSXRecompV4::ws_cull_clip_edge_width(cfg);
         ws_cull_keep = cfg.ws_cull_keep_sites;
+        ws_cull_sxy = cfg.ws_cull_sxy_sites;
         ws_cull_masked_reject = cfg.ws_cull_masked_reject_sites;
         ws_cull_scale = cfg.ws_cull_scale_sites;
         ws_cull_angle = cfg.ws_cull_angle_sites;
@@ -431,6 +436,8 @@ static int psxrecomp_game_main(int argc, char** argv) {
         ws_cull_range.insert(wscfg.ws_cull_range_sites.begin(), wscfg.ws_cull_range_sites.end());
         ws_cull_a1.insert(wscfg.ws_cull_a1_sites.begin(), wscfg.ws_cull_a1_sites.end());
         ws_cull_screen_x.insert(wscfg.ws_cull_screen_x_sites.begin(), wscfg.ws_cull_screen_x_sites.end());
+        for (const auto& [addr, word] : wscfg.ws_cull_screen_x_guarded)
+            ws_cull_screen_x_words[addr].insert(word);
         ws_cull_slti.insert(wscfg.ws_cull_slti_sites.begin(), wscfg.ws_cull_slti_sites.end());
         ws_cull_slti_lower.insert(wscfg.ws_cull_slti_lower_sites.begin(),
                                   wscfg.ws_cull_slti_lower_sites.end());
@@ -450,6 +457,7 @@ static int psxrecomp_game_main(int argc, char** argv) {
         if (!wscfg.ws_cull_clip_edge_x_load_sites.empty() && !ws_cull_clip_edge_width)
             ws_cull_clip_edge_width = PSXRecompV4::ws_cull_clip_edge_width(wscfg);
         if (ws_cull_keep.empty()) ws_cull_keep = wscfg.ws_cull_keep_sites;
+        if (ws_cull_sxy.empty()) ws_cull_sxy = wscfg.ws_cull_sxy_sites;
         if (ws_cull_masked_reject.empty()) ws_cull_masked_reject = wscfg.ws_cull_masked_reject_sites;
         if (ws_cull_scale.empty()) ws_cull_scale = wscfg.ws_cull_scale_sites;
         if (ws_cull_angle.empty()) ws_cull_angle = wscfg.ws_cull_angle_sites;
@@ -678,6 +686,30 @@ static int psxrecomp_game_main(int argc, char** argv) {
         check("widescreen.bg2d.bufbase_site", ws_bg2d_bufbase_site);
         check("widescreen.bg2d.cap_site", ws_bg2d_cap_site);
         check("widescreen.bg2d.init_func", ws_bg2d_init_func);
+        // [[widescreen.cull.sxy]] sites are matched physically, and every
+        // word of each fold and its consumer is part of the identity: check
+        // them all against the image up front, so a stale address fails the
+        // build even when no discovered function reaches the fold.
+        for (const auto& site : ws_cull_sxy) {
+            for (size_t i = 0; i <= site.vertices; i++) {
+                const bool consumer = i == site.vertices;
+                const uint32_t phys = (consumer ? site.consumer_address
+                                                : site.fold_addresses[i]) &
+                                      PSXRecomp::kPhysMask;
+                const uint32_t want = consumer ? site.consumer_expected
+                                               : site.fold_expected[i];
+                const uint32_t a = exe->link_segment() | phys;
+                if (!exe->contains_phys(a)) continue;
+                const auto got = exe->read_word(a);
+                if (!got || *got != want) {
+                    fmt::print(stderr,
+                        "ERROR: [[widescreen.cull.sxy]] expected 0x{:08X} at "
+                        "0x{:08X}, found 0x{:08X}\n",
+                        want, a, got ? *got : 0u);
+                    return 1;
+                }
+            }
+        }
         if (!foreign.empty()) {
             fmt::print(stderr,
                 "ERROR: {} config code site(s) name this image's bytes in another "
@@ -1502,6 +1534,7 @@ static int psxrecomp_game_main(int argc, char** argv) {
     codegen_config.ws_cull_range_sites = ws_cull_range;
     codegen_config.ws_cull_a1_sites    = ws_cull_a1;
     codegen_config.ws_cull_screen_x_sites = ws_cull_screen_x;
+    codegen_config.ws_cull_screen_x_words = ws_cull_screen_x_words;
     codegen_config.ws_cull_activation_guard_pixels =
         ws_cull_activation_guard_pixels;
     codegen_config.ws_cull_slti_sites  = ws_cull_slti;
@@ -1523,6 +1556,7 @@ static int psxrecomp_game_main(int argc, char** argv) {
     else if (!ws_cull_w_imms.empty())
         codegen_config.ws_cull_clip_edge_width = ws_cull_w_imms.front();
     codegen_config.ws_cull_keep_sites = ws_cull_keep;
+    codegen_config.ws_cull_sxy_sites = ws_cull_sxy;
     codegen_config.ws_cull_scale_sites = ws_cull_scale;
     codegen_config.ws_cull_angle_sites = ws_cull_angle;
     codegen_config.draw_distance_clamp_sites = draw_distance_clamps;

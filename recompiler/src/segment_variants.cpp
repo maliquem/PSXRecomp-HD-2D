@@ -161,6 +161,11 @@ CodeGenConfig move_exact_config_sites(const CodeGenConfig& cfg, At at) {
     move_set(v.ws_cull_range_sites);
     move_set(v.ws_cull_a1_sites);
     move_set(v.ws_cull_screen_x_sites);
+    {
+        std::map<uint32_t, std::set<uint32_t>> moved;
+        for (const auto& [a, words] : v.ws_cull_screen_x_words) moved[at(a)] = words;
+        v.ws_cull_screen_x_words = std::move(moved);
+    }
     move_set(v.ws_cull_slti_sites);
     move_set(v.ws_cull_slti_lower_sites);
     move_set(v.ws_cull_bltz_sites);
@@ -190,8 +195,8 @@ CodeGenConfig move_exact_config_sites(const CodeGenConfig& cfg, At at) {
     v.ws_bg2d_bufbase_site = at(v.ws_bg2d_bufbase_site);
     v.ws_bg2d_cap_site = at(v.ws_bg2d_cap_site);
     // Physically matched, kept as written: ws_signed_x_bound_sites,
-    // ws_cull_keep_sites, ws_cull_angle_sites, ws_aspect_cone.sites,
-    // draw_distance_clamp_sites.
+    // ws_cull_keep_sites, ws_cull_sxy_sites, ws_cull_angle_sites,
+    // ws_aspect_cone.sites, draw_distance_clamp_sites.
     return v;
 }
 

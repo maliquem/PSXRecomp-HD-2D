@@ -19065,6 +19065,26 @@ int main(int argc, char** argv) {
                     (int)addresses.size());
             }
             {
+                // [[widescreen.cull.sxy]]: four slots per site.
+                std::vector<uint32_t> vertices, fold_addresses, fold_expected,
+                    vertex_regs, consumer_addresses, consumer_expected;
+                for (const auto& site : gc.ws_cull_sxy_sites) {
+                    vertices.push_back(site.vertices);
+                    for (size_t k = 0; k < 4; k++) {
+                        const bool used = k < site.vertices;
+                        fold_addresses.push_back(used ? site.fold_addresses[k] : 0u);
+                        fold_expected.push_back(used ? site.fold_expected[k] : 0u);
+                        vertex_regs.push_back(used ? site.vertex_regs[k] : 0u);
+                    }
+                    consumer_addresses.push_back(site.consumer_address);
+                    consumer_expected.push_back(site.consumer_expected);
+                }
+                gpu_ws_set_sxy_cull_sites(
+                    vertices.data(), fold_addresses.data(), fold_expected.data(),
+                    vertex_regs.data(), consumer_addresses.data(),
+                    consumer_expected.data(), (int)vertices.size());
+            }
+            {
                 std::vector<uint32_t> addresses, expected, masks;
                 for (const auto& site : gc.ws_cull_masked_reject_sites) {
                     addresses.push_back(site.address);
@@ -19158,6 +19178,17 @@ int main(int argc, char** argv) {
              * must never have its live code scanned and rewritten. */
             gpu_ws_set_auto_hooks(gc.ws_auto_screen_x_cull ? 1 : 0,
                                   gc.ws_auto_backdrop_preload ? 1 : 0);
+            gpu_ws_set_cull_screen_x_sites(
+                gc.ws_cull_screen_x_sites.data(),
+                (int)gc.ws_cull_screen_x_sites.size());
+            {
+                std::vector<uint32_t> sites, words;
+                for (const auto& [addr, word] : gc.ws_cull_screen_x_guarded) {
+                    sites.push_back(addr);
+                    words.push_back(word);
+                }
+                gpu_ws_set_cull_screen_x_guarded(sites.data(), words.data(), (int)sites.size());
+            }
             if (!gc.ws_cull_w_imms.empty() || !gc.ws_cull_h_imms.empty())
                 gpu_ws_set_cull_imms(gc.ws_cull_w_imms.data(), (int)gc.ws_cull_w_imms.size(),
                                      gc.ws_cull_h_imms.data(), (int)gc.ws_cull_h_imms.size());

@@ -22,6 +22,7 @@
 #include <array>
 #include <filesystem>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "bios_address_model.h"   // BiosAddrCopy (BiosConfig::address_copies)
@@ -122,6 +123,21 @@ struct WidescreenCullKeepSite {
     uint32_t address = 0;
     uint32_t expected = 0; // guarded SLT/SLTU/SLTI/SLTIU instruction
     uint32_t result = 0;   // forced comparison result (0 or 1)
+};
+
+// One packed-SXY all-vertices reject ([[widescreen.cull.sxy]]): an AND fold
+// over the projected SXY of every vertex of a triangle or quad, seeded with a
+// sign mask and consumed by `beq/bne r, zero`. Each AND is widened only in
+// its X-sign bit (ws_cull_edge.h psx_ws_sxy_and_value); the guest's own
+// branch still decides. Every word of the fold and of the consumer is part of
+// the identity: an overlay variant whose words differ anywhere is untouched.
+struct WidescreenSxyCullSite {
+    uint32_t vertices = 0;                 // 3 (kind = "tri") or 4 ("quad")
+    std::vector<uint32_t> fold_addresses;  // one AND per vertex, chain order
+    std::vector<uint32_t> fold_expected;   // the exact AND words
+    std::vector<uint32_t> vertex_regs;     // the SXY operand of each AND
+    uint32_t consumer_address = 0;         // beq/bne r, zero after the fold
+    uint32_t consumer_expected = 0;
 };
 
 // Aspect-scaled 12-bit angular half-extent. These sites load a positive angle
@@ -1320,6 +1336,12 @@ struct GameConfig {
     // the two forms of a screen X kept in the high half of a register:
     // `lui rt,W` (the edge as W << 16) and `bltz` on `sx << 16`.
     std::vector<uint32_t> ws_cull_screen_x_sites;
+    // Guarded screen_x sites, written "0xADDR:0xWORD": the site applies only
+    // where the instruction at ADDR is WORD, in the main EXE and in every area,
+    // compiled or interpreted. For code in an area loaded at an address the
+    // boot EXE also uses: a different word elsewhere is skipped, never an
+    // error. Unguarded sites (above) keep the strict main-EXE check.
+    std::vector<std::pair<uint32_t, uint32_t>> ws_cull_screen_x_guarded;
 
     // [widescreen.cull] slti_sites — explicit signed right-edge widen sites
     // (`slti rt, sx, W` → psx_ws_cull_slti) for funnel functions the
@@ -1373,6 +1395,8 @@ struct GameConfig {
     // where maximal overdraw is preferable to range guessing. Each entry is
     // guarded by the complete MIPS word; 4:3 executes the vanilla comparison.
     std::vector<WidescreenCullKeepSite> ws_cull_keep_sites;
+    // Packed-SXY all-vertices rejects widened only on the left edge.
+    std::vector<WidescreenSxyCullSite> ws_cull_sxy_sites;
     // Register-register frustum-edge compares whose bound operand scales
     // with the live reveal ([[widescreen.cull.scale]]).
     std::vector<WidescreenCullScaleSite> ws_cull_scale_sites;

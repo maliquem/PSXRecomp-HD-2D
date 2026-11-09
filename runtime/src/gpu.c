@@ -1606,7 +1606,54 @@ WS_EXPLICIT_LIST(bltz);
 WS_EXPLICIT_LIST(bgez);
 WS_EXPLICIT_LIST(branch_keep);
 WS_EXPLICIT_LIST(clip_edge_x_load);
+WS_EXPLICIT_LIST(screen_x);
 static uint32_t ws_clip_edge_width = 320;
+
+/* [widescreen.cull] screen_x_sites for interpreted code: native code compiles
+ * the list in (code_generator.cpp); this keeps a dirty-RAM copy of a listed
+ * site on the same semantics. */
+void gpu_ws_set_cull_screen_x_sites(const uint32_t *sites, int nsites) {
+    ws_explicit_screen_x_n = ws_explicit_store(
+        ws_explicit_screen_x_sites, sites, nsites, "screen_x_sites");
+}
+int psx_ws_is_cull_screen_x_site(uint32_t pc) {
+    return ws_explicit_site(ws_explicit_screen_x_sites,
+                            ws_explicit_screen_x_n, pc);
+}
+/* Guarded screen_x sites ("0xADDR:0xWORD"): a site applies only while the
+ * instruction at its address is the word written, as in the code generator. */
+static uint64_t ws_screen_x_guarded[WS_EXPLICIT_CULL_SITES_MAX];
+static int ws_screen_x_guarded_n = 0;
+static int ws_guarded_cmp(const void *a, const void *b) {
+    uint64_t x = *(const uint64_t *)a, y = *(const uint64_t *)b;
+    return x < y ? -1 : x > y ? 1 : 0;
+}
+void gpu_ws_set_cull_screen_x_guarded(const uint32_t *sites, const uint32_t *words, int n) {
+    if (n < 0 || !sites || !words) n = 0;
+    if (n > WS_EXPLICIT_CULL_SITES_MAX) {
+        fprintf(stderr,
+                "[widescreen] screen_x_sites: %d guarded sites exceed the interpreter cap of %d; "
+                "sites past the cap stay vanilla in interpreted code\n",
+                n, WS_EXPLICIT_CULL_SITES_MAX);
+        n = WS_EXPLICIT_CULL_SITES_MAX;
+    }
+    for (int i = 0; i < n; i++)
+        ws_screen_x_guarded[i] = ((uint64_t)(sites[i] & 0x1FFFFFFFu) << 32) | words[i];
+    qsort(ws_screen_x_guarded, (size_t)n, sizeof(ws_screen_x_guarded[0]), ws_guarded_cmp);
+    ws_screen_x_guarded_n = n;
+}
+int psx_ws_cull_screen_x_applies(uint32_t pc, uint32_t insn) {
+    if (psx_ws_is_cull_screen_x_site(pc)) return 1;
+    if (ws_screen_x_guarded_n == 0) return 0;
+    const uint64_t key = ((uint64_t)(pc & 0x1FFFFFFFu) << 32) | insn;
+    int lo = 0, hi = ws_screen_x_guarded_n;
+    while (lo < hi) {
+        int mid = lo + (hi - lo) / 2;
+        if (ws_screen_x_guarded[mid] < key) lo = mid + 1;
+        else hi = mid;
+    }
+    return lo < ws_screen_x_guarded_n && ws_screen_x_guarded[lo] == key;
+}
 
 void gpu_ws_set_explicit_cull_sites(const uint32_t *bias, int nbias,
                                     const uint32_t *slti, int nslti,
@@ -1891,6 +1938,63 @@ int psx_ws_cull_keep_site(uint32_t pc, uint32_t instr, uint32_t vanilla,
         if (site->address != phys || site->expected != instr) continue;
         if (out) *out = psx_ws_cull_keep_result(vanilla, site->result);
         return 1;
+    }
+    return 0;
+}
+
+typedef struct {
+    uint32_t vertices;
+    uint32_t fold_address[4];   /* physical */
+    uint32_t fold_expected[4];
+    uint32_t vertex_reg[4];
+    uint32_t consumer_address;  /* physical */
+    uint32_t consumer_expected;
+} WsSxyCullSite;
+static WsSxyCullSite ws_sxy_cull_sites[PSX_WS_SXY_CULL_SITES_MAX];
+int g_psx_ws_sxy_cull_n = 0;
+void gpu_ws_set_sxy_cull_sites(const uint32_t *vertices,
+                               const uint32_t *fold_addresses,
+                               const uint32_t *fold_expected,
+                               const uint32_t *vertex_regs,
+                               const uint32_t *consumer_addresses,
+                               const uint32_t *consumer_expected, int nsites) {
+    int n = 0;
+    if (nsites > PSX_WS_SXY_CULL_SITES_MAX) nsites = PSX_WS_SXY_CULL_SITES_MAX;
+    for (int i = 0; i < nsites; i++) {
+        WsSxyCullSite *site = &ws_sxy_cull_sites[n];
+        if (vertices[i] != 3u && vertices[i] != 4u) continue;
+        site->vertices = vertices[i];
+        for (uint32_t k = 0; k < site->vertices; k++) {
+            site->fold_address[k] = fold_addresses[i * 4 + k] & 0x1FFFFFFFu;
+            site->fold_expected[k] = fold_expected[i * 4 + k];
+            site->vertex_reg[k] = vertex_regs[i * 4 + k] & 31u;
+        }
+        site->consumer_address = consumer_addresses[i] & 0x1FFFFFFFu;
+        site->consumer_expected = consumer_expected[i];
+        n++;
+    }
+    g_psx_ws_sxy_cull_n = n;
+}
+uint32_t psx_ws_cull_sxy_and(uint32_t acc, uint32_t sxy) {
+    return psx_ws_sxy_and_value(acc, sxy, psx_ws_x_margin());
+}
+uint32_t psx_ws_sxy_cull_vertex_reg(uint32_t pc, uint32_t instr,
+                                    uint32_t (*read_word)(uint32_t phys)) {
+    const uint32_t phys = pc & 0x1FFFFFFFu;
+    for (int i = 0; i < g_psx_ws_sxy_cull_n; i++) {
+        const WsSxyCullSite *site = &ws_sxy_cull_sites[i];
+        uint32_t step = site->vertices;
+        for (uint32_t k = 0; k < site->vertices; k++)
+            if (site->fold_address[k] == phys && site->fold_expected[k] == instr)
+                step = k;
+        if (step == site->vertices) continue;
+        /* The rest of the fold and the consumer are part of the identity,
+         * exactly as the recompiler checks them before emitting the helper. */
+        int ok = read_word(site->consumer_address) == site->consumer_expected;
+        for (uint32_t k = 0; ok && k < site->vertices; k++)
+            if (k != step && read_word(site->fold_address[k]) != site->fold_expected[k])
+                ok = 0;
+        if (ok) return site->vertex_reg[step];
     }
     return 0;
 }
@@ -2825,6 +2929,23 @@ int psx_ws_cull_sltiu(uint32_t sx, uint32_t imm) {
     int m = ws_cull_xm();
     return ((uint32_t)((int32_t)(int16_t)(uint16_t)sx + m)
             < (uint32_t)((int32_t)imm + 2 * m)) ? 1 : 0;
+}
+
+/* [widescreen.cull] screen_x_sites on `sltu rd, SX, W` with W in a register:
+ * SX is a 16-bit screen X (typically `andi SX, sxy, 0xffff`), W the width the
+ * guest loaded (pair with clip_edge_x_load_sites so W already carries the right
+ * margin). The unsigned compare rejects negative X; while widened the verdict is
+ * -k*m <= (int16)SX < W, so the left band passes too. Identity at margin 0.
+ * These tests check single vertices, so a large near polygon whose corners all
+ * lie past the reveal would still drop: k = 4 margins keeps them (Kula World's
+ * level quads), while an unbounded left side lets every off-screen polygon
+ * through and overflows renderers with fixed primitive lists. */
+#define WS_SLTU_BAND_LEFT_REACH 4
+int psx_ws_cull_sltu_band(uint32_t sx, uint32_t bound) {
+    int m = psx_ws_x_margin();
+    if (m <= 0) return sx < bound ? 1 : 0;
+    int32_t x = (int32_t)(int16_t)(uint16_t)sx;
+    return (x >= -WS_SLTU_BAND_LEFT_REACH * m && x < (int32_t)bound) ? 1 : 0;
 }
 
 /* Signed right-edge widen for the min/max funnel idiom (`slti v, minSX, W`):

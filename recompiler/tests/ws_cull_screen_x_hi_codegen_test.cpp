@@ -110,12 +110,15 @@ bool exits_with_failure(F&& body) {
 }
 
 constexpr uint32_t kSltiuV0 = 0x2C620200u;   // sltiu v0, v1, 0x200
+constexpr uint32_t kSltuV0 = 0x0064102Bu;    // sltu v0, v1, a0 (width in a register)
 constexpr uint32_t kLuiS6 = 0x3C160200u;     // lui   s6, 0x200
 constexpr uint32_t kLuiZero = 0x3C000200u;   // lui   zero, 0x200
 constexpr uint32_t kBltzT0 = 0x05000002u;    // bltz  t0, +2
 constexpr uint32_t kBgezT0 = 0x05010002u;    // bgez  t0, +2
 constexpr uint32_t kBltzalT0 = 0x05100002u;  // bltzal t0, +2
 constexpr uint32_t kAddiuV0 = 0x24820070u;   // addiu v0, a0, 0x70
+constexpr uint32_t kSltiAtS6 = 0x2AC10000u;  // slti  at, s6, 0 (s6 = SX << 16)
+constexpr uint32_t kSltiAtS6Imm = 0x2AC10010u; // slti at, s6, 0x10
 
 const char* const kLuiHelper =
     "cpu->gpr[22] = psx_ws_cull_lui_hi(0x0200u); "
@@ -165,6 +168,49 @@ void listed_sites_emit_the_helpers() {
           "a screen_x site on sltiu still routes through psx_ws_cull_sltiu");
 }
 
+// sltu with the width in a register: the unsigned compare rejects negative X,
+// the band helper also accepts the left reveal.
+void listed_sltu_emits_the_band_helper() {
+    PSXRecomp::CodeGenConfig config{};
+    config.emit_comments = true;
+    check(!has(generate_first_instruction(kSltuV0, config), "psx_ws_cull_sltu_band"),
+          "an unlisted sltu stays vanilla");
+    config.ws_cull_screen_x_sites.insert(kBase);
+    check(has(generate_first_instruction(kSltuV0, config),
+              "cpu->gpr[2] = psx_ws_cull_sltu_band(cpu->gpr[3], cpu->gpr[4]); "
+              "/* ws explicit screen-x band */"),
+          "a screen_x site on sltu routes through psx_ws_cull_sltu_band");
+    check(!exits_with_failure([&] { generate_first_instruction(kSltuV0, config); }),
+          "a screen_x site on sltu generates");
+}
+
+// slti rt,x,0 on `SX << 16` is the bltz sign test as a flag: set only while
+// SX < -margin through the same helper. Any other slti immediate is not this
+// form and fails the main-EXE build; an overlay variant keeps its code.
+void listed_slti_zero_emits_the_high_half_test() {
+    PSXRecomp::CodeGenConfig config{};
+    config.emit_comments = true;
+    const auto plain = generate_first_instruction(kSltiAtS6, config);
+    check(!has(plain, "psx_ws_cull_bltz_hi"), "an unlisted slti stays vanilla");
+    config.ws_cull_screen_x_sites.insert(kBase);
+    check(has(generate_first_instruction(kSltiAtS6, config),
+              "cpu->gpr[1] = (uint32_t)psx_ws_cull_bltz_hi(cpu->gpr[22]); "
+              "/* ws explicit screen-x left edge (high half) */"),
+          "a screen_x site on slti rt,rs,0 routes through psx_ws_cull_bltz_hi");
+    check(!exits_with_failure([&] { generate_first_instruction(kSltiAtS6, config); }),
+          "a screen_x site on slti rt,rs,0 generates");
+    check(exits_with_failure([&] { generate_first_instruction(kSltiAtS6Imm, config); }),
+          "a screen_x site on slti with a nonzero immediate fails main-EXE generation");
+    config.overlay_mode = true;
+    check(!has(generate_first_instruction(kSltiAtS6Imm, config), "psx_ws_cull_"),
+          "an overlay slti with a nonzero immediate at a screen_x site stays vanilla");
+    for (int32_t x : {-1000, -54, -53, -1, 0, 1, 319}) {
+        const uint32_t v = (uint32_t)x << 16;
+        check(psx_ws_cull_bltz_hi_value(v, 0) == (((int32_t)v < 0) ? 1 : 0),
+              "the slti form is the vanilla slti at margin 0");
+    }
+}
+
 // bltz_sites is the low-half form and keeps its meaning when an address is in
 // both lists.
 void bltz_sites_wins_over_screen_x_sites() {
@@ -207,6 +253,42 @@ void main_exe_guard_and_overlay_variants() {
 
 // The two prototypes are written only for a config that lists screen_x_sites,
 // so every other title's generated declarations are byte-identical.
+// Guarded sites ("0xADDR:0xWORD"): an area loaded at an address the boot EXE
+// also uses lists its sites with the word they hold. Where the word matches the
+// site applies as a plain one; elsewhere the code stays vanilla, with no
+// main-EXE error.
+void guarded_sites_apply_only_to_their_word() {
+    PSXRecomp::CodeGenConfig config{};
+    config.emit_comments = true;
+    config.ws_cull_screen_x_words[kBase] = {kLuiS6, kSltiuV0};
+    check(has(generate_first_instruction(kLuiS6, config), "psx_ws_cull_lui_hi(0x0200u)"),
+          "a guarded site whose word matches (lui) is widened");
+    check(has(generate_first_instruction(kSltiuV0, config), "psx_ws_cull_sltiu(cpu->gpr[3], 512)"),
+          "a second word at the same guarded site (sltiu) is widened");
+    const auto other = generate_first_instruction(kBltzT0, config);
+    check(has(other, "(int32_t)cpu->gpr[8] < 0") && !has(other, "psx_ws_cull_"),
+          "a guarded site holding another word (bltz) stays vanilla");
+    check(!exits_with_failure([&] { generate_first_instruction(kAddiuV0, config); }),
+          "a guarded site holding another word does not fail main-EXE generation");
+    check(!has(generate_first_instruction(kAddiuV0, config), "psx_ws_cull_"),
+          "a guarded site holding addiu stays vanilla");
+    config.ws_cull_screen_x_words[kBase] = {kBltzT0};
+    check(has(generate_first_instruction(kBltzT0, config), "psx_ws_cull_bltz_hi(cpu->gpr[8])"),
+          "a guarded bltz whose word matches is widened");
+    // A guarded word that is not a screen_x form is a config mistake: the
+    // main EXE fails as for a plain site.
+    config.ws_cull_screen_x_words[kBase] = {kAddiuV0};
+    check(exits_with_failure([&] { generate_first_instruction(kAddiuV0, config); }),
+          "a guarded word that is not a screen_x form fails main-EXE generation");
+    // Overlay mode: the same rule.
+    config.overlay_mode = true;
+    config.ws_cull_screen_x_words[kBase] = {kLuiS6};
+    check(has(generate_first_instruction(kLuiS6, config), "psx_ws_cull_lui_hi(0x0200u)"),
+          "an overlay lui whose guarded word matches is widened");
+    check(!has(generate_first_instruction(kSltiuV0, config), "psx_ws_cull_"),
+          "an overlay sltiu at a site guarded for lui stays vanilla");
+}
+
 void declarations_only_when_the_key_is_used() {
     PSXRecomp::PS1Executable exe{};
     exe.header.load_address = kBase;
@@ -225,6 +307,13 @@ void declarations_only_when_the_key_is_used() {
           "a config with screen_x_sites declares psx_ws_cull_lui_hi");
     check(has(with, "extern int  psx_ws_cull_bltz_hi(uint32_t v);"),
           "a config with screen_x_sites declares psx_ws_cull_bltz_hi");
+
+    PSXRecomp::CodeGenConfig guarded{};
+    guarded.ws_cull_screen_x_words[kBase] = {kLuiS6};
+    PSXRecomp::CodeGenerator only_guarded(exe, guarded);
+    check(has(only_guarded.build_shared_decls_header(functions),
+              "extern uint32_t psx_ws_cull_lui_hi(uint32_t imm);"),
+          "a config with only guarded screen_x sites declares the helpers");
 }
 
 void runtime_math() {
@@ -283,8 +372,11 @@ int main(int argc, char** argv) {
     }
     unlisted_instructions_stay_vanilla();
     listed_sites_emit_the_helpers();
+    listed_sltu_emits_the_band_helper();
+    listed_slti_zero_emits_the_high_half_test();
     bltz_sites_wins_over_screen_x_sites();
     main_exe_guard_and_overlay_variants();
+    guarded_sites_apply_only_to_their_word();
     declarations_only_when_the_key_is_used();
     runtime_math();
 
