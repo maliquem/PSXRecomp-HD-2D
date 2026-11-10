@@ -1337,7 +1337,6 @@ typedef struct {
     uint32_t region_start;
     uint32_t logical_crc;
     uint32_t seg;          /* shard segment, from its directory (§5.7)       */
-    uint64_t mtime;
     int func_count;
     int indexed_func_count;
     uint8_t tier;
@@ -1916,7 +1915,6 @@ static int add_posix_cache_file(const PsxOverlayCacheFile *file, void *opaque) {
     e->region_start = file->region_start;
     e->logical_crc = file->content_crc;
     e->seg = seg;
-    e->mtime = file->mtime;
     e->func_count = 0;
     e->indexed_func_count = 0;
     e->tier = (uint8_t)tier;
@@ -1962,8 +1960,6 @@ static void scan_one_cache_dir(const char *dir, int tier) {
         e->region_start = addr;
         e->logical_crc = crc;
         e->seg = cache_seg_from_path(full);
-        e->mtime = ((uint64_t)fd.ftLastWriteTime.dwHighDateTime << 32) |
-                   (uint64_t)fd.ftLastWriteTime.dwLowDateTime;
         e->func_count = 0;
         e->indexed_func_count = 0;
         e->tier = (uint8_t)tier;
@@ -3600,12 +3596,20 @@ static int lazy_bundle_matches(int ci) {
     return seen == s_cache_idx[ci].func_count;
 }
 
+/* Same-tier artifacts that both pass the live-byte gate compute the same
+ * thing, but their block edges differ (where a page cut or another capture's
+ * branch targets end a block), so under cpu_timing = "block" they can charge
+ * a cycle or two apart at those edges. The choice must therefore come from
+ * the cache's contents, never from file dates: a cache copied without dates
+ * used to pick another artifact and change a run. The smaller bundle wins
+ * (what an additive repair usually is, and never a larger historical bundle
+ * in its place), then the path. */
 static int lazy_candidate_preferred(int li, int current) {
     if (current < 0) return 1;
     const CacheEntry *a = &s_cache_idx[s_lazy_man[li].cache_idx];
     const CacheEntry *b = &s_cache_idx[s_lazy_man[current].cache_idx];
     if (a->tier != b->tier) return a->tier > b->tier;
-    if (a->mtime != b->mtime) return a->mtime > b->mtime;
+    if (a->func_count != b->func_count) return a->func_count < b->func_count;
     return strcmp(a->path, b->path) > 0;
 }
 
