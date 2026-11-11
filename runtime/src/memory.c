@@ -1335,14 +1335,18 @@ static inline uint16_t read_ram_half(uint32_t phys) {
  * each key to the one store its ROM-address key named before the re-key, now
  * whichever backend runs it. */
 #include "psx_bios_known_images.h"
-static inline int scph1001_relocated_store(uint32_t pc, uint32_t rom) {
-    if (g_debug_last_store_pc != pc) return 0;
+/* The active BIOS image is SCPH-1001. */
+static inline int scph1001_active(void) {
     static uint32_t s_scph1001_crc = 0;
     if (!s_scph1001_crc) {
         const PsxKnownBiosImage* img = psx_known_bios_by_stem("SCPH1001");
         s_scph1001_crc = img ? img->crc32 : 0xFFFFFFFFu;
     }
-    if (psx_bios_image.image_crc32 != s_scph1001_crc) return 0;
+    return psx_bios_image.image_crc32 == s_scph1001_crc;
+}
+static inline int scph1001_relocated_store(uint32_t pc, uint32_t rom) {
+    if (g_debug_last_store_pc != pc) return 0;
+    if (!scph1001_active()) return 0;
     const uint32_t phys = pc & 0x1FFFFFFFu;
     const uint32_t off = rom & (BIOS_ROM_SIZE - 1u);
     if (phys + 4u > RAM_SIZE) return 0;
@@ -2210,8 +2214,12 @@ static void psx_write_word_raw(uint32_t addr, uint32_t val) {
     /* BIOS helpers use RAM address zero as a tiny delay-loop scratch between
      * device-register polls. Treat these two dummy stores as non-visible; real
      * hardware / Beetle preserve Tomba 2's sector-63 card-management payload
-     * when it passes buffer=0 to _card_write. */
-    if (fntrace_is_game_started() && phys == 0u) {
+     * when it passes buffer=0 to _card_write.
+     * All of these keys were found on SCPH-1001 (fee55358), so they apply only
+     * while SCPH-1001 is the active image: under another BIOS the same PCs hold
+     * other instructions, and a store to RAM 0 there is an ordinary visible
+     * write (study B2, 2026-11-11). */
+    if (fntrace_is_game_started() && phys == 0u && scph1001_active()) {
         switch (g_debug_last_store_pc) {
         case 0xBFC04E90u:   /* ROM, runs in place */
         case 0xBFC04EF0u:
