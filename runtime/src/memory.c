@@ -49,11 +49,21 @@ static int rp_mod_journal(uint8_t *base, uint32_t page_base, uint32_t off,
 /* Exported arrays (psx_gpr_locals.h, [recompiler] lean): the generated code
  * writes them by name, so the compiler knows a guest store cannot touch any
  * other global. Never moved; g_psx_ram / g_psx_scratch below point at them. */
-uint8_t g_psx_ram_arr[RAM_SIZE];
+/* Tail guard (study B1, 2026-11-11): a misaligned word or halfword at the
+ * last bytes of RAM, the scratchpad or the BIOS reaches the slow path (the
+ * fast paths reject it, the generated inline loads do not check alignment)
+ * and touches up to 3 bytes past the region. Real hardware raises an address
+ * error (AdEL/AdES) instead, which the generator does not emit yet (it would
+ * move the codegen hash). Until then each array carries 4 spare bytes, so such
+ * an access stays inside our own storage instead of corrupting the next global.
+ * Every access that fits in a region is unchanged; the spare bytes are not
+ * part of any savestate. */
+#define PSX_MEM_TAIL_GUARD 4u
+uint8_t g_psx_ram_arr[RAM_SIZE + PSX_MEM_TAIL_GUARD];
 static uint8_t *const ram = g_psx_ram_arr;
-uint8_t g_psx_scratch_arr[SCRATCHPAD_SIZE];
+uint8_t g_psx_scratch_arr[SCRATCHPAD_SIZE + PSX_MEM_TAIL_GUARD];
 static uint8_t *const scratchpad = g_psx_scratch_arr;
-static uint8_t bios_rom[BIOS_ROM_SIZE];
+static uint8_t bios_rom[BIOS_ROM_SIZE + PSX_MEM_TAIL_GUARD];
 static uint8_t mod_memory[MOD_MEMORY_SIZE];
 static uint32_t mod_memory_used;
 static uint8_t mod_gpu_dma_memory[PSX_MOD_GPU_DMA_APERTURE_SIZE];
