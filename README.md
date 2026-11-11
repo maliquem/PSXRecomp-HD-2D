@@ -1,49 +1,32 @@
 <p align="center">
-  <img src="docs/assets/psxrecomp-logo.png" alt="PSXRecomp" width="640">
+  <img src="docs/assets/psxrecomp-logo.png" alt="PSXRecomp HD-2D" width="640">
 </p>
 
-# PSXRecomp
+# PSXRecomp HD-2D
 
-> **This is [maliquem/psxrecomp](https://github.com/maliquem/psxrecomp), a fork of [RetroPortingToolKit/psxrecomp](https://github.com/RetroPortingToolKit/psxrecomp).** Everything the fork adds is listed under [What this fork adds](#what-this-fork-adds). The rest of this page is the upstream README.
+[![Buy Me a Coffee at ko-fi.com](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/maliquem)
 
-> ℹ️ **Note from mstan:** This repo and I are now part of [RetroPortingToolkit](https://retroportingtoolkit.com/). I remain a primary maintainer of psxrecomp alongside the team. [More info](https://1379.tech/forming-a-collective-retro-porting-toolkit/).
+**A PlayStation static recompiler with HD-2D lighting, HDR and modern rendering.** It turns a PS1 disc into a native
+executable: MIPS R3000A translated to C, compiled to x64 and linked against a hardware-accurate runtime. It is not an
+emulator. The game becomes a program your CPU runs directly.
 
-**A general-purpose static recompiler for the PlayStation 1.** It turns a PS1
-disc into a native executable — MIPS R3000A translated to C, compiled to x64,
-linked against a hardware-accurate runtime. Not an emulator: the game becomes a
-program your CPU runs directly.
+On top of that, this fork adds what the HD-2D look needs: real shadow maps built from the game's own 3D geometry,
+sprites that cast and take shadows, sun, moon, fire and spell lights, ambient occlusion, bloom, HDR output, a Vulkan
+renderer, smooth motion (frame generation), wider widescreen and a large round of speed work. Every visual feature is
+optional, and speed work is proven exact against the code it replaces before it lands.
 
-Titles brought up on it ship as standalone builds with widescreen, mods, live
-language switching and a launcher. They can run on either the bundled,
-open-source **OpenBIOS** or a compatible **retail BIOS** supplied by the player;
-OpenBIOS is the default, so a retail BIOS dump is not normally required. The
-framework is general-purpose: bringing up a new game is a matter of
-configuration and reverse engineering, not new engine work.
-
-<table>
-  <tr>
-    <td width="33%"><img src="docs/assets/games/tomba.png" alt="Tomba!" width="100%"><br><sub><b>Tomba!</b></sub></td>
-    <td width="33%"><img src="docs/assets/games/tomba-2.png" alt="Tomba! 2" width="100%"><br><sub><b>Tomba! 2</b></sub></td>
-    <td width="33%"><img src="docs/assets/games/ape-escape.png" alt="Ape Escape" width="100%"><br><sub><b>Ape Escape</b></sub></td>
-  </tr>
-  <tr>
-    <td><img src="docs/assets/games/mega-man-x4.png" alt="Mega Man X4" width="100%"><br><sub><b>Mega Man X4</b></sub></td>
-    <td><img src="docs/assets/games/mega-man-x5.png" alt="Mega Man X5" width="100%"><br><sub><b>Mega Man X5</b></sub></td>
-    <td><img src="docs/assets/games/mega-man-x6.png" alt="Mega Man X6" width="100%"><br><sub><b>Mega Man X6</b></sub></td>
-  </tr>
-</table>
-
-Background on the original prototype:
-[I Built a PS1 Static Recompiler With No Prior Experience (and Claude Code)](https://1379.tech/i-built-a-ps1-static-recompiler-with-no-prior-experience-and-claude-code/)
+PSXRecomp HD-2D is a fork of [RetroPortingToolKit/psxrecomp](https://github.com/RetroPortingToolKit/psxrecomp), created
+by Matthew Stanley. The recompiler, the runtime and the BIOS work are theirs; this fork builds on them and keeps taking
+their fixes. Everything the fork adds is listed under [What this fork adds](#what-this-fork-adds).
 
 ## What this fork adds
 
-Everything below sits on top of upstream commit `bce31aff`, on this fork's `master` and
-`feat/pgxp-depth-per-triangle` branches. It came out of building new game recomps on the framework, and each
-item is general: game-specific behaviour stays in that game's plugin.
+This fork follows upstream and takes its fixes after checking each one. What it adds came out of building new game
+recomps on the framework, and each item is general: game-specific behaviour stays in that game's plugin.
 
 New visual features are optional and off by default. The one exception is `fmv_enhance`, which is on. Speed work
-is checked against the code it replaces, with per-frame hashes of RAM, CPU, GTE, GPU, sound and cycles.
+is checked against the code it replaces, with per-frame hashes of RAM, CPU, GTE, GPU, sound and cycles, on three
+games, before it lands.
 
 ### Renderers and output
 
@@ -75,6 +58,9 @@ is checked against the code it replaces, with per-frame hashes of RAM, CPU, GTE,
   glow, not UI.
 - **Shipped presets:** ambient occlusion, sun and GI, lights, colour grade and vignette, Box and Adaptive downsample,
   and debug views for depth, masks and shadow maps ([shaders/README.md](shaders/README.md)).
+- **Lighter on weak GPUs, same picture:** effect stages hand the picture to each other in a texture instead of copying
+  the window before each stage, light shaders read the scenery normal only where a light reaches, and the sun's shadow
+  search skips taps that cannot change a pixel. `ao-low.pfx` runs ambient occlusion at 240 lines for integrated GPUs.
 
 ### 3D lighting and shadows
 
@@ -100,6 +86,11 @@ is checked against the code it replaces, with per-frame hashes of RAM, CPU, GTE,
   (treated as glass).
 - **Games with a 256-wide, off-centre, Z-up picture** work with shadows and depth effects.
 - **`off_textures`:** turns shadows off on screens such as a world map.
+- **Window light:** shafts take each window's shape (`window_masks.bin`) and merge where they meet, follow the last sun
+  seen outdoors, bounce to bring the room's colours back, and the window itself shines with a halo on its wall. Fire
+  lights have an optional steady mode.
+- **More games fit the shadow pipeline:** per-row camera normalisation, foot points for billboards, optional hiding of
+  the game's subtractive shadows, and optional casting from back faces.
 
 ### Widescreen
 
@@ -113,6 +104,9 @@ is checked against the code it replaces, with per-frame hashes of RAM, CPU, GTE,
 - **Cutscene backdrops stretched** (`nw_phase_backdrop`), and 16:9 copies of the picture take their margins from the
   wide surface.
 - **The HUD canvas follows the window's aspect** during play.
+- **Guarded cull sites** (`screen_x_sites = ["0xADDR:0xWORD"]`): a site widens only where the instruction at that
+  address is exactly that word, in the boot executable, in areas loaded from disc and in the interpreter, so a site
+  never lands on unrelated code. SXY culling is configurable.
 
 ### Smooth motion (frame generation)
 
@@ -136,6 +130,15 @@ Modes in `game.toml` ([PERFORMANCE_MODES.md](docs/PERFORMANCE_MODES.md)):
 - `[video] pgxp_alu = "moves"` and `pgxp_mem = "words"` or `"live"`: lighter PGXP, sub-pixel data only.
 - `[runtime] overlay_precompile`: areas compiled ahead of time.
 - `-DPSX_TARGET_ARCH=x86-64-v3`, and IPO links that keep `-ffp-contract=off` so pictures don't change.
+- `[recompiler] overlay_perf_modes`: block timing, `ram_fast_path` and the lighter PGXP also reach the areas loaded
+  from disc.
+- `[runtime] game_core`: the emulation thread gets a physical core of its own through Windows CPU Sets, and every other
+  thread of the game keeps off its SMT sibling. A scheduler preference, not an affinity.
+- Wait anchors: `idle_skip_area_sites` lets audited wait loops inside disc areas reach the idle detector, and
+  `idle_skip_audited_only` keeps the skip at listed sites only. A title can name its idle loop
+  (`psx_mod_set_idle_loop`).
+- `[runtime] mdec_dma_batch` (the MDEC channel wakes every N words) and `pgxp_idle_hold` (PGXP hooks rest while
+  nothing is projected), plus `psx_mod_set_turbo_pgxp_skip` for turbo.
 
 Always on, exact:
 
@@ -148,6 +151,8 @@ Always on, exact:
 - **Code checks:** text validated per 64-byte line, overlay evidence cleared per word instead of per page, an exact shard
   tried when the range owner has no such block, and fewer cache rescans.
 - **Debug tools:** passive recorders run only with a client connected, and a store costs one test.
+- **Mod hooks:** the interpreter checks a one-bit filter before calling a per-instruction hook, so hooks cost nothing
+  at addresses they can't match.
 - **Build:** MinGW clang reads extern globals directly (`-fno-auto-import`).
 
 Turbo skips drawing without ever showing a skipped frame, shows 30 frames a second on the wall clock and doesn't wait on
@@ -172,6 +177,16 @@ the screen. A title can set its speed (`psx_mod_set_fast_forward_speed`).
 - **Toolchain:** a stale overlay compiler stops at the first try and says so, instead of retrying with a hitch each time.
   `rebuild` warns when copying one.
 - **Disc probing:** boot executables in a subdirectory.
+- **Deterministic area cache:** when two valid native builds of one function exist, the loader picks by content, not
+  by file date, so a copied cache never changes a run.
+- **Memory edges:** a misaligned access at the last bytes of RAM, the scratchpad or the BIOS can no longer touch the
+  next variable in memory.
+- **BIOS-specific workarounds stay with their BIOS:** a fix keyed to retail BIOS addresses only applies while that
+  BIOS runs, so OpenBIOS behaves as itself.
+- **Stability:** a host stall no longer closes the game, and boot gets a 30-second grace period.
+- **Upstream fixes, each one checked here:** IRQs inside overlay call units, SPU pitch modulation and IRQ enable, exact
+  texture modulation, CD motor status, MDEC mono output, exception returns, and more. The list with commits is in
+  [docs/FRAMEWORK_COMUM.md](docs/FRAMEWORK_COMUM.md).
 
 ### Clean-room rewrites
 
@@ -223,32 +238,16 @@ Patches for third-party emulators used as oracles no longer live in this reposit
 
 ## Games
 
-Each game is its own repository that pins a framework commit as a submodule and
-ships its own playable release with an in-app launcher. Validation and feature
-coverage continue to improve per title.
+Each game is its own repository that pins a framework commit as a submodule and ships its own build with a launcher.
+Games on this fork are built on the player's PC from their own disc: the public package carries no game code.
 
-| Game | Repository | Latest build | Notes |
-|---|---|---|---|
-| *Tomba!* | [TombaRecomp](https://github.com/mstan/TombaRecomp) | [releases](https://github.com/mstan/TombaRecomp/releases/latest) | Widescreen, supersampling, save/load, mod packages. |
-| *Tomba! 2* | [Tomba2Recomp](https://github.com/mstan/Tomba2Recomp) | [releases](https://github.com/mstan/Tomba2Recomp/releases/latest) | Multi-track disc support; adaptive widescreen through 21:9. |
-| *Ape Escape* | [ApeEscapeRecomp](https://github.com/mstan/ApeEscapeRecomp) | [releases](https://github.com/mstan/ApeEscapeRecomp/releases/latest) | Widescreen to 21:9, memory-card save/load, dual-analog. |
-| *Mega Man X4* | [MegaManX4Recomp](https://github.com/mstan/MegaManX4Recomp) | [releases](https://github.com/mstan/MegaManX4Recomp/releases/latest) | Playable; 2D widescreen. |
-| *Mega Man X5* | [MegaManX5Recomp](https://github.com/mstan/MegaManX5Recomp) | [releases](https://github.com/mstan/MegaManX5Recomp/releases/latest) | Playable; 2D widescreen. |
-| *Mega Man X6* | [MegaManX6Recomp](https://github.com/mstan/MegaManX6Recomp) | [releases](https://github.com/mstan/MegaManX6Recomp/releases/latest) | Playable; stages, controller, save/load; 2D widescreen to 21:9. |
-| *Tsumu Light* | [TsumuLightRecomp](https://github.com/mstan/TsumuLightRecomp) | [releases](https://github.com/mstan/TsumuLightRecomp/releases/latest) | Japanese-only title (SLPS-02253); first consumer of [live language switching](#swap-language-on-the-fly). |
-| *Xenogears* — **community** | [OpokXeno/xenogears-recomp](https://github.com/OpokXeno/xenogears-recomp) | — | Independent project by [@OpokXeno](https://github.com/OpokXeno), who also contributed widescreen cull-site work upstream. |
-| *Mega Man Legends* — **community** | [VuloB1/MegaManLegendsRecomp](https://github.com/VuloB1/MegaManLegendsRecomp) | [releases](https://github.com/VuloB1/MegaManLegendsRecomp/releases/latest) | Native 16:9 widescreen, analog movement with right-stick camera, 60/120 Hz presentation, skip FMVs, PGXP precision. |
-
-Each game repo carries its own build/run instructions, keyboard/controller
-mappings, and per-game settings. **This repository builds the framework and a
-standalone BIOS runtime supporting OpenBIOS and a compatible retail BIOS** —
-see [Release Package](#release-package) below.
+The games built on upstream PSXRecomp are listed in
+[upstream's README](https://github.com/RetroPortingToolKit/psxrecomp#games).
 
 Bringing up a title of your own? Start with
 [`docs/GAME_PROJECT_SETUP.md`](docs/GAME_PROJECT_SETUP.md) (submodules,
 bundled-release CI template, release checklist), then
-[`CONTRIBUTING.md`](CONTRIBUTING.md). Community projects are listed here
-alongside the rest.
+[`CONTRIBUTING.md`](CONTRIBUTING.md).
 
 ## What It Is
 
@@ -716,30 +715,6 @@ Both are visual-only: the GTE's guest-visible screen coordinates stay integer
 and fully faithful, so game logic and culling are unaffected. Supported on all
 three renderers. See [`docs/ENHANCEMENTS.md`](docs/ENHANCEMENTS.md) §G1.
 
-## Release Package
-
-**This repository's release is a standalone BIOS runtime, not a game.** It can
-boot either the bundled OpenBIOS or a compatible retail BIOS for memory-card
-management; to play a title, grab its release from the [Games](#games) table.
-
-1. Download `PSXRecomp-v*-windows-x64.zip` from Releases.
-2. Extract it and run `PSXRecomp.exe`.
-3. It boots on the bundled OpenBIOS. To use your compatible retail BIOS dump
-   instead, pick it in settings.
-
-The package includes `bios/openbios.bin` and its MIT notice at
-`bios/OpenBIOS.LICENSE`, but no retail PS1 BIOS, game disc image, generated game
-code, or save data. If you choose a retail BIOS, that path is remembered next to
-the executable as `bios.cfg`; clear the choice (or delete that file) to go back
-to OpenBIOS.
-
-The game recomp projects use the same runtime picker contract but ship a
-**Dear ImGui launcher**: on first run it asks for the game disc image and uses
-OpenBIOS automatically. The optional retail BIOS row lets you select your own
-verified dump or clear that choice to return to OpenBIOS. The launcher also
-configures video, controls, and per-game settings. Keyboard/controller mappings
-live in each game's repo and launcher, not here.
-
 ## Philosophy — toward 100% static recompilation
 
 > **Where the project is headed.** Development so far has been **breadth-first**:
@@ -828,8 +803,7 @@ Core subsystems, framework-wide:
 | SPU | Working; reverb/noise/sweep and exact SPU-IRQ accuracy still being tightened |
 | Interrupts, COP0, timers, GTE | Working; cycle-accuracy foundation is an active depth-phase focus |
 
-Validation scope varies by game — see the [Games](#games) table and each
-project's release notes for current coverage.
+Validation scope varies by game — see each game project's release notes for current coverage.
 
 Open depth-phase fronts: cycle/IRQ-phase timing accuracy, load-time-toward-zero
 (data sharding), renderer parity between the software/GL/Vulkan backends, and
@@ -837,7 +811,7 @@ driving overlay coverage the last mile to 100% static.
 
 Running this repository's standalone BIOS runtime without a game is useful for
 **memory-card management under OpenBIOS or a compatible retail BIOS**; to build
-and play a title, use its game repo from the [Games](#games) table.
+and play a title, use its game repo.
 
 ## Setup
 
@@ -964,33 +938,6 @@ sharding) is an active depth-phase effort — see
 [`docs/LOAD_TIME_ZERO.md`](docs/LOAD_TIME_ZERO.md) and
 [`docs/disc-speed.md`](docs/disc-speed.md).
 
-## Help make your game faster — just by playing it
-
-**Why isn't the game already at full speed everywhere?** Most of a game's
-code is converted ("recompiled") into a fast native program ahead of time.
-But PlayStation games don't keep all of their code on screen at once — they
-stream extra chunks of code off the disc as you reach new areas (these
-chunks are called *overlays*). We can't convert a chunk we've never seen,
-and the only way to see it is for someone to actually visit that area.
-Until then, that area's code runs in a slower compatibility mode.
-
-**You can help, just by playing.** While you play, the game quietly notices
-which areas are still running in the slow mode, takes a snapshot of them,
-and converts them to fast native code in the background — often within a
-minute, while you keep playing. The more places you visit, the faster the
-game gets. This happens automatically; you don't have to do anything.
-
-**Your discoveries persist for you.** They are saved in a file written next
-to the game called `overlay_captures.json`, and your local cache is rebuilt
-from it automatically — areas you have visited stay fast on every later
-session.
-
-**Please do not post `overlay_captures.json` publicly.** The file contains
-verbatim snapshots of the game's code read from your disc, which is
-copyrighted material — keep it on your own machine, alongside your disc
-image. A metadata-only contribution format (addresses and checksums, no
-game code) is planned so discoveries can be shared safely in the future.
-
 ## Contributing
 
 Contributions are welcome — AI-assisted or not — as long as they're reviewed,
@@ -1006,9 +953,10 @@ exact framework and UI commits as root-level submodules.
 - Framework PRs: [`CONTRIBUTING.md`](CONTRIBUTING.md) (rules, verification,
   regression checklist, how a fix reaches a game through its pin)
 
-Bugs and build problems go to GitHub issues (include `gcc -v` / OS / generator
-for build failures); design discussion happens in the **R.A.I.D.** Discord
-(invite below).
+Bugs and build problems in this fork go to
+[this repository's issues](https://github.com/maliquem/PSXRecomp-HD-2D/issues) (include `gcc -v` / OS / generator
+for build failures). Fixes that also apply to upstream are best sent to
+[RetroPortingToolKit/psxrecomp](https://github.com/RetroPortingToolKit/psxrecomp) as well.
 
 ## License
 
@@ -1022,6 +970,8 @@ Copyright © 2026 Matthew Stanley. Matthew Stanley has authority from the releva
 copyright holders to grant the additional permissions for PSXRecomp's project
 code, as stated in [`PERMISSIONS.md`](PERMISSIONS.md). Licensing inquiries go to
 him at <https://1379.tech>.
+
+This fork's changes are released under the same license and additional permissions.
 
 Third-party components vendored into the runtime keep their own terms, and
 their notices ship with every release under `licenses/` in the package
@@ -1038,12 +988,12 @@ per-game overlay caches) contain statically recompiled (machine-translated)
 builds of the original code, the same distribution model used by other static
 recompilation projects such as N64: Recompiled.
 
----
 
-<p align="center">
-  <sub><b>R.A.I.D. — Retro AI Development</b> · a Discord for AI-assisted retro reverse-engineering, decomp &amp; recomp</sub>
-</p>
+## Support
 
-<p align="center">
-  <a href="https://discord.gg/Ad9BwSzctP"><img src=".github/raid-discord.png" alt="Join the Retro AI Development (R.A.I.D.) Discord" width="200"></a>
-</p>
+If this fork is useful to you, you can support its development on Ko-fi:
+
+[![Buy Me a Coffee at ko-fi.com](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/maliquem)
+
+Donations are voluntary and never buy access to the software, a game, or any feature, as
+[`PERMISSIONS.md`](PERMISSIONS.md) requires.
