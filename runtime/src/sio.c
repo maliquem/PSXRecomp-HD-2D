@@ -470,6 +470,17 @@ uint32_t sio_get_seq(void) {
     return sio_trace_seq;
 }
 
+int sio_memcard_reinsert(int card) {
+    /* A card swapped by hand: the next access reports FLAG bit 3 ("new
+     * card"), which is how the BIOS and games learn to read the directory
+     * again. Refused mid-exchange, where a real swap would break it. */
+    if (card < 0 || card > 1) return -1;
+    if (sio_card_protocol_active()) return -1;
+    mc_slots[card].flag = 0x08;
+    if (active_device == DEV_MEMCARD && mc_slot == card) mc_flag = 0x08;
+    return 0;
+}
+
 int sio_card_protocol_active(void) {
     /* Active if either slot has an in-flight protocol, or the working
      * mc_state is non-idle. */

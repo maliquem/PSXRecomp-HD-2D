@@ -51,9 +51,14 @@ int memcard_format_file(const char* path);
 int memcard_read_sector(int card, int sector, uint8_t* buf);
 int memcard_write_sector(int card, int sector, const uint8_t* buf);
 
-/* Flush pending writes to disk */
+/* Flush pending writes to disk. memcard_flush hands the image to a writer
+ * thread (synced, atomic replace of the file) and returns at once;
+ * memcard_flush_all also waits for the writes to land (up to 10 s). */
 void memcard_flush(int card);
 void memcard_flush_all(void);
+/* Wait until every queued card write is on disk. 0 = drained, -1 = still
+ * pending after timeout_ms (a failing disk keeps retrying). */
+int memcard_flush_wait(unsigned timeout_ms);
 
 /* Check if card is present */
 int memcard_is_present(int card);
@@ -89,6 +94,23 @@ int memcard_rebind_path(int card, const char *path);
 
 /* Reload in-memory images from the currently bound filepaths (0 = ok). */
 int memcard_reload_bound(void);
+
+/* Directory given to memcard_init/memcard_init_slots ("" when none). */
+const char *memcard_dir(void);
+
+/* Fill dst (MEMCARD_SIZE bytes) with a blank formatted card. 0 = ok. */
+int memcard_format_image(uint8_t *dst);
+
+/* Put a RAM-only image in a present slot (save slots): the slot's file is
+ * flushed first and then left alone; writes stay in RAM until unmount.
+ * Returns 0, or -1 on a bad or absent slot, a slot already mounted, or a
+ * NULL image. */
+int memcard_mount_image(int card, const uint8_t *image);
+/* Leave the RAM-only image and put `restore` back as the slot's contents
+ * (normally the image the slot held before the mount). 0 = ok. */
+int memcard_unmount_image(int card, const uint8_t *restore);
+/* 1 while a RAM-only image is mounted in the slot. */
+int memcard_image_mounted(int card);
 
 #ifdef __cplusplus
 }

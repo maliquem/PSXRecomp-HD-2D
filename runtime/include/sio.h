@@ -266,6 +266,11 @@ uint32_t sio_get_seq(void);
  * transaction by issuing 0x01 on the SIO bus mid-read. */
 int sio_card_protocol_active(void);
 
+/* Report card `card` (0 or 1) as freshly inserted: its next access returns
+ * the "new card" FLAG, as after a real swap. -1 while a card exchange is in
+ * flight or for a bad slot; 0 otherwise. */
+int sio_memcard_reinsert(int card);
+
 /* Post-probe handoff ring: diagnostic device state only, no guest-RAM probes. */
 typedef struct {
     uint8_t  kind;   /* 1=probe_abort 2=b7_set 3=b7_clear 4=tx 5=card_ack */

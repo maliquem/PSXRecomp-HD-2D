@@ -19,6 +19,12 @@
 #include <sys/stat.h>
 #ifdef _WIN32
 #include <direct.h>
+#include <io.h>
+#include <windows.h>
+#else
+#include <pthread.h>
+#include <time.h>
+#include <unistd.h>
 #endif
 
 #define MAX_CARDS 2
@@ -28,9 +34,184 @@ typedef struct {
     char filepath[512];
     int present;
     int dirty;
+    /* A mounted image (save slots) lives in RAM only: flushes never reach
+     * the bound file, which keeps the player's own card until unmount. */
+    int memory_only;
 } MemCard;
 
 static MemCard cards[MAX_CARDS];
+static char s_memcard_dir[512];
+
+/* Write a whole card image to `path` so a crash or a full disk never leaves a
+ * cut file: write a sibling temporary, sync it, then replace the target in
+ * one step. The old file stays whole until the replacement lands. */
+static int memcard_write_file_atomic(const char *path, const uint8_t *data) {
+    char tmp[sizeof(((MemCard *)0)->filepath) + 8];
+    FILE *f;
+    size_t n;
+    int ok;
+    if (!path || !path[0]) return -1;
+    if (snprintf(tmp, sizeof(tmp), "%s.tmp", path) >= (int)sizeof(tmp)) return -1;
+    f = fopen(tmp, "wb");
+    if (!f) return -1;
+    n = fwrite(data, 1, MEMCARD_SIZE, f);
+    ok = (n == MEMCARD_SIZE) && fflush(f) == 0;
+#ifdef _WIN32
+    ok = ok && _commit(_fileno(f)) == 0;
+#else
+    ok = ok && fsync(fileno(f)) == 0;
+#endif
+    ok = (fclose(f) == 0) && ok;
+    if (ok) {
+#ifdef _WIN32
+        ok = MoveFileExA(tmp, path,
+                         MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH) != 0;
+#else
+        ok = rename(tmp, path) == 0;
+#endif
+    }
+    if (!ok) remove(tmp);
+    return ok ? 0 : -1;
+}
+
+/* ---- background writer -------------------------------------------------
+ * The game writes a card one 128-byte sector at a time and each write asks
+ * for a flush. A synced, atomic write of the whole 128 KB costs milliseconds,
+ * so it does not run on the emulation thread: memcard_flush only copies the
+ * image into a per-card pending slot, and one writer thread puts the newest
+ * pending image on disk. Writes in a burst collapse into the last one. A
+ * failed write stays pending and is tried again. */
+
+typedef struct {
+    uint8_t data[MEMCARD_SIZE];
+    char    path[sizeof(((MemCard *)0)->filepath)];
+    int     pending;
+} PendingWrite;
+
+static PendingWrite s_pending[MAX_CARDS];
+static int s_writer_busy;
+static int s_writer_started;
+
+#ifdef _WIN32
+static SRWLOCK s_wlock = SRWLOCK_INIT;
+static CONDITION_VARIABLE s_wwake = CONDITION_VARIABLE_INIT;
+static CONDITION_VARIABLE s_widle = CONDITION_VARIABLE_INIT;
+static void wlock(void)   { AcquireSRWLockExclusive(&s_wlock); }
+static void wunlock(void) { ReleaseSRWLockExclusive(&s_wlock); }
+static void wsignal(CONDITION_VARIABLE *cv) { WakeAllConditionVariable(cv); }
+/* 0 when woken, -1 on timeout. */
+static int wwait(CONDITION_VARIABLE *cv, unsigned ms) {
+    return SleepConditionVariableSRW(cv, &s_wlock, ms == 0xFFFFFFFFu ? INFINITE : ms, 0) ? 0 : -1;
+}
+static void wsleep(unsigned ms) { Sleep(ms); }
+#else
+static pthread_mutex_t s_wlock = PTHREAD_MUTEX_INITIALIZER;
+static pthread_cond_t s_wwake = PTHREAD_COND_INITIALIZER;
+static pthread_cond_t s_widle = PTHREAD_COND_INITIALIZER;
+static void wlock(void)   { pthread_mutex_lock(&s_wlock); }
+static void wunlock(void) { pthread_mutex_unlock(&s_wlock); }
+static void wsignal(pthread_cond_t *cv) { pthread_cond_broadcast(cv); }
+static int wwait(pthread_cond_t *cv, unsigned ms) {
+    struct timespec ts;
+    if (ms == 0xFFFFFFFFu) return pthread_cond_wait(cv, &s_wlock) == 0 ? 0 : -1;
+    clock_gettime(CLOCK_REALTIME, &ts);
+    ts.tv_sec += ms / 1000;
+    ts.tv_nsec += (long)(ms % 1000) * 1000000L;
+    if (ts.tv_nsec >= 1000000000L) { ts.tv_sec++; ts.tv_nsec -= 1000000000L; }
+    return pthread_cond_timedwait(cv, &s_wlock, &ts) == 0 ? 0 : -1;
+}
+static void wsleep(unsigned ms) { usleep(ms * 1000u); }
+#endif
+
+static void writer_loop(void) {
+    static PendingWrite job;
+    for (;;) {
+        int i, card = -1, rc;
+        wlock();
+        for (;;) {
+            for (i = 0; i < MAX_CARDS; i++)
+                if (s_pending[i].pending) { card = i; break; }
+            if (card >= 0) break;
+            (void)wwait(&s_wwake, 0xFFFFFFFFu);
+        }
+        memcpy(&job, &s_pending[card], sizeof(job));
+        s_pending[card].pending = 0;
+        s_writer_busy = 1;
+        wunlock();
+
+        rc = memcard_write_file_atomic(job.path, job.data);
+
+        wlock();
+        s_writer_busy = 0;
+        if (rc != 0 && !s_pending[card].pending) {
+            memcpy(&s_pending[card], &job, sizeof(job));   /* try again */
+            s_pending[card].pending = 1;
+        }
+        wsignal(&s_widle);
+        wunlock();
+        if (rc != 0) wsleep(250);
+    }
+}
+
+#ifdef _WIN32
+static DWORD WINAPI writer_main(LPVOID arg) { (void)arg; writer_loop(); return 0; }
+#else
+static void *writer_main(void *arg) { (void)arg; writer_loop(); return NULL; }
+#endif
+
+/* Called with s_wlock held. */
+static void writer_start_locked(void) {
+    if (s_writer_started) return;
+#ifdef _WIN32
+    {
+        HANDLE h = CreateThread(NULL, 0, writer_main, NULL, 0, NULL);
+        if (!h) return;
+        CloseHandle(h);
+    }
+#else
+    {
+        pthread_t t;
+        if (pthread_create(&t, NULL, writer_main, NULL) != 0) return;
+        pthread_detach(t);
+    }
+#endif
+    s_writer_started = 1;
+}
+
+/* Hand the card's current image to the writer. 0 = queued; -1 = no writer
+ * thread could start (the caller then writes it itself). */
+static int writer_enqueue(int card) {
+    int started;
+    wlock();
+    writer_start_locked();
+    started = s_writer_started;
+    if (started) {
+        memcpy(s_pending[card].data, cards[card].data, MEMCARD_SIZE);
+        snprintf(s_pending[card].path, sizeof(s_pending[card].path), "%s", cards[card].filepath);
+        s_pending[card].pending = 1;
+        wsignal(&s_wwake);
+    }
+    wunlock();
+    return started ? 0 : -1;
+}
+
+int memcard_flush_wait(unsigned timeout_ms) {
+    int drained;
+    wlock();
+    for (;;) {
+        int i, busy = s_writer_busy;
+        for (i = 0; i < MAX_CARDS; i++) busy |= s_pending[i].pending;
+        if (!busy || !s_writer_started) { drained = !busy; break; }
+        if (wwait(&s_widle, timeout_ms) != 0) {
+            busy = s_writer_busy;
+            for (i = 0; i < MAX_CARDS; i++) busy |= s_pending[i].pending;
+            drained = !busy;
+            break;
+        }
+    }
+    wunlock();
+    return drained ? 0 : -1;
+}
 
 /* XOR checksum of bytes 0x00-0x7E, stored at 0x7F. */
 static uint8_t frame_checksum(const uint8_t *frame) {
@@ -118,7 +299,10 @@ static void memcard_ensure_dir(const char* dir) {
 }
 
 void memcard_init_slots(const char* dir, const MemcardSlotConfig slots[2]) {
+    /* A reboot re-reads the files: writes still queued land first. */
+    (void)memcard_flush_wait(10000);
     memset(cards, 0, sizeof(cards));
+    snprintf(s_memcard_dir, sizeof(s_memcard_dir), "%s", dir ? dir : "");
     memcard_ensure_dir(dir);
 
     for (int i = 0; i < MAX_CARDS; i++) {
@@ -147,14 +331,8 @@ void memcard_init_slots(const char* dir, const MemcardSlotConfig slots[2]) {
             }
         } else {
             memcard_format(cards[i].data);
-            f = fopen(cards[i].filepath, "wb");
-            if (f) {
-                size_t n = fwrite(cards[i].data, 1, MEMCARD_SIZE, f);
-                int flush_ok = (fflush(f) == 0);
-                int close_ok = (fclose(f) == 0);
-                if (n == MEMCARD_SIZE && flush_ok && close_ok) {
-                    cards[i].present = 1;
-                }
+            if (memcard_write_file_atomic(cards[i].filepath, cards[i].data) == 0) {
+                cards[i].present = 1;
             }
         }
     }
@@ -170,14 +348,7 @@ int memcard_format_file(const char* path) {
     uint8_t* data = (uint8_t*)malloc(MEMCARD_SIZE);
     if (!data) return -1;
     memcard_format(data);
-    FILE* f = fopen(path, "wb");
-    int ok = 0;
-    if (f) {
-        size_t n = fwrite(data, 1, MEMCARD_SIZE, f);
-        int flush_ok = (fflush(f) == 0);
-        int close_ok = (fclose(f) == 0);
-        ok = (n == MEMCARD_SIZE && flush_ok && close_ok);
-    }
+    int ok = memcard_write_file_atomic(path, data) == 0;
     free(data);
     return ok ? 0 : -1;
 }
@@ -243,16 +414,12 @@ int memcard_write_sector(int card, int sector, const uint8_t* buf) {
 void memcard_flush(int card) {
     if (card < 0 || card >= MAX_CARDS) return;
     if (!cards[card].dirty) return;
+    if (cards[card].memory_only) return;
     if (cards[card].filepath[0] == '\0') return;
 
-    FILE* f = fopen(cards[card].filepath, "wb");
-    if (f) {
-        size_t n = fwrite(cards[card].data, 1, MEMCARD_SIZE, f);
-        int flush_ok = (fflush(f) == 0);
-        int close_ok = (fclose(f) == 0);
-        if (n == MEMCARD_SIZE && flush_ok && close_ok) {
-            cards[card].dirty = 0;
-        }
+    if (writer_enqueue(card) == 0 ||
+        memcard_write_file_atomic(cards[card].filepath, cards[card].data) == 0) {
+        cards[card].dirty = 0;
     }
 }
 
@@ -260,6 +427,7 @@ void memcard_flush_all(void) {
     for (int i = 0; i < MAX_CARDS; i++) {
         memcard_flush(i);
     }
+    (void)memcard_flush_wait(10000);
 }
 
 int memcard_is_present(int card) {
@@ -362,6 +530,7 @@ int memcard_rebind_path(int card, const char *path) {
 
 int memcard_reload_bound(void) {
     int i;
+    (void)memcard_flush_wait(10000);
     for (i = 0; i < MAX_CARDS; i++) {
         FILE *f;
         if (cards[i].filepath[0] == '\0') {
@@ -385,4 +554,39 @@ int memcard_reload_bound(void) {
         fclose(f);
     }
     return 0;
+}
+
+const char *memcard_dir(void) {
+    return s_memcard_dir;
+}
+
+int memcard_format_image(uint8_t *dst) {
+    if (!dst) return -1;
+    memcard_format(dst);
+    return 0;
+}
+
+int memcard_mount_image(int card, const uint8_t *image) {
+    if (card < 0 || card >= MAX_CARDS || !image) return -1;
+    if (!cards[card].present || cards[card].memory_only) return -1;
+    /* Anything the game wrote to the player's card is on disk first. */
+    memcard_flush(card);
+    memcpy(cards[card].data, image, MEMCARD_SIZE);
+    cards[card].memory_only = 1;
+    cards[card].dirty = 0;
+    return 0;
+}
+
+int memcard_unmount_image(int card, const uint8_t *restore) {
+    if (card < 0 || card >= MAX_CARDS || !restore) return -1;
+    if (!cards[card].memory_only) return -1;
+    memcpy(cards[card].data, restore, MEMCARD_SIZE);
+    cards[card].memory_only = 0;
+    cards[card].dirty = 0;
+    return 0;
+}
+
+int memcard_image_mounted(int card) {
+    if (card < 0 || card >= MAX_CARDS) return 0;
+    return cards[card].memory_only;
 }

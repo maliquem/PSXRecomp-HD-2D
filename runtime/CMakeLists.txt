@@ -2243,6 +2243,18 @@ if(BUILD_TESTING)
              WORKING_DIRECTORY
                  ${CMAKE_CURRENT_BINARY_DIR}/sio_card_protocol_scratch)
 
+    # Save slots: a slot card mounted in RAM, read and written through the
+    # real SIO card protocol, with the player's card file left alone.
+    add_executable(save_slots_test
+        tests/test_save_slots.c
+        src/save_slots.c
+        src/sio.c
+        src/memcard.c)
+    target_include_directories(save_slots_test PRIVATE include src)
+    file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/save_slots_scratch)
+    add_test(NAME save_slots_test COMMAND save_slots_test
+             WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/save_slots_scratch)
+
     # POSIX-only: dlopen()s a fixture .so out of a synthetic cache tree, so it
     # cannot link under MinGW/MSVC (-ldl). run_overlay_posix_test.sh already
     # stages the cache tree, builds the fixture and the test, and runs it — so
