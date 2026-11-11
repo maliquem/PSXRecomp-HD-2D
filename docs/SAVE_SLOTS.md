@@ -66,6 +66,12 @@ The page belongs to the title and follows the game's own UI. The convention for 
 Portraits are drawn by the page from the game's own art at display time; the `.info` file keeps only character ids and
 levels.
 
+The page opens over the running game, so its music goes on: call `psx_mod_title_page_run_game(1)` right before
+`psx_mod_open_title_page`. The game runs with every pad released, its picture shows wherever the page's canvas is
+transparent, and the page takes the host's buttons and keys each frame. Open it where the game idles with no input (its
+own menu). A frozen game cannot keep its music: most RPG field music is sequenced by the game's own driver, so a copy
+of the SPU only sustains the notes already sounding.
+
 ## Flow in a plugin
 
 ```c
