@@ -83,6 +83,10 @@ extern "C" int fntrace_is_game_started(void);
 uint32_t g_psx_mod_function_entry_hooks = 0;
 uint32_t g_psx_mod_guest_functions = 0;
 uint32_t g_psx_mod_instruction_hooks = 0;
+/* One bit per (address >> 2) & 0x1FFF of every instruction hook: the
+ * interpreter calls psx_mod_instruction only when the bit is set, so a
+ * hooked address is never skipped and the rest skip the call and the search. */
+extern "C" { uint8_t g_psx_mod_instruction_filter[1024]; }
 /* Guest vblanks seen by the mod runtime: the plugin counters' time base. */
 static uint64_t g_mod_vblanks = 0;
 
@@ -320,6 +324,7 @@ void clear_function_entry_hooks() {
     g_psx_mod_guest_functions = 0;
     active_instruction_hooks().clear();
     g_psx_mod_instruction_hooks = 0;
+    std::memset(g_psx_mod_instruction_filter, 0, sizeof g_psx_mod_instruction_filter);
 }
 
 void build_function_entry_hooks(const RuntimeMods& s) {
@@ -348,6 +353,10 @@ void build_function_entry_hooks(const RuntimeMods& s) {
             instructions.push_back({hook.address, hook.expected, hook.callback, &plugin});
     std::stable_sort(instructions.begin(), instructions.end(),
                     [](const auto& a, const auto& b) { return a.key < b.key; });
+    for (const auto& hook : instructions) {
+        const uint32_t bit = (hook.key >> 2) & 0x1FFFu;
+        g_psx_mod_instruction_filter[bit >> 3] |= (uint8_t)(1u << (bit & 7u));
+    }
     g_psx_mod_instruction_hooks = (uint32_t)instructions.size();
 }
 

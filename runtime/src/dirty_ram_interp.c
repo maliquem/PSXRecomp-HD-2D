@@ -1536,8 +1536,13 @@ static int exec_one_fetched(CPUState *cpu, uint32_t pc, uint32_t insn,
     }
 
     extern uint32_t g_psx_mod_instruction_hooks;
+    extern uint8_t g_psx_mod_instruction_filter[1024];
     extern void psx_mod_instruction(CPUState*, uint32_t, uint32_t);
-    if (g_psx_mod_instruction_hooks) psx_mod_instruction(cpu, pc, insn);
+    if (g_psx_mod_instruction_hooks) {
+        const uint32_t mbit = (pc >> 2) & 0x1FFFu;   /* mod_runtime.cpp filter */
+        if (g_psx_mod_instruction_filter[mbit >> 3] & (1u << (mbit & 7u)))
+            psx_mod_instruction(cpu, pc, insn);
+    }
 
     /* op 0x20..0x26 = LB/LH/LWL/LW/LBU/LHU/LWR. LWC2 (GTE, 0x32) targets a COP2
      * register, not a GPR, so it needs no deferral here. */
