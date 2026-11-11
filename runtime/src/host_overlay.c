@@ -115,8 +115,10 @@ int psx_host_input_sink_dispatch(const void *event) {
     return (s_sink_fn && event) ? (s_sink_fn(event, s_sink_ctx) != 0) : 0;
 }
 
+static volatile int s_page_capture = 0;
 void psx_host_set_ui_capture(int on) { s_ui_capture = on ? 1 : 0; }
-int psx_host_ui_capture_active(void) { return s_ui_capture; }
+void psx_host_set_page_capture(int on) { s_page_capture = on ? 1 : 0; }
+int psx_host_ui_capture_active(void) { return s_ui_capture || s_page_capture; }
 
 /* ---- P4: live video settings ------------------------------------------------ */
 unsigned psx_host_video_live_changes(const PsxHostVideoSettings *a,

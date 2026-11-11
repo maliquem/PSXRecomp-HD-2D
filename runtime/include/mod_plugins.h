@@ -1266,6 +1266,14 @@ enum {
 typedef int (*PSXModCanvasRenderer)(uint32_t *argb, int w, int h);
 typedef int (*PSXModTitlePageInput)(uint32_t pressed, uint32_t held, int key, int key_mods);
 int  psx_mod_open_title_page(PSXModCanvasRenderer render, PSXModTitlePageInput input);
+/* Called right before psx_mod_open_title_page: that page opens over the
+ * running game instead of pausing it. The game goes on (its music, its
+ * picture under the page) with every pad released; the page takes the host's
+ * buttons and keys; the host's menu shortcuts wait until it closes. Meant for
+ * a place where the game idles with no input (a menu). The input callback is
+ * then called once per frame, with a key event between frames. Applies to the
+ * next page only. */
+void psx_mod_title_page_run_game(int on);
 int  psx_mod_title_page_open(void);
 void psx_mod_title_page_redraw(void);
 /* A title's HUD over the running game (e.g. a notification), the same kind

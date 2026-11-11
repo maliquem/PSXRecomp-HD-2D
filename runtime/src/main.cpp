@@ -9236,11 +9236,24 @@ static void savestate_menu_host_pause_loop(void) {
  * menu's canvas, run by its own pause loop. */
 static PSXModTitlePageInput g_title_page_input = nullptr;
 static int g_title_page_open = 0;
+/* A page over the running game (psx_mod_title_page_run_game): no pause loop;
+ * the game runs on with released pads (psx_host_set_page_capture), its sound
+ * and picture included, and the page takes the host's buttons and keys each
+ * frame (title_page_running_service, drain_host_events). */
+static int g_title_page_run_req = 0;   /* for the next page opened */
+static int g_title_page_running = 0;   /* the open page's */
+static uint32_t g_title_page_prev, g_title_page_ignore, g_title_page_repeat_at;
+static uint32_t title_page_buttons(void);
 
 static void title_page_close(void) {
     g_title_page_open = 0;
     g_title_page_input = nullptr;
     psx_savestate_menu_set_page(nullptr);
+    if (g_title_page_running) {
+        g_title_page_running = 0;
+        psx_host_set_page_capture(0);
+        savestate_input_guard_arm();   /* the closing press stays out of the game */
+    }
 }
 
 extern "C" int psx_mod_open_title_page(PSXModCanvasRenderer render, PSXModTitlePageInput input) {
@@ -9248,10 +9261,18 @@ extern "C" int psx_mod_open_title_page(PSXModCanvasRenderer render, PSXModTitleP
     if (savestate_menu_open || psx_rewind_is_open() || psx_netplay_active()) return 0;
     g_title_page_input = input;
     g_title_page_open = 1;
+    g_title_page_running = g_title_page_run_req;
+    g_title_page_run_req = 0;
+    if (g_title_page_running) {
+        psx_host_set_page_capture(1);
+        g_title_page_prev = g_title_page_ignore = title_page_buttons();  /* held at opening: only after a release */
+        g_title_page_repeat_at = 0;
+    }
     psx_savestate_menu_set_page(render);
     return 1;
 }
 extern "C" int psx_mod_title_page_open(void) { return g_title_page_open; }
+extern "C" void psx_mod_title_page_run_game(int on) { g_title_page_run_req = on ? 1 : 0; }
 /* The bug report's form closed outside the page's input (debug server). */
 extern "C" void psx_bug_report_close_page(void) { title_page_close(); }
 extern "C" void psx_mod_title_page_redraw(void) { psx_savestate_menu_page_redraw(); }
@@ -9364,6 +9385,33 @@ static uint32_t title_page_buttons(void) {
     if (p1_host_button_down(nullptr, SDL_CONTROLLER_BUTTON_START)) b |= PSX_MOD_PAGE_START;
     if (p1_host_button_down(nullptr, SDL_CONTROLLER_BUTTON_BACK)) b |= PSX_MOD_PAGE_SELECT;
     return b;
+}
+
+/* One frame of a page over the running game: the host's buttons, with the
+ * pause loop's held-at-opening and repeat rules. */
+static void title_page_running_service(void) {
+    const uint32_t dirs = PSX_MOD_PAGE_UP | PSX_MOD_PAGE_DOWN | PSX_MOD_PAGE_LEFT | PSX_MOD_PAGE_RIGHT;
+    if (!g_title_page_open || !g_title_page_running) return;
+    const uint32_t now = (uint32_t)SDL_GetTicks();
+    uint32_t held = title_page_buttons();
+    g_title_page_ignore &= held;
+    held &= ~g_title_page_ignore;
+    uint32_t pressed = held & ~g_title_page_prev;
+    if (pressed & dirs) {
+        g_title_page_repeat_at = now + 320;
+    } else if ((held & dirs) && (int32_t)(now - g_title_page_repeat_at) >= 0) {
+        pressed |= held & dirs;
+        g_title_page_repeat_at = now + 70;
+    }
+    g_title_page_prev = held;
+    if (!g_title_page_input(pressed, held, 0, 0)) title_page_close();
+}
+
+static void title_page_host_pause_loop(void);
+static void title_page_service(void) {
+    if (!g_title_page_open) return;
+    if (g_title_page_running) title_page_running_service();
+    else title_page_host_pause_loop();
 }
 
 static void title_page_host_pause_loop(void) {
@@ -9549,6 +9597,17 @@ static bool drain_host_events() {
         if (psx_local_mouse_event(ev)) continue;
         /* In-game overlay provider sees events first (host_overlay.h P3). */
         if (psx_host_input_sink_dispatch(&ev)) continue;
+        /* A page over the running game takes every key (the host's
+         * shortcuts too, as its pause loop does). */
+        if (g_title_page_open && g_title_page_running && ev.type == SDL_KEYDOWN) {
+#if defined(PSX_SDL3)
+            const int pmod = (int)ev.key.mod, pkey = (int)ev.key.key;
+#else
+            const int pmod = (int)ev.key.keysym.mod, pkey = (int)ev.key.keysym.sym;
+#endif
+            if (!g_title_page_input(0, g_title_page_prev, pkey, pmod)) title_page_close();
+            continue;
+        }
         if (ev.type == SDL_QUIT) {
             if (psx_netplay_active()) {
                 netplay_soft_exit("sdl_window_close");
@@ -9968,16 +10027,18 @@ static NetplayVblankEpilogue sdl_vblank_present_body(void) {
             if (sdl_window) SDL_GetWindowSize(sdl_window, &ww, &wh);
             psx_savestate_menu_set_window(ww, wh);
         }
-        savestate_menu_poll_toggle_buttons();
-        rewind_poll_toggle_buttons();
-        fast_forward_toggle_poll_buttons();
+        if (!(g_title_page_open && g_title_page_running)) {
+            /* a page over the running game owns the pad: no host menu opens under it */
+            savestate_menu_poll_toggle_buttons();
+            rewind_poll_toggle_buttons();
+            fast_forward_toggle_poll_buttons();
+        }
         psx_rewind_note_frame();
         psx_rewind_present_tick((uint32_t)SDL_GetTicks());
         if (savestate_menu_open)
             savestate_menu_host_pause_loop();
         (void)bug_report_tick();   /* opens the report's form as a page */
-        if (g_title_page_open)
-            title_page_host_pause_loop();
+        title_page_service();
         if (psx_rewind_is_open())
             rewind_host_pause_loop();
         if (psx_host_pause_depth() > 0)
@@ -10438,7 +10499,7 @@ static NetplayVblankEpilogue sdl_vblank_present_body(void) {
                 // A hotkey acquired during pacing may open a host menu.
                 if (savestate_menu_open) savestate_menu_host_pause_loop();
                 (void)bug_report_tick();
-                if (g_title_page_open) title_page_host_pause_loop();
+                title_page_service();
                 if (psx_rewind_is_open()) rewind_host_pause_loop();
                 if (psx_host_pause_depth() > 0) host_pause_loop();
                 psx_local_mouse_begin(sdl_window, local_mouse_live(override));
