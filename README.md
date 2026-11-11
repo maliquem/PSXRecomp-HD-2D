@@ -177,6 +177,9 @@ the screen. A title can set its speed (`psx_mod_set_fast_forward_speed`).
 - **Toolchain:** a stale overlay compiler stops at the first try and says so, instead of retrying with a hitch each time.
   `rebuild` warns when copying one.
 - **Disc probing:** boot executables in a subdirectory.
+- **Save slots instead of memory cards** ([SAVE_SLOTS.md](docs/SAVE_SLOTS.md)): a title can offer as many saves as
+  it likes, each with its own details (name, play time, party, achievements), while the game still saves to what it
+  sees as a memory card. Card files are written atomically on their own thread.
 - **Deterministic area cache:** when two valid native builds of one function exist, the loader picks by content, not
   by file date, so a copied cache never changes a run.
 - **Memory edges:** a misaligned access at the last bytes of RAM, the scratchpad or the BIOS can no longer touch the
