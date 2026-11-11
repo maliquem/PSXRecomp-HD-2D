@@ -183,6 +183,20 @@ Status: PARTIAL.
     `psx_syscall`'s transfer result. Only Enter/ExitCriticalSection, handled
     directly, occur in R4. The fix changes every title's codegen, so it is
     its own change; see SEGMENT_AWARE_CODE.md §9.
+- [ ] **Post-exception cooldown** (known deviation, listed 2026-11-11, study B5).
+  After a handled exception, `runtime/src/interrupts.c` (`POST_EXC_CLAIMED_COOLDOWN_CYCLES`
+  128, `POST_EXC_UNCLAIMED_COOLDOWN_CYCLES` 8192, applied in the RFE path) withholds the next
+  interrupt delivery for that many guest cycles. SIO is exempt. Hardware has no such window:
+  a still-pending enabled interrupt can be taken again once the code after RFE has run an
+  instruction.
+  - Why it exists: interrupts are taken at block edges, not per instruction. With no window,
+    the block leader at the interrupted PC re-takes the exception before its body runs, and a
+    fast-disc DMA flood pinned the main code at one PC (reentry-storm freeze, Tomba 2). An
+    unhandled interrupt that never clears I_STAT livelocks the same way. Counting in guest
+    cycles (2026-07-04) keeps the compiled and interpreted backends identical.
+  - Retire it with the precise IRQ take-point above: once delivery happens at the exact
+    instruction, at least one instruction always runs after RFE and the window can go.
+    Validate against Beetle's exc_ring on the Tomba 2 reentry case and a fast-disc load.
 
 ## Axis 4 — Memory map / MMIO
 
