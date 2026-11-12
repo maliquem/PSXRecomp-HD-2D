@@ -1813,6 +1813,13 @@ extern "C" int psx_mod_set_fast_forward_speed(int multiplier) {
 extern "C" int psx_mod_fast_forward_speed(void) {
     return manual_fast_forward_multiplier();
 }
+/* psx_mod_set_hidden_fast_forward: 0 off, -1 unbounded, 2..16. */
+static int g_mod_hidden_fast_forward = 0;
+extern "C" int psx_mod_set_hidden_fast_forward(int multiplier) {
+    if (multiplier != 0 && multiplier != -1 && (multiplier < 2 || multiplier > 16)) return 0;
+    g_mod_hidden_fast_forward = multiplier;
+    return 1;
+}
 extern "C" void psx_mod_set_debug_tools_restricted(int restricted) {
     debug_server_set_restricted(restricted);
 }
@@ -10182,6 +10189,9 @@ static NetplayVblankEpilogue sdl_vblank_present_body(void) {
     if (psx_bios_hle_boot_turbo_active())
         turbo_loads_active = 1;
     probe_turbo = turbo_loads_active;
+    /* A plugin's hidden fast-forward (psx_mod_set_hidden_fast_forward). */
+    const int hidden_ff = g_mod_hidden_fast_forward != 0 && !psx_netplay_active() &&
+                          !psx_selfcheck_resim_active();
 
     load_transition_note(cdrom_data_read_active(), logical_load_active,
                          turbo_loads_active, load_run_value);
@@ -10240,7 +10250,7 @@ static NetplayVblankEpilogue sdl_vblank_present_body(void) {
      * paths cannot fork peers during the episode window. */
     if (!psx_netplay_is_resimulating() && !psx_selfcheck_resim_active()) {
         PERF_BEGIN(PM_AUDIO);
-        sdl_audio_update(fmv_skip_active,
+        sdl_audio_update(fmv_skip_active || hidden_ff,
                          turbo_loads_active && g_turbo_audio_sink_enabled);
         PERF_END(PM_AUDIO);
     }
@@ -10248,7 +10258,7 @@ static NetplayVblankEpilogue sdl_vblank_present_body(void) {
 
     /* Render passes (render_pass.c) stay off while presentation is sped up. */
     s_presentation_fast_forward =
-        (turbo_loads_active || fmv_skip_active) ? 1 : 0;
+        (turbo_loads_active || fmv_skip_active || hidden_ff) ? 1 : 0;
 
     /* Guest-affecting per-frame services run on EVERY guest frame, before any
      * presentation early-out (headless, TCP turbo, load/FMV present skips).
@@ -10318,7 +10328,11 @@ static NetplayVblankEpilogue sdl_vblank_present_body(void) {
         static int ff_refused_down = 0;
         bool ff_wanted = kb_turbo || g_manual_turbo_latched ||
             hotkey_shortcut_down(PSX_ASSIST_BIND_FAST_FORWARD, g_hotkey_pad_fast_forward);
-        if (g_mod_fast_forward_blocked) {
+        if (hidden_ff) {
+            /* the plugin's hidden run paces the frames below; the player's
+             * turbo waits, untouched (a latched run resumes after) */
+            ff_wanted = false;
+        } else if (g_mod_fast_forward_blocked) {
             /* A title mode (psx_mod_set_fast_forward_blocked) refuses it:
              * say so once per press, drop a latched run. */
             if (ff_wanted && !ff_refused_down)
@@ -10436,6 +10450,26 @@ static NetplayVblankEpilogue sdl_vblank_present_body(void) {
         const int TL_PRESENT_EVERY = 30;
         s_turbo_present_skip = (s_turbo_present_skip + 1) % TL_PRESENT_EVERY;
         if (s_turbo_present_skip != 0) {
+            ep.skip_pace = 1;
+            return ep;
+        }
+    }
+
+    /* A plugin's hidden fast-forward: its multiplier on the wall clock (none:
+     * unpaced), one present in 30 so the window keeps pumping; the cover the
+     * plugin draws is all the player sees. */
+    if (hidden_ff && !turbo_loads_active) {
+        static int s_hidden_ff_present_skip = 0;
+        const int mult = g_mod_hidden_fast_forward;
+        if (mult >= 2 && g_frame_period_ms > 0.0) {
+            uint64_t perf_start = runtime_perf_section_begin();
+            pm_pacer_wait(&s_frame_pacer, g_frame_period_ms / (double)mult);
+            runtime_perf_section_end(perf_start, &g_runtime_perf.pacer_ticks);
+            latency_ring_mark(LAT_PACED);
+            turbo_load_paced = true;
+        }
+        s_hidden_ff_present_skip = (s_hidden_ff_present_skip + 1) % 30;
+        if (s_hidden_ff_present_skip != 0) {
             ep.skip_pace = 1;
             return ep;
         }
@@ -21189,6 +21223,7 @@ int main(int argc, char** argv) {
         savestate_set_title_load_blocked(0);
         g_mod_fast_forward_blocked = 0;
         g_mod_fast_forward_speed = 0;
+        g_mod_hidden_fast_forward = 0;
         title_page_close();
         bug_report_reset();
         psx_savestate_menu_set_hud(nullptr);

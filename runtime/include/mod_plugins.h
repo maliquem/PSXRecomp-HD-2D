@@ -1230,6 +1230,15 @@ void psx_mod_set_debug_passive_recorders(int policy);
  * speed in force (-1 unbounded). */
 int  psx_mod_set_fast_forward_speed(int multiplier);
 int  psx_mod_fast_forward_speed(void);
+/* Fast-forward the plugin turns on for a stretch it hides (the title's own
+ * screens behind a cover): 2..16 times, -1 unbounded, 0 off. While on: no OSD
+ * note, the sound faded out and silent (not sped up; it fades back in after),
+ * one frame in 30 shown, the manual fast-forward ignored, its speed and block
+ * untouched. Applies from the next frame. Not a player's turbo: it runs under
+ * a fast-forward block and in Hardcore too (her decision, 2026-11-12). Off in
+ * netplay. Cleared before each session's activation. Returns 0 for any other
+ * value. */
+int  psx_mod_set_hidden_fast_forward(int multiplier);
 /* The manual fast-forward's sound: 0 as it was (the audio bridge drops the
  * excess in blocks: a click at every seam), 1 compressed in time
  * (audio_turbo.h: the pitch kept, no seams, at any speed), 2 that plus the
