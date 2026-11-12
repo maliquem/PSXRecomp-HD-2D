@@ -2661,6 +2661,16 @@ if(BUILD_TESTING AND CMAKE_C_COMPILER_ID STREQUAL "GNU")
         target_link_libraries(gpu_rare_commands_test PRIVATE m)
     endif()
     add_test(NAME gpu_rare_commands_test COMMAND gpu_rare_commands_test)
+
+    # GPUREAD after a VRAM-to-CPU transfer and the GP1(10h) info latch.
+    add_executable(gpu_gpuread_latch_test tests/test_gpu_gpuread_latch.c)
+    target_include_directories(gpu_gpuread_latch_test PRIVATE include)
+    target_compile_definitions(gpu_gpuread_latch_test PRIVATE PSX_ENABLE_BLOCK_CYCLES=1 PSX_NO_DEBUG_TOOLS=1)
+    target_compile_options(gpu_gpuread_latch_test PRIVATE -O2 -fwhole-program)
+    if(NOT WIN32)
+        target_link_libraries(gpu_gpuread_latch_test PRIVATE m)
+    endif()
+    add_test(NAME gpu_gpuread_latch_test COMMAND gpu_gpuread_latch_test)
 endif()
 
 # Focused memory-map fixture: whole-program optimization discards unused device paths.
