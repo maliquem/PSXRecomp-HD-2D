@@ -574,14 +574,20 @@ int psx_save_slots_commit(int slot, const PSXSaveSlotDetails *details) {
         if ((rd32(frame_at(img, b)) & 0xFFu) != ST_FIRST) continue;
         frame_name(frame_at(img, b), nm);
         if (is_kept(nm)) {
-            /* A kept file the game rewrote goes back to the player's card. */
+            /* A kept file the game rewrote goes back to the player's card,
+             * swapped on a copy: when the new one does not fit, the old stays. */
+            static uint8_t rest[MEMCARD_SIZE];
             int old = find_file(s_rest, nm);
             uint8_t *a = extract_file(img, b, &len), *o = NULL;
             size_t olen = 0;
             if (old >= 0) o = extract_file(s_rest, old, &olen);
             if (a && (!o || olen != len || memcmp(a, o, len) != 0)) {
-                if (old >= 0) remove_file(s_rest, old);
-                if (place_file(s_rest, a, len, NULL) == 0) s_rest_changed = 1;
+                memcpy(rest, s_rest, MEMCARD_SIZE);
+                if (old >= 0) remove_file(rest, old);
+                if (place_file(rest, a, len, NULL) == 0) {
+                    memcpy(s_rest, rest, MEMCARD_SIZE);
+                    s_rest_changed = 1;
+                }
             }
             free(a);
             free(o);

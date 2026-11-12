@@ -89,6 +89,7 @@ typedef struct {
 } PendingWrite;
 
 static PendingWrite s_pending[MAX_CARDS];
+static volatile int s_write_failing;   /* the last background write failed */
 static int s_writer_busy;
 static int s_writer_started;
 
@@ -143,6 +144,7 @@ static void writer_loop(void) {
 
         wlock();
         s_writer_busy = 0;
+        s_write_failing = rc != 0;
         if (rc != 0 && !s_pending[card].pending) {
             memcpy(&s_pending[card], &job, sizeof(job));   /* try again */
             s_pending[card].pending = 1;
@@ -194,6 +196,8 @@ static int writer_enqueue(int card) {
     wunlock();
     return started ? 0 : -1;
 }
+
+int memcard_write_failing(void) { return s_write_failing; }
 
 int memcard_flush_wait(unsigned timeout_ms) {
     int drained;

@@ -335,6 +335,23 @@ int main(void) {
     rc = psx_save_slots_get(101, &info);
     EXPECT("slot 101 invalid", rc == -1);
 
+    /* A kept file that grows does not fit back on a full player's card: the
+     * old one stays there. */
+    memcard_format_image(card0);
+    add_file(card0, 0, 1, "BISLPS-01000-FM2-S", 0x5A);
+    add_file(card0, 1, 14, "BASLUS-01324BOF402US", 0x10);
+    EXPECT("full card imported", memcard_import_raw(0, card0) == 0 && drained());
+    EXPECT("mount for growth", psx_save_slots_mount(0, 0, NULL) == 0);
+    memset(img, 0, sizeof(img));
+    add_file(img, 0, 2, "BISLPS-01000-FM2-S", 0x66);
+    EXPECT("game grows kept file", game_write(1, img + 1 * 128) == 1 &&
+                                   game_write(2, img + 2 * 128) == 1);
+    EXPECT("nothing else saved", psx_save_slots_commit(8, NULL) == -2);
+    EXPECT("unmount 5", psx_save_slots_unmount() == 0);
+    game_read(1, sec, &ok);
+    EXPECT("old kept file still on the card",
+           ok && sec[0] == 0x51 && memcmp(sec + 0x0A, "BISLPS-01000-FM2-S", 18) == 0);
+
     printf("save slots: %d checks, %d failures\n", g_checks, g_fail);
     return g_fail ? 1 : 0;
 }

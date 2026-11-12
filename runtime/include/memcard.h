@@ -59,6 +59,9 @@ void memcard_flush_all(void);
 /* Wait until every queued card write is on disk. 0 = drained, -1 = still
  * pending after timeout_ms (a failing disk keeps retrying). */
 int memcard_flush_wait(unsigned timeout_ms);
+/* 1 while the card's background write keeps failing (disk full, no write
+ * access): the game already said "saved", so the host tells the player. */
+int memcard_write_failing(void);
 
 /* Check if card is present */
 int memcard_is_present(int card);

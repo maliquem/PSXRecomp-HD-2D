@@ -6962,9 +6962,20 @@ static int savestate_resume_inputs_held(void) {
 /* Once per frame, before shortcuts and pads are read: a block that ended
  * lasts until no key or button is held. */
 static void input_block_service(void) {
-    if (g_input_block_release && !savestate_resume_inputs_held())
+    /* headless: no player's hands to wait for */
+    if (g_input_block_release && (g_headless || !savestate_resume_inputs_held()))
         g_input_block_release = 0;
     psx_host_set_input_block_capture(input_blocked());
+}
+
+/* While the card's write to disk keeps failing, a note every 20 s. */
+static void memcard_write_note(void) {
+    static uint32_t s_next = 0;
+    const uint32_t now = (uint32_t)SDL_GetTicks();
+    if (!memcard_write_failing()) { s_next = 0; return; }
+    if (s_next != 0 && (int32_t)(now - s_next) < 0) return;
+    host_osd_push("Memory card: saving to disk failed, retrying", 4000);
+    s_next = now + 20000u;
 }
 
 static int savestate_input_guard_active(void) {
@@ -10103,6 +10114,7 @@ static NetplayVblankEpilogue sdl_vblank_present_body(void) {
             psx_savestate_menu_set_window(ww, wh);
         }
         input_block_service();
+        memcard_write_note();
         if (!(g_title_page_open && g_title_page_running)) {
             /* a page over the running game owns the pad: no host menu opens under it */
             savestate_menu_poll_toggle_buttons();
@@ -10134,6 +10146,8 @@ static NetplayVblankEpilogue sdl_vblank_present_body(void) {
      * server and needs no window. */
     if (g_headless && psx_host_pause_depth() > 0)
         host_pause_loop();
+    if (g_headless)
+        input_block_service();
 
     /* Sample each player's device and feed the matching SIO pad slot.
      * Debug server input override (when active) drives port 1 only. With
