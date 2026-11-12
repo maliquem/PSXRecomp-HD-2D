@@ -13,6 +13,7 @@ void audio_trace_event(uint16_t k,uint32_t a,uint32_t b){(void)k;(void)a;(void)b
 void psx_irq_raise(uint32_t b,uint32_t d){(void)b;(void)d;}
 uint32_t crc32_update(uint32_t c,const uint8_t *p,size_t n){(void)p;(void)n;return c;}
 bool spu_shadow_enabled(void){return false;}
+bool spu_shadow_active(void){return false;}
 void spu_shadow_reset(void){}
 void spu_shadow_process(int16_t *p,int n){(void)p;(void)n;}
 #define CHECK(x) do{if(!(x)){fprintf(stderr,"line %d: %s\n",__LINE__,#x);exit(1);}}while(0)
