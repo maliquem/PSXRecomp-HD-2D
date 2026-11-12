@@ -1813,6 +1813,22 @@ extern "C" int psx_mod_set_fast_forward_speed(int multiplier) {
 extern "C" int psx_mod_fast_forward_speed(void) {
     return manual_fast_forward_multiplier();
 }
+/* psx_mod_set_input_block: the plugin's block, then the wait for the
+ * player's hands off (input_block_service). */
+static int g_mod_input_block = 0;
+static int g_input_block_release = 0;
+static bool input_blocked(void) { return g_mod_input_block || g_input_block_release; }
+extern "C" int psx_mod_set_input_block(int on) {
+    if (on) {
+        g_mod_input_block = 1;
+        g_input_block_release = 0;
+    } else if (g_mod_input_block) {
+        g_mod_input_block = 0;
+        g_input_block_release = 1;
+    }
+    psx_host_set_input_block_capture(input_blocked());
+    return 1;
+}
 /* psx_mod_set_hidden_fast_forward: 0 off, -1 unbounded, 2..16. */
 static int g_mod_hidden_fast_forward = 0;
 extern "C" int psx_mod_set_hidden_fast_forward(int multiplier) {
@@ -6943,6 +6959,14 @@ static int savestate_resume_inputs_held(void) {
     return any_controller_button_down();
 }
 
+/* Once per frame, before shortcuts and pads are read: a block that ended
+ * lasts until no key or button is held. */
+static void input_block_service(void) {
+    if (g_input_block_release && !savestate_resume_inputs_held())
+        g_input_block_release = 0;
+    psx_host_set_input_block_capture(input_blocked());
+}
+
 static int savestate_input_guard_active(void) {
     uint32_t now;
     if (g_savestate_input_guard_max_until == 0)
@@ -8614,7 +8638,7 @@ static int direct_shortcut_active(int shortcut) {
  * held. A one-button combination is direct only while the title allows that
  * shortcut; otherwise it is Select + button, like the legacy encoding. */
 static int hotkey_shortcut_down(int shortcut, int binding) {
-    if (!p1_host_present() || binding == 0)
+    if (!p1_host_present() || binding == 0 || input_blocked())
         return 0;
     const int direct = direct_shortcut_active(shortcut);
     return psx_hotkey_pad_down(binding, direct, SDL_CONTROLLER_BUTTON_BACK,
@@ -9420,6 +9444,11 @@ static void title_page_running_service(void) {
     if (!g_title_page_open || !g_title_page_running) return;
     const uint32_t now = (uint32_t)SDL_GetTicks();
     uint32_t held = title_page_buttons();
+    if (input_blocked()) {
+        /* blocked: nothing pressed; what is held counts after a release */
+        g_title_page_ignore |= held;
+        held = 0;
+    }
     g_title_page_ignore &= held;
     held &= ~g_title_page_ignore;
     uint32_t pressed = held & ~g_title_page_prev;
@@ -9617,9 +9646,29 @@ static void headless_present_image_ring_capture(void) {
 static int debug_toggles_on(void);
 static int debug_toggle_key(int key, char *out, int cap);
 #endif
+static bool host_player_input_event(const SDL_Event& ev) {
+    switch (ev.type) {
+    case SDL_KEYDOWN: case SDL_KEYUP: case SDL_TEXTINPUT: case SDL_TEXTEDITING:
+    case SDL_MOUSEMOTION: case SDL_MOUSEBUTTONDOWN: case SDL_MOUSEBUTTONUP:
+    case SDL_MOUSEWHEEL:
+    case SDL_CONTROLLERBUTTONDOWN: case SDL_CONTROLLERBUTTONUP:
+    case SDL_CONTROLLERAXISMOTION:
+    case SDL_JOYAXISMOTION: case SDL_JOYBALLMOTION: case SDL_JOYHATMOTION:
+    case SDL_JOYBUTTONDOWN: case SDL_JOYBUTTONUP:
+    case SDL_FINGERDOWN: case SDL_FINGERUP: case SDL_FINGERMOTION:
+        return true;
+    default:
+        return false;
+    }
+}
+
 static bool drain_host_events() {
     SDL_Event ev;
     while (SDL_PollEvent(&ev)) {
+        /* A plugin's input block: every key, mouse and controller event
+         * dropped before anything sees it (window, quit and device events
+         * still pass). */
+        if (g_mod_input_block && host_player_input_event(ev)) continue;
         if (psx_local_mouse_event(ev)) continue;
         /* In-game overlay provider sees events first (host_overlay.h P3). */
         if (psx_host_input_sink_dispatch(&ev)) continue;
@@ -10053,6 +10102,7 @@ static NetplayVblankEpilogue sdl_vblank_present_body(void) {
             if (sdl_window) SDL_GetWindowSize(sdl_window, &ww, &wh);
             psx_savestate_menu_set_window(ww, wh);
         }
+        input_block_service();
         if (!(g_title_page_open && g_title_page_running)) {
             /* a page over the running game owns the pad: no host menu opens under it */
             savestate_menu_poll_toggle_buttons();
@@ -10323,7 +10373,7 @@ static NetplayVblankEpilogue sdl_vblank_present_body(void) {
          * fast_forward_toggle_pad) and drives the same path. */
         uint8_t host_keys[SDL_NUM_SCANCODES];
         psx_keybinds_host_keys(keys, host_keys);
-        const bool kb_turbo = host_hotkey_input_focused() &&
+        const bool kb_turbo = host_hotkey_input_focused() && !input_blocked() &&
             host_keymap_down(HOST_KEYMAP_TURBO, host_keys, (int)SDL_GetModState());
         static int ff_refused_down = 0;
         bool ff_wanted = kb_turbo || g_manual_turbo_latched ||
@@ -21224,6 +21274,9 @@ int main(int argc, char** argv) {
         g_mod_fast_forward_blocked = 0;
         g_mod_fast_forward_speed = 0;
         g_mod_hidden_fast_forward = 0;
+        g_mod_input_block = 0;
+        g_input_block_release = 0;
+        psx_host_set_input_block_capture(0);
         title_page_close();
         bug_report_reset();
         psx_savestate_menu_set_hud(nullptr);

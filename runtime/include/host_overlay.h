@@ -63,6 +63,9 @@ int  psx_host_ui_capture_active(void);
  * from the overlay's flag, which host_pause_service rewrites every frame.
  * psx_host_ui_capture_active is on while either is. */
 void psx_host_set_page_capture(int on);
+/* A plugin's input block (mod_plugins.h psx_mod_set_input_block) owns the
+ * controls the same way, until the player's hands are off after it ends. */
+void psx_host_set_input_block_capture(int on);
 
 /* ---- P4: live video settings ---------------------------------------------
  * The [video] keys an in-game menu may change, in settings.toml terms.

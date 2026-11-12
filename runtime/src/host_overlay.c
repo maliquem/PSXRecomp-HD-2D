@@ -116,9 +116,11 @@ int psx_host_input_sink_dispatch(const void *event) {
 }
 
 static volatile int s_page_capture = 0;
+static volatile int s_block_capture = 0;
 void psx_host_set_ui_capture(int on) { s_ui_capture = on ? 1 : 0; }
 void psx_host_set_page_capture(int on) { s_page_capture = on ? 1 : 0; }
-int psx_host_ui_capture_active(void) { return s_ui_capture || s_page_capture; }
+void psx_host_set_input_block_capture(int on) { s_block_capture = on ? 1 : 0; }
+int psx_host_ui_capture_active(void) { return s_ui_capture || s_page_capture || s_block_capture; }
 
 /* ---- P4: live video settings ------------------------------------------------ */
 unsigned psx_host_video_live_changes(const PsxHostVideoSettings *a,

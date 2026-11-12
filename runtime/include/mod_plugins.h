@@ -1239,6 +1239,16 @@ int  psx_mod_fast_forward_speed(void);
  * netplay. Cleared before each session's activation. Returns 0 for any other
  * value. */
 int  psx_mod_set_hidden_fast_forward(int multiplier);
+/* Every input of the player's ignored while a plugin does something hidden
+ * (1 on, 0 off): the game's pads read as released (the plugin's pad
+ * transform still runs, and what it writes reaches the game), and every
+ * keyboard, mouse and controller event is dropped before the host's
+ * shortcuts, the overlay, title pages and the game's mouse. Closing the
+ * window still works. After 0, the block holds until the player's keys and
+ * buttons are all released, so nothing held through it leaks in. No OSD
+ * note; runs in Hardcore too (her decision, 2026-11-12); cleared before each
+ * session's activation. Returns 1. */
+int  psx_mod_set_input_block(int on);
 /* The manual fast-forward's sound: 0 as it was (the audio bridge drops the
  * excess in blocks: a click at every seam), 1 compressed in time
  * (audio_turbo.h: the pitch kept, no seams, at any speed), 2 that plus the
