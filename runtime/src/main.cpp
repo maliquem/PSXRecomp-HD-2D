@@ -3420,8 +3420,11 @@ static std::filesystem::path resolve_existing_runtime_path(const char* requested
     return {};
 }
 
+static std::filesystem::path user_dir_from_argv(const char* argv0);
 static std::filesystem::path sidecar_cfg_path(const char* argv0, const char* filename) {
-    return exe_dir_from_argv(argv0) / filename;
+    /* disc.cfg is the player's choice: it lives in the player's folder */
+    return (std::strcmp(filename, "disc.cfg") == 0 ? user_dir_from_argv(argv0)
+                                                   : exe_dir_from_argv(argv0)) / filename;
 }
 
 /* Relative paths in settings.toml and the bios.cfg / disc.cfg sidecars are
@@ -3446,6 +3449,25 @@ static std::filesystem::path read_cached_path(const char* argv0, const char* fil
     return line.empty() ? std::filesystem::path{}
                         : anchor_on_exe_dir(argv0, std::filesystem::path(line));
 }
+
+/* userdir.cfg next to the exe (one line, like disc.cfg; relative = from the
+ * exe folder) names the player's folder: settings.toml, config.ini, input.ini,
+ * keybinds.ini, disc.cfg and the default memcard_dir live there. Without it,
+ * the exe folder, as always. Relative paths inside settings.toml still anchor
+ * on the exe folder. */
+static std::string g_user_dir;   /* empty = the exe folder */
+static std::filesystem::path user_dir_from_argv(const char* argv0) {
+    static bool s_done = false;
+    if (!s_done) {
+        s_done = true;
+        const std::filesystem::path d = read_cached_path(argv0, "userdir.cfg");
+        std::error_code ec;
+        if (!d.empty()) std::filesystem::create_directories(d, ec);   /* the player may delete it */
+        if (!d.empty() && std::filesystem::is_directory(d, ec)) g_user_dir = d.string();
+    }
+    return g_user_dir.empty() ? exe_dir_from_argv(argv0) : std::filesystem::path(g_user_dir);
+}
+extern "C" const char* psx_user_dir(void) { return g_user_dir.c_str(); }
 
 static void write_cached_path(const char* argv0, const char* filename,
                               const std::filesystem::path& path) {
@@ -4126,7 +4148,7 @@ static bool resolve_match_session_bios_path(
 // block) specifies one: the executable's directory (authoritative, never cwd —
 // see exe_dir_from_argv), so saves always live next to the binary.
 static std::filesystem::path default_memcard_dir(const char* argv0) {
-    return exe_dir_from_argv(argv0);
+    return user_dir_from_argv(argv0);
 }
 
 static void close_controller(void);
@@ -5903,7 +5925,7 @@ static void load_input_config(const char* argv0) {
     set_default_controller_mapping();
 
     namespace fs = std::filesystem;
-    fs::path config_path = exe_dir_from_argv(argv0) / "input.ini";
+    fs::path config_path = user_dir_from_argv(argv0) / "input.ini";
     g_input_ini_path = config_path;
     std::error_code ec;
     if (!fs::exists(config_path, ec)) {
@@ -17710,7 +17732,7 @@ namespace {
 #endif
 
     void ae_rui_set_sidecar_paths(const char* argv0) {
-        const auto exe = exe_dir_from_argv(argv0 ? argv0 : "");
+        const auto exe = user_dir_from_argv(argv0 ? argv0 : "");
         g_rui_keybinds_path = (exe / "keybinds.ini").string();
         g_rui_config_ini_path = (exe / "config.ini").string();
     }
@@ -18307,8 +18329,8 @@ static void recomp_overlay_setup(const char* argv0, const std::string& title) {
     const std::filesystem::path dir = exe_dir_from_argv(argv0);
     g_ovl_name = title;
     g_ovl_argv0 = argv0 ? argv0 : "";
-    g_ovl_keybinds = (dir / "keybinds.ini").string();
-    g_ovl_config = (dir / "config.ini").string();
+    g_ovl_keybinds = (user_dir_from_argv(argv0) / "keybinds.ini").string();
+    g_ovl_config = (user_dir_from_argv(argv0) / "config.ini").string();
     g_ovl_assets = (dir / "assets").string();
     g_menu_host.assets_dir = g_ovl_assets.c_str();
     mh_refresh_snapshot();
@@ -18407,7 +18429,7 @@ static void host_pause_service(void) {
         if ((post.jogcon_force_feedback != 0) != (psx_jogcon_ffb_player_enabled() != 0)) {
             psx_jogcon_ffb_set_player_enabled(post.jogcon_force_feedback);
             const auto settings_path =
-                exe_dir_from_argv(g_ovl_argv0.c_str()) / "settings.toml";
+                user_dir_from_argv(g_ovl_argv0.c_str()) / "settings.toml";
             PSXRecompV4::UserSettings us = PSXRecompV4::load_user_settings(settings_path);
             us.jogcon_force_feedback = post.jogcon_force_feedback != 0;
             us.has_jogcon_force_feedback = true;
@@ -18871,7 +18893,7 @@ int main(int argc, char** argv) {
     if (game_config_path) {
         try {
             auto gc = PSXRecompV4::load_game_config(game_config_path);
-            quality_startup(gc, exe_dir_from_argv(argv[0]) / "settings.toml");
+            quality_startup(gc, user_dir_from_argv(argv[0]) / "settings.toml");
             game_name = gc.name;
             game_id   = gc.id;
             game_region = gc.region;
@@ -19552,7 +19574,7 @@ int main(int argc, char** argv) {
     bool user_settings_has_renderer = false;
     {
         std::filesystem::path settings_path =
-            exe_dir_from_argv(argv[0]) / "settings.toml";
+            user_dir_from_argv(argv[0]) / "settings.toml";
         g_user_settings_path = settings_path;
 #if defined(RECOMP_LAUNCHER)
         g_lnch_settings_path = settings_path;
@@ -21021,7 +21043,7 @@ int main(int argc, char** argv) {
                 {
                     PSXRecompV4::UserSettings save = seed;
                     (void)quality_save_user_settings(
-                        exe_dir_from_argv(argv[0]) / "settings.toml", save);
+                        user_dir_from_argv(argv[0]) / "settings.toml", save);
                 }
                 std::fprintf(stdout, "psxrecomp: launcher closed; exiting.\n");
                 if (overlay_init_thread.joinable())
@@ -21213,7 +21235,7 @@ int main(int argc, char** argv) {
                 {
                     PSXRecompV4::UserSettings save = seed;
                     (void)quality_save_user_settings(
-                        exe_dir_from_argv(argv[0]) / "settings.toml", save);
+                        user_dir_from_argv(argv[0]) / "settings.toml", save);
                 }
             }
         }
@@ -22676,7 +22698,7 @@ session_reboot:
      * launcher edit made before config_path was wired still applies. */
     {
         namespace fs = std::filesystem;
-        const fs::path exe_cfg = exe_dir_from_argv(argv[0]) / "config.ini";
+        const fs::path exe_cfg = user_dir_from_argv(argv[0]) / "config.ini";
         std::error_code ec;
         g_host_keymap_path = exe_cfg.string();   /* psx_input_host_keys_save */
         if (fs::is_regular_file(exe_cfg, ec)) {
@@ -23431,7 +23453,7 @@ soft_return_lobby:
              * the rest of settings.toml — merge into the on-disk file. */
             {
                 const auto settings_path =
-                    exe_dir_from_argv(argv[0]) / "settings.toml";
+                    user_dir_from_argv(argv[0]) / "settings.toml";
                 PSXRecompV4::UserSettings us =
                     PSXRecompV4::load_user_settings(settings_path);
                 const int un = std::min(PSX_MAX_PLAYERS,

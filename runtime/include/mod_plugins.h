@@ -1432,6 +1432,9 @@ void psx_mod_bug_report_add_type(const char *name);
 typedef int (*PSXModBugReportInfo)(char *json, int cap);
 void psx_mod_set_bug_report_info(PSXModBugReportInfo info);
 void psx_mod_bug_report_add_file(const char *path);
+/* The player's folder named by userdir.cfg next to the exe (settings, keys,
+ * cards); "" when it is the exe folder. */
+const char *psx_user_dir(void);
 /* Where a player's report goes in a release build: the title's "new issue"
  * page (https://github.com/<owner>/<repo>/issues/new) and the X25519 public
  * key that seals the save state and the settings (NULL: they stay at home).

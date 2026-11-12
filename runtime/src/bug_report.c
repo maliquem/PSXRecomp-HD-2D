@@ -757,12 +757,17 @@ static void exe_info(char *path, size_t cap, char *modified, size_t mcap) {
 
 static int copy_config(char names[][96], int max) {
     static const char *const k_base[] = { "settings.toml", "config.ini", "input.ini", "keybinds.ini", "game.toml" };
-    char dir[800], to[900];
+    char dir[800], to[900], from[900];
     int n = 0;
     br_path(dir, sizeof dir, "config");
     br_mkdir(dir);
     for (size_t i = 0; i < sizeof k_base / sizeof *k_base + (size_t)s_file_n && n < max; i++) {
         const char *src = i < sizeof k_base / sizeof *k_base ? k_base[i] : s_files[i - sizeof k_base / sizeof *k_base];
+        /* the player's files live in the user folder; game.toml stays by the exe */
+        if (i < 4 && psx_user_dir()[0]) {
+            snprintf(from, sizeof from, "%s/%s", psx_user_dir(), src);
+            src = from;
+        }
         if (!br_exists(src)) continue;
         const char *base = strrchr(src, '/');
         const char *b2 = strrchr(src, '\\');
