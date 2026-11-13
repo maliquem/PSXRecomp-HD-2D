@@ -455,3 +455,18 @@ all handle install-at-runtime code this way. PSXRecomp v4 follows suit.
 Implementation lives in `runtime/src/dirty_ram_interp.c` (or similar). It
 is intentionally small (~300 LOC), modular, and isolated. It does NOT
 expand into a general-purpose CPU emulator.
+
+---
+
+## 19. Function index: docs/FUNCTIONS.md
+
+To learn what a framework function does, how it is called or where it lives,
+look it up in `docs/FUNCTIONS.md` first (one section per file under runtime/
+and recompiler/, one line per function: name, line, what it does), then open
+the file at that line.
+
+A commit that adds or removes a function, or changes what one does, refreshes
+the index in the same commit: `python tools/function_index.py` (it keeps the
+descriptions already written, updates the lines and adds the new functions with
+the comment above them), then write a description for any new line that has
+none (`grep -n '^- \`[^\`]*\` (L[0-9]*)$' docs/FUNCTIONS.md`).
