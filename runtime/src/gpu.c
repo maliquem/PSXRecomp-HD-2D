@@ -931,7 +931,9 @@ int gpu_shadow_off_active(void) {
  * area, which win. Each light is one 64-bit word (mode, azimuth and
  * elevation in tenths of a degree): the render thread reads it whole while
  * the emulation thread changes it. */
-enum { SH_SUN_MAX = 256 };
+/* a title's areas: BoF4's sun_areas.txt had 342 lines; past 256 the rest were
+ * dropped, the file's and the sun tool's alike (2026-11-13_165330) */
+enum { SH_SUN_MAX = 512 };
 typedef struct { uint32_t area; _Atomic uint64_t light[2]; _Atomic int time; } ShLight;
 static ShLight          sh_cfg[SH_SUN_MAX], sh_live[SH_SUN_MAX];
 static _Atomic int      sh_cfg_n = 0, sh_live_n = 0;
