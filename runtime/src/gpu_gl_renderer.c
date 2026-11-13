@@ -1826,8 +1826,10 @@ int gl_renderer_shadow_cache_stats(char *out, int cap) {
 /* TCP sprite_dump: the picture on screen's foot points and 2D pieces, on the
  * picture (native px from its centre): pieces as [x0, y0, x1, y1, page x,
  * page y, CLUT x, CLUT y, translucent], in drawing order. */
+static char s_spr_fdbg[4096]; static int s_spr_fdbg_on;   /* gl_postfx.inc spr_floor_field */
 int gl_renderer_sprite_dump_json(char *out, int cap) {
     GL_RT_SYNC("sprite_dump");
+    s_spr_fdbg_on = 1;   /* the feet are written from the next shadow build on */
     const ScSlot *sl = sc_presented();
     int k = snprintf(out, (size_t)cap, "\"anchors\":[");
     if (!sl) return k + snprintf(out + k, (size_t)(cap - k), "],\"pieces\":[]");
@@ -1855,7 +1857,7 @@ int gl_renderer_sprite_dump_json(char *out, int cap) {
         k += snprintf(out + k, (size_t)(cap - k), "%s[%.0f,%.0f,%.0f,%.0f,%.0f,%.0f,%.0f,%.0f,%.0f,%.1f]", t ? "," : "",
                       x0, y0, x1, y1, v[5], v[6], v[7], v[8], v[2], sl->sb && sl->sb[t] > -1e29f ? sl->sb[t] - s_sc_cy : -999.0f);
     }
-    return k + snprintf(out + k, (size_t)(cap - k), "]");
+    return k + snprintf(out + k, (size_t)(cap - k), "],\"field\":\"%s\"", s_spr_fdbg);
 }
 
 /* PGXP renderer features (docs/ENHANCEMENTS.md G1.14), all off by default:

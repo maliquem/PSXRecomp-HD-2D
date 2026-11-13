@@ -1152,6 +1152,217 @@ static void spr_bend(const SprFoot *f, const float *nrm, float na_d, float au, c
     }
     if (any) s_spr_bent++;
 }
+/* Room for k more bent/ground caster vertices; 0 = out of memory. */
+static int spr_x_room(int k) {
+    if (s_spr_nx + k <= s_spr_xcap) return 1;
+    int nc = s_spr_xcap ? s_spr_xcap * 2 : 1536;
+    while (nc < s_spr_nx + k) nc *= 2;
+    float *p = (float *)realloc(s_spr_xc, (size_t)nc * SC_V * sizeof(float));
+    if (p) s_spr_xc = p;
+    float *q = (float *)realloc(s_spr_xs, (size_t)nc * SC_V * sizeof(float));
+    if (q) s_spr_xs = q;
+    float *r = (float *)realloc(s_spr_xau, (size_t)nc * sizeof(float));
+    if (r) s_spr_xau = r;
+    if (!p || !q || !r) return 0;
+    s_spr_xcap = nc;
+    return 1;
+}
+/* The sprite's bottom on the floor (proto/sombra-chao). A 2D sprite has no
+ * depth: a foot drawn higher (a 3/4 pose's back foot) is a foot further back
+ * on the floor, not one in the air. Every column whose bottom is a foot's
+ * (within fb of the lowest, in a run of SPR_FOOT_MIN columns or more) gets
+ * the depth where its bottom pixel's view ray meets the floor; the columns
+ * between feet take it linearly from the nearest feet (at the ends, the last
+ * foot's). Every drawn pixel from the cut line (hb over the lowest) down then
+ * stands at its column's depth, smoothly from the sprite's plane at the cut
+ * to the floor point at the bottom: one continuous surface, each foot on the
+ * floor where the camera sees it, so the light's projection keeps every foot
+ * on its shadow, whatever the light. It replaces the pieces under the cut
+ * (the caller clips them): the old bend added bent legs to the standing ones,
+ * two legs per foot in the shadow. Out: the cut (native px from the centre,
+ * y down), or -1e30 when the sprite has no foot (it stands as drawn). */
+/* sprite_dump "field": each sprite's feet as found, written only after a
+ * sprite_dump asked (s_spr_fdbg_on), not every frame */
+static char s_spr_fdbg[4096]; static int s_spr_fdbg_n = 0, s_spr_fdbg_on = 0;
+#define FDBG(...) do { if (s_spr_fdbg_on && s_spr_fdbg_n < (int)sizeof s_spr_fdbg - 200) \
+    s_spr_fdbg_n += snprintf(s_spr_fdbg + s_spr_fdbg_n, sizeof s_spr_fdbg - (size_t)s_spr_fdbg_n, __VA_ARGS__); } while (0)
+static float spr_floor_field(const SprFoot *f, const float *nrm, float na_d, float au, const float *u, float height) {
+    const float h = s_cam_h;
+    FDBG("{X0 %d W %d lo %.1f band %.1f H %.1f na %.1f au %.1f:", f->X0, f->W, f->lo, f->band, height, na_d, au);
+    const float hz = s_spr_bend_h > 0.0f ? s_spr_bend_h : fmaxf(0.75f * height, 8.0f);
+    const float hb = fminf(hz, (float)SPR_ZONE - f->band - 2.0f);
+    if (hb < 2.0f) return -1e30f;
+    const float fb = fminf(fmaxf(f->band, 0.3f * height), 0.6f * hb);
+    /* per foot (a run of foot columns) one sole: its lowest row, flat on the
+     * floor, so its columns share one depth (a foot's rounded edge, a row or
+     * two higher, would put its columns deeper: strips apart in the shadow).
+     * D, the depth; B, the sole's row; both linear between feet. */
+    float D[SPR_COLS], B[SPR_COLS];
+    int any = 0;
+    for (int x = 0; x < f->W; x++) D[x] = B[x] = -1e30f;
+    /* The feet: soles, each a flat stretch of the bottom (within SOLE_TOL px
+     * of its lowest column), the lowest first; two feet drawn side by side
+     * (a 3/4 pose's back foot a few px higher) are two soles, each at its
+     * own depth. A sole no deeper or nearer than SOLE_DEEP of the sprite's
+     * width (on the floor) from the plane: a hand or a cape's tip hanging
+     * over the floor is no foot (put on the floor, it went 200 units back). */
+    const float SOLE_TOL = 2.0f, SOLE_DEEP = 1.0f, SOLE_UP = 0.12f, LEG_UP = 0.45f;
+    float Gm[3];
+    const float wfloor = spr_ground(0.0f, f->lo, au, u, Gm) ? SOLE_DEEP * (float)f->W * Gm[2] / h : 0.0f;
+    int seg[SPR_COLS][2], ns = 0;
+    for (int x = 0; x < f->W;) {   /* the band's runs */
+        if (f->col[x] < f->lo - fb) { x++; continue; }
+        int run = 0;
+        while (x + run < f->W && f->col[x + run] >= f->lo - fb) run++;
+        if (run >= SPR_FOOT_MIN && ns < SPR_COLS) { seg[ns][0] = x; seg[ns][1] = x + run; ns++; }
+        x += run;
+    }
+    while (ns > 0) {
+        const int a = seg[ns - 1][0], b = seg[ns - 1][1];
+        ns--;
+        int mx = a;
+        for (int x = a; x < b; x++) if (f->col[x] > f->col[mx]) mx = x;
+        const float sole = f->col[mx];
+        int l = mx, r = mx + 1;
+        while (l > a && f->col[l - 1] >= sole - SOLE_TOL) l--;
+        while (r < b && f->col[r] >= sole - SOLE_TOL) r++;
+        const float up = fmaxf(3.0f, SOLE_UP * height);
+        /* the whole foot: a 3/4 pose draws it slanted, the toe lower (nearer)
+         * than the heel (further back), so from the flat part on along a
+         * bottom that keeps going (a px or two per column) and stays near */
+        while (l > a && fabsf(f->col[l - 1] - f->col[l]) <= 2.0f && f->col[l - 1] >= sole - up) l--;
+        while (r < b && fabsf(f->col[r] - f->col[r - 1]) <= 2.0f && f->col[r] >= sole - up) r++;
+        if (l - a >= SPR_FOOT_MIN && ns < SPR_COLS) { seg[ns][0] = a; seg[ns][1] = l; ns++; }
+        if (b - r >= SPR_FOOT_MIN && ns < SPR_COLS) { seg[ns][0] = r; seg[ns][1] = b; ns++; }
+        if (r - l < SPR_FOOT_MIN) continue;   /* a staff's or sword's tip */
+        /* a foot's sole is near the lowest (a 3/4 pose's back foot, ~6 px
+         * up); a hand by the hip (16 px up) is none, nor a foot lifted in a
+         * step (in the air, it casts from the plane) */
+        if (sole < f->lo - up) { FDBG(" high x%d+%d at %.1f;", l, r - l, sole); continue; }
+        /* its bottom as a line (heel to toe; a rounded tip off it): each
+         * column on the floor where that line's row meets it, the leg then
+         * standing on its own part of the foot (the heel) */
+        float sx = 0.0f, sy = 0.0f, sxx = 0.0f, sxy = 0.0f;
+        const float nk = (float)(r - l);
+        for (int k = l; k < r; k++) { sx += (float)k; sy += f->col[k]; sxx += (float)k * k; sxy += (float)k * f->col[k]; }
+        const float den = nk * sxx - sx * sx;
+        const float q = fabsf(den) > 1e-6f ? (nk * sxy - sx * sy) / den : 0.0f, p = (sy - q * sx) / nk;
+        float Dk[SPR_COLS], Bk[SPR_COLS], dmax = 0.0f;
+        int okk = 1;
+        for (int k = l; k < r && okk; k++) {
+            const float yk = fminf(p + q * (float)k, sole);
+            float G[3];
+            if (!spr_ground((float)(f->X0 + k) + 0.5f - s_sc_cx, yk, au, u, G)) { okk = 0; break; }
+            Dk[k] = nrm[0] * G[0] + nrm[1] * G[1] + nrm[2] * G[2];
+            Bk[k] = yk;
+            dmax = fmaxf(dmax, fabsf(Dk[k] - na_d));
+        }
+        const int ok = okk && dmax <= wfloor;
+        FDBG(" foot x%d+%d sole %.1f slope %.2f dD %.1f..%.1f%s;", l, r - l, sole, q, okk ? Dk[l] - na_d : 0.0f,
+             okk ? Dk[r - 1] - na_d : 0.0f, ok ? "" : " (no)");
+        if (!ok) continue;
+        for (int k = l; k < r; k++) { D[k] = Dk[k]; B[k] = Bk[k]; }
+        any = 1;
+    }
+    if (!any) return -1e30f;
+    int prev = -1;
+    for (int x = 0; x < f->W; x++) {
+        if (D[x] < -1e29f) continue;
+        if (prev < 0) for (int k = 0; k < x; k++) { D[k] = D[x]; B[k] = B[x]; }
+        else for (int k = prev + 1; k < x; k++) {
+            const float s = (float)(k - prev) / (float)(x - prev);
+            D[k] = D[prev] + (D[x] - D[prev]) * s;
+            B[k] = B[prev] + (B[x] - B[prev]) * s;
+        }
+        prev = x;
+    }
+    for (int k = prev + 1; k < f->W; k++) { D[k] = D[prev]; B[k] = B[prev]; }
+    const int Ytop = (int)ceilf(f->lo - hb + s_sc_cy);
+    const float yc = (float)Ytop - s_sc_cy;
+    FDBG(" fb %.1f hb %.1f yc %.1f}", fb, hb, yc);
+    for (int x = 0; x < f->W; x++) {
+        const float cb = f->col[x];
+        if (cb <= yc) continue;
+        /* the leg stands upright over its foot (its heel), at the foot's
+         * depth up to LEG_UP of the height over the sole; only over that
+         * (the hips) back to the plane: ramping along the whole leg put the
+         * leg nearer than its foot, its shadow off the heel toward the toe */
+        const float bs = fmaxf(B[x] - LEG_UP * height, yc + 1.0f);
+        const int Ybot = (int)lroundf(cb + s_sc_cy);   /* one past the column's lowest row */
+        for (int Y = Ytop; Y < Ybot;) {
+            const int k0 = f->Yb - 1 - Y;
+            if (k0 < 0 || k0 >= SPR_ZONE || !f->mask[k0][x]) { Y++; continue; }
+            int Y1 = Y + 1;   /* a segment: up to 4 drawn rows */
+            while (Y1 < Ybot && Y1 - Y < 4) {
+                const int k1 = f->Yb - 1 - Y1;
+                if (k1 < 0 || k1 >= SPR_ZONE || !f->mask[k1][x]) break;
+                Y1++;
+            }
+            if (!spr_x_room(6)) return yc;
+            const float xl = (float)(f->X0 + x) - s_sc_cx, xr = xl + 1.0f;
+            const float ya = (float)Y - s_sc_cy, yb = (float)Y1 - s_sc_cy;
+            const float qx[6] = {xl, xr, xr, xl, xr, xl}, qy[6] = {ya, ya, yb, ya, yb, yb};
+            for (int j = 0; j < 6; j++) {
+                float t = (qy[j] - yc) / (bs - yc);
+                t = t < 0.0f ? 0.0f : t > 1.0f ? 1.0f : t;
+                t = t * t * (3.0f - 2.0f * t);
+                const float nb = na_d + (D[x] - na_d) * t;
+                const float xc = qx[j] + (qx[j] > xl ? 1.0f : -1.0f);   /* a pixel wider each side: no gaps */
+                const float dc[3] = {xc / h, -qy[j] / h, 1.0f}, d[3] = {qx[j] / h, -qy[j] / h, 1.0f};
+                const float zc = nb / (nrm[0] * dc[0] + nrm[1] * dc[1] + nrm[2] * dc[2]);
+                const float z = nb / (nrm[0] * d[0] + nrm[1] * d[1] + nrm[2] * d[2]);
+                float *c = s_spr_xc + (size_t)(s_spr_nx + j) * SC_V;
+                memset(c, 0, SC_V * sizeof(float));
+                c[0] = dc[0] * zc; c[1] = dc[1] * zc; c[2] = zc; c[9] = -1.0f;   /* solid */
+                float *o = s_spr_xs + (size_t)(s_spr_nx + j) * SC_V;
+                memset(o, 0, SC_V * sizeof(float));
+                o[0] = qx[j] * s_spr_kx; o[1] = -qy[j] * s_spr_ky; o[2] = z; o[9] = -1.0f;
+                s_spr_xau[s_spr_nx + j] = au;
+            }
+            s_spr_nx += 6;
+            Y = Y1;
+        }
+    }
+    s_spr_bent++;
+    return yc;
+}
+/* A piece's part over the cut line yc (screen y down: y <= yc) as casters on
+ * the sprite's plane (na_d along nrm), added to the bent list; nothing on the
+ * picture (its own triangle stays there). */
+static void spr_clip_cast(const float *v, float yc, const float *nrm, float na_d, float au, float h) {
+    float in[3][SC_V], out[4][SC_V];
+    for (int j = 0; j < 3; j++) {
+        memcpy(in[j], v + j * SC_V, SC_V * sizeof(float));
+        in[j][0] -= s_sc_cx; in[j][1] -= s_sc_cy;
+    }
+    int no = 0;
+    for (int j = 0; j < 3; j++) {
+        const float *a = in[j], *b = in[(j + 1) % 3];
+        const int ia = a[1] <= yc, ib = b[1] <= yc;
+        if (ia) memcpy(out[no++], a, SC_V * sizeof(float));
+        if (ia != ib && no < 4) {
+            const float t = (yc - a[1]) / (b[1] - a[1]);
+            for (int k = 0; k < SC_V; k++) out[no][k] = a[k] + (b[k] - a[k]) * t;
+            no++;
+        }
+    }
+    if (no < 3 || !spr_x_room((no - 2) * 3)) return;
+    for (int tri = 0; tri < no - 2; tri++) {
+        const int idx[3] = {0, tri + 1, tri + 2};
+        for (int j = 0; j < 3; j++) {
+            const float *p = out[idx[j]];
+            const float d[3] = {p[0] / h, -p[1] / h, 1.0f};
+            const float den = nrm[0] * d[0] + nrm[1] * d[1] + nrm[2] * d[2];
+            const float z = fabsf(den) < 1e-4f ? 1.0f : na_d / den;
+            float *c = s_spr_xc + (size_t)(s_spr_nx + j) * SC_V;
+            c[0] = d[0] * z; c[1] = d[1] * z; c[2] = z;
+            memcpy(c + 3, p + 3, (SC_V - 3) * sizeof(float));
+            memset(s_spr_xs + (size_t)(s_spr_nx + j) * SC_V, 0, SC_V * sizeof(float));   /* no area: not drawn */
+            s_spr_xau[s_spr_nx + j] = au;
+        }
+        s_spr_nx += 3;
+    }
+}
 /* The frame's 2D pieces standing at its sprites' foot points: the pieces of
  * one sprite (a run drawn together, see below) go to the foot point at their
  * bottom, and each is put on that sprite's upright plane (through the foot
@@ -1189,6 +1400,7 @@ static int sprc_known(float code) {
 }
 static void pfx_sprites_stand(const ScSlot *sc, float aspect, const float *L) {
     s_spr_n = 0; s_spr_nx = 0; s_spr_stood_n = 0; s_spr_nord = 0;
+    if (s_spr_fdbg_on) { s_spr_fdbg_n = 0; s_spr_fdbg[0] = 0; }
     if (!s_spr_on || !sc || !s_cam_ok || sc->nanc <= 0 || sc->sn <= 0 || s_sm_world[1][3] < 0.5f) return;
     if (sc->sn > s_spr_atcap) {
         int *a = (int *)realloc(s_spr_at, (size_t)sc->sn * sizeof(int));
@@ -1443,9 +1655,14 @@ static void pfx_sprites_stand(const ScSlot *sc, float aspect, const float *L) {
         if (rdir[r] && !anc_ok[best]) { anc_d[best] = na_d; anc_ok[best] = 1; }
         if (rdir[r] && !air) sprc_note(spr_clut_code(sc, ids[r]));
         /* its feet bent down to the floor */
+        /* (proto/sombra-chao: its bottom on the floor, spr_floor_field; u_ss.z 2 =
+         * the old bend, for comparing) */
         static SprFoot sf;
-        if (!joined && !air && s_spr_bend_dbg != 1 && spr_feet(sc, ids, par, r, m, bx0, bx1, by0, ob, &sf))
-            spr_bend(&sf, nrm, na_d, au, u, by1 - by0);
+        float ycut = -1e30f;
+        if (!joined && !air && s_spr_bend_dbg != 1 && spr_feet(sc, ids, par, r, m, bx0, bx1, by0, ob, &sf)) {
+            if (s_spr_bend_dbg == 2) spr_bend(&sf, nrm, na_d, au, u, by1 - by0);
+            else ycut = spr_floor_field(&sf, nrm, na_d, au, u, by1 - by0);
+        }
         for (int i = r; i < m; i++) {
             if (spr_root(par, i) != r) continue;
             const float *v = sc->sv + (size_t)ids[i] * 3 * SC_V;
@@ -1462,6 +1679,13 @@ static void pfx_sprites_stand(const ScSlot *sc, float aspect, const float *L) {
                 s[0] = x * kx; s[1] = -y * ky; s[2] = z;
                 memcpy(c + 3, v + j * SC_V + 3, (SC_V - 3) * sizeof(float));
                 memcpy(s + 3, v + j * SC_V + 3, (SC_V - 3) * sizeof(float));
+            }
+            if (ok && ycut > -1e29f && v[9] == 3.0f) {
+                /* under the cut it casts from the floor field: here only its
+                 * part over the cut, its own caster with no area */
+                if (s_spr_bend_dbg != 3) spr_clip_cast(v, ycut, nrm, na_d, au, h);   /* 3: the floor field alone (debug) */
+                memcpy(oc + SC_V, oc, SC_V * sizeof(float));
+                memcpy(oc + 2 * SC_V, oc, SC_V * sizeof(float));
             }
             if (ok) { for (int j = 0; j < 3; j++) s_spr_cau[s_spr_n + j] = au;
                       s_spr_at[ids[i]] = s_spr_n;
@@ -1835,7 +2059,8 @@ static void pfx_shadow_build(const PfxPass *ps, float aspect, int lw, int lh) {
             } else memcpy(Ls, L, sizeof Ls);
         }
     }
-    {   /* u_ss.z, u_ss.w (TCP, debugging the feet): 1 = no bend; the bent zone's height */
+    {   /* u_ss.z, u_ss.w (TCP, debugging the feet): 1 = no bend, 2 = the old bend
+         * (spr_bend), 3 = the floor field alone; the bent zone's height */
         const float *ss = pfx_pass_uniform(ps, "u_ss");
         s_spr_bend_dbg = ss ? (int)(ss[2] + 0.5f) : 0;
         s_spr_bend_h = ss ? ss[3] : 0.0f;
