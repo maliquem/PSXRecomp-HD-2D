@@ -93,6 +93,7 @@ typedef struct FgView {
     int      ok;
     float    area[4];        /* the view's draw area */
     double   q[4], t[3];     /* old -> new: rotation quaternion (w,x,y,z), translation */
+    double   hs;             /* older projection distance / newer (zoom), 0 = unknown */
     const char *why;
 } FgView;
 
@@ -149,7 +150,8 @@ void fg_cam_place(const FgPrimList *newer, FgCamFit *fit, const FgVert *verts,
  * 0 when it would land on the next real frame. */
 double fg_step_s(double flip_s, double refresh_hz, int n);
 double fg_clock_phase(uint64_t since_real_ns, uint64_t step_ns, uint64_t flip_ns);
-/* View vi's in-between camera at phase t as P_t = A P + b (row-major A). */
+/* View vi's in-between camera at phase t as P_t = A P + b (row-major A); a
+ * zoom (FgView.hs) scales x and y, so P_t projects with the newer h. */
 int fg_view_affine(const FgCamFit *fit, int vi, double t, float A[9], float b[3]);
 void fg_hud_match(const FgPrimList *L, const FgPrimList *O, float max_px, uint8_t *moved);
 /* HUD motion between two frames' 2D triangles (frame_gen.c). */

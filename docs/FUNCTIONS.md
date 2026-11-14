@@ -3282,35 +3282,37 @@ Generated in-between frames: fits a camera between two game frames from their pr
 - `is_inlier` (L128) — True when a point pair agrees with a rigid motion within the residual tolerance h.
 - `src_cmp` (L143) — qsort comparison of two source records.
 - `gather` (L151) — The distinct sources of one view, sorted.
-- `lower` (L171) — Binary search: index of the first source record at or after id in a sorted list.
-- `dist3` (L177) — Euclidean distance between two 3D points.
-- `median_z` (L182) — Median depth (z) of a sorted list of source points.
-- `fit_view` (L198) — Fits the camera motion of one view between the older and newer frames; returns nonzero on success.
-- `fg_cam_fit` (L311) — Fits the camera between two frames from their primitives into fit and per-vertex data; returns nonzero on success.
-- `proj` (L440) — Projection of a camera-space point (0 when behind the near plane).
-- `fg_cam_place` (L449) — Places the in-between view at phase t: writes screen positions x and y and edge margins for the primitives.
-- `fg_plan` (L693) — Decides how many in-between frames to draw for a game frame, given costs, budget and the cap.
-- `fg_step_s` (L712) — How many in-between frames to draw per game frame.
-- `fg_slots` (L723) — fg_slots: display intervals a game frame 'flip_s' long fills on a 'refresh_hz' display as the clock (fg_clock_phase) schedules it: the in-between frames it shows plus the real one.
-- `fg_slots_carry` (L734) — The display intervals this game frame gets: flip x refresh rounded down (within 0.015), the remainder carried in *carry (30 fps on 144 Hz: 4, 5, 5, 5, 5).
-- `fg_image_slot` (L745) — The display interval (1..slots) image k (1..n+1, n+1 the real frame) is shown at, n in-between frames spread evenly over slots.
-- `fg_plan_hz` (L750) — Presentation rate for a flip interval and refresh rate, using the refresh rate when unknown.
-- `fg_next_due` (L755) — The next present time on the global grid after presenting at 'now'.
-- `fg_clock_phase` (L762) — Phase (0..1) of the display clock at a time since the last real frame, for choosing the next frame slot.
-- `fg_breaker_init` (L774) — Initialises a circuit breaker with its base hold, maximum hold and repeat window.
-- `fg_breaker_trip` (L783) — Trips the breaker at time now (it stays open for its hold time); reason is recorded.
-- `fg_breaker_open` (L797) — 1 while the breaker is open (generation must stay off) at time now.
-- `fg_cost_init` (L799) — Initialises the frame cost estimator with the probe interval and its maximum.
-- `fg_cost_cold` (L806) — Records how many cold-start measurements the cost estimator needs.
-- `fg_cost_add` (L808) — One measured frame; 'fit_s' is what one generated frame may cost to fit.
-- `fg_cost_estimate` (L832) — The estimate to plan with at 'now': 0 when unknown or due for a probe.
-- `fg_pace_note` (L855) — Notes one pacing sample against the period and slack; returns nonzero when pacing is on track.
-- `fg_ceiling_init` (L865) — Initialises a ceiling on generated frames per game frame, with its maximum and recovery time.
-- `fg_ceiling_trip` (L871) — Lowers the ceiling after a trip with n planned frames at time now.
-- `fg_ceiling_get` (L878) — Current ceiling on generated frames; it rises back toward the maximum once the recovery time passes.
-- `fg_hud_match` (L893) — HUD motion: 2D triangles (no GTE projection: gauges, needles) of the redrawn list L that the other frame O draws too (same key: op, texture, colour, UVs, in the same order among the 2D triangles) and
-- `fg_hud_lerp` (L916) — Interpolates the HUD 2D triangles that the two frames share, at phase u, into x and y.
-- `fg_view_affine` (L952) — The in-between camera of view vi at phase t (fg_cam_place's motion) as an affine map on camera-space points of the newer frame: P_t = A P + b.
+- `flt_cmp` (L171) — frame_gen.c: qsort order for floats (the median zoom ratio of a view).
+- `view_zoom` (L178) — View v's zoom at phase t (1 at the newer frame, hs at the older): the in-between projection distance over the newer one.
+- `lower` (L182) — Binary search: index of the first source record at or after id in a sorted list.
+- `dist3` (L188) — Euclidean distance between two 3D points.
+- `median_z` (L193) — Median depth (z) of a sorted list of source points.
+- `fit_view` (L209) — Fits the camera motion of one view between the older and newer frames and its zoom (median ratio of older to newer projection distance); returns nonzero on success.
+- `fg_cam_fit` (L335) — Fits the camera between two frames from their primitives into fit and per-vertex data; returns nonzero on success.
+- `proj` (L464) — Projection of a camera-space point (0 when behind the near plane).
+- `fg_cam_place` (L473) — Places the in-between view at phase t: writes screen positions x and y and edge margins for the primitives.
+- `fg_plan` (L723) — Decides how many in-between frames to draw for a game frame, given costs, budget and the cap.
+- `fg_step_s` (L742) — How many in-between frames to draw per game frame.
+- `fg_slots` (L753) — fg_slots: display intervals a game frame 'flip_s' long fills on a 'refresh_hz' display as the clock (fg_clock_phase) schedules it: the in-between frames it shows plus the real one.
+- `fg_slots_carry` (L764) — The display intervals this game frame gets: flip x refresh rounded down (within 0.015), the remainder carried in *carry (30 fps on 144 Hz: 4, 5, 5, 5, 5).
+- `fg_image_slot` (L775) — The display interval (1..slots) image k (1..n+1, n+1 the real frame) is shown at, n in-between frames spread evenly over slots.
+- `fg_plan_hz` (L780) — Presentation rate for a flip interval and refresh rate, using the refresh rate when unknown.
+- `fg_next_due` (L785) — The next present time on the global grid after presenting at 'now'.
+- `fg_clock_phase` (L792) — Phase (0..1) of the display clock at a time since the last real frame, for choosing the next frame slot.
+- `fg_breaker_init` (L804) — Initialises a circuit breaker with its base hold, maximum hold and repeat window.
+- `fg_breaker_trip` (L813) — Trips the breaker at time now (it stays open for its hold time); reason is recorded.
+- `fg_breaker_open` (L827) — 1 while the breaker is open (generation must stay off) at time now.
+- `fg_cost_init` (L829) — Initialises the frame cost estimator with the probe interval and its maximum.
+- `fg_cost_cold` (L836) — Records how many cold-start measurements the cost estimator needs.
+- `fg_cost_add` (L838) — One measured frame; 'fit_s' is what one generated frame may cost to fit.
+- `fg_cost_estimate` (L862) — The estimate to plan with at 'now': 0 when unknown or due for a probe.
+- `fg_pace_note` (L885) — Notes one pacing sample against the period and slack; returns nonzero when pacing is on track.
+- `fg_ceiling_init` (L895) — Initialises a ceiling on generated frames per game frame, with its maximum and recovery time.
+- `fg_ceiling_trip` (L901) — Lowers the ceiling after a trip with n planned frames at time now.
+- `fg_ceiling_get` (L908) — Current ceiling on generated frames; it rises back toward the maximum once the recovery time passes.
+- `fg_hud_match` (L923) — HUD motion: 2D triangles (no GTE projection: gauges, needles) of the redrawn list L that the other frame O draws too (same key: op, texture, colour, UVs, in the same order among the 2D triangles) and
+- `fg_hud_lerp` (L946) — Interpolates the HUD 2D triangles that the two frames share, at phase u, into x and y.
+- `fg_view_affine` (L982) — The in-between camera of view vi at phase t (fg_cam_place's motion) as an affine map on camera-space points of the newer frame: P_t = A P + b; the view's zoom scales x and y.
 
 ### runtime/src/frame_interpolation.c
 
@@ -4790,139 +4792,139 @@ Hardware OpenGL renderer backend that keeps PS1 VRAM on the GPU and draws, masks
 - `fg_main_view` (L14007) — static int s_fg_replay_objects_only = 0; /* fg_replay: cars only static int s_fg_reprojected_now = 0; /* fg_compose: the wide image is complete static int s_fg_src_older = 0; /* the older frame is red
 - `fg_tl_note` (L14048) — Adds a frame generation timeline entry (type, phase and time) to the ring.
 - `fg_note_present` (L14052) — Records the present time for frame generation and advances its next due time.
-- `fg_now_s` (L14088) — Returns the current time in seconds from the runtime clock.
-- `fg_cost` (L14090) — Returns the frame generation cost model, initialised on first use with its spike clamp set by the reprojection mode.
-- `fg_recently_generated` (L14098) — Breaker trips only count while generation is what could have caused them: a generated frame in the last half second.
-- `fg_note_swap` (L14111) — Updates the smoothed swap time (exponential average, 0.9 old and 0.1 new) from a swap of ns nanoseconds.
-- `fg_note_real_cost` (L14123) — Updates the smoothed cost of real frames from the CPU time, and from the GPU time when it is available.
-- `fg_list_clear` (L14132) — Empties a recorded draw list and its primitive store.
-- `fg_state_capture` (L14137) — Saves the current draw state (semi-transparency, masks, texture window and more) into st.
-- `fg_state_apply` (L14152) — Restore draw state without the setters' side effects (stencil rebuilds, wide-surface allocation); batches were flushed by the caller.
-- `fg_list_append` (L14166) — Appends one record (op, flags and payload bytes) to a recorded list, growing it as needed; returns 0 on allocation failure.
-- `fg_raw_add` (L14189) — Adds a raw record to the raw store, growing it when full; returns 0 on failure.
-- `fg_op_kept` (L14202) — Which records a generated frame redraws: draw state and drawing, never transfers, copies, presents, steps or diagnostics.
-- `fg_tri_geom` (L14218) — Positions of a triangle record (absolute native px) and its key words.
-- `fg_buf_of` (L14285) — Returns the index of the frame buffer whose rectangle contains (x, y), or -1 when none does.
-- `rp_snap_slot` (L14300) — Returns the snapshot slot holding list li, or -1 when none does.
-- `rp_snapshot_list` (L14305) — Snapshots the drawn picture of list li into the free slot for reprojection, when reprojection, rendering and generation are all on.
-- `fg_rotate` (L14348) — Close the capturing list as the frame of its buffer; it becomes the newer frame, the newer one the older.
-- `vlog_drop_oldest` (L14366) — Drops the oldest VRAM upload log entry and frees its saved texels.
-- `vlog_note` (L14377) — Logs a VRAM upload rectangle and saves its old texels so the upload can be undone, when the size is within the limit.
-- `vlog_rewind` (L14401) — VRAM back to list l's start (fg_replay): every upload since, newest first, undone; what is there now is kept in *cur (one buffer per upload) for vlog_restore.
-- `vlog_restore` (L14427) — What vlog_rewind kept, put back (VRAM as it is now).
-- `fg_capture` (L14438) — Called for every replayed record (gl_rth_exec), before it executes.
-- `fg_area_meets` (L14518) — Returns 1 when the drawing area overlaps the display rectangle disp.
-- `fg_list_close` (L14524) — Close the capturing list as the frame of buffer disp (x, y, w, h).
-- `fg_list_open` (L14556) — Opens the capturing list for the current buffer: clears it and notes the VRAM log sequence.
-- `fg_invalidate` (L14566) — Invalidates the four recorded lists and the last-frame state, so generation waits for fresh frames.
-- `fg_surface_warm` (L14578) — A new surface's first touch (the driver backing its storage) happens here, when it is allocated, not inside the first generated frame; that frame's measured cost is discarded as well (cold).
-- `fg_surfaces_ensure` (L14592) — Surfaces for the generated image, at the current level.
-- `fg_surfaces_free` (L14619) — Deletes the frame generation surfaces (hr and wide framebuffers, textures and renderbuffers).
-- `fg_blit2` (L14634) — Colour only: a depth-stencil blit costs the CPU milliseconds on macOS (most of a generated frame at high levels).
-- `fg_blit2_stencil` (L14644) — The marks (stencil) of the same rect: only while a chain reads them (s_fg_marks), for the depth-stencil blit's cost (fg_blit2).
-- `fg_blit` (L14652) — Copies the colour of a rectangle from the src framebuffer to dst, with the scissor turned off.
-- `fg_draw_tri_at` (L14662) — Re-emits a recorded triangle record at the given positions (x and y per corner) into the draw list.
-- `fg_rect_meets` (L14713) — Returns 1 when the rectangle x, y, w, h overlaps the display rectangle disp.
-- `fg_rect_groups` (L14725) — Redraw list b at phase t (0 = a's positions, 1 = b's) into the surfaces currently bound as hr / the displayed wide surface.
-- `fg_replay` (L14774) — Redraws list b at phase t for the generated frame, using list a only for the HUD motion; each vertex is placed between the two frames.
-- `fg_edge_offsets` (L15088) — Measures per-view edge offsets from the two lists, using averaged segment offsets, so the generated frame's edges line up.
-- `fg_strip_copy` (L15151) — A strip copy (colour) from the newer frame at an offset (surface px).
-- `fg_effects_view` (L15171) — Builds the map from the newer frame's camera to the in-between camera for the effects view; returns 0 when there is no fit.
-- `fg_newer_to_between` (L15183) — The main view's map from the newer real frame's camera space to the in-between camera's (GTE: y down): P' = A P + b.
-- `fg_compose` (L15205) — The generated image composed like a real present (no hold-last, no interpolation capture, no present bookkeeping), then swapped.
-- `rp_resources` (L15363) — Builds the reprojection programs and resources on first use; returns 1 when ready.
-- `rp_push` (L15411) — Appends one vertex (position, depth and view) to the reprojection vertex list, growing it when full; returns 0 on failure.
-- `rp_push_quad` (L15423) — Appends a two-triangle quad covering the rectangle to the reprojection vertex list.
-- `rp_view_params` (L15431) — Projection centre and distance per view, from its camera-placed vertices (x = cx + h X / Z).
-- `rp_is_car` (L15458) — A triangle the fit called an object is a car only when it really moved against the world: corners whose older position is what the camera alone predicts (near road subdivided past the fit's pixel tole
-- `fg_reproject` (L15482) — Warps the newer real frame to the in-between time t by reprojection, drawing into dst_fbo; returns 0 on failure.
-- `rp_free` (L15743) — Everything reprojection allocated (programs, snapshots, depth image, buffers): released when Smooth motion goes off or redraw is chosen, so neither keeps any of it.
-- `rp_allocated` (L15768) — Tests: reprojection holds nothing (no program, surface or buffer).
-- `fgw_prepare` (L15815) — Ready to fill: the program, and the newer frame's depth over the picture (surface px: x0, y0, w, h of src_fbo) in a texture.
-- `fgw_strip` (L15854) — One strip piece (dst surface px rect), the shader's inputs set by the caller.
-- `fg_generate` (L15862) — Generates one in-between frame at phase t from the two recorded lists, swapping it when swap is set; returns 0 when not possible.
-- `fg_ceil` (L16164) — Returns the frame generation ceiling state, initialised on first use with a limit of 15 and a factor of 2.0.
-- `fg_trip` (L16169) — Records a frame generation breaker trip, counting late trips and backpressure trips by the reason text.
-- `fg_overload` (L16182) — The render thread a frame behind (a stale present, two frames queued): proportional, not a stop.
-- `fg_gen_cost_publish` (L16187) — Publishes one generated frame's cost into the running totals.
-- `fg_gen_cost_poll` (L16194) — Reads finished GPU timer queries for generated frames, oldest first, and publishes their costs.
-- `fg_generate_timed` (L16214) — One generated frame at phase t, timed (GPU query, CPU wall minus swap).
-- `fg_keep_real` (L16263) — Keep the composed back buffer (a real frame) for later.
-- `fg_present_real` (L16288) — Presents the waiting real frame when one was kept; clears the pending flag either way.
-- `fg_flush` (L16312) — Present the waiting real frame now (generated frames still due are dropped): a newer present, a sync point, the queue backing up.
-- `fg_tick` (L16318) — Frame generation tick: presents the waiting real frame or generates frames when they are due; returns 0 when nothing is pending.
-- `fg_on_present` (L16375) — A present record replayed with frame generation on.
-- `fg_hold_real` (L16603) — No in-between frames this game frame: right after one that had them, holds its real frame to the last interval for this one frame (else 0, shown as usual).
-- `fg_queue_real` (L16613) — Keep the composed real frame and show it after n in-between frames spread over 'slots' display intervals (n = 0: at the last of them).
-- `gl_renderer_set_frame_generation` (L16651) — ---- frame generation: public ----
-- `gl_renderer_frame_generation` (L16663) — Returns whether frame generation is on.
-- `gl_renderer_set_frame_generation_method` (L16668) — [video] frame_generation_method (PSX_FRAME_GEN_METHOD, resolved by the frontend): redraw, the default, draws the whole recorded list again per generated frame; reprojection (a title opts in) warps the
-- `gl_renderer_frame_generation_method` (L16676) — Returns the frame generation method: reprojection, or redraw by default.
-- `gl_renderer_fg_source` (L16680) — While recording, passes the reprojection source data (ids, camera matrix, heights and x, y per corner) to the render thread.
-- `gl_renderer_frame_gen_real_share` (L16694) — The share of a game frame the real frame may use so Smooth motion still fills every display interval: (0.85 flip - slots-1 generated frames and their swaps) / flip, never below 0.35.
-- `gl_renderer_frame_gen_configure` (L16712) — Stores the display refresh rate and, when above 1, the guest frame rate used by frame generation.
-- `gl_renderer_frame_gen_hold` (L16720) — Not a breaker trip: generation pauses while the real frames are under pressure (dynamic resolution over budget or stepping down) for the caller's short tail, without the breaker's escalating holds.
-- `fg_note_guest_frame` (L16738) — Emulation thread, once per frame boundary: the guest is late when it has slipped two intervals behind its own VBlank schedule.
-- `gl_renderer_frame_gen_counts` (L16746) — Smooth motion's atomically published running totals, for rate readouts.
-- `gl_renderer_frame_gen_costs` (L16751) — Generated frames so far, how many of them were timed, and the timed ones' summed cost (ns, GPU time or CPU wall, the larger): dynamic resolution counts what Smooth motion actually spent in its load.
-- `gl_renderer_frame_gen_prims_json` (L16767) — TCP frame_gen {"prims":1}: the older and newer closed lists' triangles (only those with no projection when only2d): index, key, view, which corners have a projection (bits), x, y.
-- `gl_renderer_frame_gen_json` (L16792) — Writes frame generation status as JSON into out (up to cap bytes), including whether the breaker is open; returns the length.
-- `rtb_init` (L16869) — Render-thread backend: initialises VRAM, syncing unless recording, and abandons any incomplete A0 transfer.
-- `rtb_set_scale` (L16877) — Render-thread backend: sets the internal resolution scale after a sync point.
-- `rtb_scale` (L16880) — The scale changes under a sync point, or by a recorded dynamic-resolution step: while recording, the level as of the recording position.
-- `rtb_set_texture_filter` (L16883) — Returns the internal scale; while recording, the level as of the recording position.
-- `rtb_texture_filter` (L16884) — Render-thread backend: sets the texture filter after a sync point.
-- `rtb_set_dither` (L16885) — Render-thread backend: returns the current texture filter.
-- `rtb_set_semi_transparency` (L16887) — Render-thread backend: records or applies the dither setting.
-- `rtb_set_mask_bits` (L16889) — Render-thread backend: records or applies the semi-transparency enable and mode.
-- `rtb_set_texture_window` (L16891) — Render-thread backend: records or applies the mask set and check flags.
-- `rtb_set_color_modulation` (L16893) — Render-thread backend: records or applies the texture window value r.
-- `rtb_set_precise_triangle` (L16895) — Render-thread backend: records or applies the colour modulation factors and raw flag.
-- `rtb_set_depth_triangle` (L16900) — Render-thread backend: records or applies the sub-pixel override for the next triangle, with its three vertices.
-- `rtb_set_perspective_triangle` (L16909) — Render-thread backend: records or applies the SZ depth values for the next triangle.
-- `rtb_fill_rect` (L16918) — Render-thread backend: records or applies the perspective q values for the next triangle.
-- `rtb_copy_rect` (L16920) — Render-thread backend: records or applies a fill of a rectangle with a colour.
-- `rtb_draw_flat_triangle` (L16922) — Render-thread backend: records or applies a VRAM copy.
-- `rtb_draw_gouraud_triangle` (L16926) — Render-thread backend: records or applies a flat-colour triangle.
-- `rtb_draw_textured_triangle` (L16931) — Render-thread backend: records or applies a Gouraud triangle with a colour at each corner.
-- `rtb_draw_shaded_textured_triangle` (L16938) — Render-thread backend: records or applies a textured triangle.
-- `rtb_draw_flat_rect` (L16948) — Render-thread backend: records or applies a textured triangle with a colour at each corner.
-- `rtb_draw_textured_rect` (L16952) — Render-thread backend: records or applies a flat rectangle.
-- `rtb_draw_textured_rect_scaled` (L16957) — Render-thread backend: records or applies a textured rectangle.
-- `rtb_draw_line` (L16963) — Render-thread backend: records or applies a textured rectangle with scaled texture coordinates.
-- `rtb_draw_shaded_line` (L16967) — Render-thread backend: records or applies a flat line.
-- `rtb_render_display` (L16971) — Render-thread backend: records or applies a line with a colour at each end.
-- `rtb_render_display_hires` (L16973) — Render-thread backend: renders the display into o after a sync point and returns the result.
-- `rtb_vram_write` (L16975) — Render-thread backend: renders the display at internal resolution into o after a sync point and returns the result.
-- `rtb_vram_read` (L16977) — Render-thread backend: records or applies a single VRAM pixel write.
-- `rtb_vram_transfer_in` (L16978) — Render-thread backend: reads one VRAM pixel after a sync point.
-- `hd_note_exec` (L16992) — Render-thread backend: records or applies a CPU-to-VRAM transfer of a rectangle.
-- `rtb_vram_upload_open` (L17002) — After the upload/draw it follows, in command order, against s_vram.
-- `rtb_hd_texture_note` (L17011) — Runs an HD texture bookkeeping operation (track or begin an upload, and related ops) for a rectangle.
-- `rtb_vram_transfer_out` (L17013) — Render-thread backend: records or runs an HD texture bookkeeping note for a rectangle.
-- `rtb_set_draw_area` (L17015) — Render-thread backend: reads a rectangle of VRAM out after a sync point.
-- `rtb_get_draw_area` (L17023) — Render-thread backend: records or applies the drawing area corners.
-- `rtb_set_draw_offset` (L17030) — Render-thread backend: returns the drawing area, from the recorded copy when the render thread runs asynchronously.
-- `rtb_wide_configure` (L17032) — Render-thread backend: records or applies the drawing offset.
-- `rtb_wide_set_view` (L17047) — Render-thread backend: records or applies the wide-screen width and offset.
-- `rtb_wide_set_target` (L17049) — Render-thread backend: records or applies the wide-screen view (enable, shift and padding).
-- `rtb_wide_disable_target` (L17057) — Render-thread backend: selects the wide surface for base_x, recording the choice when on the emulation side.
-- `rtb_wide_clear` (L17061) — Render-thread backend: stops wide-surface mirroring, recording it when on the emulation side.
-- `rtb_wide_clear_margins` (L17069) — Render-thread backend: records or applies a clear of the wide surface rows for base_x.
-- `rtb_wide_feedback_rect` (L17079) — Render-thread backend: records or applies a clear of the wide surface reveal margins for base_x.
-- `rtb_render_wide_display` (L17088) — Render-thread backend: records or applies the wide-surface feedback copy.
-- `rtb_wide_dump_full` (L17092) — Render-thread backend: renders the wide display band for base_x into out after a sync point and returns the result.
-- `gl_rth_exec` (L17133) — ---- replay (render thread) ----------------------------------------------
-- `gl_rth_ctx` (L17268) — Render-thread backend: dumps the full wide surface for base_x into out after a sync point.
-- `gl_renderer_render_thread_start` (L17289) — Render thread ([video] render_thread, docs/RENDER_THREAD.md).
-- `gl_renderer_render_thread_stop` (L17330) — Callback that makes the render thread's GL context current, or releases it.
-- `gl_renderer_render_thread_active` (L17345) — Stops the render thread, draining its work; the context comes back to the emulation thread, which is current again.
-- `gl_renderer_render_thread_frame_boundary` (L17350) — Frame boundary (once per vblank, after the present): hand the context back to the render thread when the frame may run asynchronously, take it when it may not, then close the frame (the in-flight boun
-- `gl_renderer_render_thread_sync` (L17366) — Explicit sync point for callers that read renderer-written host state without calling a GL entry point (debug rings).
-- `gl_renderer_render_thread_json` (L17368) — Returns 1 when the render thread is on.
-- `rth_ring_capture_now` (L17404) — Presented-image ring capture for --headless-opengl (main.cpp), at this point of the command stream: the native-wide surface slice when wide != 0, else the display rect at internal resolution.
-- `gl_renderer_ring_capture` (L17437) — Captures a presented image into the image ring, recording the request for the render thread when it is recording.
-- `gl_backend_get` (L17448) — Returns the GL backend table: the render-thread version when the render thread is on, else the direct one.
+- `fg_now_s` (L14089) — Returns the current time in seconds from the runtime clock.
+- `fg_cost` (L14091) — Returns the frame generation cost model, initialised on first use with its spike clamp set by the reprojection mode.
+- `fg_recently_generated` (L14099) — Breaker trips only count while generation is what could have caused them: a generated frame in the last half second.
+- `fg_note_swap` (L14112) — Updates the smoothed swap time (exponential average, 0.9 old and 0.1 new) from a swap of ns nanoseconds.
+- `fg_note_real_cost` (L14124) — Updates the smoothed cost of real frames from the CPU time, and from the GPU time when it is available.
+- `fg_list_clear` (L14133) — Empties a recorded draw list and its primitive store.
+- `fg_state_capture` (L14138) — Saves the current draw state (semi-transparency, masks, texture window and more) into st.
+- `fg_state_apply` (L14153) — Restore draw state without the setters' side effects (stencil rebuilds, wide-surface allocation); batches were flushed by the caller.
+- `fg_list_append` (L14167) — Appends one record (op, flags and payload bytes) to a recorded list, growing it as needed; returns 0 on allocation failure.
+- `fg_raw_add` (L14190) — Adds a raw record to the raw store, growing it when full; returns 0 on failure.
+- `fg_op_kept` (L14203) — Which records a generated frame redraws: draw state and drawing, never transfers, copies, presents, steps or diagnostics.
+- `fg_tri_geom` (L14219) — Positions of a triangle record (absolute native px) and its key words.
+- `fg_buf_of` (L14286) — Returns the index of the frame buffer whose rectangle contains (x, y), or -1 when none does.
+- `rp_snap_slot` (L14301) — Returns the snapshot slot holding list li, or -1 when none does.
+- `rp_snapshot_list` (L14306) — Snapshots the drawn picture of list li into the free slot for reprojection, when reprojection, rendering and generation are all on.
+- `fg_rotate` (L14349) — Close the capturing list as the frame of its buffer; it becomes the newer frame, the newer one the older.
+- `vlog_drop_oldest` (L14367) — Drops the oldest VRAM upload log entry and frees its saved texels.
+- `vlog_note` (L14378) — Logs a VRAM upload rectangle and saves its old texels so the upload can be undone, when the size is within the limit.
+- `vlog_rewind` (L14402) — VRAM back to list l's start (fg_replay): every upload since, newest first, undone; what is there now is kept in *cur (one buffer per upload) for vlog_restore.
+- `vlog_restore` (L14428) — What vlog_rewind kept, put back (VRAM as it is now).
+- `fg_capture` (L14439) — Called for every replayed record (gl_rth_exec), before it executes.
+- `fg_area_meets` (L14519) — Returns 1 when the drawing area overlaps the display rectangle disp.
+- `fg_list_close` (L14525) — Close the capturing list as the frame of buffer disp (x, y, w, h).
+- `fg_list_open` (L14557) — Opens the capturing list for the current buffer: clears it and notes the VRAM log sequence.
+- `fg_invalidate` (L14567) — Invalidates the four recorded lists and the last-frame state, so generation waits for fresh frames.
+- `fg_surface_warm` (L14579) — A new surface's first touch (the driver backing its storage) happens here, when it is allocated, not inside the first generated frame; that frame's measured cost is discarded as well (cold).
+- `fg_surfaces_ensure` (L14593) — Surfaces for the generated image, at the current level.
+- `fg_surfaces_free` (L14620) — Deletes the frame generation surfaces (hr and wide framebuffers, textures and renderbuffers).
+- `fg_blit2` (L14635) — Colour only: a depth-stencil blit costs the CPU milliseconds on macOS (most of a generated frame at high levels).
+- `fg_blit2_stencil` (L14645) — The marks (stencil) of the same rect: only while a chain reads them (s_fg_marks), for the depth-stencil blit's cost (fg_blit2).
+- `fg_blit` (L14653) — Copies the colour of a rectangle from the src framebuffer to dst, with the scissor turned off.
+- `fg_draw_tri_at` (L14663) — Re-emits a recorded triangle record at the given positions (x and y per corner) into the draw list.
+- `fg_rect_meets` (L14714) — Returns 1 when the rectangle x, y, w, h overlaps the display rectangle disp.
+- `fg_rect_groups` (L14726) — Redraw list b at phase t (0 = a's positions, 1 = b's) into the surfaces currently bound as hr / the displayed wide surface.
+- `fg_replay` (L14775) — Redraws list b at phase t for the generated frame, using list a only for the HUD motion; each vertex is placed between the two frames.
+- `fg_edge_offsets` (L15089) — Measures per-view edge offsets from the two lists, using averaged segment offsets, so the generated frame's edges line up.
+- `fg_strip_copy` (L15152) — A strip copy (colour) from the newer frame at an offset (surface px).
+- `fg_effects_view` (L15172) — Builds the map from the newer frame's camera to the in-between camera for the effects view; returns 0 when there is no fit.
+- `fg_newer_to_between` (L15184) — The main view's map from the newer real frame's camera space to the in-between camera's (GTE: y down): P' = A P + b.
+- `fg_compose` (L15206) — The generated image composed like a real present (no hold-last, no interpolation capture, no present bookkeeping), then swapped.
+- `rp_resources` (L15364) — Builds the reprojection programs and resources on first use; returns 1 when ready.
+- `rp_push` (L15412) — Appends one vertex (position, depth and view) to the reprojection vertex list, growing it when full; returns 0 on failure.
+- `rp_push_quad` (L15424) — Appends a two-triangle quad covering the rectangle to the reprojection vertex list.
+- `rp_view_params` (L15432) — Projection centre and distance per view, from its camera-placed vertices (x = cx + h X / Z).
+- `rp_is_car` (L15459) — A triangle the fit called an object is a car only when it really moved against the world: corners whose older position is what the camera alone predicts (near road subdivided past the fit's pixel tole
+- `fg_reproject` (L15483) — Warps the newer real frame to the in-between time t by reprojection, drawing into dst_fbo; returns 0 on failure.
+- `rp_free` (L15744) — Everything reprojection allocated (programs, snapshots, depth image, buffers): released when Smooth motion goes off or redraw is chosen, so neither keeps any of it.
+- `rp_allocated` (L15769) — Tests: reprojection holds nothing (no program, surface or buffer).
+- `fgw_prepare` (L15816) — Ready to fill: the program, and the newer frame's depth over the picture (surface px: x0, y0, w, h of src_fbo) in a texture.
+- `fgw_strip` (L15855) — One strip piece (dst surface px rect), the shader's inputs set by the caller.
+- `fg_generate` (L15863) — Generates one in-between frame at phase t from the two recorded lists, swapping it when swap is set; returns 0 when not possible.
+- `fg_ceil` (L16165) — Returns the frame generation ceiling state, initialised on first use with a limit of 15 and a factor of 2.0.
+- `fg_trip` (L16170) — Records a frame generation breaker trip, counting late trips and backpressure trips by the reason text.
+- `fg_overload` (L16183) — The render thread a frame behind (a stale present, two frames queued): proportional, not a stop.
+- `fg_gen_cost_publish` (L16188) — Publishes one generated frame's cost into the running totals.
+- `fg_gen_cost_poll` (L16195) — Reads finished GPU timer queries for generated frames, oldest first, and publishes their costs.
+- `fg_generate_timed` (L16215) — One generated frame at phase t, timed (GPU query, CPU wall minus swap).
+- `fg_keep_real` (L16264) — Keep the composed back buffer (a real frame) for later.
+- `fg_present_real` (L16289) — Presents the waiting real frame when one was kept; clears the pending flag either way.
+- `fg_flush` (L16313) — Present the waiting real frame now (generated frames still due are dropped): a newer present, a sync point, the queue backing up.
+- `fg_tick` (L16319) — Frame generation tick: presents the waiting real frame or generates frames when they are due; returns 0 when nothing is pending.
+- `fg_on_present` (L16376) — A present record replayed with frame generation on.
+- `fg_hold_real` (L16607) — No in-between frames this game frame: right after one that had them, holds its real frame to the last interval for this one frame (else 0, shown as usual).
+- `fg_queue_real` (L16617) — Keep the composed real frame and show it after n in-between frames spread over 'slots' display intervals (n = 0: at the last of them).
+- `gl_renderer_set_frame_generation` (L16655) — ---- frame generation: public ----
+- `gl_renderer_frame_generation` (L16667) — Returns whether frame generation is on.
+- `gl_renderer_set_frame_generation_method` (L16672) — [video] frame_generation_method (PSX_FRAME_GEN_METHOD, resolved by the frontend): redraw, the default, draws the whole recorded list again per generated frame; reprojection (a title opts in) warps the
+- `gl_renderer_frame_generation_method` (L16680) — Returns the frame generation method: reprojection, or redraw by default.
+- `gl_renderer_fg_source` (L16684) — While recording, passes the reprojection source data (ids, camera matrix, heights and x, y per corner) to the render thread.
+- `gl_renderer_frame_gen_real_share` (L16698) — The share of a game frame the real frame may use so Smooth motion still fills every display interval: (0.85 flip - slots-1 generated frames and their swaps) / flip, never below 0.35.
+- `gl_renderer_frame_gen_configure` (L16716) — Stores the display refresh rate and, when above 1, the guest frame rate used by frame generation.
+- `gl_renderer_frame_gen_hold` (L16724) — Not a breaker trip: generation pauses while the real frames are under pressure (dynamic resolution over budget or stepping down) for the caller's short tail, without the breaker's escalating holds.
+- `fg_note_guest_frame` (L16742) — Emulation thread, once per frame boundary: the guest is late when it has slipped two intervals behind its own VBlank schedule.
+- `gl_renderer_frame_gen_counts` (L16750) — Smooth motion's atomically published running totals, for rate readouts.
+- `gl_renderer_frame_gen_costs` (L16755) — Generated frames so far, how many of them were timed, and the timed ones' summed cost (ns, GPU time or CPU wall, the larger): dynamic resolution counts what Smooth motion actually spent in its load.
+- `gl_renderer_frame_gen_prims_json` (L16771) — TCP frame_gen {"prims":1}: the older and newer closed lists' triangles (only those with no projection when only2d): index, key, view, which corners have a projection (bits), x, y.
+- `gl_renderer_frame_gen_json` (L16796) — Writes frame generation status as JSON into out (up to cap bytes), including whether the breaker is open; returns the length.
+- `rtb_init` (L16874) — Render-thread backend: initialises VRAM, syncing unless recording, and abandons any incomplete A0 transfer.
+- `rtb_set_scale` (L16882) — Render-thread backend: sets the internal resolution scale after a sync point.
+- `rtb_scale` (L16885) — The scale changes under a sync point, or by a recorded dynamic-resolution step: while recording, the level as of the recording position.
+- `rtb_set_texture_filter` (L16888) — Returns the internal scale; while recording, the level as of the recording position.
+- `rtb_texture_filter` (L16889) — Render-thread backend: sets the texture filter after a sync point.
+- `rtb_set_dither` (L16890) — Render-thread backend: returns the current texture filter.
+- `rtb_set_semi_transparency` (L16892) — Render-thread backend: records or applies the dither setting.
+- `rtb_set_mask_bits` (L16894) — Render-thread backend: records or applies the semi-transparency enable and mode.
+- `rtb_set_texture_window` (L16896) — Render-thread backend: records or applies the mask set and check flags.
+- `rtb_set_color_modulation` (L16898) — Render-thread backend: records or applies the texture window value r.
+- `rtb_set_precise_triangle` (L16900) — Render-thread backend: records or applies the colour modulation factors and raw flag.
+- `rtb_set_depth_triangle` (L16905) — Render-thread backend: records or applies the sub-pixel override for the next triangle, with its three vertices.
+- `rtb_set_perspective_triangle` (L16914) — Render-thread backend: records or applies the SZ depth values for the next triangle.
+- `rtb_fill_rect` (L16923) — Render-thread backend: records or applies the perspective q values for the next triangle.
+- `rtb_copy_rect` (L16925) — Render-thread backend: records or applies a fill of a rectangle with a colour.
+- `rtb_draw_flat_triangle` (L16927) — Render-thread backend: records or applies a VRAM copy.
+- `rtb_draw_gouraud_triangle` (L16931) — Render-thread backend: records or applies a flat-colour triangle.
+- `rtb_draw_textured_triangle` (L16936) — Render-thread backend: records or applies a Gouraud triangle with a colour at each corner.
+- `rtb_draw_shaded_textured_triangle` (L16943) — Render-thread backend: records or applies a textured triangle.
+- `rtb_draw_flat_rect` (L16953) — Render-thread backend: records or applies a textured triangle with a colour at each corner.
+- `rtb_draw_textured_rect` (L16957) — Render-thread backend: records or applies a flat rectangle.
+- `rtb_draw_textured_rect_scaled` (L16962) — Render-thread backend: records or applies a textured rectangle.
+- `rtb_draw_line` (L16968) — Render-thread backend: records or applies a textured rectangle with scaled texture coordinates.
+- `rtb_draw_shaded_line` (L16972) — Render-thread backend: records or applies a flat line.
+- `rtb_render_display` (L16976) — Render-thread backend: records or applies a line with a colour at each end.
+- `rtb_render_display_hires` (L16978) — Render-thread backend: renders the display into o after a sync point and returns the result.
+- `rtb_vram_write` (L16980) — Render-thread backend: renders the display at internal resolution into o after a sync point and returns the result.
+- `rtb_vram_read` (L16982) — Render-thread backend: records or applies a single VRAM pixel write.
+- `rtb_vram_transfer_in` (L16983) — Render-thread backend: reads one VRAM pixel after a sync point.
+- `hd_note_exec` (L16997) — Render-thread backend: records or applies a CPU-to-VRAM transfer of a rectangle.
+- `rtb_vram_upload_open` (L17007) — After the upload/draw it follows, in command order, against s_vram.
+- `rtb_hd_texture_note` (L17016) — Runs an HD texture bookkeeping operation (track or begin an upload, and related ops) for a rectangle.
+- `rtb_vram_transfer_out` (L17018) — Render-thread backend: records or runs an HD texture bookkeeping note for a rectangle.
+- `rtb_set_draw_area` (L17020) — Render-thread backend: reads a rectangle of VRAM out after a sync point.
+- `rtb_get_draw_area` (L17028) — Render-thread backend: records or applies the drawing area corners.
+- `rtb_set_draw_offset` (L17035) — Render-thread backend: returns the drawing area, from the recorded copy when the render thread runs asynchronously.
+- `rtb_wide_configure` (L17037) — Render-thread backend: records or applies the drawing offset.
+- `rtb_wide_set_view` (L17052) — Render-thread backend: records or applies the wide-screen width and offset.
+- `rtb_wide_set_target` (L17054) — Render-thread backend: records or applies the wide-screen view (enable, shift and padding).
+- `rtb_wide_disable_target` (L17062) — Render-thread backend: selects the wide surface for base_x, recording the choice when on the emulation side.
+- `rtb_wide_clear` (L17066) — Render-thread backend: stops wide-surface mirroring, recording it when on the emulation side.
+- `rtb_wide_clear_margins` (L17074) — Render-thread backend: records or applies a clear of the wide surface rows for base_x.
+- `rtb_wide_feedback_rect` (L17084) — Render-thread backend: records or applies a clear of the wide surface reveal margins for base_x.
+- `rtb_render_wide_display` (L17093) — Render-thread backend: records or applies the wide-surface feedback copy.
+- `rtb_wide_dump_full` (L17097) — Render-thread backend: renders the wide display band for base_x into out after a sync point and returns the result.
+- `gl_rth_exec` (L17138) — ---- replay (render thread) ----------------------------------------------
+- `gl_rth_ctx` (L17273) — Render-thread backend: dumps the full wide surface for base_x into out after a sync point.
+- `gl_renderer_render_thread_start` (L17294) — Render thread ([video] render_thread, docs/RENDER_THREAD.md).
+- `gl_renderer_render_thread_stop` (L17335) — Callback that makes the render thread's GL context current, or releases it.
+- `gl_renderer_render_thread_active` (L17350) — Stops the render thread, draining its work; the context comes back to the emulation thread, which is current again.
+- `gl_renderer_render_thread_frame_boundary` (L17355) — Frame boundary (once per vblank, after the present): hand the context back to the render thread when the frame may run asynchronously, take it when it may not, then close the frame (the in-flight boun
+- `gl_renderer_render_thread_sync` (L17371) — Explicit sync point for callers that read renderer-written host state without calling a GL entry point (debug rings).
+- `gl_renderer_render_thread_json` (L17373) — Returns 1 when the render thread is on.
+- `rth_ring_capture_now` (L17409) — Presented-image ring capture for --headless-opengl (main.cpp), at this point of the command stream: the native-wide surface slice when wide != 0, else the display rect at internal resolution.
+- `gl_renderer_ring_capture` (L17442) — Captures a presented image into the image ring, recording the request for the render thread when it is recording.
+- `gl_backend_get` (L17453) — Returns the GL backend table: the render-thread version when the render thread is on, else the direct one.
 
 ### runtime/src/gpu_hd_textures.cpp
 

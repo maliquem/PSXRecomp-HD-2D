@@ -14066,6 +14066,7 @@ static int       s_fg_capture_real = 0;       /* gl_swap_with_osd keeps the imag
 static GLuint    s_fg_real_tex = 0, s_fg_real_fbo = 0;
 static int       s_fg_real_w = 0, s_fg_real_h = 0, s_fg_real_kept = 0;
 static int       s_fg_partial = 0;            /* the capturing list is incomplete */
+static uint64_t  s_fg_zoomed = 0;             /* fits whose main view zooms (TCP frame_gen) */
 static GLuint    s_fg_q[4]; static int s_fg_qok = -1; static unsigned s_fg_qh = 0, s_fg_qt = 0;
 static uint64_t  s_fg_q_cpu[4];
 /* Statistics (render thread writes; the debug server reads, racy by design). */
@@ -16559,6 +16560,9 @@ static int fg_on_present(uint16_t op, const uint8_t *p, uint32_t bytes, int stal
         fg_cam_fit(&A->prims, &B->prims, &cp, &s_fg_fit, s_fg_verts);
     }
     s_fg_src_older = src == A;
+    if (s_fg_fit.ok && fabs(s_fg_fit.v[fg_main_view(&s_fg_fit)].hs - 1.0) > 1e-3 &&
+        s_fg_fit.v[fg_main_view(&s_fg_fit)].hs > 0.0)
+        s_fg_zoomed++;
     /* A full-width view on the native-wide surface reaches its edges, not
      * the native draw area's. */
     if (src->wide)
@@ -16805,7 +16809,7 @@ int gl_renderer_frame_gen_json(char *out, int cap) {
         "\"real_cpu_ms\":%.3f,\"real_gpu_ms\":%.3f,\"ceiling\":%d,"
         "\"trips_late\":%u,\"trips_backed_up\":%u,\"trips_behind\":%u,"
         "\"place_camera\":%u,\"place_object\":%u,\"place_neighbour\":%u,"
-        "\"place_unchanged\":%u,\"cam_angle_deg\":%.3f,\"cam_shift\":%.1f,"
+        "\"place_unchanged\":%u,\"cam_angle_deg\":%.3f,\"cam_shift\":%.1f,\"cam_zoom\":%.4f,\"zoomed\":%llu,"
         "\"clamped\":%u,\"guessed\":%u,\"verdict_ok\":%d,\"rejected\":%llu,\"reject_why\":\"%s\",\"noplan_why\":\"%s\",\"rp_ms\":[%.3f,%.3f,%.3f],\"rp_zn\":%u,\"reprojected\":%llu,\"reproject_fallback\":%llu,\"reproject\":%d,\"np\":[%llu,%llu,%llu,%llu],\"end_ahead\":%llu,\"end_bp\":%llu,\"end_phase\":%llu,\"obj_marks\":[%u,%u]",
         s_fg_on, s_fg_on && s_rth_on && open, s_fg_force,
         (unsigned long long)s_fg_generated, (unsigned long long)s_fg_real_presents,
@@ -16829,6 +16833,7 @@ int gl_renderer_frame_gen_json(char *out, int cap) {
         2.0 * acos(fmin(1.0, fabs(s_fg_fit.v[0].q[0]))) * 57.29578,
         sqrt(s_fg_fit.v[0].t[0] * s_fg_fit.v[0].t[0] + s_fg_fit.v[0].t[1] * s_fg_fit.v[0].t[1] +
              s_fg_fit.v[0].t[2] * s_fg_fit.v[0].t[2]),
+        s_fg_fit.v[0].hs, (unsigned long long)s_fg_zoomed,
         s_fg_fit.clamped, s_fg_fit.guessed, s_fg_fit.ok,
         (unsigned long long)s_fg_rejected, s_fg_reject_why ? s_fg_reject_why : "",
         s_fg_noplan_why ? s_fg_noplan_why : "",

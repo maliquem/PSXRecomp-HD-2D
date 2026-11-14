@@ -599,6 +599,50 @@ static void test_near_vertex_clamp(void) {
     }
 }
 
+/* A zoom (the projection distance changes, the camera stays): in-between
+ * frames are drawn at the in-between distance, from the older picture at
+ * phase 0 to the newer at 1. */
+static void test_zoom(void) {
+    const Cam c = { { 0, 0, 0 }, 0.0 };
+    FgPrimList a = { 0 }, b = { 0 };
+    stand(&a, &c, 0, GH, 0);
+    stand(&b, &c, 0, GH, 0);
+    for (uint32_t j = 0; j < a.n; j++)
+        for (int k = 0; k < 3; k++) {   /* the older frame at h 200 */
+            FgPrim *p = &a.v[j];
+            p->h[k] = 200.0f;
+            p->x[k] = (float)(160.0 + 200.0 * p->p[k][0] / p->p[k][2]);
+            p->y[k] = (float)(120.0 + 200.0 * p->p[k][1] / p->p[k][2]);
+        }
+    FgCamParams cp;
+    fg_cam_defaults(&cp);
+    FgCamFit fit;
+    FgVert *v = (FgVert *)malloc(sizeof(FgVert) * b.n * 3);
+    float *x = (float *)malloc(sizeof(float) * b.n * 3), *y = (float *)malloc(sizeof(float) * b.n * 3);
+    check(v && x && y && fg_cam_fit(&a, &b, &cp, &fit, v) && fit.ok, "zoom: the still camera fits");
+    if (v && x && y && fit.ok) {
+        double worst0 = 0, worst5 = 0;
+        for (int pass = 0; pass < 2; pass++) {
+            const double t = pass ? 0.5 : 0.0, h = pass ? 250.0 : 200.0;
+            fg_cam_place(&b, &fit, v, t, x, y, NULL);
+            for (uint32_t i = 0; i < b.n * 3; i++) {
+                if (v[i].mode != FG_PLACE_CAMERA) continue;
+                const float *P = b.v[i / 3].p[i % 3];
+                const double ex = x[i] - (160.0 + h * P[0] / P[2]), ey = y[i] - (120.0 + h * P[1] / P[2]);
+                const double e = sqrt(ex * ex + ey * ey);
+                if (pass) { if (e > worst5) worst5 = e; } else if (e > worst0) worst0 = e;
+            }
+        }
+        check(worst0 < 0.01 && worst5 < 0.01, "zoom: in-between frames at the in-between distance");
+        float A[9], bb[3];
+        check(fg_view_affine(&fit, 0, 0.0, A, bb) && fabsf(A[0] - 200.0f / 300.0f) < 1e-4f && fabsf(A[8] - 1.0f) < 1e-4f,
+              "zoom: the in-between camera scales x and y, not depth");
+    }
+    free(v); free(x); free(y);
+    fg_prims_free(&a);
+    fg_prims_free(&b);
+}
+
 /* Display intervals per game frame: rounded down, the rest carried (never
  * more swaps than intervals), and fewer in-between frames than intervals
  * spread over them instead of bunched at the start. */
@@ -627,6 +671,7 @@ static void test_slots_carry(void) {
 
 int main(void) {
     test_slots_carry();
+    test_zoom();
     test_two_instances_one_older();
     test_many_views();
     test_fast_object_held();

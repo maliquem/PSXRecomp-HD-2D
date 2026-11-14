@@ -74,6 +74,10 @@ has measured time to spare.
   (3D icons, portraits) stay unchanged. Verdict: no projections, a
   view with few pairs or under half inliers, or a turn/travel no camera makes
   between two frames rejects the generated frame (the real frame shows).
+  A view's zoom is the median ratio of the paired vertices' projection
+  distances (older over newer): in-between frames are drawn at the
+  in-between distance (a scale of camera-space x and y, so depth is left
+  alone), not at the newer frame's.
 - **Drawing** (`fg_cam_place`). One real frame is redrawn from an
   in-between camera: world vertices re-projected through the fraction of the
   fitted motion, object vertices lerped in camera space, CPU-built vertices
@@ -229,6 +233,10 @@ newer frame's dial. `frame_gen` reports `reproject`, `reprojected`,
 - A minimized window generates nothing (no swapchain image, so no vsync
   wait would pace the in-betweens); `frame_gen` reports "window minimized".
 - Windowed high-resolution mode and depth24 frames are not generated.
+- Object vertices move in a straight line in camera space, not rotated:
+  an object spinning by an angle a in one game frame is drawn smaller by
+  1 - cos(a/2) at mid-phase (0.4% at 10 degrees, 3.4% at 30). Triangles
+  draw the newer frame's UV, so scrolling textures step at the game's rate.
 - A game frame whose recorded list passes 64 MB or a million records is
   not generated (the list is dropped, not grown without end).
 - HD texture replacements and dumping: generated frames draw with the same
@@ -241,7 +249,7 @@ newer frame's dial. `frame_gen` reports `reproject`, `reprojected`,
 `{"cmd":"frame_gen"}` (not a sync point): generated / real presents, flips,
 dups, plan (`last_n`, `slots`), costs (`real_ms`, `gen_ms`, `swap_ms`), last
 camera fit (`views`, `pairs`, `inliers`, `place_*`, `cam_angle_deg`,
-`cam_shift`), verdict (`verdict_ok`, `rejected`, `reject_why`), breaker,
+`cam_shift`, `cam_zoom`; `zoomed` counts fits whose main view zooms), verdict (`verdict_ok`, `rejected`, `reject_why`), breaker,
 ceiling, last hold, total swaps.
 
 `PSX_PRESENT_SHOT_GENERATED=1` (diagnostic): a staged `present_shot` is

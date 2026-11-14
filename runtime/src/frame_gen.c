@@ -168,6 +168,17 @@ static uint32_t gather(const FgPrimList *l, uint32_t view, Src *out) {
     return w;
 }
 
+static int flt_cmp(const void *x, const void *y) {
+    const float a = *(const float *)x, b = *(const float *)y;
+    return a < b ? -1 : a > b;
+}
+
+/* View v's zoom at phase t (1 at the newer frame, hs at the older): the
+ * in-between projection distance over the newer one. */
+static double view_zoom(const FgView *v, double t) {
+    return v->hs > 0.0 ? 1.0 + (v->hs - 1.0) * (1.0 - t) : 1.0;
+}
+
 static uint32_t lower(const Src *s, uint32_t n, uint32_t id) {
     uint32_t lo = 0, hi = n;
     while (lo < hi) { const uint32_t m = (lo + hi) / 2; if (s[m].id < id) lo = m + 1; else hi = m; }
@@ -208,11 +219,12 @@ static int fit_view(const FgPrimList *older, const FgPrimList *newer, const FgCa
     float (*a)[3] = (float (*)[3])malloc(((size_t)nb + 1) * sizeof *a);
     float (*b)[3] = (float (*)[3])malloc(((size_t)nb + 1) * sizeof *b);
     float *hb = (float *)malloc(((size_t)nb + 1) * sizeof *hb);
+    float *hr = (float *)malloc(((size_t)nb + 1) * sizeof *hr);   /* older h / newer h */
     uint32_t *bi = (uint32_t *)malloc(((size_t)nb + 1) * sizeof *bi);
     uint32_t *aj = (uint32_t *)malloc(((size_t)nb + 1) * sizeof *aj);
     uint8_t *used = (uint8_t *)calloc((size_t)na + 1, 1);
     uint32_t np = 0;
-    for (uint32_t i = 0; a && b && bi && hb && aj && used && i < nb; i++) {
+    for (uint32_t i = 0; a && b && bi && hb && hr && aj && used && i < nb; i++) {
         uint32_t j = lower(sa, na, sb[i].id);
         float best = -1, second = -1;
         uint32_t bj = 0;
@@ -226,6 +238,7 @@ static int fit_view(const FgPrimList *older, const FgPrimList *newer, const FgCa
         memcpy(a[np], sa[bj].p, sizeof a[np]);
         memcpy(b[np], sb[i].p, sizeof b[np]);
         hb[np] = sb[i].h;
+        hr[np] = sb[i].h > 0.0f ? sa[bj].h / sb[i].h : 0.0f;
         if (used[bj] < 2) used[bj]++;
         aj[np] = bj;
         bi[np++] = i;
@@ -238,12 +251,23 @@ static int fit_view(const FgPrimList *older, const FgPrimList *newer, const FgCa
         for (uint32_t i = 0; i < np; i++) {
             if (used[aj[i]] > 1) continue;
             memmove(a[w], a[i], sizeof a[w]); memmove(b[w], b[i], sizeof b[w]);
-            hb[w] = hb[i]; bi[w++] = bi[i];
+            hb[w] = hb[i]; hr[w] = hr[i]; bi[w++] = bi[i];
         }
         np = w;
     }
     free(aj); free(used);
     v->pairs = np;
+    /* The view's zoom: the median ratio (the GTE's H is one per frame; a
+     * stray 3D icon with its own H does not move it). */
+    v->hs = 0.0;
+    if (hr && np) {
+        uint32_t k = 0;
+        for (uint32_t i = 0; i < np; i++) if (hr[i] > 0.0f) hr[k++] = hr[i];
+        if (k) {
+            qsort(hr, k, sizeof *hr, flt_cmp);
+            v->hs = hr[k / 2];
+        }
+    }
     uint8_t *in = (uint8_t *)calloc((size_t)np + 1, 1);
     uint32_t *idx = (uint32_t *)malloc(((size_t)np + 1) * sizeof *idx);
     int ok = 0;
@@ -304,7 +328,7 @@ done:
     }
     *in_out = in; *np_out = np;
     *nb_out = sb; *nnb_out = nb;
-    free(sa); free(a); free(b); free(bi); free(hb);
+    free(sa); free(a); free(b); free(bi); free(hb); free(hr);
     return ok;
 }
 
@@ -493,6 +517,12 @@ void fg_cam_place(const FgPrimList *newer, FgCamFit *fit, const FgVert *verts,
                 for (int c = 0; c < 3; c++) o[c] = M[vi][c] * d[0] + M[vi][3 + c] * d[1] + M[vi][6 + c] * d[2];
                 m_mul_v(Rt[vi], o, pt);
                 for (int c = 0; c < 3; c++) pt[c] += Tt[vi][c];
+            }
+            /* The zoom as a scale of x and y: projected with the newer h it
+             * lands where the in-between h would put it (fg_view_affine too). */
+            if (fv->view >= 0 && (uint32_t)fv->view < fit->nviews) {
+                const double zs = view_zoom(&fit->v[fv->view], t);
+                pt[0] *= zs; pt[1] *= zs;
             }
             double ax, ay, bx, by;
             if (!proj(pn, pr->h[k], &bx, &by)) continue;
@@ -967,8 +997,10 @@ int fg_view_affine(const FgCamFit *fit, int vi, double t, float A[9], float b[3]
     for (int r = 0; r < 3; r++)
         for (int c = 0; c < 3; c++)   /* (Rt M^T)[r][c] = sum_k Rt[r][k] M[c][k] */
             Am[3 * r + c] = Rt[3 * r] * M[3 * c] + Rt[3 * r + 1] * M[3 * c + 1] + Rt[3 * r + 2] * M[3 * c + 2];
-    for (int k = 0; k < 9; k++) A[k] = (float)Am[k];
+    const double zs = view_zoom(v, t);
+    for (int k = 0; k < 9; k++) A[k] = (float)(Am[k] * (k < 6 ? zs : 1.0));
     for (int r = 0; r < 3; r++)
-        b[r] = (float)(t * v->t[r] - (Am[3 * r] * v->t[0] + Am[3 * r + 1] * v->t[1] + Am[3 * r + 2] * v->t[2]));
+        b[r] = (float)((t * v->t[r] - (Am[3 * r] * v->t[0] + Am[3 * r + 1] * v->t[1] + Am[3 * r + 2] * v->t[2])) *
+                       (r < 2 ? zs : 1.0));
     return 1;
 }
