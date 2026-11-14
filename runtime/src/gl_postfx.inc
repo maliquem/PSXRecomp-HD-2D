@@ -1277,6 +1277,19 @@ static float spr_floor_field(const SprFoot *f, const float *nrm, float na_d, flo
         prev = x;
     }
     for (int k = prev + 1; k < f->W; k++) { D[k] = D[prev]; B[k] = B[prev]; }
+    /* The feet's depths squeezed toward the plane to SOLE_SPREAD of the
+     * sprite's width at most (their order kept): a sole only a
+     * few px higher (a lifted foot) meets the floor 30-90 units back, and the legs standing
+     * there split the shadow into faint strands that jump with every pose and
+     * camera turn (a light, flickering shadow). */
+    {
+        const float SOLE_SPREAD = 0.1f;
+        const float cap = SOLE_SPREAD * wfloor;
+        float dev = 0.0f;
+        for (int x = 0; x < f->W; x++) dev = fmaxf(dev, fabsf(D[x] - na_d));
+        if (dev > cap && s_spr_bend_dbg != 4) for (int x = 0; x < f->W; x++) D[x] = na_d + (D[x] - na_d) * (cap / dev);
+        FDBG(" spread %.1f cap %.1f", dev, cap);
+    }
     const int Ytop = (int)ceilf(f->lo - hb + s_sc_cy);
     const float yc = (float)Ytop - s_sc_cy;
     FDBG(" fb %.1f hb %.1f yc %.1f}", fb, hb, yc);
@@ -2060,7 +2073,8 @@ static void pfx_shadow_build(const PfxPass *ps, float aspect, int lw, int lh) {
         }
     }
     {   /* u_ss.z, u_ss.w (TCP, debugging the feet): 1 = no bend, 2 = the old bend
-         * (spr_bend), 3 = the floor field alone; the bent zone's height */
+         * (spr_bend), 3 = the floor field alone, 4 = the field without the feet's
+         * depth cap; the bent zone's height */
         const float *ss = pfx_pass_uniform(ps, "u_ss");
         s_spr_bend_dbg = ss ? (int)(ss[2] + 0.5f) : 0;
         s_spr_bend_h = ss ? ss[3] : 0.0f;
