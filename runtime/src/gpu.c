@@ -1378,7 +1378,9 @@ static int shadow_blob_quad(int semi, uint32_t p0, uint32_t p1, uint32_t p2, uin
  * water or a sprite's blob shares no corner with the scenery. */
 enum { SH_SV_HASH = 4096 };
 static uint32_t sh_sv_key[SH_SV_HASH], sh_sv_frame[SH_SV_HASH];
-static int sh_bake_on = 0;
+static int sh_bake_on = 0, sh_bake_allow = 0;
+/* [video.shadow] baked_shadows_off (off by default: the game draws as ever) */
+void gpu_set_shadow_baked_off(int on) { sh_bake_allow = on != 0; }
 enum { SH_BK_MAX = 16, SH_BK_KEEP = 120 };   /* shadow textures, kept that many VBlanks after the last proof */
 static uint32_t sh_bk_tex[SH_BK_MAX], sh_bk_frame[SH_BK_MAX];
 /* the scenery corner table's slot for a screen corner (its own, or a free/stale one; -1: full) */
@@ -1567,7 +1569,7 @@ static void shadow_vblank(void) {
     {   /* the game's baked shadows: off while our sun shades the scenery */
         int scenery = 0;
         gl_renderer_shadow_sun_info(NULL, &scenery);
-        sh_bake_on = wanted && scenery;
+        sh_bake_on = wanted && scenery && sh_bake_allow;
     }
     if (wanted != sh_od_on && (sh_od_x || sh_od_y)) {
         gpu_set_overdraw(wanted ? sh_od_x : 0, wanted ? sh_od_y : 0);
@@ -6983,9 +6985,11 @@ int psx_mod_texture_banks_supported(void) {
 static void gp0_exec_shaded_textured_quad(void) {
     if (native_wide_projective_draw()) return;
     const uint32_t disc_uv[4] = { gp0_cmd_buf[2], gp0_cmd_buf[5], gp0_cmd_buf[8], gp0_cmd_buf[11] };
-    /* no blob test here: a shaded translucent quad is the scenery's own (the
-     * shadow an arch lays on a town's floor), not a sprite's blob */
+    /* with baked_shadows_off no blob test here: a shaded translucent quad is
+     * the scenery's own (the shadow an arch lays on a town's floor) */
     if (gp0_tex_hidden((uint16_t)(gp0_cmd_buf[5] >> 16), (uint16_t)(gp0_cmd_buf[2] >> 16)) ||
+        (!sh_bake_allow &&
+         shadow_blob_quad((gp0_cmd_buf[0] >> 25) & 1, gp0_cmd_buf[1], gp0_cmd_buf[4], gp0_cmd_buf[7], gp0_cmd_buf[10])) ||
         shadow_baked_piece((gp0_cmd_buf[0] >> 25) & 1, (uint16_t)(gp0_cmd_buf[5] >> 16), (uint16_t)(gp0_cmd_buf[2] >> 16),
                            (const uint32_t[4]){gp0_cmd_buf[1], gp0_cmd_buf[4], gp0_cmd_buf[7], gp0_cmd_buf[10]}, 4) ||
         shadow_disc_quad((gp0_cmd_buf[0] >> 25) & 1, (uint16_t)(gp0_cmd_buf[5] >> 16), (uint16_t)(gp0_cmd_buf[2] >> 16), disc_uv)) {

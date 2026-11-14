@@ -569,6 +569,10 @@ struct RuntimeConfig {
     // ever that cast no shadow (water ripples over a river bed).
     std::vector<uint32_t> video_shadow_nocast_tpage;
     std::vector<uint32_t> video_shadow_nocast_clut;
+    // baked_shadows_off = true: while the sun shades the scenery, the game's own
+    // baked shadows (translucent darkening pieces laid on the scenery's corners)
+    // are not drawn, and a shaded translucent quad is never taken for a blob.
+    bool video_shadow_baked_off = false;
     // sun_areas = ["0xAREA:azimuth:elevation", ...]: the sun (degrees, as the
     // shadow pass's u_sun) in the area whose scene_keys give AREA (TCP
     // shadow_cache "scene"), lined up with the shadows painted in its textures;

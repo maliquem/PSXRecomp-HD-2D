@@ -158,7 +158,10 @@ for these routines it does not. BoF4's fish at the fishing spots (RA
 taken per routine since the last read (reset on each read), to find such a
 routine.
 
-With GI on and the sun on the scenery of an area, the game's own baked shadows
+With `[video.shadow] baked_shadows_off = true` in a game's game.toml (off by
+default: skipping pieces changes the emulated GPU's timing, and a game whose
+timing depends on it can diverge), with GI on and the sun on the scenery of an
+area, the game's own baked shadows
 are not drawn in any scene. A translucent textured polygon with a darkening
 blend (mode 0 or 2; modes 1 and 3 add light and are left) that has at least
 two corners exactly on corners of opaque textured polygons drawn in the last

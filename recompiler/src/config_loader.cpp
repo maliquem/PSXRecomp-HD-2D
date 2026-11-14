@@ -1034,6 +1034,8 @@ static RuntimeConfig parse_runtime_block(const toml::value& cfg, const fs::path&
                 if (rt.video_shadow_nocast_tpage.size() > 16)
                     throw std::runtime_error("[video.shadow] nocast_textures: at most 16");
             }
+            if (sh.contains("baked_shadows_off"))
+                rt.video_shadow_baked_off = toml::find<bool>(sh, "baked_shadows_off");
             if (sh.contains("sun_areas")) {
                 for (const auto& k : toml::find<std::vector<std::string>>(sh, "sun_areas")) {
                     const auto c1 = k.find(':'), c2 = c1 == std::string::npos ? c1 : k.find(':', c1 + 1);

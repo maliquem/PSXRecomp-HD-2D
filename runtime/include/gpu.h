@@ -528,6 +528,10 @@ void gpu_set_shadow_off_textures(const uint32_t *tpage, const uint32_t *clut, in
  * 0xFFFF = any) drawn as ever but seen by the effects as glass: no depth, no
  * shadow cast, the floor's light under them (a river's ripples). */
 void gpu_set_shadow_nocast_textures(const uint32_t *tpage, const uint32_t *clut, int n);
+/* [video.shadow] baked_shadows_off: while the sun shades the scenery, the
+ * game's own baked shadows are not drawn (shadow_baked_piece) and a shaded
+ * translucent quad is not taken for a sprite's blob. Off: as before. */
+void gpu_set_shadow_baked_off(int on);
 int  gpu_shadow_off_active(void);
 /* [video.shadow] sun_areas: the sun (azimuth, elevation in degrees) in the
  * areas with these numbers (a mod's map id, else the scene_keys');

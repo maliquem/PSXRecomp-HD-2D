@@ -19070,6 +19070,7 @@ int main(int argc, char** argv) {
                                         (int)gc.runtime.video_shadow_off_tpage.size());
             gpu_set_shadow_nocast_textures(gc.runtime.video_shadow_nocast_tpage.data(), gc.runtime.video_shadow_nocast_clut.data(),
                                            (int)gc.runtime.video_shadow_nocast_tpage.size());
+            gpu_set_shadow_baked_off(gc.runtime.video_shadow_baked_off ? 1 : 0);
             gpu_set_shadow_sun_areas(gc.runtime.video_shadow_sun_area.data(), gc.runtime.video_shadow_sun_az.data(),
                                      gc.runtime.video_shadow_sun_el.data(), (int)gc.runtime.video_shadow_sun_area.size());
             {   /* tools/sun_tool's file: the sun and moon per area, over sun_areas */
