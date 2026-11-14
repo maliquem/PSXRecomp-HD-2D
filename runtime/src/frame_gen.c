@@ -209,8 +209,10 @@ static int fit_view(const FgPrimList *older, const FgPrimList *newer, const FgCa
     float (*b)[3] = (float (*)[3])malloc(((size_t)nb + 1) * sizeof *b);
     float *hb = (float *)malloc(((size_t)nb + 1) * sizeof *hb);
     uint32_t *bi = (uint32_t *)malloc(((size_t)nb + 1) * sizeof *bi);
+    uint32_t *aj = (uint32_t *)malloc(((size_t)nb + 1) * sizeof *aj);
+    uint8_t *used = (uint8_t *)calloc((size_t)na + 1, 1);
     uint32_t np = 0;
-    for (uint32_t i = 0; a && b && bi && hb && i < nb; i++) {
+    for (uint32_t i = 0; a && b && bi && hb && aj && used && i < nb; i++) {
         uint32_t j = lower(sa, na, sb[i].id);
         float best = -1, second = -1;
         uint32_t bj = 0;
@@ -224,8 +226,23 @@ static int fit_view(const FgPrimList *older, const FgPrimList *newer, const FgCa
         memcpy(a[np], sa[bj].p, sizeof a[np]);
         memcpy(b[np], sb[i].p, sizeof b[np]);
         hb[np] = sb[i].h;
+        if (used[bj] < 2) used[bj]++;
+        aj[np] = bj;
         bi[np++] = i;
     }
+    /* Two newer instances of one mesh (same identity) both nearest to the
+     * one older instance: neither is known to be it, so neither pairs (a
+     * wrong pair would slide a ghost between the two). */
+    if (aj && used) {
+        uint32_t w = 0;
+        for (uint32_t i = 0; i < np; i++) {
+            if (used[aj[i]] > 1) continue;
+            memmove(a[w], a[i], sizeof a[w]); memmove(b[w], b[i], sizeof b[w]);
+            hb[w] = hb[i]; bi[w++] = bi[i];
+        }
+        np = w;
+    }
+    free(aj); free(used);
     v->pairs = np;
     uint8_t *in = (uint8_t *)calloc((size_t)np + 1, 1);
     uint32_t *idx = (uint32_t *)malloc(((size_t)np + 1) * sizeof *idx);
@@ -299,18 +316,28 @@ int fg_cam_fit(const FgPrimList *older, const FgPrimList *newer, const FgCamPara
     for (uint32_t j = 0; j < newer->n * 3u; j++) {
         verts[j].mode = FG_PLACE_UNCHANGED; verts[j].view = -1; verts[j].paired = 0;
     }
-    /* The views with projections, most first. */
-    uint32_t vk[FG_MAX_VIEWS], vc[FG_MAX_VIEWS], nv = 0;
+    /* The views with projections, in order of appearance. Past
+     * FG_MAX_VIEWS (3D icons, portraits) the smallest are dropped: their
+     * vertices stay unchanged instead of the whole frame being rejected. */
+    enum { VSEEN = 64 };   /* shortcut: views past 64 distinct ones are not counted (left unchanged) */
+    uint32_t vk[VSEEN], vc[VSEEN], nv = 0;
     for (uint32_t j = 0; j < newer->n; j++) {
         const FgPrim *pr = &newer->v[j];
         if (!pr->vid[0] && !pr->vid[1] && !pr->vid[2]) continue;
         uint32_t i = 0;
         while (i < nv && vk[i] != pr->view) i++;
         if (i == nv) {
-            if (nv == FG_MAX_VIEWS) { fit->why = "too many views"; return 0; }
+            if (nv == VSEEN) continue;
             vk[nv] = pr->view; vc[nv++] = 0;
         }
         vc[i]++;
+    }
+    while (nv > FG_MAX_VIEWS) {
+        uint32_t lo = 0;
+        for (uint32_t i = 1; i < nv; i++) if (vc[i] < vc[lo]) lo = i;
+        memmove(vk + lo, vk + lo + 1, (nv - lo - 1) * sizeof *vk);
+        memmove(vc + lo, vc + lo + 1, (nv - lo - 1) * sizeof *vc);
+        nv--;
     }
     if (!nv) { fit->why = "no projections"; return 0; }
     fit->nviews = nv;
@@ -341,10 +368,16 @@ int fg_cam_fit(const FgPrimList *older, const FgPrimList *newer, const FgCamPara
                     uint32_t lo = 0, hi = np;
                     while (lo < hi) { const uint32_t m = (lo + hi) / 2; if (src_cmp(&pb[m], &key) < 0) lo = m + 1; else hi = m; }
                     fv->paired = lo < np && src_cmp(&pb[lo], &key) == 0;
-                    if (fv->paired && !in[lo] &&
-                        dist3(pa[lo].p, pr->p[k]) < p->max_obj * fabsf(pr->p[k][2]) + 1.0f) {
-                        fv->mode = FG_PLACE_OBJECT;
-                        memcpy(fv->a, pa[lo].p, sizeof fv->a);
+                    if (fv->paired && !in[lo]) {
+                        /* Not the world's motion: an object when near enough, else
+                         * held where the newer frame has it (the camera's motion
+                         * would make it jump at phase 0). */
+                        if (dist3(pa[lo].p, pr->p[k]) < p->max_obj * fabsf(pr->p[k][2]) + 1.0f) {
+                            fv->mode = FG_PLACE_OBJECT;
+                            memcpy(fv->a, pa[lo].p, sizeof fv->a);
+                        } else {
+                            fv->mode = FG_PLACE_UNCHANGED;
+                        }
                     }
                 }
             }
@@ -466,7 +499,7 @@ void fg_cam_place(const FgPrimList *newer, FgCamFit *fit, const FgVert *verts,
             /* Near geometry the in-between camera is passing: projected at a
              * clamped depth. A function of the vertex alone, so triangles
              * sharing it stay closed (no cracks onto what is behind). */
-            const double zmin = fmax(16.0, 0.25 * pn[2]);
+            const double zmin = fmin(pn[2], fmax(16.0, 0.25 * pn[2]));
             if (pt[2] < zmin) { pt[2] = zmin; clamped++; }
             if (!proj(pt, pr->h[k], &ax, &ay)) continue;
             dxs[i] = (float)(ax - bx); dys[i] = (float)(ay - by);

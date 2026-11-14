@@ -492,7 +492,118 @@ static void test_small_view_policy(void) {
     check(fit.freeze_small_views, "fit propagates explicit reprojection policy");
 }
 
+/* A triangle at three camera-space points, identities id0, id0+1, id0+2. */
+static FgPrim tri(uint32_t view, uint32_t id0, const float pos[3][3], float dx) {
+    FgPrim p;
+    memset(&p, 0, sizeof p);
+    p.key = 11; p.view = view;
+    for (int k = 0; k < 3; k++) {
+        p.vid[k] = id0 + (uint32_t)k;
+        p.p[k][0] = pos[k][0] + dx; p.p[k][1] = pos[k][1]; p.p[k][2] = pos[k][2];
+        p.h[k] = (float)HH;
+        p.x[k] = (float)(160.0 + HH * p.p[k][0] / p.p[k][2]);
+        p.y[k] = (float)(120.0 + HH * p.p[k][1] / p.p[k][2]);
+    }
+    return p;
+}
+
+/* The moving stand with extra triangles: `extra_a` in the older frame,
+ * `extra_b` in the newer; the fit and the newer frame's placement. */
+static int fit_with(const FgPrim *extra_a, int na, const FgPrim *extra_b, int nb,
+                    FgPrimList *b, FgCamFit *fit, FgVert **v) {
+    const Cam co = { { 0, 0, 0 }, 0.0 }, cn = { { 0, 0, 80 }, 0.03 };
+    FgPrimList a = { 0 };
+    stand(&a, &co, 0, GH, 0);
+    stand(b, &cn, 0, GH, 0);
+    for (int i = 0; i < na; i++) add(&a, extra_a[i]);
+    for (int i = 0; i < nb; i++) add(b, extra_b[i]);
+    FgCamParams cp;
+    fg_cam_defaults(&cp);
+    *v = (FgVert *)malloc(sizeof(FgVert) * b->n * 3);
+    const int r = fg_cam_fit(&a, b, &cp, fit, *v);
+    fg_prims_free(&a);
+    return r;
+}
+
+static const float k_car[3][3] = { { -50, 60, 600 }, { 50, 60, 600 }, { 0, 20, 650 } };
+
+/* Two newer instances of one mesh (same identities), one older: neither
+ * takes the older one's motion (it would slide a ghost between them). */
+static void test_two_instances_one_older(void) {
+    const FgPrim older = tri(1, 900000u, k_car, 0.0f);
+    const FgPrim newer[2] = { tri(1, 900000u, k_car, 0.0f), tri(1, 900000u, k_car, 60.0f) };
+    FgPrimList b = { 0 };
+    FgCamFit fit;
+    FgVert *v;
+    check(fit_with(&older, 1, newer, 2, &b, &fit, &v) && fit.ok, "two instances: the world still fits");
+    int bad = 0;
+    for (uint32_t i = 3 * (b.n - 2); i < 3 * b.n; i++) bad += v[i].paired || v[i].mode == FG_PLACE_OBJECT;
+    check(bad == 0, "two instances, one older: neither pairs with it");
+    free(v);
+    fg_prims_free(&b);
+}
+
+/* A world view and five icons, each in its own draw area: more views than
+ * FG_MAX_VIEWS keeps the frame; the icons stay as they are. */
+static void test_many_views(void) {
+    FgPrim icons[5];
+    for (int w = 0; w < 5; w++) icons[w] = tri(20u + (uint32_t)w, 700000u + 10u * (uint32_t)w, k_car, 0.0f);
+    FgPrimList b = { 0 };
+    FgCamFit fit;
+    FgVert *v;
+    check(fit_with(icons, 5, icons, 5, &b, &fit, &v) && fit.ok && fit.nviews == FG_MAX_VIEWS,
+          "six views: the frame is kept with the four biggest");
+    int held = 0;
+    for (uint32_t i = 3 * (b.n - 5); i < 3 * b.n; i++) held += v[i].mode == FG_PLACE_UNCHANGED;
+    check(held == 15 && v[0].mode == FG_PLACE_CAMERA, "six views: the world moves, the icons stay");
+    free(v);
+    fg_prims_free(&b);
+}
+
+/* A paired vertex the camera does not explain and too far for an object
+ * (a projectile): held where the newer frame has it, not moved as world. */
+static void test_fast_object_held(void) {
+    const FgPrim older = tri(1, 950000u, k_car, 0.0f), newer = tri(1, 950000u, k_car, 400.0f);
+    FgPrimList b = { 0 };
+    FgCamFit fit;
+    FgVert *v;
+    check(fit_with(&older, 1, &newer, 1, &b, &fit, &v) && fit.ok, "projectile: the world still fits");
+    const uint32_t i = 3 * (b.n - 1);
+    check(v[i].mode == FG_PLACE_UNCHANGED && v[i + 1].mode == FG_PLACE_UNCHANGED &&
+          v[i + 2].mode == FG_PLACE_UNCHANGED, "projectile: held, not placed by the camera");
+    free(v);
+    fg_prims_free(&b);
+}
+
+/* A vertex already nearer than 16 in the newer frame is not one the
+ * in-between camera passes; one the camera does pass still is. */
+static void test_near_vertex_clamp(void) {
+    for (int pass = 0; pass < 2; pass++) {
+        const float z = pass ? 100.0f : 10.0f;
+        const float pos[3][3] = { { 0, 0, z }, { 4, 0, z }, { 0, 4, z } };
+        FgPrim p = tri(1, 1u, pos, 0.0f);
+        FgCamFit fit;
+        memset(&fit, 0, sizeof fit);
+        fit.ok = 1; fit.nviews = 1;
+        fit.v[0].ok = 1; fit.v[0].q[0] = 1.0;
+        fit.v[0].t[0] = 2.0; fit.v[0].t[2] = pass ? 180.0 : 0.0;
+        fit.v[0].area[2] = 320.0f; fit.v[0].area[3] = 240.0f;
+        FgVert verts[3];
+        memset(verts, 0, sizeof verts);
+        for (int k = 0; k < 3; k++) { verts[k].mode = FG_PLACE_CAMERA; verts[k].view = 0; }
+        FgPrimList list = { &p, 1, 1 };
+        float x[3], y[3];
+        fg_cam_place(&list, &fit, verts, 0.5, x, y, NULL);
+        check(pass ? fit.clamped == 3 : fit.clamped == 0,
+              pass ? "a vertex the camera passes is clamped" : "a vertex already near is not clamped");
+    }
+}
+
 int main(void) {
+    test_two_instances_one_older();
+    test_many_views();
+    test_fast_object_held();
+    test_near_vertex_clamp();
     test_small_view_policy();
     test_view_affine();
     test_hud_lerp();

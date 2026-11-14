@@ -3286,29 +3286,29 @@ Generated in-between frames: fits a camera between two game frames from their pr
 - `dist3` (L177) — Euclidean distance between two 3D points.
 - `median_z` (L182) — Median depth (z) of a sorted list of source points.
 - `fit_view` (L198) — Fits the camera motion of one view between the older and newer frames; returns nonzero on success.
-- `fg_cam_fit` (L294) — Fits the camera between two frames from their primitives into fit and per-vertex data; returns nonzero on success.
-- `proj` (L407) — Projection of a camera-space point (0 when behind the near plane).
-- `fg_cam_place` (L416) — Places the in-between view at phase t: writes screen positions x and y and edge margins for the primitives.
-- `fg_plan` (L660) — Decides how many in-between frames to draw for a game frame, given costs, budget and the cap.
-- `fg_step_s` (L679) — How many in-between frames to draw per game frame.
-- `fg_slots` (L690) — fg_slots: display intervals a game frame 'flip_s' long fills on a 'refresh_hz' display as the clock (fg_clock_phase) schedules it: the in-between frames it shows plus the real one.
-- `fg_plan_hz` (L701) — Presentation rate for a flip interval and refresh rate, using the refresh rate when unknown.
-- `fg_next_due` (L706) — The next present time on the global grid after presenting at 'now'.
-- `fg_clock_phase` (L713) — Phase (0..1) of the display clock at a time since the last real frame, for choosing the next frame slot.
-- `fg_breaker_init` (L725) — Initialises a circuit breaker with its base hold, maximum hold and repeat window.
-- `fg_breaker_trip` (L734) — Trips the breaker at time now (it stays open for its hold time); reason is recorded.
-- `fg_breaker_open` (L748) — 1 while the breaker is open (generation must stay off) at time now.
-- `fg_cost_init` (L750) — Initialises the frame cost estimator with the probe interval and its maximum.
-- `fg_cost_cold` (L757) — Records how many cold-start measurements the cost estimator needs.
-- `fg_cost_add` (L759) — One measured frame; 'fit_s' is what one generated frame may cost to fit.
-- `fg_cost_estimate` (L783) — The estimate to plan with at 'now': 0 when unknown or due for a probe.
-- `fg_pace_note` (L806) — Notes one pacing sample against the period and slack; returns nonzero when pacing is on track.
-- `fg_ceiling_init` (L816) — Initialises a ceiling on generated frames per game frame, with its maximum and recovery time.
-- `fg_ceiling_trip` (L822) — Lowers the ceiling after a trip with n planned frames at time now.
-- `fg_ceiling_get` (L829) — Current ceiling on generated frames; it rises back toward the maximum once the recovery time passes.
-- `fg_hud_match` (L844) — HUD motion: 2D triangles (no GTE projection: gauges, needles) of the redrawn list L that the other frame O draws too (same key: op, texture, colour, UVs, in the same order among the 2D triangles) and
-- `fg_hud_lerp` (L867) — Interpolates the HUD 2D triangles that the two frames share, at phase u, into x and y.
-- `fg_view_affine` (L903) — The in-between camera of view vi at phase t (fg_cam_place's motion) as an affine map on camera-space points of the newer frame: P_t = A P + b.
+- `fg_cam_fit` (L311) — Fits the camera between two frames from their primitives into fit and per-vertex data; returns nonzero on success.
+- `proj` (L440) — Projection of a camera-space point (0 when behind the near plane).
+- `fg_cam_place` (L449) — Places the in-between view at phase t: writes screen positions x and y and edge margins for the primitives.
+- `fg_plan` (L693) — Decides how many in-between frames to draw for a game frame, given costs, budget and the cap.
+- `fg_step_s` (L712) — How many in-between frames to draw per game frame.
+- `fg_slots` (L723) — fg_slots: display intervals a game frame 'flip_s' long fills on a 'refresh_hz' display as the clock (fg_clock_phase) schedules it: the in-between frames it shows plus the real one.
+- `fg_plan_hz` (L734) — Presentation rate for a flip interval and refresh rate, using the refresh rate when unknown.
+- `fg_next_due` (L739) — The next present time on the global grid after presenting at 'now'.
+- `fg_clock_phase` (L746) — Phase (0..1) of the display clock at a time since the last real frame, for choosing the next frame slot.
+- `fg_breaker_init` (L758) — Initialises a circuit breaker with its base hold, maximum hold and repeat window.
+- `fg_breaker_trip` (L767) — Trips the breaker at time now (it stays open for its hold time); reason is recorded.
+- `fg_breaker_open` (L781) — 1 while the breaker is open (generation must stay off) at time now.
+- `fg_cost_init` (L783) — Initialises the frame cost estimator with the probe interval and its maximum.
+- `fg_cost_cold` (L790) — Records how many cold-start measurements the cost estimator needs.
+- `fg_cost_add` (L792) — One measured frame; 'fit_s' is what one generated frame may cost to fit.
+- `fg_cost_estimate` (L816) — The estimate to plan with at 'now': 0 when unknown or due for a probe.
+- `fg_pace_note` (L839) — Notes one pacing sample against the period and slack; returns nonzero when pacing is on track.
+- `fg_ceiling_init` (L849) — Initialises a ceiling on generated frames per game frame, with its maximum and recovery time.
+- `fg_ceiling_trip` (L855) — Lowers the ceiling after a trip with n planned frames at time now.
+- `fg_ceiling_get` (L862) — Current ceiling on generated frames; it rises back toward the maximum once the recovery time passes.
+- `fg_hud_match` (L877) — HUD motion: 2D triangles (no GTE projection: gauges, needles) of the redrawn list L that the other frame O draws too (same key: op, texture, colour, UVs, in the same order among the 2D triangles) and
+- `fg_hud_lerp` (L900) — Interpolates the HUD 2D triangles that the two frames share, at phase u, into x and y.
+- `fg_view_affine` (L936) — The in-between camera of view vi at phase t (fg_cam_place's motion) as an affine map on camera-space points of the newer frame: P_t = A P + b.
 
 ### runtime/src/frame_interpolation.c
 

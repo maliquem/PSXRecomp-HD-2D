@@ -64,10 +64,14 @@ has measured time to spare.
   GTE results are untouched.
 - **Camera** (`frame_gen.c`, `fg_cam_fit`). No primitive is paired by draw
   order. Per view (draw area), vertices of the two frames with the same
-  identity are paired in camera space (instances: the clearly nearest) and a
+  identity are paired in camera space (instances: the clearly nearest; an
+  older vertex two newer instances both pick pairs neither) and a
   rigid motion is fitted (RANSAC + least squares, inliers within 1 screen px
   at their depth). The static world agrees with it; paired vertices that
-  disagree are objects (cars, the followed car). Verdict: no projections, a
+  disagree are objects (cars, the followed car), or, farther than a quarter
+  of their depth from the older position (a projectile), held where the
+  newer frame has them. Up to 4 views are fitted; past that the smallest
+  (3D icons, portraits) stay unchanged. Verdict: no projections, a
   view with few pairs or under half inliers, or a turn/travel no camera makes
   between two frames rejects the generated frame (the real frame shows).
 - **Drawing** (`fg_cam_place`). One real frame is redrawn from an
