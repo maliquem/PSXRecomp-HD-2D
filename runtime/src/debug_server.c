@@ -54,6 +54,7 @@
 #include "bug_report.h"
 #include "load_transition_ring.h"
 #include "cdrom.h"
+#include "psx_disc_tray.h"
 #include "sio.h"
 #include "memcard.h"
 #include "spu.h"
@@ -14683,7 +14684,9 @@ static void handle_disc_select(int id, const char *json)
     /* Any supplied "n" is a select attempt, including an out-of-range one.
      * Only an absent key (0) is a pure query, so a bad index reports the
      * failure instead of passing as a successful read-back. */
-    if (n != 0) ok = cdrom_disc_select(n);
+    if (n != 0)
+        ok = psx_disc_tray_cycle(n, PSX_DISC_TRAY_ORIGIN_DEBUG_SELECT) ==
+             PSX_DISC_TRAY_OK;
 
     /* One buffer, one send: send_fmt terminates a line per call, so emitting
      * the roster incrementally would split the response across lines. */
@@ -14701,9 +14704,12 @@ static void handle_disc_select(int id, const char *json)
     }
     if (w > (int)sizeof(buf) - 64) w = (int)sizeof(buf) - 64;
     snprintf(buf + w, sizeof(buf) - (size_t)w,
-             "],\"has_disc\":%s,\"sectors\":%u,\"tracks\":%d}",
+             "],\"has_disc\":%s,\"sectors\":%u,\"tracks\":%d,"
+             "\"request_rules\":%d,\"requested\":%d}",
              cdrom_has_disc() ? "true" : "false",
-             cdrom_mounted_sector_count(), cdrom_mounted_track_count());
+             cdrom_mounted_sector_count(), cdrom_mounted_track_count(),
+             psx_disc_tray_request_rule_count(),
+             psx_disc_tray_requested_disc(g_psx_ram, g_psx_ram_mask));
     send_fmt("%s", buf);
 }
 
@@ -14713,9 +14719,11 @@ static void handle_disc_select(int id, const char *json)
 static void handle_cd_reinsert(int id, const char *json)
 {
     (void)json;
-    debug_force_cd_reinsert();
-    send_fmt("{\"id\":%d,\"ok\":true,\"has_disc\":%s}",
-             id, cdrom_has_disc() ? "true" : "false");
+    const int rc = psx_disc_tray_cycle(0, PSX_DISC_TRAY_ORIGIN_DEBUG_REINSERT);
+    send_fmt("{\"id\":%d,\"ok\":%s,\"result\":\"%s\",\"has_disc\":%s}",
+             id, rc == PSX_DISC_TRAY_OK ? "true" : "false",
+             psx_disc_tray_result_name(rc),
+             cdrom_has_disc() ? "true" : "false");
 }
 
 /* cdrom_instant_rate: get/set the 'instant' per-frame sector-IRQ budget

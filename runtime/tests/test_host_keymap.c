@@ -39,6 +39,10 @@ int main(int argc, char **argv) {
           "default capture mark is Ctrl+M");
     check(!host_keymap_match(HOST_KEYMAP_CAPTURE_MARK, (int)SDLK_m, 0),
           "plain M does not trigger the capture mark");
+    check(host_keymap_match(HOST_KEYMAP_CHANGE_DISC, (int)SDLK_c, (int)KMOD_LCTRL),
+          "default change disc is Ctrl+C");
+    check(!host_keymap_match(HOST_KEYMAP_CHANGE_DISC, (int)SDLK_c, 0),
+          "plain C does not change the disc");
     keys[SDL_SCANCODE_TAB] = 1;
     check(host_keymap_down(HOST_KEYMAP_TURBO, keys, 0),
           "default turbo is held by Tab");

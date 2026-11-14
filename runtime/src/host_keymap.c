@@ -116,6 +116,8 @@ static void apply_defaults(void) {
         add_bind(HOST_KEYMAP_PERF_RECORD, (int)SDLK_f, (int)SDL_SCANCODE_F, KMOD_SHIFT);
     if (want_default(HOST_KEYMAP_BUG_REPORT))
         add_bind(HOST_KEYMAP_BUG_REPORT, (int)SDLK_b, (int)SDL_SCANCODE_B, KMOD_CTRL);
+    if (want_default(HOST_KEYMAP_CHANGE_DISC))
+        add_bind(HOST_KEYMAP_CHANGE_DISC, (int)SDLK_c, (int)SDL_SCANCODE_C, KMOD_CTRL);
 }
 
 /* Parse one "Ctrl+Alt+PageUp" token into key+mods. */
@@ -178,6 +180,7 @@ static HostKeymapAction action_for_key(const char *name) {
     if (ieq(name, "CaptureMark")) return HOST_KEYMAP_CAPTURE_MARK;
     if (ieq(name, "PerfRecord")) return HOST_KEYMAP_PERF_RECORD;
     if (ieq(name, "BugReport")) return HOST_KEYMAP_BUG_REPORT;
+    if (ieq(name, "ChangeDisc")) return HOST_KEYMAP_CHANGE_DISC;
     return HOST_KEYMAP_ACTION_COUNT;
 }
 
@@ -320,7 +323,7 @@ void host_keymap_reset_defaults(void) {
 static const char *const k_action_key[HOST_KEYMAP_ACTION_COUNT] = {
     "Fullscreen", "Turbo", "VolumeUp", "VolumeDown", "DisplayPerf", "Rewind",
     "SaveStateMenu", "Scanlines", "TurboToggle", "CaptureMark", "PerfRecord",
-    "BugReport",
+    "BugReport", "ChangeDisc",
 };
 
 /* "Ctrl+Alt+Name,..." as parse_value reads it; "None" when unbound. */

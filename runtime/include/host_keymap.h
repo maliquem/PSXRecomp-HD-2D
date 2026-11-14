@@ -26,6 +26,7 @@ typedef enum HostKeymapAction {
     HOST_KEYMAP_CAPTURE_MARK,     /* default Ctrl+M; freezes the debug capture rings */
     HOST_KEYMAP_PERF_RECORD,      /* default Shift+F; records the perf meter (perf_meter.h) */
     HOST_KEYMAP_BUG_REPORT,       /* default Ctrl+B; the player's bug report (bug_report.h) */
+    HOST_KEYMAP_CHANGE_DISC,      /* default Ctrl+C; next disc of a multi-disc set, else reinsert */
     HOST_KEYMAP_ACTION_COUNT
 } HostKeymapAction;
 

@@ -2041,6 +2041,28 @@ GameConfig load_game_config(const fs::path& config_path_in) {
     if (game.contains("disc_serials"))
         disc_serials = toml::find<std::vector<std::string>>(game, "disc_serials");
 
+    /* [[game.disc_requests]]: RAM conditions meaning "the title wants disc N". */
+    std::vector<GameConfig::DiscRequest> disc_requests;
+    if (game.contains("disc_requests")) {
+        const auto& arr = toml::find(game, "disc_requests").as_array();
+        for (const auto& t : arr) {
+            GameConfig::DiscRequest r;
+            r.disc = toml::find<int>(t, "disc");
+            r.addr = parse_hex(toml::find<std::string>(t, "addr"), "game.disc_requests.addr");
+            if (t.contains("size")) r.size = (uint32_t)toml::find<int>(t, "size");
+            if (t.contains("mask"))
+                r.mask = parse_hex(toml::find<std::string>(t, "mask"), "game.disc_requests.mask");
+            r.value = parse_hex(toml::find<std::string>(t, "value"), "game.disc_requests.value");
+            if (r.size != 1 && r.size != 2 && r.size != 4)
+                throw std::runtime_error("game.disc_requests.size must be 1, 2 or 4");
+            if (r.value & ~r.mask)
+                throw std::runtime_error("game.disc_requests.value has bits outside mask");
+            if (r.disc < 1 || r.disc > (int)discs.size())
+                throw std::runtime_error("game.disc_requests.disc must name an entry of [game] discs");
+            disc_requests.push_back(r);
+        }
+    }
+
     // Optional expected disc identity (launcher verification badge).
     bool has_disc_crc = false;
     uint32_t disc_crc = 0;
@@ -3107,6 +3129,7 @@ GameConfig load_game_config(const fs::path& config_path_in) {
         /*stack_base*/       stack_base,
         /*discs*/            discs,
         /*disc_serials*/     disc_serials,
+        /*disc_requests*/    disc_requests,
         /*has_disc_crc*/     has_disc_crc,
         /*disc_crc*/         disc_crc,
         /*disc_sha1*/        disc_sha1,

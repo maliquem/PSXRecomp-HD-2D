@@ -126,6 +126,7 @@ respective files.
 | `disc` | game (single-disc) | path to .cue, relative to project root |
 | `discs` | game (multi-disc) | array of .cue paths; `disc` is sugar for `discs = [disc]` |
 | `disc_serials` | game (multi-disc, optional) | array parallel to `discs`: the serial each disc carries (`["SCUS-94163", "SCUS-94164", "SCUS-94165"]`). Without it every disc is checked against `[game] id` — the BOOT disc's serial — so selecting disc 2 reports "wrong disc". A disc with no entry here is not serial-gated; the ISO-header check still applies. |
+| `disc_requests` | game (multi-disc, optional) | array of tables `[[game.disc_requests]]`, each `disc` (1-based index into `discs`), `addr` (hex guest address), `size` (1, 2 or 4 bytes, default 1, little-endian), `mask` (hex, default all ones) and `value` (hex). Once per frame the runtime reads each rule in order; the first where `(read & mask) == value` names the disc the game is asking for, and the runtime opens the lid, inserts that disc and shows a toast, once per request (a new attempt only after the condition clears). Runtime-only: not part of the overlay codegen hash. Ignored in netplay, which refuses every disc change. A rule naming a disc outside `discs`, a bad `size` or a `value` with bits outside `mask` is refused at load. |
 
 ### Multi-disc selection
 
@@ -150,6 +151,19 @@ selected = 2                               # 1-based index into [game] discs
 or by hand — switches discs even though `path` still points at the previous
 one. That is what makes disc choice manageable like any other setting. Both
 keys are written only for multi-disc titles.
+
+During play the **ChangeDisc** hotkey (default Ctrl+C, rebindable as
+`ChangeDisc` in the keymap) opens the lid and inserts the next disc of `discs`,
+wrapping from the last to the first, with a "Disc N inserted" toast. In a
+single-disc title it reinserts the same disc. The in-game menu's Change Disc
+entry and `disc_requests` use the same lid cycle; netplay refuses all three.
+
+```toml
+[[game.disc_requests]]     # the game shows "insert disc 2" while this byte is 2
+disc  = 2
+addr  = "0x800A1234"
+value = "0x2"
+```
 
 ## Recompiler block
 

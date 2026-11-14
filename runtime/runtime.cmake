@@ -416,6 +416,7 @@ set(PSXRECOMP_RUNTIME_SOURCES
     ${PSXRECOMP_ROOT}/runtime/src/pad_external_input.c
     ${PSXRECOMP_ROOT}/runtime/src/host_overlay.c
     ${PSXRECOMP_ROOT}/runtime/src/psx_menu_host.c
+    ${PSXRECOMP_ROOT}/runtime/src/psx_disc_tray.c
     ${PSXRECOMP_ROOT}/runtime/src/mod_pad_transform.c
     ${PSXRECOMP_ROOT}/runtime/src/vr_pose_math.c
     ${PSXRECOMP_ROOT}/runtime/src/vr_geometry_math.c

@@ -1182,6 +1182,19 @@ struct GameConfig {
     // that produced disc_set.json.
     std::vector<std::string> disc_serials;
 
+    // Optional [[game.disc_requests]]: when guest RAM shows the title asking
+    // for another disc of `discs`, the runtime cycles the lid to that disc
+    // (psx_disc_tray.h). Runtime-only: read from RAM, never part of codegen
+    // or overlay_codegen_config_hash.
+    struct DiscRequest {
+        int      disc  = 0;           // 1-based index into `discs`
+        uint32_t addr  = 0;           // guest RAM address
+        uint32_t size  = 1;           // 1, 2 or 4 bytes, little-endian
+        uint32_t mask  = 0xFFFFFFFFu; // applied before the compare
+        uint32_t value = 0;
+    };
+    std::vector<DiscRequest> disc_requests;
+
     // Optional expected disc identity, for the launcher's "Disc verified" badge.
     // disc_crc: full-file CRC32 (IEEE) of the data track. disc_sha1: lowercase
     // hex SHA-1. Either may be absent (has_disc_crc / disc_sha1.empty()).

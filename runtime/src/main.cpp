@@ -41,6 +41,7 @@
 #include "local_mouse_sdl.h"
 #include "pad_external_input.h"
 #include "host_keymap.h"
+#include "psx_disc_tray.h"
 #include "png_write.h"       /* png_write_rgb — present_shot readback */
 #include "overlay_capture.h"
 #include "overlay_loader.h"
@@ -9695,6 +9696,37 @@ static bool host_player_input_event(const SDL_Event& ev) {
     }
 }
 
+/* What the player sees after a lid cycle they (or the title) asked for.
+ * disc 0 is a same-media reinsert. */
+static void disc_tray_toast(int rc, int disc) {
+    char msg[64];
+    switch (rc) {
+    case PSX_DISC_TRAY_OK:
+        if (disc > 0) std::snprintf(msg, sizeof msg, "Disc %d inserted", disc);
+        else std::snprintf(msg, sizeof msg, "CD reinsert");
+        break;
+    case PSX_DISC_TRAY_ERR_NETPLAY:
+        std::snprintf(msg, sizeof msg, "Disc change is off in netplay");
+        break;
+    case PSX_DISC_TRAY_ERR_OPEN_FAILED:
+        std::snprintf(msg, sizeof msg, "Disc %d could not be opened", disc);
+        break;
+    default:
+        return;
+    }
+    host_osd_push(msg, 2000);
+}
+
+/* game.toml [[game.disc_requests]]: once per VBlank, on the emulation
+ * thread, put in the disc the title is asking for. One attempt per request
+ * (psx_disc_tray_auto_poll), none when that disc is already in. */
+static void disc_request_poll() {
+    if (!psx_disc_tray_request_rule_count()) return;
+    const int want = psx_disc_tray_requested_disc(g_psx_ram, g_psx_ram_mask);
+    const int rc = psx_disc_tray_auto_poll(want, want != 0);
+    if (rc >= 0) disc_tray_toast(rc, want);
+}
+
 static bool drain_host_events() {
     SDL_Event ev;
     while (SDL_PollEvent(&ev)) {
@@ -9774,10 +9806,16 @@ static bool drain_host_events() {
                 psx_local_mouse_reset();
                 savestate_menu_toggle(key);
             }
-            else if (key == SDLK_c && (mod & KMOD_CTRL)) {
-                std::fprintf(stdout, "[DEBUG] Forzando reinserción de CD...\n");
-                debug_force_cd_reinsert();
-                host_osd_push("CD reinsert", 1500);
+            else if (!key_repeat &&
+                     host_keymap_match_event(HOST_KEYMAP_CHANGE_DISC,
+                                             (int)key, (int)scancode,
+                                             (int)mod)) {
+                /* Multi-disc: the next disc of the set (wrapping); single
+                 * disc: next_disc is 0, which reinserts the same media. */
+                const int next = psx_disc_tray_next_disc();
+                disc_tray_toast(psx_disc_tray_cycle(
+                                    next, PSX_DISC_TRAY_ORIGIN_HOTKEY_REINSERT),
+                                next);
             }
             else if (!key_repeat &&
                      host_keymap_match_event(HOST_KEYMAP_TURBO_TOGGLE,
@@ -10125,6 +10163,7 @@ static NetplayVblankEpilogue sdl_vblank_present_body(void) {
     /* Direct-shortcut claims are settled before any shortcut poll or pad
      * sample this frame (no-op unless a title allowed a direct shortcut). */
     direct_shortcut_claim_update();
+    disc_request_poll();
     if (!g_headless) {
         /* Pump SDL events to prevent window freeze. */
         psx_local_mouse_begin(sdl_window, local_mouse_live(override));
@@ -18452,6 +18491,9 @@ static void host_pause_service(void) {
     if (const int disc = g_ovl_disc_req.exchange(0)) {
         const int rc = disc_cycle_now(disc);
         std::fprintf(stdout, "psxrecomp: in-game menu disc %d -> %d\n", disc, rc);
+#if defined(PSX_MENU_HAS_DISC_TRAY)
+        disc_tray_toast(rc, disc);
+#endif
     }
     if (g_ovl_reload_binds.exchange(0)) {
         psx_keybinds_init(g_ovl_argv0.c_str());
@@ -18853,6 +18895,8 @@ int main(int argc, char** argv) {
      * selected indexes into; it is NOT a scan of the player's folder, so a
      * player who moved an image still browses for it. */
     std::vector<std::filesystem::path> game_discs;
+    /* game.toml [[game.disc_requests]], registered with the roster below. */
+    std::vector<PsxDiscRequestRule> disc_request_rules;
     /* 1-based selected disc, from settings.toml [disc] selected. Kept at main
      * scope because it round-trips through both launcher entry points. */
     int selected_disc_index = 1;
@@ -18933,6 +18977,9 @@ int main(int argc, char** argv) {
             PSXRecompV4::mod_runtime_set_netplay_content_negotiation(
                 g_netplay_content_negotiation != 0);
             game_discs = gc.discs;
+            disc_request_rules.clear();
+            for (const auto& r : gc.disc_requests)
+                disc_request_rules.push_back({r.disc, r.addr, r.size, r.mask, r.value});
             /* Per-disc serial gate, shared by the launch-time disc check and
              * the launcher's disc verdict. Keyed by the image's uppercased
              * stem so a .cue and its .bin agree. */
@@ -21873,6 +21920,9 @@ session_reboot:
         const int mounted = roster_index_for_disc(game_discs, disc_path_str);
         cdrom_disc_roster_set(roster.data(), (int)roster.size(),
                               mounted >= 0 ? mounted + 1 : selected_disc_index);
+        psx_disc_tray_set_request_rules(disc_request_rules.data(),
+                                        (int)disc_request_rules.size());
+        psx_disc_tray_reset_session();
         /* --disc names a disc of the set, but the earlier index derivation is
          * skipped for an override, so selected_disc_index kept its default of
          * 1. That put the savestate disc token at _disc1 whatever was mounted,
