@@ -43,8 +43,9 @@ games, before it lands.
 - **FMV enhancement** (`[video] fmv_enhance`): chroma rebuilt between 2x2 blocks, deblocking from the MDEC quantizer,
   FSR1 on the luma. It only touches what is shown: RAM, VRAM and the decoder stay exact.
 - **Anti-aliasing of the 3D geometry only** (`shaders/hd2d/aa3d.pfx`), leaving sprites and UI alone.
-- **Per-triangle PGXP depth** (`[video] pgxp_depth_tolerance = 0`) and a near limit a title can set
-  (`gl_renderer_set_pgxp_depth_near`). This fixes overlapping pieces that the per-batch test left in.
+- **PGXP depth with painter tolerance**: overlapping pieces are hidden per triangle, and a later polygon within
+  `[video] pgxp_depth_tolerance` of what is there still wins, so near-coplanar decals do not z-fight
+  (0 = plain per-triangle test). A title can also set a near limit (`gl_renderer_set_pgxp_depth_near`).
 - **Internal resolution changes live**, including steps above the starting scale.
 - **Pillarbox fill:** flat edge colour or blurred cover.
 

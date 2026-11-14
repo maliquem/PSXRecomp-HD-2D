@@ -1262,11 +1262,14 @@ times a frame; without it far beams vanish behind the previous view's depth.
 **Decals keep painter order.** A plain LEQUAL depth (DuckStation's choice,
 no bias) cut R4's lane markings into the road: they are separate polygons
 drawn after it, a hair off its plane once SZ is quantised per vertex. A 3D
-batch is now two passes: the colour pass tests with its depth pulled toward
-the camera by 2% of the distance (`PSX_PGXP_DEPTH_TOL`) and writes no depth;
-a colourless pass then writes the true depth. A later surface within the
-tolerance wins as in painter order; anything clearly behind stays occluded.
-Inside one batch the order is painter's. On slots 1-3 at 10x the image
+batch is now two passes: a colourless pass writes the true depth, then the
+colour pass tests with its depth pulled toward the camera by 2% of the
+distance (`PSX_PGXP_DEPTH_TOL`) and writes no depth. A later surface within
+the tolerance wins as in painter order; anything clearly behind stays
+occluded, inside the batch too (until 2026-11-14 the depth pass came after
+the colour and a batch was painter's inside, which is why BoF4 needed
+tolerance 0 for its candle pins; BoF4 now uses 0.002 so its awnings over a
+roof stop z-fighting while the camera turns). On slots 1-3 at 10x the image
 matches depth-off within 96 / 36 px (tunnel) and the markings are whole.
 A near lane dash was still cut at the bottom of the screen (behind the
 tachometer, owner report): near the camera SZ quantisation and R4's near
