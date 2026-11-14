@@ -73,6 +73,8 @@ games, before it lands.
   plugin can name foot points.
 - **Soft shadows:** variable softness by distance to the caster, and the lit seam at a wall's foot filled.
 - **The game's own blob shadows hidden** by texture, by look, or by the near-black palette entry in a sprite.
+- **The game's baked shadows hidden under the sun** (`baked_shadows_off`, per game, off by default): with GI on and the
+  sun on an area's scenery, the darkening pieces the game lays on the floor are not drawn ([POST_EFFECTS.md](docs/POST_EFFECTS.md)).
 - **Sun and moon per area** (`sun_areas`, `sun_areas.txt`), caves with no sun, day or night forced per area.
 - **`psx_sun_tool`:** a live tuning tool with a 3D sun and moon view and a Lights tab ([SUN_TOOL.md](docs/SUN_TOOL.md)).
 - **Fire lights:** steady additive glows become lights with cube-map shadows, coloured by their own pixels. A look
