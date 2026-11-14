@@ -434,7 +434,7 @@ static SDL_GPUGraphicsPipeline *pipe_lookup(const SglPipeKey *k, SDL_GPUShader *
     const uint64_t dt = SDL_GetTicksNS() - t0;
     g_sgl_time_ns[SGL_T_PIPE] += dt;
     if (dt > g_sgl_time_ns[SGL_T_PIPE_WORST]) g_sgl_time_ns[SGL_T_PIPE_WORST] = dt;
-    if (!p) return NULL;
+    /* A failure is kept too (pipe NULL): one try and one line per key. */
     s_pipes[h].used = 1;
     s_pipes[h].key = *k;
     s_pipes[h].pipe = p;
@@ -454,7 +454,7 @@ void sgl_gpu_forget_program(SglObj *prog) {
             if (!p) continue;
             s_pipe_release = (SDL_GPUGraphicsPipeline **)p; s_pipe_cap_release = nc;
         }
-        s_pipe_release[s_pipe_nrelease++] = s_pipes[i].pipe;
+        if (s_pipes[i].pipe) s_pipe_release[s_pipe_nrelease++] = s_pipes[i].pipe;
         s_pipes[i].used = 0;
         s_pipe_n--;
     }
@@ -744,8 +744,9 @@ static int upload_now(SDL_GPUTexture *tex, int w, int h, const void *px, size_t 
     SDL_GPUTransferBuffer *x = make_xfer(SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD, (uint32_t)bytes);
     if (!x) return 0;
     void *m = SDL_MapGPUTransferBuffer(g_sgl.dev, x, false);
+    SDL_GPUCommandBuffer *cmd = m ? SDL_AcquireGPUCommandBuffer(g_sgl.dev) : NULL;
     if (m) { memcpy(m, px, bytes); SDL_UnmapGPUTransferBuffer(g_sgl.dev, x); }
-    SDL_GPUCommandBuffer *cmd = SDL_AcquireGPUCommandBuffer(g_sgl.dev);
+    if (!cmd) { SDL_ReleaseGPUTransferBuffer(g_sgl.dev, x); return 0; }
     SDL_GPUCopyPass *cp = SDL_BeginGPUCopyPass(cmd);
     if (tex) {
         SDL_GPUTextureTransferInfo src = { x, 0, (Uint32)w, (Uint32)h };
@@ -823,17 +824,21 @@ int sgl_gpu_init(SDL_Window *win) {
         bi.size = 16;
         g_sgl.zero_vbuf = SDL_CreateGPUBuffer(g_sgl.dev, &bi);
         const float one[4] = {0, 0, 0, 1};
-        upload_now(NULL, 0, 0, one, sizeof(one));
         SglImage d0, d1;
         memset(&d0, 0, sizeof(d0)); memset(&d1, 0, sizeof(d1));
         sgl_gpu_alloc_image(&d0, GL_RGBA8, 1, 1);
         sgl_gpu_alloc_image(&d1, 0x8234, 1, 1);
-        const uint8_t black[4] = {0, 0, 0, 255};
-        const uint16_t zero = 0;
-        upload_now(d0.tex, 1, 1, black, 4);
-        upload_now(d1.tex, 1, 1, &zero, 2);
         s_dummy[0] = d0.tex;
         s_dummy[1] = d1.tex;
+        const uint8_t black[4] = {0, 0, 0, 255};
+        const uint16_t zero = 0;
+        /* upload_now(NULL, ...) writes the zero buffer: each one only once it exists. */
+        if (!g_sgl.zero_vbuf || !d0.tex || !d1.tex || !upload_now(NULL, 0, 0, one, sizeof(one)) ||
+            !upload_now(d0.tex, 1, 1, black, 4) || !upload_now(d1.tex, 1, 1, &zero, 2)) {
+            fprintf(stdout, "psxrecomp: sgl: constant inputs not made: %s\n", SDL_GetError());
+            sgl_gpu_shutdown();
+            return 0;
+        }
     }
     fprintf(stdout, "psxrecomp: sgl: SDL_GPU %s on %s (depth-stencil %s)\n",
             SDL_GetGPUDeviceDriver(g_sgl.dev), g_sgl.name,
@@ -849,7 +854,7 @@ void sgl_gpu_shutdown(void) {
     SDL_WaitForGPUIdle(g_sgl.dev);
     timing_shutdown();
     for (int i = 0; i < s_pipe_cap; i++)
-        if (s_pipes[i].used) SDL_ReleaseGPUGraphicsPipeline(g_sgl.dev, s_pipes[i].pipe);
+        if (s_pipes[i].used && s_pipes[i].pipe) SDL_ReleaseGPUGraphicsPipeline(g_sgl.dev, s_pipes[i].pipe);
     free(s_pipes); s_pipes = NULL; s_pipe_cap = s_pipe_n = 0;
     for (int i = 0; i < s_nsamplers; i++) SDL_ReleaseGPUSampler(g_sgl.dev, s_samplers[i].s);
     s_nsamplers = 0;
@@ -1057,27 +1062,37 @@ static SDL_GPURenderPass *begin_pass(SDL_GPUCommandBuffer *cmd, const SglTarget 
     return SDL_BeginGPURenderPass(cmd, t->color ? &ci : NULL, t->color ? 1 : 0, t->ds ? &di : NULL);
 }
 
+/* One line per kind of failure, the first time only: a failure that repeats
+ * every frame would flood the output. */
+static void note_once(int *seen, const char *what) {
+    if (*seen) return;
+    *seen = 1;
+    fprintf(stdout, "psxrecomp: sgl: %s: %s\n", what, SDL_GetError());
+}
+
 static int ensure_buffer(SDL_GPUBuffer **b, uint32_t *size, uint32_t need) {
     if (*b && *size >= need) return 1;
     uint32_t n = *size ? *size : (1u << 20);
     while (n < need) n *= 2;
-    if (*b) SDL_ReleaseGPUBuffer(g_sgl.dev, *b);
     SDL_GPUBufferCreateInfo ci;
     memset(&ci, 0, sizeof(ci));
     ci.usage = SDL_GPU_BUFFERUSAGE_VERTEX;
     ci.size = n;
-    *b = SDL_CreateGPUBuffer(g_sgl.dev, &ci);
-    *size = *b ? n : 0;
-    return *b != NULL;
+    SDL_GPUBuffer *nb = SDL_CreateGPUBuffer(g_sgl.dev, &ci);
+    if (!nb) return 0;   /* the old one stays, with its size */
+    if (*b) SDL_ReleaseGPUBuffer(g_sgl.dev, *b);
+    *b = nb; *size = n;
+    return 1;
 }
 static int ensure_xfer(SDL_GPUTransferBuffer **x, uint32_t *size, uint32_t need, SDL_GPUTransferBufferUsage u) {
     if (*x && *size >= need) return 1;
     uint32_t n = *size ? *size : (1u << 20);
     while (n < need) n *= 2;
+    SDL_GPUTransferBuffer *nx = make_xfer(u, n);
+    if (!nx) return 0;   /* the old one stays, with its size */
     if (*x) SDL_ReleaseGPUTransferBuffer(g_sgl.dev, *x);
-    *x = make_xfer(u, n);
-    *size = *x ? n : 0;
-    return *x != NULL;
+    *x = nx; *size = n;
+    return 1;
 }
 
 static void stream_reset(void) {
@@ -1105,20 +1120,26 @@ int sgl_flush(int wait, int present) {
     SDL_GPUCommandBuffer *cmd = SDL_AcquireGPUCommandBuffer(g_sgl.dev);
     if (!cmd) { stream_reset(); return 0; }
 
-    /* The arenas go up first. */
+    /* The arenas go up first. One that cannot (no memory for a bigger
+     * buffer, no mapping) drops the draws or uploads that read it. */
+    int vtx_ok = 1, upl_ok = 1;
     if (s->vtx.n || s->upl.n) {
         if (s->vtx.n) {
-            ensure_buffer(&g_sgl.vbuf, &g_sgl.vbuf_size, (uint32_t)s->vtx.n);
-            ensure_xfer(&g_sgl.vxfer, &g_sgl.vxfer_size, (uint32_t)s->vtx.n, SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD);
-            void *m = g_sgl.vxfer ? SDL_MapGPUTransferBuffer(g_sgl.dev, g_sgl.vxfer, true) : NULL;
+            vtx_ok = ensure_buffer(&g_sgl.vbuf, &g_sgl.vbuf_size, (uint32_t)s->vtx.n) &&
+                     ensure_xfer(&g_sgl.vxfer, &g_sgl.vxfer_size, (uint32_t)s->vtx.n, SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD);
+            void *m = vtx_ok ? SDL_MapGPUTransferBuffer(g_sgl.dev, g_sgl.vxfer, true) : NULL;
             if (m) { memcpy(m, s->vtx.p, s->vtx.n); SDL_UnmapGPUTransferBuffer(g_sgl.dev, g_sgl.vxfer); }
+            else vtx_ok = 0;
         }
         if (s->upl.n) {
-            ensure_xfer(&g_sgl.uxfer, &g_sgl.uxfer_size, (uint32_t)s->upl.n, SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD);
-            void *m = g_sgl.uxfer ? SDL_MapGPUTransferBuffer(g_sgl.dev, g_sgl.uxfer, true) : NULL;
+            upl_ok = ensure_xfer(&g_sgl.uxfer, &g_sgl.uxfer_size, (uint32_t)s->upl.n, SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD);
+            void *m = upl_ok ? SDL_MapGPUTransferBuffer(g_sgl.dev, g_sgl.uxfer, true) : NULL;
             if (m) { memcpy(m, s->upl.p, s->upl.n); SDL_UnmapGPUTransferBuffer(g_sgl.dev, g_sgl.uxfer); }
+            else upl_ok = 0;
         }
-        if (s->vtx.n && g_sgl.vbuf && g_sgl.vxfer) {
+        static int arena_seen;
+        if (!vtx_ok || !upl_ok) note_once(&arena_seen, "arena upload failed, its draws dropped");
+        if (s->vtx.n && vtx_ok) {
             SDL_GPUCopyPass *cp = SDL_BeginGPUCopyPass(cmd);
             SDL_GPUTransferBufferLocation src = { g_sgl.vxfer, 0 };
             SDL_GPUBufferRegion dst = { g_sgl.vbuf, 0, (Uint32)s->vtx.n };
@@ -1167,7 +1188,12 @@ int sgl_flush(int wait, int present) {
                 cur = op->tgt;
                 RESET_BOUND();
             }
-            if (!rp) break;
+            if (!rp || !op->u.draw.pipe) break;
+            if (!vtx_ok) {
+                int uses = 0;
+                for (int b = 0; b < op->u.draw.nvb; b++) uses |= op->u.draw.vb_off[b] != UINT32_MAX;
+                if (uses) break;
+            }
             if (op->u.draw.pipe != bound_pipe) {
                 SDL_BindGPUGraphicsPipeline(rp, op->u.draw.pipe);
                 bound_pipe = op->u.draw.pipe;
@@ -1235,6 +1261,7 @@ int sgl_flush(int wait, int present) {
             break;
         }
         case SGL_OP_UPLOAD: {
+            if (!upl_ok) break;
             END_RP();
             if (!cp) cp = SDL_BeginGPUCopyPass(cmd);
             SDL_GPUTextureTransferInfo src = { g_sgl.uxfer, op->u.up.off, (Uint32)op->u.up.w, (Uint32)op->u.up.h };
@@ -1308,6 +1335,8 @@ int sgl_flush(int wait, int present) {
         }
         const uint64_t acq0 = SDL_GetTicksNS();
         const int acq_ok = SDL_WaitAndAcquireGPUSwapchainTexture(cmd, g_sgl.win, &sw, &sw_w, &sw_h);
+        static int acq_seen;
+        if (!acq_ok) note_once(&acq_seen, "swapchain acquire failed");
         if (acq_ok && sw) {
             const uint64_t acq1 = SDL_GetTicksNS();
             s_acq_t[s_acq_n % SGL_ACQ] = acq1;

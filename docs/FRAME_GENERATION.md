@@ -211,6 +211,8 @@ newer frame's dial. `frame_gen` reports `reproject`, `reprojected`,
 - A texture the frame drew earlier into its own displayed buffer is sampled
   as the raw mirror holds it when the in-between frame is drawn.
 - Single-buffered games never flip, so nothing is generated.
+- A minimized window generates nothing (no swapchain image, so no vsync
+  wait would pace the in-betweens); `frame_gen` reports "window minimized".
 - Windowed high-resolution mode and depth24 frames are not generated.
 - HD texture replacements and dumping: generated frames draw with the same
   replacements as real frames (HUD/2D included); they are presentation only,

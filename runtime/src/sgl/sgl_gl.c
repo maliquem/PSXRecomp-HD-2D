@@ -1485,8 +1485,8 @@ static void APIENTRY sgl_glDrawElementsBaseVertex(GLenum mode, GLsizei count, GL
         grp[i] = g;
     }
     for (int g = 0; g < nsrc; g++) {
-        SglBuffer *sb = buf_get(src[g]);
         if (!s_gather[g]) s_gather[g] = tab_new(&s_buf);
+        SglBuffer *sb = buf_get(src[g]);   /* after tab_new: it may move the table */
         SglBuffer *tb = buf_get(s_gather[g]);
         if (!sb || !tb) return;
         const size_t rec = hi[g] - lo[g];

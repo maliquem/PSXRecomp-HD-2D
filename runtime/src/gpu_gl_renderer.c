@@ -16489,6 +16489,12 @@ static int fg_on_present(uint16_t op, const uint8_t *p, uint32_t bytes, int stal
             else s_fg_np_room++;
         }
     }
+    /* Minimized: no swapchain image, so no vsync wait; nothing would pace
+     * the in-betweens and nobody sees them. */
+    if (n > 0 && s_win && (SDL_GetWindowFlags(s_win) & SDL_WINDOW_MINIMIZED)) {
+        n = 0;
+        s_fg_noplan_why = "window minimized";
+    }
     s_fg_last_n = n;
     if (n <= 0) return 0;
     /* Match the two frames' triangles. */

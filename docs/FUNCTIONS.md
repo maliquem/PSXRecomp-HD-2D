@@ -4850,75 +4850,75 @@ Hardware OpenGL renderer backend that keeps PS1 VRAM on the GPU and draws, masks
 - `fg_flush` (L16294) — Present the waiting real frame now (generated frames still due are dropped): a newer present, a sync point, the queue backing up.
 - `fg_tick` (L16300) — Frame generation tick: presents the waiting real frame or generates frames when they are due; returns 0 when nothing is pending.
 - `fg_on_present` (L16346) — A present record replayed with frame generation on.
-- `gl_renderer_set_frame_generation` (L16588) — ---- frame generation: public ----
-- `gl_renderer_frame_generation` (L16600) — Returns whether frame generation is on.
-- `gl_renderer_set_frame_generation_method` (L16605) — [video] frame_generation_method (PSX_FRAME_GEN_METHOD, resolved by the frontend): redraw, the default, draws the whole recorded list again per generated frame; reprojection (a title opts in) warps the
-- `gl_renderer_frame_generation_method` (L16613) — Returns the frame generation method: reprojection, or redraw by default.
-- `gl_renderer_fg_source` (L16617) — While recording, passes the reprojection source data (ids, camera matrix, heights and x, y per corner) to the render thread.
-- `gl_renderer_frame_gen_real_share` (L16631) — The share of a game frame the real frame may use so Smooth motion still fills every display interval: (0.85 flip - slots-1 generated frames and their swaps) / flip, never below 0.35.
-- `gl_renderer_frame_gen_configure` (L16649) — Stores the display refresh rate and, when above 1, the guest frame rate used by frame generation.
-- `gl_renderer_frame_gen_hold` (L16657) — Not a breaker trip: generation pauses while the real frames are under pressure (dynamic resolution over budget or stepping down) for the caller's short tail, without the breaker's escalating holds.
-- `fg_note_guest_frame` (L16675) — Emulation thread, once per frame boundary: the guest is late when it has slipped two intervals behind its own VBlank schedule.
-- `gl_renderer_frame_gen_counts` (L16683) — Smooth motion's atomically published running totals, for rate readouts.
-- `gl_renderer_frame_gen_costs` (L16688) — Generated frames so far, how many of them were timed, and the timed ones' summed cost (ns, GPU time or CPU wall, the larger): dynamic resolution counts what Smooth motion actually spent in its load.
-- `gl_renderer_frame_gen_prims_json` (L16704) — TCP frame_gen {"prims":1}: the older and newer closed lists' triangles (only those with no projection when only2d): index, key, view, which corners have a projection (bits), x, y.
-- `gl_renderer_frame_gen_json` (L16729) — Writes frame generation status as JSON into out (up to cap bytes), including whether the breaker is open; returns the length.
-- `rtb_init` (L16806) — Render-thread backend: initialises VRAM, syncing unless recording, and abandons any incomplete A0 transfer.
-- `rtb_set_scale` (L16814) — Render-thread backend: sets the internal resolution scale after a sync point.
-- `rtb_scale` (L16817) — The scale changes under a sync point, or by a recorded dynamic-resolution step: while recording, the level as of the recording position.
-- `rtb_set_texture_filter` (L16820) — Returns the internal scale; while recording, the level as of the recording position.
-- `rtb_texture_filter` (L16821) — Render-thread backend: sets the texture filter after a sync point.
-- `rtb_set_dither` (L16822) — Render-thread backend: returns the current texture filter.
-- `rtb_set_semi_transparency` (L16824) — Render-thread backend: records or applies the dither setting.
-- `rtb_set_mask_bits` (L16826) — Render-thread backend: records or applies the semi-transparency enable and mode.
-- `rtb_set_texture_window` (L16828) — Render-thread backend: records or applies the mask set and check flags.
-- `rtb_set_color_modulation` (L16830) — Render-thread backend: records or applies the texture window value r.
-- `rtb_set_precise_triangle` (L16832) — Render-thread backend: records or applies the colour modulation factors and raw flag.
-- `rtb_set_depth_triangle` (L16837) — Render-thread backend: records or applies the sub-pixel override for the next triangle, with its three vertices.
-- `rtb_set_perspective_triangle` (L16846) — Render-thread backend: records or applies the SZ depth values for the next triangle.
-- `rtb_fill_rect` (L16855) — Render-thread backend: records or applies the perspective q values for the next triangle.
-- `rtb_copy_rect` (L16857) — Render-thread backend: records or applies a fill of a rectangle with a colour.
-- `rtb_draw_flat_triangle` (L16859) — Render-thread backend: records or applies a VRAM copy.
-- `rtb_draw_gouraud_triangle` (L16863) — Render-thread backend: records or applies a flat-colour triangle.
-- `rtb_draw_textured_triangle` (L16868) — Render-thread backend: records or applies a Gouraud triangle with a colour at each corner.
-- `rtb_draw_shaded_textured_triangle` (L16875) — Render-thread backend: records or applies a textured triangle.
-- `rtb_draw_flat_rect` (L16885) — Render-thread backend: records or applies a textured triangle with a colour at each corner.
-- `rtb_draw_textured_rect` (L16889) — Render-thread backend: records or applies a flat rectangle.
-- `rtb_draw_textured_rect_scaled` (L16894) — Render-thread backend: records or applies a textured rectangle.
-- `rtb_draw_line` (L16900) — Render-thread backend: records or applies a textured rectangle with scaled texture coordinates.
-- `rtb_draw_shaded_line` (L16904) — Render-thread backend: records or applies a flat line.
-- `rtb_render_display` (L16908) — Render-thread backend: records or applies a line with a colour at each end.
-- `rtb_render_display_hires` (L16910) — Render-thread backend: renders the display into o after a sync point and returns the result.
-- `rtb_vram_write` (L16912) — Render-thread backend: renders the display at internal resolution into o after a sync point and returns the result.
-- `rtb_vram_read` (L16914) — Render-thread backend: records or applies a single VRAM pixel write.
-- `rtb_vram_transfer_in` (L16915) — Render-thread backend: reads one VRAM pixel after a sync point.
-- `hd_note_exec` (L16929) — Render-thread backend: records or applies a CPU-to-VRAM transfer of a rectangle.
-- `rtb_vram_upload_open` (L16939) — After the upload/draw it follows, in command order, against s_vram.
-- `rtb_hd_texture_note` (L16948) — Runs an HD texture bookkeeping operation (track or begin an upload, and related ops) for a rectangle.
-- `rtb_vram_transfer_out` (L16950) — Render-thread backend: records or runs an HD texture bookkeeping note for a rectangle.
-- `rtb_set_draw_area` (L16952) — Render-thread backend: reads a rectangle of VRAM out after a sync point.
-- `rtb_get_draw_area` (L16960) — Render-thread backend: records or applies the drawing area corners.
-- `rtb_set_draw_offset` (L16967) — Render-thread backend: returns the drawing area, from the recorded copy when the render thread runs asynchronously.
-- `rtb_wide_configure` (L16969) — Render-thread backend: records or applies the drawing offset.
-- `rtb_wide_set_view` (L16984) — Render-thread backend: records or applies the wide-screen width and offset.
-- `rtb_wide_set_target` (L16986) — Render-thread backend: records or applies the wide-screen view (enable, shift and padding).
-- `rtb_wide_disable_target` (L16994) — Render-thread backend: selects the wide surface for base_x, recording the choice when on the emulation side.
-- `rtb_wide_clear` (L16998) — Render-thread backend: stops wide-surface mirroring, recording it when on the emulation side.
-- `rtb_wide_clear_margins` (L17006) — Render-thread backend: records or applies a clear of the wide surface rows for base_x.
-- `rtb_wide_feedback_rect` (L17016) — Render-thread backend: records or applies a clear of the wide surface reveal margins for base_x.
-- `rtb_render_wide_display` (L17025) — Render-thread backend: records or applies the wide-surface feedback copy.
-- `rtb_wide_dump_full` (L17029) — Render-thread backend: renders the wide display band for base_x into out after a sync point and returns the result.
-- `gl_rth_exec` (L17070) — ---- replay (render thread) ----------------------------------------------
-- `gl_rth_ctx` (L17205) — Render-thread backend: dumps the full wide surface for base_x into out after a sync point.
-- `gl_renderer_render_thread_start` (L17226) — Render thread ([video] render_thread, docs/RENDER_THREAD.md).
-- `gl_renderer_render_thread_stop` (L17267) — Callback that makes the render thread's GL context current, or releases it.
-- `gl_renderer_render_thread_active` (L17282) — Stops the render thread, draining its work; the context comes back to the emulation thread, which is current again.
-- `gl_renderer_render_thread_frame_boundary` (L17287) — Frame boundary (once per vblank, after the present): hand the context back to the render thread when the frame may run asynchronously, take it when it may not, then close the frame (the in-flight boun
-- `gl_renderer_render_thread_sync` (L17303) — Explicit sync point for callers that read renderer-written host state without calling a GL entry point (debug rings).
-- `gl_renderer_render_thread_json` (L17305) — Returns 1 when the render thread is on.
-- `rth_ring_capture_now` (L17341) — Presented-image ring capture for --headless-opengl (main.cpp), at this point of the command stream: the native-wide surface slice when wide != 0, else the display rect at internal resolution.
-- `gl_renderer_ring_capture` (L17374) — Captures a presented image into the image ring, recording the request for the render thread when it is recording.
-- `gl_backend_get` (L17385) — Returns the GL backend table: the render-thread version when the render thread is on, else the direct one.
+- `gl_renderer_set_frame_generation` (L16594) — ---- frame generation: public ----
+- `gl_renderer_frame_generation` (L16606) — Returns whether frame generation is on.
+- `gl_renderer_set_frame_generation_method` (L16611) — [video] frame_generation_method (PSX_FRAME_GEN_METHOD, resolved by the frontend): redraw, the default, draws the whole recorded list again per generated frame; reprojection (a title opts in) warps the
+- `gl_renderer_frame_generation_method` (L16619) — Returns the frame generation method: reprojection, or redraw by default.
+- `gl_renderer_fg_source` (L16623) — While recording, passes the reprojection source data (ids, camera matrix, heights and x, y per corner) to the render thread.
+- `gl_renderer_frame_gen_real_share` (L16637) — The share of a game frame the real frame may use so Smooth motion still fills every display interval: (0.85 flip - slots-1 generated frames and their swaps) / flip, never below 0.35.
+- `gl_renderer_frame_gen_configure` (L16655) — Stores the display refresh rate and, when above 1, the guest frame rate used by frame generation.
+- `gl_renderer_frame_gen_hold` (L16663) — Not a breaker trip: generation pauses while the real frames are under pressure (dynamic resolution over budget or stepping down) for the caller's short tail, without the breaker's escalating holds.
+- `fg_note_guest_frame` (L16681) — Emulation thread, once per frame boundary: the guest is late when it has slipped two intervals behind its own VBlank schedule.
+- `gl_renderer_frame_gen_counts` (L16689) — Smooth motion's atomically published running totals, for rate readouts.
+- `gl_renderer_frame_gen_costs` (L16694) — Generated frames so far, how many of them were timed, and the timed ones' summed cost (ns, GPU time or CPU wall, the larger): dynamic resolution counts what Smooth motion actually spent in its load.
+- `gl_renderer_frame_gen_prims_json` (L16710) — TCP frame_gen {"prims":1}: the older and newer closed lists' triangles (only those with no projection when only2d): index, key, view, which corners have a projection (bits), x, y.
+- `gl_renderer_frame_gen_json` (L16735) — Writes frame generation status as JSON into out (up to cap bytes), including whether the breaker is open; returns the length.
+- `rtb_init` (L16812) — Render-thread backend: initialises VRAM, syncing unless recording, and abandons any incomplete A0 transfer.
+- `rtb_set_scale` (L16820) — Render-thread backend: sets the internal resolution scale after a sync point.
+- `rtb_scale` (L16823) — The scale changes under a sync point, or by a recorded dynamic-resolution step: while recording, the level as of the recording position.
+- `rtb_set_texture_filter` (L16826) — Returns the internal scale; while recording, the level as of the recording position.
+- `rtb_texture_filter` (L16827) — Render-thread backend: sets the texture filter after a sync point.
+- `rtb_set_dither` (L16828) — Render-thread backend: returns the current texture filter.
+- `rtb_set_semi_transparency` (L16830) — Render-thread backend: records or applies the dither setting.
+- `rtb_set_mask_bits` (L16832) — Render-thread backend: records or applies the semi-transparency enable and mode.
+- `rtb_set_texture_window` (L16834) — Render-thread backend: records or applies the mask set and check flags.
+- `rtb_set_color_modulation` (L16836) — Render-thread backend: records or applies the texture window value r.
+- `rtb_set_precise_triangle` (L16838) — Render-thread backend: records or applies the colour modulation factors and raw flag.
+- `rtb_set_depth_triangle` (L16843) — Render-thread backend: records or applies the sub-pixel override for the next triangle, with its three vertices.
+- `rtb_set_perspective_triangle` (L16852) — Render-thread backend: records or applies the SZ depth values for the next triangle.
+- `rtb_fill_rect` (L16861) — Render-thread backend: records or applies the perspective q values for the next triangle.
+- `rtb_copy_rect` (L16863) — Render-thread backend: records or applies a fill of a rectangle with a colour.
+- `rtb_draw_flat_triangle` (L16865) — Render-thread backend: records or applies a VRAM copy.
+- `rtb_draw_gouraud_triangle` (L16869) — Render-thread backend: records or applies a flat-colour triangle.
+- `rtb_draw_textured_triangle` (L16874) — Render-thread backend: records or applies a Gouraud triangle with a colour at each corner.
+- `rtb_draw_shaded_textured_triangle` (L16881) — Render-thread backend: records or applies a textured triangle.
+- `rtb_draw_flat_rect` (L16891) — Render-thread backend: records or applies a textured triangle with a colour at each corner.
+- `rtb_draw_textured_rect` (L16895) — Render-thread backend: records or applies a flat rectangle.
+- `rtb_draw_textured_rect_scaled` (L16900) — Render-thread backend: records or applies a textured rectangle.
+- `rtb_draw_line` (L16906) — Render-thread backend: records or applies a textured rectangle with scaled texture coordinates.
+- `rtb_draw_shaded_line` (L16910) — Render-thread backend: records or applies a flat line.
+- `rtb_render_display` (L16914) — Render-thread backend: records or applies a line with a colour at each end.
+- `rtb_render_display_hires` (L16916) — Render-thread backend: renders the display into o after a sync point and returns the result.
+- `rtb_vram_write` (L16918) — Render-thread backend: renders the display at internal resolution into o after a sync point and returns the result.
+- `rtb_vram_read` (L16920) — Render-thread backend: records or applies a single VRAM pixel write.
+- `rtb_vram_transfer_in` (L16921) — Render-thread backend: reads one VRAM pixel after a sync point.
+- `hd_note_exec` (L16935) — Render-thread backend: records or applies a CPU-to-VRAM transfer of a rectangle.
+- `rtb_vram_upload_open` (L16945) — After the upload/draw it follows, in command order, against s_vram.
+- `rtb_hd_texture_note` (L16954) — Runs an HD texture bookkeeping operation (track or begin an upload, and related ops) for a rectangle.
+- `rtb_vram_transfer_out` (L16956) — Render-thread backend: records or runs an HD texture bookkeeping note for a rectangle.
+- `rtb_set_draw_area` (L16958) — Render-thread backend: reads a rectangle of VRAM out after a sync point.
+- `rtb_get_draw_area` (L16966) — Render-thread backend: records or applies the drawing area corners.
+- `rtb_set_draw_offset` (L16973) — Render-thread backend: returns the drawing area, from the recorded copy when the render thread runs asynchronously.
+- `rtb_wide_configure` (L16975) — Render-thread backend: records or applies the drawing offset.
+- `rtb_wide_set_view` (L16990) — Render-thread backend: records or applies the wide-screen width and offset.
+- `rtb_wide_set_target` (L16992) — Render-thread backend: records or applies the wide-screen view (enable, shift and padding).
+- `rtb_wide_disable_target` (L17000) — Render-thread backend: selects the wide surface for base_x, recording the choice when on the emulation side.
+- `rtb_wide_clear` (L17004) — Render-thread backend: stops wide-surface mirroring, recording it when on the emulation side.
+- `rtb_wide_clear_margins` (L17012) — Render-thread backend: records or applies a clear of the wide surface rows for base_x.
+- `rtb_wide_feedback_rect` (L17022) — Render-thread backend: records or applies a clear of the wide surface reveal margins for base_x.
+- `rtb_render_wide_display` (L17031) — Render-thread backend: records or applies the wide-surface feedback copy.
+- `rtb_wide_dump_full` (L17035) — Render-thread backend: renders the wide display band for base_x into out after a sync point and returns the result.
+- `gl_rth_exec` (L17076) — ---- replay (render thread) ----------------------------------------------
+- `gl_rth_ctx` (L17211) — Render-thread backend: dumps the full wide surface for base_x into out after a sync point.
+- `gl_renderer_render_thread_start` (L17232) — Render thread ([video] render_thread, docs/RENDER_THREAD.md).
+- `gl_renderer_render_thread_stop` (L17273) — Callback that makes the render thread's GL context current, or releases it.
+- `gl_renderer_render_thread_active` (L17288) — Stops the render thread, draining its work; the context comes back to the emulation thread, which is current again.
+- `gl_renderer_render_thread_frame_boundary` (L17293) — Frame boundary (once per vblank, after the present): hand the context back to the render thread when the frame may run asynchronously, take it when it may not, then close the frame (the in-flight boun
+- `gl_renderer_render_thread_sync` (L17309) — Explicit sync point for callers that read renderer-written host state without calling a GL entry point (debug rings).
+- `gl_renderer_render_thread_json` (L17311) — Returns 1 when the render thread is on.
+- `rth_ring_capture_now` (L17347) — Presented-image ring capture for --headless-opengl (main.cpp), at this point of the command stream: the native-wide surface slice when wide != 0, else the display rect at internal resolution.
+- `gl_renderer_ring_capture` (L17380) — Captures a presented image into the image ring, recording the request for the render thread when it is recording.
+- `gl_backend_get` (L17391) — Returns the GL backend table: the render-thread version when the render thread is on, else the direct one.
 
 ### runtime/src/gpu_hd_textures.cpp
 
@@ -9580,36 +9580,37 @@ Translates the GL-style draw stream into SDL_GPU calls, covering devices, pipeli
 - `sgl_hdr_output` (L732) — The output now: 0 SDR, 1 scRGB, 2 HDR10 (gl_hdr.inc runs its pass when not 0; the swap encodes HDR10 itself).
 - `hdr_follow` (L735) — After each swap: HDR follows the display (Windows' HDR switch, the window moved to another screen) without reopening the game.
 - `upload_now` (L743) — Uploads pixel data to a texture at once through a transfer buffer and copy pass; returns 1 on success.
-- `create_device` (L769) — Creates the SDL_GPU device for SPIR-V shaders with the chosen driver, debug mode from PSX_SGL_DEBUG, and reports failure.
-- `sgl_gpu_probe` (L776) — Makes the SDL_GPU device for the driver sgl will use, before any window (kept for the context that follows): 0 when there is none (no Vulkan driver or device), so the frontend can take OpenGL instead.
-- `sgl_gpu_init` (L781) — sgl_gpu.c
-- `sgl_gpu_shutdown` (L846) — Flushes and waits for the GPU, then releases pipelines, samplers, back buffers and the device.
-- `timed_thread` (L893) — Background thread that waits on each submitted GPU fence and records when the stream finished, for GPU timing.
-- `sgl_gpu_timing_enable` (L918) — GPU time (timer queries on sgl): the GPU's busy clock at a submitted stream.
-- `timing_shutdown` (L930) — Stops the timing thread and destroys its mutex, condition variables and state.
-- `timed_push` (L943) — Queues a fence with its submit id and time for the timing thread, waiting while the queue is full.
-- `timed_wait` (L951) — Blocks until the timing thread has passed the given submit id.
-- `sgl_gpu_last_submit` (L956) — Returns the id of the most recently submitted stream.
-- `sgl_gpu_clock_at` (L957) — Writes the GPU clock time of a submitted stream id into ns, waiting for it when asked; returns 1 when the time is known.
-- `cmp_u64` (L975) — qsort comparator for 64-bit unsigned values.
-- `acquire_json` (L979) — Appends swapchain acquire timing statistics as a JSON fragment for the debug server; only the count when samples are few.
-- `fence_keep` (L1007) — Stores a GPU fence for a stream id in a 16-slot ring, releasing the older fence held in that slot.
-- `sgl_gpu_wait_stream` (L1013) — Waits until the GPU has finished the given stream id, flushing first if it is still open; returns 1 on success.
-- `same_target` (L1025) — ---- encoding -----------------------------------------------------------
-- `begin_pass` (L1028) — Starts a render pass on the command buffer for a target, clearing color or depth when a clear op is given.
-- `ensure_buffer` (L1060) — Grows a vertex buffer to hold at least need bytes, doubling from 1 MB; returns 1 on success.
-- `ensure_xfer` (L1073) — Grows a transfer buffer of the given usage to hold at least need bytes; returns 1 on success.
-- `stream_reset` (L1083) — Frees deferred resources, clears the op and arena lists, and starts a new stream id.
-- `stream_has` (L1096) — Returns 1 when the current stream already holds an op of the given type.
-- `sgl_flush` (L1101) — Encode and submit the stream; wait for the GPU when wait != 0.
-- `sgl_gpu_read_now` (L1383) — Reads a texture rectangle back to CPU memory at once, flushing the stream first; the pixels are returned through out.
-- `sgl_create_context` (L1408) — ---- the context API ----------------------------------------------------
-- `sgl_make_current` (L1414) — Reports success for the single shared context: true when ctx is NULL or that context.
-- `sgl_delete_context` (L1418) — Shuts down the GPU when the given context is the one in use.
-- `sgl_swap_window` (L1421) — Flushes the stream with a present, follows window moves, updates HDR, and returns whether the flush worked.
-- `sgl_set_swap_interval` (L1428) — 1 = vsync, 0 = immediate (mailbox when available), -1 = adaptive (vsync).
-- `sgl_get_swap_interval` (L1432) — Writes the current swap interval through the pointer and returns success.
-- `sgl_stats_json` (L1437) — Counters for the debug server (TCP "sgl"): passes, draws, uploads...
+- `create_device` (L770) — Creates the SDL_GPU device for SPIR-V shaders with the chosen driver, debug mode from PSX_SGL_DEBUG, and reports failure.
+- `sgl_gpu_probe` (L777) — Makes the SDL_GPU device for the driver sgl will use, before any window (kept for the context that follows): 0 when there is none (no Vulkan driver or device), so the frontend can take OpenGL instead.
+- `sgl_gpu_init` (L782) — sgl_gpu.c
+- `sgl_gpu_shutdown` (L851) — Flushes and waits for the GPU, then releases pipelines, samplers, back buffers and the device.
+- `timed_thread` (L898) — Background thread that waits on each submitted GPU fence and records when the stream finished, for GPU timing.
+- `sgl_gpu_timing_enable` (L923) — GPU time (timer queries on sgl): the GPU's busy clock at a submitted stream.
+- `timing_shutdown` (L935) — Stops the timing thread and destroys its mutex, condition variables and state.
+- `timed_push` (L948) — Queues a fence with its submit id and time for the timing thread, waiting while the queue is full.
+- `timed_wait` (L956) — Blocks until the timing thread has passed the given submit id.
+- `sgl_gpu_last_submit` (L961) — Returns the id of the most recently submitted stream.
+- `sgl_gpu_clock_at` (L962) — Writes the GPU clock time of a submitted stream id into ns, waiting for it when asked; returns 1 when the time is known.
+- `cmp_u64` (L980) — qsort comparator for 64-bit unsigned values.
+- `acquire_json` (L984) — Appends swapchain acquire timing statistics as a JSON fragment for the debug server; only the count when samples are few.
+- `fence_keep` (L1012) — Stores a GPU fence for a stream id in a 16-slot ring, releasing the older fence held in that slot.
+- `sgl_gpu_wait_stream` (L1018) — Waits until the GPU has finished the given stream id, flushing first if it is still open; returns 1 on success.
+- `same_target` (L1030) — ---- encoding -----------------------------------------------------------
+- `begin_pass` (L1033) — Starts a render pass on the command buffer for a target, clearing color or depth when a clear op is given.
+- `note_once` (L1067) — One line per kind of failure, the first time only: a failure that repeats every frame would flood the output.
+- `ensure_buffer` (L1073) — Grows a vertex buffer to hold at least need bytes, doubling from 1 MB; returns 1 on success.
+- `ensure_xfer` (L1087) — Grows a transfer buffer of the given usage to hold at least need bytes; returns 1 on success.
+- `stream_reset` (L1098) — Frees deferred resources, clears the op and arena lists, and starts a new stream id.
+- `stream_has` (L1111) — Returns 1 when the current stream already holds an op of the given type.
+- `sgl_flush` (L1116) — Encode and submit the stream; wait for the GPU when wait != 0.
+- `sgl_gpu_read_now` (L1412) — Reads a texture rectangle back to CPU memory at once, flushing the stream first; the pixels are returned through out.
+- `sgl_create_context` (L1437) — ---- the context API ----------------------------------------------------
+- `sgl_make_current` (L1443) — Reports success for the single shared context: true when ctx is NULL or that context.
+- `sgl_delete_context` (L1447) — Shuts down the GPU when the given context is the one in use.
+- `sgl_swap_window` (L1450) — Flushes the stream with a present, follows window moves, updates HDR, and returns whether the flush worked.
+- `sgl_set_swap_interval` (L1457) — 1 = vsync, 0 = immediate (mailbox when available), -1 = adaptive (vsync).
+- `sgl_get_swap_interval` (L1461) — Writes the current swap interval through the pointer and returns success.
+- `sgl_stats_json` (L1466) — Counters for the debug server (TCP "sgl"): passes, draws, uploads...
 
 ### runtime/src/sgl/sgl_shader.cpp
 

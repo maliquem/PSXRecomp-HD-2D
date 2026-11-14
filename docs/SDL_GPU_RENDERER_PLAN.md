@@ -496,3 +496,11 @@ sem a aprovação dela; nada de push.
   gravação de configurações pelo jogo (Smooth motion, tamanho da janela) trocava o settings.toml
   para "opengl". Testado com `PSX_SGL_DRIVER=bogus` (OpenGL, settings.toml intacto) e no caminho
   normal (Vulkan).
+- 2026-11-14, auditoria (etapa 1): falhas da `sgl` tratadas. Um pipeline que o driver recusa fica
+  guardado como recusado (uma tentativa e uma linha por chave, não uma por desenho; o desenho é
+  pulado). As arenas de vértices e de uploads só trocam de buffer quando o novo existe; se não
+  subirem, os desenhos ou uploads que as leem são pulados e uma linha avisa uma vez. Falha ao pegar
+  a imagem do swapchain também avisa uma vez. Na abertura, sem o buffer de entradas constantes ou
+  as texturas vazias, `sgl_gpu_init` falha em vez de seguir com entradas erradas. No `glDrawArrays` com
+  atributos espalhados, o buffer de origem é lido depois de criar o de coleta (criar pode mover a
+  tabela).
