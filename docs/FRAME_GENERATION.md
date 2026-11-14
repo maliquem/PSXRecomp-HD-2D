@@ -1,8 +1,11 @@
 # Smooth motion (frame generation, `[video] frame_generation`)
 
-Opt-in, OpenGL with the render thread only, off by default
-(`PSX_FRAME_GEN=0/1` overrides for one run). Off, nothing in this document
-runs and the renderer is the render thread of docs/RENDER_THREAD.md.
+Opt-in, off by default, on the OpenGL and `sdl_gpu` (Vulkan, Direct3D 12 or
+Metal) renderers with the render thread (`PSX_FRAME_GEN=0/1` overrides for one
+run). Off, nothing in this document runs and the renderer is the render thread
+of docs/RENDER_THREAD.md. On `sdl_gpu`, each real or generated frame is
+presented through the swapchain's FIFO queue, one per display refresh;
+`PSX_SGL_FG_FIFO=0` goes back to the OpenGL way.
 
 ```toml
 [video]
