@@ -302,6 +302,8 @@ uint64_t sgl_gpu_last_submit(void);
 int      sgl_gpu_clock_at(uint64_t id, uint64_t *ns, int wait);
 int  sgl_gpu_alloc_image(SglImage *im, GLenum ifmt, int w, int h);
 void sgl_release_texture(SDL_GPUTexture *t);
+/* sgl_gl.c: the kept scratch images go (before the device does). */
+void sgl_scratch_free(void);
 /* Encode and submit the stream; wait for the GPU when wait != 0. present !=
  * 0 also copies the default framebuffer to the window. Returns 1 on success. */
 int  sgl_flush(int wait, int present);

@@ -84,7 +84,8 @@ has measured time to spare.
   frame's image and skips the clears before the first draw, and strips along
   a view's edges the picture moved away from are copied from that image, so
   what the in-between camera uncovers shows the newer frame instead of a
-  hole. Every placed vertex at one screen position moves alike (a weld: the same
+  hole (the main view's strips pixel by pixel against the newer frame's
+  depth, copied once per game frame for all its in-betweens). Every placed vertex at one screen position moves alike (a weld: the same
   corner reaches the GPU from several projections), and a vertex without a
   projection lying on an edge between placed vertices moves as that point of
   the edge (closes the T-junctions the game's polygon splits leave). A game
@@ -228,6 +229,8 @@ newer frame's dial. `frame_gen` reports `reproject`, `reprojected`,
 - A minimized window generates nothing (no swapchain image, so no vsync
   wait would pace the in-betweens); `frame_gen` reports "window minimized".
 - Windowed high-resolution mode and depth24 frames are not generated.
+- A game frame whose recorded list passes 64 MB or a million records is
+  not generated (the list is dropped, not grown without end).
 - HD texture replacements and dumping: generated frames draw with the same
   replacements as real frames (HUD/2D included); they are presentation only,
   so native VRAM and dumps see only real frames (generated draws suppress

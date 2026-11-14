@@ -504,3 +504,9 @@ sem a aprovação dela; nada de push.
   as texturas vazias, `sgl_gpu_init` falha em vez de seguir com entradas erradas. No `glDrawArrays` com
   atributos espalhados, o buffer de origem é lido depois de criar o de coleta (criar pode mover a
   tabela).
+- 2026-11-14, auditoria (etapa 4): menos trabalho repetido. Cópias e blits dentro da mesma imagem
+  (cor, profundidade, só estêncil) usam imagens de rascunho guardadas (até 8, por formato e
+  tamanho) em vez de criar e soltar uma por chamada, e o blit de cor copia só o retângulo lido
+  (mais um texel para o filtro linear). `set_uniform` só marca o bloco sujo quando o valor muda
+  (a chave de pipeline já tinha o cache de 16 assinaturas). `glBeginQuery` não força mais um
+  envio: o intervalo medido começa no último envio e inclui o trabalho ainda não enviado.

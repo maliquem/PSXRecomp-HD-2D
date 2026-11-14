@@ -850,6 +850,7 @@ int sgl_gpu_init(SDL_Window *win) {
 static void timing_shutdown(void);
 void sgl_gpu_shutdown(void) {
     if (!g_sgl.dev) return;
+    sgl_scratch_free();
     sgl_flush(1, 0);
     SDL_WaitForGPUIdle(g_sgl.dev);
     timing_shutdown();

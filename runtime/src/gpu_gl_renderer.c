@@ -14470,6 +14470,12 @@ static void fg_capture(const RtCmd *c, const void *payload) {
         s_fg_cur_buf = tb;
     }
     FgList *l = &s_fg_l[s_fg_cur];
+    /* A game that never flips (one buffer, a 2D screen redrawn in place)
+     * would grow one list forever: past 64 MB it starts over, incomplete. */
+    if (l->len > ((size_t)64 << 20) || l->n >= (1u << 20)) {
+        fg_list_open();
+        s_fg_partial = 1;
+    }
     int r = fg_list_append(l, c->op, c->flags, payload, c->payload);
     if (r < 0) return;
     if (c->op == RTH_PRECISE) {
@@ -15778,6 +15784,7 @@ static int rp_allocated(void) {
  * (1 - d) - 256, as the chains read it. */
 static GLuint s_fgw_prog = 0, s_fgw_dtex = 0, s_fgw_dfbo = 0;
 static int    s_fgw_dw = 0, s_fgw_dh = 0, s_fgw_failed = 0;
+static uint64_t s_fgw_key[6];   /* what s_fgw_dtex holds: flips + 1, src, rect */
 static GLint  s_fgw_u[12];
 static uint64_t s_fgw_strips = 0;   /* TCP frame_gen: strips filled this way */
 static const char *FGW_FS =
@@ -15828,7 +15835,13 @@ static int fgw_prepare(GLuint src_fbo, int x0, int y0, int w, int h) {
         glDrawBuffer(GL_NONE); glReadBuffer(GL_NONE);
         p_glBindFramebuffer(PSXGL_FRAMEBUFFER, 0);
         s_fgw_dw = w; s_fgw_dh = h;
+        s_fgw_key[0] = 0;
     }
+    /* The newer frame's depth is the same for every in-between of a pair:
+     * copied at the first one, while the real stream has drawn least since. */
+    const uint64_t key[6] = { s_fg_flips + 1, src_fbo, (uint64_t)x0, (uint64_t)y0, (uint64_t)w, (uint64_t)h };
+    if (!memcmp(key, s_fgw_key, sizeof key)) return 1;
+    memcpy(s_fgw_key, key, sizeof key);
     p_glBindFramebuffer(PSXGL_READ_FRAMEBUFFER, src_fbo);
     p_glBindFramebuffer(PSXGL_DRAW_FRAMEBUFFER, s_fgw_dfbo);
     glDisable(GL_SCISSOR_TEST);

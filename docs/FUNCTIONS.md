@@ -4811,118 +4811,118 @@ Hardware OpenGL renderer backend that keeps PS1 VRAM on the GPU and draws, masks
 - `vlog_rewind` (L14401) — VRAM back to list l's start (fg_replay): every upload since, newest first, undone; what is there now is kept in *cur (one buffer per upload) for vlog_restore.
 - `vlog_restore` (L14427) — What vlog_rewind kept, put back (VRAM as it is now).
 - `fg_capture` (L14438) — Called for every replayed record (gl_rth_exec), before it executes.
-- `fg_area_meets` (L14512) — Returns 1 when the drawing area overlaps the display rectangle disp.
-- `fg_list_close` (L14518) — Close the capturing list as the frame of buffer disp (x, y, w, h).
-- `fg_list_open` (L14550) — Opens the capturing list for the current buffer: clears it and notes the VRAM log sequence.
-- `fg_invalidate` (L14560) — Invalidates the four recorded lists and the last-frame state, so generation waits for fresh frames.
-- `fg_surface_warm` (L14572) — A new surface's first touch (the driver backing its storage) happens here, when it is allocated, not inside the first generated frame; that frame's measured cost is discarded as well (cold).
-- `fg_surfaces_ensure` (L14586) — Surfaces for the generated image, at the current level.
-- `fg_surfaces_free` (L14613) — Deletes the frame generation surfaces (hr and wide framebuffers, textures and renderbuffers).
-- `fg_blit2` (L14628) — Colour only: a depth-stencil blit costs the CPU milliseconds on macOS (most of a generated frame at high levels).
-- `fg_blit2_stencil` (L14638) — The marks (stencil) of the same rect: only while a chain reads them (s_fg_marks), for the depth-stencil blit's cost (fg_blit2).
-- `fg_blit` (L14646) — Copies the colour of a rectangle from the src framebuffer to dst, with the scissor turned off.
-- `fg_draw_tri_at` (L14656) — Re-emits a recorded triangle record at the given positions (x and y per corner) into the draw list.
-- `fg_rect_meets` (L14707) — Returns 1 when the rectangle x, y, w, h overlaps the display rectangle disp.
-- `fg_rect_groups` (L14719) — Redraw list b at phase t (0 = a's positions, 1 = b's) into the surfaces currently bound as hr / the displayed wide surface.
-- `fg_replay` (L14768) — Redraws list b at phase t for the generated frame, using list a only for the HUD motion; each vertex is placed between the two frames.
-- `fg_edge_offsets` (L15082) — Measures per-view edge offsets from the two lists, using averaged segment offsets, so the generated frame's edges line up.
-- `fg_strip_copy` (L15145) — A strip copy (colour) from the newer frame at an offset (surface px).
-- `fg_effects_view` (L15165) — Builds the map from the newer frame's camera to the in-between camera for the effects view; returns 0 when there is no fit.
-- `fg_newer_to_between` (L15177) — The main view's map from the newer real frame's camera space to the in-between camera's (GTE: y down): P' = A P + b.
-- `fg_compose` (L15199) — The generated image composed like a real present (no hold-last, no interpolation capture, no present bookkeeping), then swapped.
-- `rp_resources` (L15357) — Builds the reprojection programs and resources on first use; returns 1 when ready.
-- `rp_push` (L15405) — Appends one vertex (position, depth and view) to the reprojection vertex list, growing it when full; returns 0 on failure.
-- `rp_push_quad` (L15417) — Appends a two-triangle quad covering the rectangle to the reprojection vertex list.
-- `rp_view_params` (L15425) — Projection centre and distance per view, from its camera-placed vertices (x = cx + h X / Z).
-- `rp_is_car` (L15452) — A triangle the fit called an object is a car only when it really moved against the world: corners whose older position is what the camera alone predicts (near road subdivided past the fit's pixel tole
-- `fg_reproject` (L15476) — Warps the newer real frame to the in-between time t by reprojection, drawing into dst_fbo; returns 0 on failure.
-- `rp_free` (L15737) — Everything reprojection allocated (programs, snapshots, depth image, buffers): released when Smooth motion goes off or redraw is chosen, so neither keeps any of it.
-- `rp_allocated` (L15762) — Tests: reprojection holds nothing (no program, surface or buffer).
-- `fgw_prepare` (L15808) — Ready to fill: the program, and the newer frame's depth over the picture (surface px: x0, y0, w, h of src_fbo) in a texture.
-- `fgw_strip` (L15841) — One strip piece (dst surface px rect), the shader's inputs set by the caller.
-- `fg_generate` (L15849) — Generates one in-between frame at phase t from the two recorded lists, swapping it when swap is set; returns 0 when not possible.
-- `fg_ceil` (L16151) — Returns the frame generation ceiling state, initialised on first use with a limit of 15 and a factor of 2.0.
-- `fg_trip` (L16156) — Records a frame generation breaker trip, counting late trips and backpressure trips by the reason text.
-- `fg_overload` (L16169) — The render thread a frame behind (a stale present, two frames queued): proportional, not a stop.
-- `fg_gen_cost_publish` (L16174) — Publishes one generated frame's cost into the running totals.
-- `fg_gen_cost_poll` (L16181) — Reads finished GPU timer queries for generated frames, oldest first, and publishes their costs.
-- `fg_generate_timed` (L16201) — One generated frame at phase t, timed (GPU query, CPU wall minus swap).
-- `fg_keep_real` (L16250) — Keep the composed back buffer (a real frame) for later.
-- `fg_present_real` (L16275) — Presents the waiting real frame when one was kept; clears the pending flag either way.
-- `fg_flush` (L16299) — Present the waiting real frame now (generated frames still due are dropped): a newer present, a sync point, the queue backing up.
-- `fg_tick` (L16305) — Frame generation tick: presents the waiting real frame or generates frames when they are due; returns 0 when nothing is pending.
-- `fg_on_present` (L16362) — A present record replayed with frame generation on.
-- `fg_hold_real` (L16590) — No in-between frames this game frame: right after one that had them, holds its real frame to the last interval for this one frame (else 0, shown as usual).
-- `fg_queue_real` (L16600) — Keep the composed real frame and show it after n in-between frames spread over 'slots' display intervals (n = 0: at the last of them).
-- `gl_renderer_set_frame_generation` (L16638) — ---- frame generation: public ----
-- `gl_renderer_frame_generation` (L16650) — Returns whether frame generation is on.
-- `gl_renderer_set_frame_generation_method` (L16655) — [video] frame_generation_method (PSX_FRAME_GEN_METHOD, resolved by the frontend): redraw, the default, draws the whole recorded list again per generated frame; reprojection (a title opts in) warps the
-- `gl_renderer_frame_generation_method` (L16663) — Returns the frame generation method: reprojection, or redraw by default.
-- `gl_renderer_fg_source` (L16667) — While recording, passes the reprojection source data (ids, camera matrix, heights and x, y per corner) to the render thread.
-- `gl_renderer_frame_gen_real_share` (L16681) — The share of a game frame the real frame may use so Smooth motion still fills every display interval: (0.85 flip - slots-1 generated frames and their swaps) / flip, never below 0.35.
-- `gl_renderer_frame_gen_configure` (L16699) — Stores the display refresh rate and, when above 1, the guest frame rate used by frame generation.
-- `gl_renderer_frame_gen_hold` (L16707) — Not a breaker trip: generation pauses while the real frames are under pressure (dynamic resolution over budget or stepping down) for the caller's short tail, without the breaker's escalating holds.
-- `fg_note_guest_frame` (L16725) — Emulation thread, once per frame boundary: the guest is late when it has slipped two intervals behind its own VBlank schedule.
-- `gl_renderer_frame_gen_counts` (L16733) — Smooth motion's atomically published running totals, for rate readouts.
-- `gl_renderer_frame_gen_costs` (L16738) — Generated frames so far, how many of them were timed, and the timed ones' summed cost (ns, GPU time or CPU wall, the larger): dynamic resolution counts what Smooth motion actually spent in its load.
-- `gl_renderer_frame_gen_prims_json` (L16754) — TCP frame_gen {"prims":1}: the older and newer closed lists' triangles (only those with no projection when only2d): index, key, view, which corners have a projection (bits), x, y.
-- `gl_renderer_frame_gen_json` (L16779) — Writes frame generation status as JSON into out (up to cap bytes), including whether the breaker is open; returns the length.
-- `rtb_init` (L16856) — Render-thread backend: initialises VRAM, syncing unless recording, and abandons any incomplete A0 transfer.
-- `rtb_set_scale` (L16864) — Render-thread backend: sets the internal resolution scale after a sync point.
-- `rtb_scale` (L16867) — The scale changes under a sync point, or by a recorded dynamic-resolution step: while recording, the level as of the recording position.
-- `rtb_set_texture_filter` (L16870) — Returns the internal scale; while recording, the level as of the recording position.
-- `rtb_texture_filter` (L16871) — Render-thread backend: sets the texture filter after a sync point.
-- `rtb_set_dither` (L16872) — Render-thread backend: returns the current texture filter.
-- `rtb_set_semi_transparency` (L16874) — Render-thread backend: records or applies the dither setting.
-- `rtb_set_mask_bits` (L16876) — Render-thread backend: records or applies the semi-transparency enable and mode.
-- `rtb_set_texture_window` (L16878) — Render-thread backend: records or applies the mask set and check flags.
-- `rtb_set_color_modulation` (L16880) — Render-thread backend: records or applies the texture window value r.
-- `rtb_set_precise_triangle` (L16882) — Render-thread backend: records or applies the colour modulation factors and raw flag.
-- `rtb_set_depth_triangle` (L16887) — Render-thread backend: records or applies the sub-pixel override for the next triangle, with its three vertices.
-- `rtb_set_perspective_triangle` (L16896) — Render-thread backend: records or applies the SZ depth values for the next triangle.
-- `rtb_fill_rect` (L16905) — Render-thread backend: records or applies the perspective q values for the next triangle.
-- `rtb_copy_rect` (L16907) — Render-thread backend: records or applies a fill of a rectangle with a colour.
-- `rtb_draw_flat_triangle` (L16909) — Render-thread backend: records or applies a VRAM copy.
-- `rtb_draw_gouraud_triangle` (L16913) — Render-thread backend: records or applies a flat-colour triangle.
-- `rtb_draw_textured_triangle` (L16918) — Render-thread backend: records or applies a Gouraud triangle with a colour at each corner.
-- `rtb_draw_shaded_textured_triangle` (L16925) — Render-thread backend: records or applies a textured triangle.
-- `rtb_draw_flat_rect` (L16935) — Render-thread backend: records or applies a textured triangle with a colour at each corner.
-- `rtb_draw_textured_rect` (L16939) — Render-thread backend: records or applies a flat rectangle.
-- `rtb_draw_textured_rect_scaled` (L16944) — Render-thread backend: records or applies a textured rectangle.
-- `rtb_draw_line` (L16950) — Render-thread backend: records or applies a textured rectangle with scaled texture coordinates.
-- `rtb_draw_shaded_line` (L16954) — Render-thread backend: records or applies a flat line.
-- `rtb_render_display` (L16958) — Render-thread backend: records or applies a line with a colour at each end.
-- `rtb_render_display_hires` (L16960) — Render-thread backend: renders the display into o after a sync point and returns the result.
-- `rtb_vram_write` (L16962) — Render-thread backend: renders the display at internal resolution into o after a sync point and returns the result.
-- `rtb_vram_read` (L16964) — Render-thread backend: records or applies a single VRAM pixel write.
-- `rtb_vram_transfer_in` (L16965) — Render-thread backend: reads one VRAM pixel after a sync point.
-- `hd_note_exec` (L16979) — Render-thread backend: records or applies a CPU-to-VRAM transfer of a rectangle.
-- `rtb_vram_upload_open` (L16989) — After the upload/draw it follows, in command order, against s_vram.
-- `rtb_hd_texture_note` (L16998) — Runs an HD texture bookkeeping operation (track or begin an upload, and related ops) for a rectangle.
-- `rtb_vram_transfer_out` (L17000) — Render-thread backend: records or runs an HD texture bookkeeping note for a rectangle.
-- `rtb_set_draw_area` (L17002) — Render-thread backend: reads a rectangle of VRAM out after a sync point.
-- `rtb_get_draw_area` (L17010) — Render-thread backend: records or applies the drawing area corners.
-- `rtb_set_draw_offset` (L17017) — Render-thread backend: returns the drawing area, from the recorded copy when the render thread runs asynchronously.
-- `rtb_wide_configure` (L17019) — Render-thread backend: records or applies the drawing offset.
-- `rtb_wide_set_view` (L17034) — Render-thread backend: records or applies the wide-screen width and offset.
-- `rtb_wide_set_target` (L17036) — Render-thread backend: records or applies the wide-screen view (enable, shift and padding).
-- `rtb_wide_disable_target` (L17044) — Render-thread backend: selects the wide surface for base_x, recording the choice when on the emulation side.
-- `rtb_wide_clear` (L17048) — Render-thread backend: stops wide-surface mirroring, recording it when on the emulation side.
-- `rtb_wide_clear_margins` (L17056) — Render-thread backend: records or applies a clear of the wide surface rows for base_x.
-- `rtb_wide_feedback_rect` (L17066) — Render-thread backend: records or applies a clear of the wide surface reveal margins for base_x.
-- `rtb_render_wide_display` (L17075) — Render-thread backend: records or applies the wide-surface feedback copy.
-- `rtb_wide_dump_full` (L17079) — Render-thread backend: renders the wide display band for base_x into out after a sync point and returns the result.
-- `gl_rth_exec` (L17120) — ---- replay (render thread) ----------------------------------------------
-- `gl_rth_ctx` (L17255) — Render-thread backend: dumps the full wide surface for base_x into out after a sync point.
-- `gl_renderer_render_thread_start` (L17276) — Render thread ([video] render_thread, docs/RENDER_THREAD.md).
-- `gl_renderer_render_thread_stop` (L17317) — Callback that makes the render thread's GL context current, or releases it.
-- `gl_renderer_render_thread_active` (L17332) — Stops the render thread, draining its work; the context comes back to the emulation thread, which is current again.
-- `gl_renderer_render_thread_frame_boundary` (L17337) — Frame boundary (once per vblank, after the present): hand the context back to the render thread when the frame may run asynchronously, take it when it may not, then close the frame (the in-flight boun
-- `gl_renderer_render_thread_sync` (L17353) — Explicit sync point for callers that read renderer-written host state without calling a GL entry point (debug rings).
-- `gl_renderer_render_thread_json` (L17355) — Returns 1 when the render thread is on.
-- `rth_ring_capture_now` (L17391) — Presented-image ring capture for --headless-opengl (main.cpp), at this point of the command stream: the native-wide surface slice when wide != 0, else the display rect at internal resolution.
-- `gl_renderer_ring_capture` (L17424) — Captures a presented image into the image ring, recording the request for the render thread when it is recording.
-- `gl_backend_get` (L17435) — Returns the GL backend table: the render-thread version when the render thread is on, else the direct one.
+- `fg_area_meets` (L14518) — Returns 1 when the drawing area overlaps the display rectangle disp.
+- `fg_list_close` (L14524) — Close the capturing list as the frame of buffer disp (x, y, w, h).
+- `fg_list_open` (L14556) — Opens the capturing list for the current buffer: clears it and notes the VRAM log sequence.
+- `fg_invalidate` (L14566) — Invalidates the four recorded lists and the last-frame state, so generation waits for fresh frames.
+- `fg_surface_warm` (L14578) — A new surface's first touch (the driver backing its storage) happens here, when it is allocated, not inside the first generated frame; that frame's measured cost is discarded as well (cold).
+- `fg_surfaces_ensure` (L14592) — Surfaces for the generated image, at the current level.
+- `fg_surfaces_free` (L14619) — Deletes the frame generation surfaces (hr and wide framebuffers, textures and renderbuffers).
+- `fg_blit2` (L14634) — Colour only: a depth-stencil blit costs the CPU milliseconds on macOS (most of a generated frame at high levels).
+- `fg_blit2_stencil` (L14644) — The marks (stencil) of the same rect: only while a chain reads them (s_fg_marks), for the depth-stencil blit's cost (fg_blit2).
+- `fg_blit` (L14652) — Copies the colour of a rectangle from the src framebuffer to dst, with the scissor turned off.
+- `fg_draw_tri_at` (L14662) — Re-emits a recorded triangle record at the given positions (x and y per corner) into the draw list.
+- `fg_rect_meets` (L14713) — Returns 1 when the rectangle x, y, w, h overlaps the display rectangle disp.
+- `fg_rect_groups` (L14725) — Redraw list b at phase t (0 = a's positions, 1 = b's) into the surfaces currently bound as hr / the displayed wide surface.
+- `fg_replay` (L14774) — Redraws list b at phase t for the generated frame, using list a only for the HUD motion; each vertex is placed between the two frames.
+- `fg_edge_offsets` (L15088) — Measures per-view edge offsets from the two lists, using averaged segment offsets, so the generated frame's edges line up.
+- `fg_strip_copy` (L15151) — A strip copy (colour) from the newer frame at an offset (surface px).
+- `fg_effects_view` (L15171) — Builds the map from the newer frame's camera to the in-between camera for the effects view; returns 0 when there is no fit.
+- `fg_newer_to_between` (L15183) — The main view's map from the newer real frame's camera space to the in-between camera's (GTE: y down): P' = A P + b.
+- `fg_compose` (L15205) — The generated image composed like a real present (no hold-last, no interpolation capture, no present bookkeeping), then swapped.
+- `rp_resources` (L15363) — Builds the reprojection programs and resources on first use; returns 1 when ready.
+- `rp_push` (L15411) — Appends one vertex (position, depth and view) to the reprojection vertex list, growing it when full; returns 0 on failure.
+- `rp_push_quad` (L15423) — Appends a two-triangle quad covering the rectangle to the reprojection vertex list.
+- `rp_view_params` (L15431) — Projection centre and distance per view, from its camera-placed vertices (x = cx + h X / Z).
+- `rp_is_car` (L15458) — A triangle the fit called an object is a car only when it really moved against the world: corners whose older position is what the camera alone predicts (near road subdivided past the fit's pixel tole
+- `fg_reproject` (L15482) — Warps the newer real frame to the in-between time t by reprojection, drawing into dst_fbo; returns 0 on failure.
+- `rp_free` (L15743) — Everything reprojection allocated (programs, snapshots, depth image, buffers): released when Smooth motion goes off or redraw is chosen, so neither keeps any of it.
+- `rp_allocated` (L15768) — Tests: reprojection holds nothing (no program, surface or buffer).
+- `fgw_prepare` (L15815) — Ready to fill: the program, and the newer frame's depth over the picture (surface px: x0, y0, w, h of src_fbo) in a texture.
+- `fgw_strip` (L15854) — One strip piece (dst surface px rect), the shader's inputs set by the caller.
+- `fg_generate` (L15862) — Generates one in-between frame at phase t from the two recorded lists, swapping it when swap is set; returns 0 when not possible.
+- `fg_ceil` (L16164) — Returns the frame generation ceiling state, initialised on first use with a limit of 15 and a factor of 2.0.
+- `fg_trip` (L16169) — Records a frame generation breaker trip, counting late trips and backpressure trips by the reason text.
+- `fg_overload` (L16182) — The render thread a frame behind (a stale present, two frames queued): proportional, not a stop.
+- `fg_gen_cost_publish` (L16187) — Publishes one generated frame's cost into the running totals.
+- `fg_gen_cost_poll` (L16194) — Reads finished GPU timer queries for generated frames, oldest first, and publishes their costs.
+- `fg_generate_timed` (L16214) — One generated frame at phase t, timed (GPU query, CPU wall minus swap).
+- `fg_keep_real` (L16263) — Keep the composed back buffer (a real frame) for later.
+- `fg_present_real` (L16288) — Presents the waiting real frame when one was kept; clears the pending flag either way.
+- `fg_flush` (L16312) — Present the waiting real frame now (generated frames still due are dropped): a newer present, a sync point, the queue backing up.
+- `fg_tick` (L16318) — Frame generation tick: presents the waiting real frame or generates frames when they are due; returns 0 when nothing is pending.
+- `fg_on_present` (L16375) — A present record replayed with frame generation on.
+- `fg_hold_real` (L16603) — No in-between frames this game frame: right after one that had them, holds its real frame to the last interval for this one frame (else 0, shown as usual).
+- `fg_queue_real` (L16613) — Keep the composed real frame and show it after n in-between frames spread over 'slots' display intervals (n = 0: at the last of them).
+- `gl_renderer_set_frame_generation` (L16651) — ---- frame generation: public ----
+- `gl_renderer_frame_generation` (L16663) — Returns whether frame generation is on.
+- `gl_renderer_set_frame_generation_method` (L16668) — [video] frame_generation_method (PSX_FRAME_GEN_METHOD, resolved by the frontend): redraw, the default, draws the whole recorded list again per generated frame; reprojection (a title opts in) warps the
+- `gl_renderer_frame_generation_method` (L16676) — Returns the frame generation method: reprojection, or redraw by default.
+- `gl_renderer_fg_source` (L16680) — While recording, passes the reprojection source data (ids, camera matrix, heights and x, y per corner) to the render thread.
+- `gl_renderer_frame_gen_real_share` (L16694) — The share of a game frame the real frame may use so Smooth motion still fills every display interval: (0.85 flip - slots-1 generated frames and their swaps) / flip, never below 0.35.
+- `gl_renderer_frame_gen_configure` (L16712) — Stores the display refresh rate and, when above 1, the guest frame rate used by frame generation.
+- `gl_renderer_frame_gen_hold` (L16720) — Not a breaker trip: generation pauses while the real frames are under pressure (dynamic resolution over budget or stepping down) for the caller's short tail, without the breaker's escalating holds.
+- `fg_note_guest_frame` (L16738) — Emulation thread, once per frame boundary: the guest is late when it has slipped two intervals behind its own VBlank schedule.
+- `gl_renderer_frame_gen_counts` (L16746) — Smooth motion's atomically published running totals, for rate readouts.
+- `gl_renderer_frame_gen_costs` (L16751) — Generated frames so far, how many of them were timed, and the timed ones' summed cost (ns, GPU time or CPU wall, the larger): dynamic resolution counts what Smooth motion actually spent in its load.
+- `gl_renderer_frame_gen_prims_json` (L16767) — TCP frame_gen {"prims":1}: the older and newer closed lists' triangles (only those with no projection when only2d): index, key, view, which corners have a projection (bits), x, y.
+- `gl_renderer_frame_gen_json` (L16792) — Writes frame generation status as JSON into out (up to cap bytes), including whether the breaker is open; returns the length.
+- `rtb_init` (L16869) — Render-thread backend: initialises VRAM, syncing unless recording, and abandons any incomplete A0 transfer.
+- `rtb_set_scale` (L16877) — Render-thread backend: sets the internal resolution scale after a sync point.
+- `rtb_scale` (L16880) — The scale changes under a sync point, or by a recorded dynamic-resolution step: while recording, the level as of the recording position.
+- `rtb_set_texture_filter` (L16883) — Returns the internal scale; while recording, the level as of the recording position.
+- `rtb_texture_filter` (L16884) — Render-thread backend: sets the texture filter after a sync point.
+- `rtb_set_dither` (L16885) — Render-thread backend: returns the current texture filter.
+- `rtb_set_semi_transparency` (L16887) — Render-thread backend: records or applies the dither setting.
+- `rtb_set_mask_bits` (L16889) — Render-thread backend: records or applies the semi-transparency enable and mode.
+- `rtb_set_texture_window` (L16891) — Render-thread backend: records or applies the mask set and check flags.
+- `rtb_set_color_modulation` (L16893) — Render-thread backend: records or applies the texture window value r.
+- `rtb_set_precise_triangle` (L16895) — Render-thread backend: records or applies the colour modulation factors and raw flag.
+- `rtb_set_depth_triangle` (L16900) — Render-thread backend: records or applies the sub-pixel override for the next triangle, with its three vertices.
+- `rtb_set_perspective_triangle` (L16909) — Render-thread backend: records or applies the SZ depth values for the next triangle.
+- `rtb_fill_rect` (L16918) — Render-thread backend: records or applies the perspective q values for the next triangle.
+- `rtb_copy_rect` (L16920) — Render-thread backend: records or applies a fill of a rectangle with a colour.
+- `rtb_draw_flat_triangle` (L16922) — Render-thread backend: records or applies a VRAM copy.
+- `rtb_draw_gouraud_triangle` (L16926) — Render-thread backend: records or applies a flat-colour triangle.
+- `rtb_draw_textured_triangle` (L16931) — Render-thread backend: records or applies a Gouraud triangle with a colour at each corner.
+- `rtb_draw_shaded_textured_triangle` (L16938) — Render-thread backend: records or applies a textured triangle.
+- `rtb_draw_flat_rect` (L16948) — Render-thread backend: records or applies a textured triangle with a colour at each corner.
+- `rtb_draw_textured_rect` (L16952) — Render-thread backend: records or applies a flat rectangle.
+- `rtb_draw_textured_rect_scaled` (L16957) — Render-thread backend: records or applies a textured rectangle.
+- `rtb_draw_line` (L16963) — Render-thread backend: records or applies a textured rectangle with scaled texture coordinates.
+- `rtb_draw_shaded_line` (L16967) — Render-thread backend: records or applies a flat line.
+- `rtb_render_display` (L16971) — Render-thread backend: records or applies a line with a colour at each end.
+- `rtb_render_display_hires` (L16973) — Render-thread backend: renders the display into o after a sync point and returns the result.
+- `rtb_vram_write` (L16975) — Render-thread backend: renders the display at internal resolution into o after a sync point and returns the result.
+- `rtb_vram_read` (L16977) — Render-thread backend: records or applies a single VRAM pixel write.
+- `rtb_vram_transfer_in` (L16978) — Render-thread backend: reads one VRAM pixel after a sync point.
+- `hd_note_exec` (L16992) — Render-thread backend: records or applies a CPU-to-VRAM transfer of a rectangle.
+- `rtb_vram_upload_open` (L17002) — After the upload/draw it follows, in command order, against s_vram.
+- `rtb_hd_texture_note` (L17011) — Runs an HD texture bookkeeping operation (track or begin an upload, and related ops) for a rectangle.
+- `rtb_vram_transfer_out` (L17013) — Render-thread backend: records or runs an HD texture bookkeeping note for a rectangle.
+- `rtb_set_draw_area` (L17015) — Render-thread backend: reads a rectangle of VRAM out after a sync point.
+- `rtb_get_draw_area` (L17023) — Render-thread backend: records or applies the drawing area corners.
+- `rtb_set_draw_offset` (L17030) — Render-thread backend: returns the drawing area, from the recorded copy when the render thread runs asynchronously.
+- `rtb_wide_configure` (L17032) — Render-thread backend: records or applies the drawing offset.
+- `rtb_wide_set_view` (L17047) — Render-thread backend: records or applies the wide-screen width and offset.
+- `rtb_wide_set_target` (L17049) — Render-thread backend: records or applies the wide-screen view (enable, shift and padding).
+- `rtb_wide_disable_target` (L17057) — Render-thread backend: selects the wide surface for base_x, recording the choice when on the emulation side.
+- `rtb_wide_clear` (L17061) — Render-thread backend: stops wide-surface mirroring, recording it when on the emulation side.
+- `rtb_wide_clear_margins` (L17069) — Render-thread backend: records or applies a clear of the wide surface rows for base_x.
+- `rtb_wide_feedback_rect` (L17079) — Render-thread backend: records or applies a clear of the wide surface reveal margins for base_x.
+- `rtb_render_wide_display` (L17088) — Render-thread backend: records or applies the wide-surface feedback copy.
+- `rtb_wide_dump_full` (L17092) — Render-thread backend: renders the wide display band for base_x into out after a sync point and returns the result.
+- `gl_rth_exec` (L17133) — ---- replay (render thread) ----------------------------------------------
+- `gl_rth_ctx` (L17268) — Render-thread backend: dumps the full wide surface for base_x into out after a sync point.
+- `gl_renderer_render_thread_start` (L17289) — Render thread ([video] render_thread, docs/RENDER_THREAD.md).
+- `gl_renderer_render_thread_stop` (L17330) — Callback that makes the render thread's GL context current, or releases it.
+- `gl_renderer_render_thread_active` (L17345) — Stops the render thread, draining its work; the context comes back to the emulation thread, which is current again.
+- `gl_renderer_render_thread_frame_boundary` (L17350) — Frame boundary (once per vblank, after the present): hand the context back to the render thread when the frame may run asynchronously, take it when it may not, then close the frame (the in-flight boun
+- `gl_renderer_render_thread_sync` (L17366) — Explicit sync point for callers that read renderer-written host state without calling a GL entry point (debug rings).
+- `gl_renderer_render_thread_json` (L17368) — Returns 1 when the render thread is on.
+- `rth_ring_capture_now` (L17404) — Presented-image ring capture for --headless-opengl (main.cpp), at this point of the command stream: the native-wide surface slice when wide != 0, else the display rect at internal resolution.
+- `gl_renderer_ring_capture` (L17437) — Captures a presented image into the image ring, recording the request for the render thread when it is recording.
+- `gl_backend_get` (L17448) — Returns the GL backend table: the render-thread version when the render thread is on, else the direct one.
 
 ### runtime/src/gpu_hd_textures.cpp
 
@@ -9409,134 +9409,137 @@ The sgl layer's GL entry points: object tables, textures, framebuffers, buffers,
 - `sgl_glTexImage2D` (L436) — GL glTexImage2D: creates or resizes the bound texture at level 0 and uploads its pixels.
 - `sgl_glTexSubImage2D` (L448) — GL glTexSubImage2D: uploads a rectangle of pixels into the bound texture at level 0.
 - `push_copy` (L455) — Queues a GPU copy of a rectangle from one texture to another.
-- `copy_color` (L467) — A 1:1 copy of colour between two images; through a blit when the formats differ (the GL renderer copies RGBA8 into float surfaces).
-- `sgl_glCopyTexSubImage2D` (L492) — GL glCopyTexSubImage2D: copies a rectangle of the read framebuffer into the bound texture.
-- `sgl_glCopyTexImage2D` (L508) — GL glCopyTexImage2D: creates the bound texture at level 0 from a rectangle of the read framebuffer.
-- `convert_rows_out` (L521) — ---- readbacks ----------------------------------------------------------
-- `sgl_glReadPixels` (L540) — GL glReadPixels: reads a rectangle of the read framebuffer into client memory in the requested format.
-- `sgl_glGetTexImage` (L592) — GL glGetTexImage: reads the bound texture's level-0 pixels back into client memory.
-- `sgl_glGenFramebuffers` (L606) — ---- framebuffer objects ------------------------------------------------
-- `sgl_glDeleteFramebuffers` (L613) — GL glDeleteFramebuffers: frees the named framebuffer objects.
-- `sgl_glBindFramebuffer` (L622) — GL glBindFramebuffer: binds the draw, read or both targets to a framebuffer; name 0 is the window.
-- `bound_fbo` (L627) — Returns the framebuffer bound to the draw or the read target.
-- `attach` (L630) — Attaches a texture or renderbuffer to the bound framebuffer's colour or depth slot.
-- `sgl_glFramebufferTexture2D` (L637) — GL glFramebufferTexture2D: attaches a texture to the bound framebuffer.
-- `sgl_glFramebufferRenderbuffer` (L642) — GL glFramebufferRenderbuffer: attaches a renderbuffer to the bound framebuffer.
-- `sgl_glCheckFramebufferStatus` (L647) — GL glCheckFramebufferStatus: reports whether the bound framebuffer is complete; unsupported for unknown objects.
-- `sgl_glGetFramebufferAttachmentParameteriv` (L659) — GL glGetFramebufferAttachmentParameteriv: reports details of an attachment such as its component type and size.
-- `sgl_glReadBuffer` (L672) — GL glReadBuffer: sets which attachment the read framebuffer reads from.
-- `sgl_glDrawBuffer` (L676) — GL glDrawBuffer: sets which attachment the draw framebuffer writes to.
-- `sgl_glGenRenderbuffers` (L682) — ---- renderbuffers ------------------------------------------------------
-- `sgl_glDeleteRenderbuffers` (L685) — GL glDeleteRenderbuffers: frees the named renderbuffers.
-- `sgl_glBindRenderbuffer` (L694) — GL glBindRenderbuffer: selects the renderbuffer that later storage calls use.
-- `sgl_glRenderbufferStorage` (L695) — GL glRenderbufferStorage: gives the bound renderbuffer a size and format.
-- `sgl_glGenBuffers` (L705) — ---- buffers ------------------------------------------------------------
-- `sgl_glDeleteBuffers` (L708) — GL glDeleteBuffers: frees the named buffer objects and their data.
-- `buffer_slot` (L729) — Returns the binding slot for a buffer target such as array, element, pack or unpack.
-- `sgl_glBindBuffer` (L738) — GL glBindBuffer: binds a buffer name to a target.
-- `sgl_glBufferData` (L742) — GL glBufferData: sets the size of the bound buffer and copies data into it.
-- `sgl_glBufferSubData` (L757) — GL glBufferSubData: copies data into part of the bound buffer; refuses ranges outside it.
-- `sgl_glMapBuffer` (L764) — GL glMapBuffer: returns a pointer to the bound buffer's data, or NULL.
-- `sgl_glUnmapBuffer` (L785) — GL glUnmapBuffer: always succeeds, since the mapping is plain memory.
-- `sgl_glGenVertexArrays` (L788) — ---- vertex arrays ------------------------------------------------------
-- `sgl_glDeleteVertexArrays` (L791) — GL glDeleteVertexArrays: frees the named vertex arrays and unbinds one that is current.
-- `sgl_glBindVertexArray` (L799) — GL glBindVertexArray: makes a vertex array the current one for attribute state.
-- `cur_vao` (L801) — static SglVao s_vao0; /* VAO 0: core GL forbids drawing with it, but keep one
-- `sgl_glVertexAttribPointer` (L805) — GL glVertexAttribPointer: sets the format and buffer offset of one vertex attribute.
-- `sgl_glDisableVertexAttribArray` (L813) — GL glDisableVertexAttribArray: turns off one vertex attribute.
-- `sgl_glGetVertexAttribiv` (L819) — GL glGetVertexAttribiv: reads one vertex attribute's state, such as enabled, size or type.
-- `sgl_glGetVertexAttribPointerv` (L832) — GL glGetVertexAttribPointerv: reads the offset of one vertex attribute.
-- `sgl_glEnableVertexAttribArray` (L836) — GL glEnableVertexAttribArray: turns on one vertex attribute.
-- `sgl_glCreateShader` (L845) — GL glCreateShader: makes a shader object of the given type and returns its name.
-- `sgl_glShaderSource` (L851) — GL glShaderSource: stores the GLSL source text for a shader.
-- `sgl_glCompileShader` (L869) — The GLSL is compiled with its partner stage at link time (varyings are matched by name across the two stages there).
-- `sgl_glGetShaderiv` (L870) — GL glGetShaderiv: reports a shader's status; compile status is true when source was stored.
-- `sgl_glGetShaderInfoLog` (L878) — GL glGetShaderInfoLog: returns an empty shader log.
-- `free_program_link` (L883) — Releases a program's link data, uniform tables and GPU state.
-- `sgl_glDeleteShader` (L893) — GL glDeleteShader: frees a shader's source text.
-- `sgl_glCreateProgram` (L899) — GL glCreateProgram: makes an empty program object and returns its name.
-- `sgl_glDeleteProgram` (L905) — GL glDeleteProgram: frees a program and its link data.
-- `sgl_glAttachShader` (L912) — GL glAttachShader: attaches a shader to a program, up to four shaders.
-- `sgl_glBindFragDataLocationIndexed` (L917) — GL glBindFragDataLocationIndexed: names a fragment output so it binds to a colour and index at link time.
-- `sgl_glLinkProgram` (L928) — GL glLinkProgram: links the attached shaders into a program, replacing any earlier link.
-- `sgl_glGetProgramiv` (L947) — GL glGetProgramiv: reports a program's status, such as link status, uniform count or log length.
-- `sgl_glGetProgramInfoLog` (L964) — GL glGetProgramInfoLog: copies the program's link log into the buffer.
-- `sgl_glUseProgram` (L973) — GL glUseProgram: makes a program current for drawing.
-- `sgl_glIsProgram` (L974) — GL glIsProgram: true when the name is a live program object.
-- `sgl_glDetachShader` (L975) — GL glDetachShader: does nothing, since detaching is not tracked.
-- `sgl_glGetAttribLocation` (L976) — GL glGetAttribLocation: returns the location of a vertex input by name, or -1.
-- `sgl_glGetStringi` (L983) — GL glGetStringi: returns NULL, since no indexed strings are offered.
-- `uniform_at` (L986) — Location -> (uniform, element).
-- `sgl_glGetUniformLocation` (L992) — GL glGetUniformLocation: returns a uniform's location in a linked program, or -1.
-- `gltype_is_int` (L1012) — 1 when a GLSL uniform type is an integer or unsigned integer type.
-- `gltype_comps` (L1021) — Number of components of a GLSL uniform type, such as 1 for float or 4 for vec4.
-- `set_uniform` (L1034) — Write n components (as ints or floats) to the uniform at loc of the current program, 'count' array elements from loc on.
-- `sgl_glUniform1i` (L1067) — GL glUniform1i: sets an integer uniform at the location.
-- `sgl_glUniform2i` (L1068) — GL glUniform2i: sets a two-component integer uniform.
-- `sgl_glUniform4i` (L1069) — GL glUniform4i: sets a four-component integer uniform.
-- `sgl_glUniform1f` (L1070) — GL glUniform1f: sets a float uniform.
-- `sgl_glUniform2f` (L1071) — GL glUniform2f: sets a two-component float uniform.
-- `sgl_glUniform3f` (L1072) — GL glUniform3f: sets a three-component float uniform.
-- `sgl_glUniform4f` (L1073) — GL glUniform4f: sets a four-component float uniform.
-- `sgl_glUniform4fv` (L1074) — GL glUniform4fv: sets an array of four-component float uniforms from client memory.
-- `sgl_glUniformMatrix4fv` (L1075) — GL glUniformMatrix4fv: sets a 4 by 4 float matrix uniform from client memory.
-- `sgl_glGetActiveUniform` (L1085) — GL glGetActiveUniform: returns the name, size and type of the uniform at an index.
-- `get_uniform` (L1101) — Reads a uniform's current value into a float or integer array.
-- `sgl_glGetUniformfv` (L1134) — GL glGetUniformfv: reads a float uniform's value.
-- `sgl_glGetUniformiv` (L1135) — GL glGetUniformiv: reads an integer uniform's value.
-- `cap_slot` (L1138) — ---- fixed-function state -----------------------------------------------
-- `sgl_glEnable` (L1147) — GL glEnable: turns a capability on, such as blend or depth test.
-- `sgl_glDisable` (L1148) — GL glDisable: turns a capability off.
-- `sgl_glIsEnabled` (L1149) — GL glIsEnabled: true when a capability is on.
-- `sgl_glBlendFunc` (L1150) — GL glBlendFunc: sets the same source and destination blend factors for colour and alpha.
-- `sgl_glBlendFuncSeparate` (L1153) — GL glBlendFuncSeparate: sets the colour and alpha blend factors separately.
-- `sgl_glBlendEquationSeparate` (L1156) — GL glBlendEquationSeparate: sets the colour and alpha blend equations separately.
-- `sgl_glBlendEquation` (L1157) — GL glBlendEquation: sets one blend equation for colour and alpha.
-- `sgl_glBindSampler` (L1158) — GL glBindSampler: accepts only sampler 0; other samplers are ignored.
-- `sgl_glPolygonMode` (L1159) — static void APIENTRY sgl_glBindSampler(GLuint unit, GLuint sampler) { (void)unit; (void)sampler; } /* 0 only
-- `sgl_glBlendColor` (L1160) — static void APIENTRY sgl_glBindSampler(GLuint unit, GLuint sampler) { (void)unit; (void)sampler; } /* 0 only static void APIENTRY sgl_glPolygonMode(GLenum face, GLenum mode) { (void)face; (void)mode;
-- `sgl_glColorMask` (L1163) — GL glColorMask: sets which colour channels may be written.
-- `sgl_glDepthMask` (L1167) — GL glDepthMask: sets whether depth writes are on.
-- `sgl_glDepthFunc` (L1168) — GL glDepthFunc: sets the depth comparison function.
-- `sgl_glStencilMask` (L1169) — GL glStencilMask: sets the stencil write mask.
-- `sgl_glStencilFunc` (L1170) — GL glStencilFunc: sets the stencil test function and reference value.
-- `sgl_glStencilOp` (L1173) — GL glStencilOp: sets what the stencil does on a failed test and on depth pass or fail.
-- `sgl_glClearColor` (L1176) — GL glClearColor: sets the colour used by clears.
-- `sgl_glClearDepth` (L1179) — GL glClearDepth: sets the depth value used by clears.
-- `sgl_glClearStencil` (L1180) — GL glClearStencil: sets the stencil value used by clears.
-- `sgl_glViewport` (L1181) — GL glViewport: sets the viewport rectangle.
-- `sgl_glScissor` (L1184) — GL glScissor: sets the scissor rectangle.
-- `sgl_glLineWidth` (L1187) — GL glLineWidth: sets the line width.
-- `sgl_glPixelStorei` (L1188) — GL glPixelStorei: sets pack and unpack alignment and row length for pixel transfers.
-- `sgl_glGetIntegerv` (L1202) — GL glGetIntegerv: reads integer state such as the viewport.
-- `sgl_glGetBooleanv` (L1256) — GL glGetBooleanv: reads boolean state such as the colour and depth write masks.
-- `sgl_glGetFloatv` (L1262) — GL glGetFloatv: reads float state such as the clear colour and line width.
-- `sgl_glGetString` (L1268) — GL glGetString: returns the version and vendor strings of the software layer.
-- `sgl_glGetError` (L1279) — GL glGetError: returns the pending error and clears it.
-- `sgl_glFinish` (L1280) — GL glFinish: flushes all queued work and waits for it to finish.
-- `sgl_glFlush` (L1281) — GL glFlush: submits queued work without waiting for it.
-- `sgl_glFenceSync` (L1284) — ---- sync objects -------------------------------------------------------
-- `sgl_glWaitSync` (L1292) — One queue: everything later in the stream already runs after the fence.
-- `sgl_glDeleteSync` (L1295) — GL glDeleteSync: frees a sync object.
-- `sgl_glDrawArrays` (L1304) — GL_TRIANGLES / GL_LINES of the current program into the draw framebuffer.
-- `attrib_bytes` (L1450) — Byte size of one vertex attribute element, from its type and component count.
-- `sgl_glDrawElementsBaseVertex` (L1458) — GL glDrawElementsBaseVertex: draws indexed primitives from the bound element buffer with a base vertex offset.
-- `sgl_glDrawElements` (L1515) — GL glDrawElements: draws indexed primitives; the same as the base-vertex call with offset 0.
-- `sgl_glGenQueries` (L1521) — GL glGenQueries: makes query objects and returns their names.
-- `sgl_glDeleteQueries` (L1524) — GL glDeleteQueries: frees query objects.
-- `query_mark` (L1531) — The clock is read after what was recorded so far has gone to the GPU.
-- `sgl_glBeginQuery` (L1536) — GL glBeginQuery: starts a query; sets an error for an unknown name.
-- `sgl_glEndQuery` (L1545) — GL glEndQuery: ends the open query and places its end mark.
-- `sgl_glQueryCounter` (L1553) — GL glQueryCounter: records a timestamp into a query object now.
-- `query_result` (L1561) — Reads a query's elapsed GPU time, optionally waiting for the GPU; returns 0 while not ready.
-- `sgl_glGetQueryObjectui64v` (L1570) — GL glGetQueryObjectui64v: reports whether a query result is ready, or returns its elapsed time.
-- `sgl_glGetQueryObjectiv` (L1576) — GL glGetQueryObjectiv: same as the 64-bit call, returned as a 32-bit value.
-- `internal_draw` (L1583) — An internal program's draw: a full-target triangle, scissored to rect.
-- `sgl_glClear` (L1617) — GL glClear: clears the colour, depth and stencil of the draw target as the masks allow.
-- `sgl_glBlitFramebuffer` (L1653) — ---- glBlitFramebuffer --------------------------------------------------
-- `sgl_get_proc` (L1828) — GL entry points by name (glDisable, glUniform4f, ...); NULL for the ones the layer does not offer (the timer queries: the renderer then runs without GPU timing, as on a GL without ARB_timer_query).
-- `sgl_follow_window` (L1835) — Makes the default framebuffer follow the window's pixel size.
-- `sgl_state_reset` (L1838) — Default GL state, at context creation.
+- `scratch_get` (L472) — sgl_gl.c: a kept scratch image of this format and size (a pool of 8, oldest replaced), for the copies a same-image blit or copy needs, instead of one new image per call.
+- `sgl_scratch_free` (L495) — sgl_gl.c: the kept scratch images go (before the device does).
+- `sample_rect` (L502) — Rectangle x0..x1, y0..y1 (either order) grown by a texel for linear sampling, clipped to the image: what a scratch copy must carry.
+- `copy_color` (L511) — A 1:1 copy of colour between two images; through a blit when the formats differ (the GL renderer copies RGBA8 into float surfaces).
+- `sgl_glCopyTexSubImage2D` (L535) — GL glCopyTexSubImage2D: copies a rectangle of the read framebuffer into the bound texture.
+- `sgl_glCopyTexImage2D` (L551) — GL glCopyTexImage2D: creates the bound texture at level 0 from a rectangle of the read framebuffer.
+- `convert_rows_out` (L564) — ---- readbacks ----------------------------------------------------------
+- `sgl_glReadPixels` (L583) — GL glReadPixels: reads a rectangle of the read framebuffer into client memory in the requested format.
+- `sgl_glGetTexImage` (L635) — GL glGetTexImage: reads the bound texture's level-0 pixels back into client memory.
+- `sgl_glGenFramebuffers` (L649) — ---- framebuffer objects ------------------------------------------------
+- `sgl_glDeleteFramebuffers` (L656) — GL glDeleteFramebuffers: frees the named framebuffer objects.
+- `sgl_glBindFramebuffer` (L665) — GL glBindFramebuffer: binds the draw, read or both targets to a framebuffer; name 0 is the window.
+- `bound_fbo` (L670) — Returns the framebuffer bound to the draw or the read target.
+- `attach` (L673) — Attaches a texture or renderbuffer to the bound framebuffer's colour or depth slot.
+- `sgl_glFramebufferTexture2D` (L680) — GL glFramebufferTexture2D: attaches a texture to the bound framebuffer.
+- `sgl_glFramebufferRenderbuffer` (L685) — GL glFramebufferRenderbuffer: attaches a renderbuffer to the bound framebuffer.
+- `sgl_glCheckFramebufferStatus` (L690) — GL glCheckFramebufferStatus: reports whether the bound framebuffer is complete; unsupported for unknown objects.
+- `sgl_glGetFramebufferAttachmentParameteriv` (L702) — GL glGetFramebufferAttachmentParameteriv: reports details of an attachment such as its component type and size.
+- `sgl_glReadBuffer` (L715) — GL glReadBuffer: sets which attachment the read framebuffer reads from.
+- `sgl_glDrawBuffer` (L719) — GL glDrawBuffer: sets which attachment the draw framebuffer writes to.
+- `sgl_glGenRenderbuffers` (L725) — ---- renderbuffers ------------------------------------------------------
+- `sgl_glDeleteRenderbuffers` (L728) — GL glDeleteRenderbuffers: frees the named renderbuffers.
+- `sgl_glBindRenderbuffer` (L737) — GL glBindRenderbuffer: selects the renderbuffer that later storage calls use.
+- `sgl_glRenderbufferStorage` (L738) — GL glRenderbufferStorage: gives the bound renderbuffer a size and format.
+- `sgl_glGenBuffers` (L748) — ---- buffers ------------------------------------------------------------
+- `sgl_glDeleteBuffers` (L751) — GL glDeleteBuffers: frees the named buffer objects and their data.
+- `buffer_slot` (L772) — Returns the binding slot for a buffer target such as array, element, pack or unpack.
+- `sgl_glBindBuffer` (L781) — GL glBindBuffer: binds a buffer name to a target.
+- `sgl_glBufferData` (L785) — GL glBufferData: sets the size of the bound buffer and copies data into it.
+- `sgl_glBufferSubData` (L800) — GL glBufferSubData: copies data into part of the bound buffer; refuses ranges outside it.
+- `sgl_glMapBuffer` (L807) — GL glMapBuffer: returns a pointer to the bound buffer's data, or NULL.
+- `sgl_glUnmapBuffer` (L828) — GL glUnmapBuffer: always succeeds, since the mapping is plain memory.
+- `sgl_glGenVertexArrays` (L831) — ---- vertex arrays ------------------------------------------------------
+- `sgl_glDeleteVertexArrays` (L834) — GL glDeleteVertexArrays: frees the named vertex arrays and unbinds one that is current.
+- `sgl_glBindVertexArray` (L842) — GL glBindVertexArray: makes a vertex array the current one for attribute state.
+- `cur_vao` (L844) — static SglVao s_vao0; /* VAO 0: core GL forbids drawing with it, but keep one
+- `sgl_glVertexAttribPointer` (L848) — GL glVertexAttribPointer: sets the format and buffer offset of one vertex attribute.
+- `sgl_glDisableVertexAttribArray` (L856) — GL glDisableVertexAttribArray: turns off one vertex attribute.
+- `sgl_glGetVertexAttribiv` (L862) — GL glGetVertexAttribiv: reads one vertex attribute's state, such as enabled, size or type.
+- `sgl_glGetVertexAttribPointerv` (L875) — GL glGetVertexAttribPointerv: reads the offset of one vertex attribute.
+- `sgl_glEnableVertexAttribArray` (L879) — GL glEnableVertexAttribArray: turns on one vertex attribute.
+- `sgl_glCreateShader` (L888) — GL glCreateShader: makes a shader object of the given type and returns its name.
+- `sgl_glShaderSource` (L894) — GL glShaderSource: stores the GLSL source text for a shader.
+- `sgl_glCompileShader` (L912) — The GLSL is compiled with its partner stage at link time (varyings are matched by name across the two stages there).
+- `sgl_glGetShaderiv` (L913) — GL glGetShaderiv: reports a shader's status; compile status is true when source was stored.
+- `sgl_glGetShaderInfoLog` (L921) — GL glGetShaderInfoLog: returns an empty shader log.
+- `free_program_link` (L926) — Releases a program's link data, uniform tables and GPU state.
+- `sgl_glDeleteShader` (L936) — GL glDeleteShader: frees a shader's source text.
+- `sgl_glCreateProgram` (L942) — GL glCreateProgram: makes an empty program object and returns its name.
+- `sgl_glDeleteProgram` (L948) — GL glDeleteProgram: frees a program and its link data.
+- `sgl_glAttachShader` (L955) — GL glAttachShader: attaches a shader to a program, up to four shaders.
+- `sgl_glBindFragDataLocationIndexed` (L960) — GL glBindFragDataLocationIndexed: names a fragment output so it binds to a colour and index at link time.
+- `sgl_glLinkProgram` (L971) — GL glLinkProgram: links the attached shaders into a program, replacing any earlier link.
+- `sgl_glGetProgramiv` (L990) — GL glGetProgramiv: reports a program's status, such as link status, uniform count or log length.
+- `sgl_glGetProgramInfoLog` (L1007) — GL glGetProgramInfoLog: copies the program's link log into the buffer.
+- `sgl_glUseProgram` (L1016) — GL glUseProgram: makes a program current for drawing.
+- `sgl_glIsProgram` (L1017) — GL glIsProgram: true when the name is a live program object.
+- `sgl_glDetachShader` (L1018) — GL glDetachShader: does nothing, since detaching is not tracked.
+- `sgl_glGetAttribLocation` (L1019) — GL glGetAttribLocation: returns the location of a vertex input by name, or -1.
+- `sgl_glGetStringi` (L1026) — GL glGetStringi: returns NULL, since no indexed strings are offered.
+- `uniform_at` (L1029) — Location -> (uniform, element).
+- `sgl_glGetUniformLocation` (L1035) — GL glGetUniformLocation: returns a uniform's location in a linked program, or -1.
+- `gltype_is_int` (L1055) — 1 when a GLSL uniform type is an integer or unsigned integer type.
+- `gltype_comps` (L1064) — Number of components of a GLSL uniform type, such as 1 for float or 4 for vec4.
+- `set_uniform` (L1077) — Write n components (as ints or floats) to the uniform at loc of the current program, 'count' array elements from loc on.
+- `sgl_glUniform1i` (L1115) — GL glUniform1i: sets an integer uniform at the location.
+- `sgl_glUniform2i` (L1116) — GL glUniform2i: sets a two-component integer uniform.
+- `sgl_glUniform4i` (L1117) — GL glUniform4i: sets a four-component integer uniform.
+- `sgl_glUniform1f` (L1118) — GL glUniform1f: sets a float uniform.
+- `sgl_glUniform2f` (L1119) — GL glUniform2f: sets a two-component float uniform.
+- `sgl_glUniform3f` (L1120) — GL glUniform3f: sets a three-component float uniform.
+- `sgl_glUniform4f` (L1121) — GL glUniform4f: sets a four-component float uniform.
+- `sgl_glUniform4fv` (L1122) — GL glUniform4fv: sets an array of four-component float uniforms from client memory.
+- `sgl_glUniformMatrix4fv` (L1123) — GL glUniformMatrix4fv: sets a 4 by 4 float matrix uniform from client memory.
+- `sgl_glGetActiveUniform` (L1133) — GL glGetActiveUniform: returns the name, size and type of the uniform at an index.
+- `get_uniform` (L1149) — Reads a uniform's current value into a float or integer array.
+- `sgl_glGetUniformfv` (L1182) — GL glGetUniformfv: reads a float uniform's value.
+- `sgl_glGetUniformiv` (L1183) — GL glGetUniformiv: reads an integer uniform's value.
+- `cap_slot` (L1186) — ---- fixed-function state -----------------------------------------------
+- `sgl_glEnable` (L1195) — GL glEnable: turns a capability on, such as blend or depth test.
+- `sgl_glDisable` (L1196) — GL glDisable: turns a capability off.
+- `sgl_glIsEnabled` (L1197) — GL glIsEnabled: true when a capability is on.
+- `sgl_glBlendFunc` (L1198) — GL glBlendFunc: sets the same source and destination blend factors for colour and alpha.
+- `sgl_glBlendFuncSeparate` (L1201) — GL glBlendFuncSeparate: sets the colour and alpha blend factors separately.
+- `sgl_glBlendEquationSeparate` (L1204) — GL glBlendEquationSeparate: sets the colour and alpha blend equations separately.
+- `sgl_glBlendEquation` (L1205) — GL glBlendEquation: sets one blend equation for colour and alpha.
+- `sgl_glBindSampler` (L1206) — GL glBindSampler: accepts only sampler 0; other samplers are ignored.
+- `sgl_glPolygonMode` (L1207) — static void APIENTRY sgl_glBindSampler(GLuint unit, GLuint sampler) { (void)unit; (void)sampler; } /* 0 only
+- `sgl_glBlendColor` (L1208) — static void APIENTRY sgl_glBindSampler(GLuint unit, GLuint sampler) { (void)unit; (void)sampler; } /* 0 only static void APIENTRY sgl_glPolygonMode(GLenum face, GLenum mode) { (void)face; (void)mode;
+- `sgl_glColorMask` (L1211) — GL glColorMask: sets which colour channels may be written.
+- `sgl_glDepthMask` (L1215) — GL glDepthMask: sets whether depth writes are on.
+- `sgl_glDepthFunc` (L1216) — GL glDepthFunc: sets the depth comparison function.
+- `sgl_glStencilMask` (L1217) — GL glStencilMask: sets the stencil write mask.
+- `sgl_glStencilFunc` (L1218) — GL glStencilFunc: sets the stencil test function and reference value.
+- `sgl_glStencilOp` (L1221) — GL glStencilOp: sets what the stencil does on a failed test and on depth pass or fail.
+- `sgl_glClearColor` (L1224) — GL glClearColor: sets the colour used by clears.
+- `sgl_glClearDepth` (L1227) — GL glClearDepth: sets the depth value used by clears.
+- `sgl_glClearStencil` (L1228) — GL glClearStencil: sets the stencil value used by clears.
+- `sgl_glViewport` (L1229) — GL glViewport: sets the viewport rectangle.
+- `sgl_glScissor` (L1232) — GL glScissor: sets the scissor rectangle.
+- `sgl_glLineWidth` (L1235) — GL glLineWidth: sets the line width.
+- `sgl_glPixelStorei` (L1236) — GL glPixelStorei: sets pack and unpack alignment and row length for pixel transfers.
+- `sgl_glGetIntegerv` (L1250) — GL glGetIntegerv: reads integer state such as the viewport.
+- `sgl_glGetBooleanv` (L1304) — GL glGetBooleanv: reads boolean state such as the colour and depth write masks.
+- `sgl_glGetFloatv` (L1310) — GL glGetFloatv: reads float state such as the clear colour and line width.
+- `sgl_glGetString` (L1316) — GL glGetString: returns the version and vendor strings of the software layer.
+- `sgl_glGetError` (L1327) — GL glGetError: returns the pending error and clears it.
+- `sgl_glFinish` (L1328) — GL glFinish: flushes all queued work and waits for it to finish.
+- `sgl_glFlush` (L1329) — GL glFlush: submits queued work without waiting for it.
+- `sgl_glFenceSync` (L1332) — ---- sync objects -------------------------------------------------------
+- `sgl_glWaitSync` (L1340) — One queue: everything later in the stream already runs after the fence.
+- `sgl_glDeleteSync` (L1343) — GL glDeleteSync: frees a sync object.
+- `sgl_glDrawArrays` (L1352) — GL_TRIANGLES / GL_LINES of the current program into the draw framebuffer.
+- `attrib_bytes` (L1498) — Byte size of one vertex attribute element, from its type and component count.
+- `sgl_glDrawElementsBaseVertex` (L1506) — GL glDrawElementsBaseVertex: draws indexed primitives from the bound element buffer with a base vertex offset.
+- `sgl_glDrawElements` (L1563) — GL glDrawElements: draws indexed primitives; the same as the base-vertex call with offset 0.
+- `sgl_glGenQueries` (L1569) — GL glGenQueries: makes query objects and returns their names.
+- `sgl_glDeleteQueries` (L1572) — GL glDeleteQueries: frees query objects.
+- `query_mark` (L1579) — The clock is read after what was recorded so far has gone to the GPU.
+- `sgl_glBeginQuery` (L1584) — GL glBeginQuery: starts a query; sets an error for an unknown name.
+- `sgl_glEndQuery` (L1597) — GL glEndQuery: ends the open query and places its end mark.
+- `sgl_glQueryCounter` (L1605) — GL glQueryCounter: records a timestamp into a query object now.
+- `query_result` (L1613) — Reads a query's elapsed GPU time, optionally waiting for the GPU; returns 0 while not ready.
+- `sgl_glGetQueryObjectui64v` (L1622) — GL glGetQueryObjectui64v: reports whether a query result is ready, or returns its elapsed time.
+- `sgl_glGetQueryObjectiv` (L1628) — GL glGetQueryObjectiv: same as the 64-bit call, returned as a 32-bit value.
+- `internal_draw` (L1635) — An internal program's draw: a full-target triangle, scissored to rect.
+- `sgl_glClear` (L1669) — GL glClear: clears the colour, depth and stencil of the draw target as the masks allow.
+- `sgl_glBlitFramebuffer` (L1705) — ---- glBlitFramebuffer --------------------------------------------------
+- `sgl_get_proc` (L1878) — GL entry points by name (glDisable, glUniform4f, ...); NULL for the ones the layer does not offer (the timer queries: the renderer then runs without GPU timing, as on a GL without ARB_timer_query).
+- `sgl_follow_window` (L1885) — Makes the default framebuffer follow the window's pixel size.
+- `sgl_state_reset` (L1888) — Default GL state, at context creation.
 
 ### runtime/src/sgl/sgl_gpu.c
 
@@ -9588,33 +9591,33 @@ Translates the GL-style draw stream into SDL_GPU calls, covering devices, pipeli
 - `sgl_gpu_probe` (L777) — Makes the SDL_GPU device for the driver sgl will use, before any window (kept for the context that follows): 0 when there is none (no Vulkan driver or device), so the frontend can take OpenGL instead.
 - `sgl_gpu_init` (L782) — sgl_gpu.c
 - `sgl_gpu_shutdown` (L851) — Flushes and waits for the GPU, then releases pipelines, samplers, back buffers and the device.
-- `timed_thread` (L898) — Background thread that waits on each submitted GPU fence and records when the stream finished, for GPU timing.
-- `sgl_gpu_timing_enable` (L923) — GPU time (timer queries on sgl): the GPU's busy clock at a submitted stream.
-- `timing_shutdown` (L935) — Stops the timing thread and destroys its mutex, condition variables and state.
-- `timed_push` (L948) — Queues a fence with its submit id and time for the timing thread, waiting while the queue is full.
-- `timed_wait` (L956) — Blocks until the timing thread has passed the given submit id.
-- `sgl_gpu_last_submit` (L961) — Returns the id of the most recently submitted stream.
-- `sgl_gpu_clock_at` (L962) — Writes the GPU clock time of a submitted stream id into ns, waiting for it when asked; returns 1 when the time is known.
-- `cmp_u64` (L980) — qsort comparator for 64-bit unsigned values.
-- `acquire_json` (L984) — Appends swapchain acquire timing statistics as a JSON fragment for the debug server; only the count when samples are few.
-- `fence_keep` (L1012) — Stores a GPU fence for a stream id in a 16-slot ring, releasing the older fence held in that slot.
-- `sgl_gpu_wait_stream` (L1018) — Waits until the GPU has finished the given stream id, flushing first if it is still open; returns 1 on success.
-- `same_target` (L1030) — ---- encoding -----------------------------------------------------------
-- `begin_pass` (L1033) — Starts a render pass on the command buffer for a target, clearing color or depth when a clear op is given.
-- `note_once` (L1067) — One line per kind of failure, the first time only: a failure that repeats every frame would flood the output.
-- `ensure_buffer` (L1073) — Grows a vertex buffer to hold at least need bytes, doubling from 1 MB; returns 1 on success.
-- `ensure_xfer` (L1087) — Grows a transfer buffer of the given usage to hold at least need bytes; returns 1 on success.
-- `stream_reset` (L1098) — Frees deferred resources, clears the op and arena lists, and starts a new stream id.
-- `stream_has` (L1111) — Returns 1 when the current stream already holds an op of the given type.
-- `sgl_flush` (L1116) — Encode and submit the stream; wait for the GPU when wait != 0.
-- `sgl_gpu_read_now` (L1412) — Reads a texture rectangle back to CPU memory at once, flushing the stream first; the pixels are returned through out.
-- `sgl_create_context` (L1437) — ---- the context API ----------------------------------------------------
-- `sgl_make_current` (L1443) — Reports success for the single shared context: true when ctx is NULL or that context.
-- `sgl_delete_context` (L1447) — Shuts down the GPU when the given context is the one in use.
-- `sgl_swap_window` (L1450) — Flushes the stream with a present, follows window moves, updates HDR, and returns whether the flush worked.
-- `sgl_set_swap_interval` (L1457) — 1 = vsync, 0 = immediate (mailbox when available), -1 = adaptive (vsync).
-- `sgl_get_swap_interval` (L1461) — Writes the current swap interval through the pointer and returns success.
-- `sgl_stats_json` (L1466) — Counters for the debug server (TCP "sgl"): passes, draws, uploads...
+- `timed_thread` (L899) — Background thread that waits on each submitted GPU fence and records when the stream finished, for GPU timing.
+- `sgl_gpu_timing_enable` (L924) — GPU time (timer queries on sgl): the GPU's busy clock at a submitted stream.
+- `timing_shutdown` (L936) — Stops the timing thread and destroys its mutex, condition variables and state.
+- `timed_push` (L949) — Queues a fence with its submit id and time for the timing thread, waiting while the queue is full.
+- `timed_wait` (L957) — Blocks until the timing thread has passed the given submit id.
+- `sgl_gpu_last_submit` (L962) — Returns the id of the most recently submitted stream.
+- `sgl_gpu_clock_at` (L963) — Writes the GPU clock time of a submitted stream id into ns, waiting for it when asked; returns 1 when the time is known.
+- `cmp_u64` (L981) — qsort comparator for 64-bit unsigned values.
+- `acquire_json` (L985) — Appends swapchain acquire timing statistics as a JSON fragment for the debug server; only the count when samples are few.
+- `fence_keep` (L1013) — Stores a GPU fence for a stream id in a 16-slot ring, releasing the older fence held in that slot.
+- `sgl_gpu_wait_stream` (L1019) — Waits until the GPU has finished the given stream id, flushing first if it is still open; returns 1 on success.
+- `same_target` (L1031) — ---- encoding -----------------------------------------------------------
+- `begin_pass` (L1034) — Starts a render pass on the command buffer for a target, clearing color or depth when a clear op is given.
+- `note_once` (L1068) — One line per kind of failure, the first time only: a failure that repeats every frame would flood the output.
+- `ensure_buffer` (L1074) — Grows a vertex buffer to hold at least need bytes, doubling from 1 MB; returns 1 on success.
+- `ensure_xfer` (L1088) — Grows a transfer buffer of the given usage to hold at least need bytes; returns 1 on success.
+- `stream_reset` (L1099) — Frees deferred resources, clears the op and arena lists, and starts a new stream id.
+- `stream_has` (L1112) — Returns 1 when the current stream already holds an op of the given type.
+- `sgl_flush` (L1117) — Encode and submit the stream; wait for the GPU when wait != 0.
+- `sgl_gpu_read_now` (L1413) — Reads a texture rectangle back to CPU memory at once, flushing the stream first; the pixels are returned through out.
+- `sgl_create_context` (L1438) — ---- the context API ----------------------------------------------------
+- `sgl_make_current` (L1444) — Reports success for the single shared context: true when ctx is NULL or that context.
+- `sgl_delete_context` (L1448) — Shuts down the GPU when the given context is the one in use.
+- `sgl_swap_window` (L1451) — Flushes the stream with a present, follows window moves, updates HDR, and returns whether the flush worked.
+- `sgl_set_swap_interval` (L1458) — 1 = vsync, 0 = immediate (mailbox when available), -1 = adaptive (vsync).
+- `sgl_get_swap_interval` (L1462) — Writes the current swap interval through the pointer and returns success.
+- `sgl_stats_json` (L1467) — Counters for the debug server (TCP "sgl"): passes, draws, uploads...
 
 ### runtime/src/sgl/sgl_shader.cpp
 

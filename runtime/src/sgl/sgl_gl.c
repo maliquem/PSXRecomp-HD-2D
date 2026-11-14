@@ -462,6 +462,50 @@ static void push_copy(SDL_GPUTexture *src, SDL_GPUTexture *dst, int sx, int sy, 
     sgl_stats_note(SGL_ST_COPY);
 }
 
+/* Scratch images (a copy within one image, the stencil blit's depth keep):
+ * one per format and image size, kept, instead of one allocated per call
+ * (a whole 8x surface each time). Copies go through them at the same
+ * coordinates, so only the rectangle moves. */
+#define SGL_SCRATCH 8
+static SglImage s_scratch[SGL_SCRATCH];
+static unsigned s_scratch_use[SGL_SCRATCH], s_scratch_clock;
+static SglImage *scratch_get(GLenum ifmt, int w, int h) {
+    int pick = -1;
+    for (int i = 0; i < SGL_SCRATCH; i++) {
+        const SglImage *im = &s_scratch[i];
+        if (im->tex && im->ifmt == ifmt && im->w == w && im->h == h) { pick = i; break; }
+    }
+    if (pick < 0) {
+        pick = 0;   /* an empty one, else the least recently used */
+        for (int i = 0; i < SGL_SCRATCH; i++) {
+            if (!s_scratch[i].tex) { pick = i; break; }
+            if (s_scratch_use[i] < s_scratch_use[pick]) pick = i;
+        }
+        if (s_scratch[pick].tex) sgl_release_texture(s_scratch[pick].tex);
+        memset(&s_scratch[pick], 0, sizeof(s_scratch[pick]));
+        s_scratch[pick].used = 1;
+        if (!sgl_gpu_alloc_image(&s_scratch[pick], ifmt, w, h)) {
+            memset(&s_scratch[pick], 0, sizeof(s_scratch[pick]));
+            return NULL;
+        }
+    }
+    s_scratch_use[pick] = ++s_scratch_clock;
+    return &s_scratch[pick];
+}
+void sgl_scratch_free(void) {
+    for (int i = 0; i < SGL_SCRATCH; i++)
+        if (s_scratch[i].tex) sgl_release_texture(s_scratch[i].tex);
+    memset(s_scratch, 0, sizeof(s_scratch));
+}
+/* Rectangle x0..x1, y0..y1 (either order) grown by a texel for linear
+ * sampling, clipped to the image: what a scratch copy must carry. */
+static void sample_rect(const SglImage *im, int x0, int y0, int x1, int y1, int r[4]) {
+    int ax = (x0 < x1 ? x0 : x1) - 1, ay = (y0 < y1 ? y0 : y1) - 1;
+    int w = abs(x1 - x0) + 2, h = abs(y1 - y0) + 2;
+    clip_rect(&ax, &ay, &w, &h, im->w, im->h);
+    r[0] = ax; r[1] = ay; r[2] = w; r[3] = h;
+}
+
 /* A 1:1 copy of colour between two images; through a blit when the formats
  * differ (the GL renderer copies RGBA8 into float surfaces). */
 static void copy_color(SglImage *src, int sx, int sy, SglImage *dst, int dx, int dy, int w, int h) {
@@ -469,11 +513,10 @@ static void copy_color(SglImage *src, int sx, int sy, SglImage *dst, int dx, int
     if (src->fmt == dst->fmt) {
         if (src == dst) {
             /* Overlapping copies within one texture go through a scratch. */
-            SglImage tmp; memset(&tmp, 0, sizeof(tmp)); tmp.used = 1;
-            if (!sgl_gpu_alloc_image(&tmp, src->ifmt, w, h)) return;
-            push_copy(src->tex, tmp.tex, sx, sy, 0, 0, w, h);
-            push_copy(tmp.tex, dst->tex, 0, 0, dx, dy, w, h);
-            sgl_release_texture(tmp.tex);
+            SglImage *tmp = scratch_get(src->ifmt, src->w, src->h);
+            if (!tmp) return;
+            push_copy(src->tex, tmp->tex, sx, sy, sx, sy, w, h);
+            push_copy(tmp->tex, dst->tex, sx, sy, dx, dy, w, h);
             return;
         }
         push_copy(src->tex, dst->tex, sx, sy, dx, dy, w, h);
@@ -1051,15 +1094,20 @@ static void set_uniform(GLint loc, int comps, int count, const float *fv, const 
             if (u->off[s] < 0 || !o->block[s]) continue;
             uint8_t *dst = o->block[s] + u->off[s] + (size_t)(elem + e) * (size_t)u->stride[s];
             if (dst + (size_t)n * 4 > o->block[s] + o->block_size[s]) continue;
+            uint8_t val[64];   /* up to a mat4 */
             for (int c = 0; c < n; c++) {
                 if (is_int) {
                     int32_t x = iv ? (int32_t)iv[e * comps + c] : (int32_t)fv[e * comps + c];
-                    memcpy(dst + 4 * c, &x, 4);
+                    memcpy(val + 4 * c, &x, 4);
                 } else {
                     float x = fv ? fv[e * comps + c] : (float)iv[e * comps + c];
-                    memcpy(dst + 4 * c, &x, 4);
+                    memcpy(val + 4 * c, &x, 4);
                 }
             }
+            /* The same value again (the renderer sets several per draw) does
+             * not make the block go into the arena again. */
+            if (memcmp(dst, val, (size_t)n * 4) == 0) continue;
+            memcpy(dst, val, (size_t)n * 4);
             o->block_dirty[s] = 1;
         }
     }
@@ -1537,7 +1585,11 @@ static void APIENTRY sgl_glBeginQuery(GLenum target, GLuint name) {
     SglQuery *q = (SglQuery *)tab_get(&s_query, name);
     if (!q) { sgl_set_error(GL_INVALID_OPERATION); return; }
     q->target = target;
-    q->begin = query_mark();
+    /* No flush here (one submit per generated frame otherwise): the span
+     * starts when the last submitted stream is done, so work recorded but
+     * not yet submitted counts in it. */
+    sgl_gpu_timing_enable();
+    q->begin = sgl_gpu_last_submit();
     q->end = 0;
     q->placed = 0;
     s_query_open = q;
@@ -1687,12 +1739,12 @@ static void APIENTRY sgl_glBlitFramebuffer(GLint sx0, GLint sy0, GLint sx1, GLin
                 /* Scissored, partly outside, or in place: a draw that samples
                  * the source like GL's blit (pixel centres mapped linearly). */
                 SglImage *from = src;
-                SglImage tmp; memset(&tmp, 0, sizeof(tmp));
                 if (src == dst) {
-                    tmp.used = 1;
-                    if (!sgl_gpu_alloc_image(&tmp, src->ifmt, src->w, src->h)) goto color_done;
-                    push_copy(src->tex, tmp.tex, 0, 0, 0, 0, src->w, src->h);
-                    from = &tmp;
+                    from = scratch_get(src->ifmt, src->w, src->h);
+                    if (!from) goto color_done;
+                    int r[4];
+                    sample_rect(src, sx0, sy0, sx1, sy1, r);
+                    push_copy(src->tex, from->tex, r[0], r[1], r[0], r[1], r[2], r[3]);
                 }
                 SglTarget t; memset(&t, 0, sizeof(t));
                 t.color = dst->tex; t.color_fmt = dst->fmt; t.w = dst->w; t.h = dst->h;
@@ -1717,7 +1769,6 @@ static void APIENTRY sgl_glBlitFramebuffer(GLint sx0, GLint sy0, GLint sx1, GLin
                     internal_draw(from->kind == SGL_KIND_UINT ? SGL_IP_COLOR_BLIT_U : SGL_IP_COLOR_BLIT,
                                   &t, 15, 0, 0, 0, rect, &ub, (int)sizeof(ub), &sb, 1);
                 }
-                if (tmp.tex) sgl_release_texture(tmp.tex);
             }
         }
     }
@@ -1744,9 +1795,9 @@ color_done:
             int ax = sx0, ay = sy0, w = sx1 - sx0, h = sy1 - sy0;
             clip_rect(&ax, &ay, &w, &h, src->w, src->h);
             int bx = dx0 + (ax - sx0), by = dy0 + (ay - sy0);
-            SglImage keep; memset(&keep, 0, sizeof(keep)); keep.used = 1;
-            if (!sgl_gpu_alloc_image(&keep, dst->ifmt, w, h)) return;
-            push_copy(dst->tex, keep.tex, bx, by, 0, 0, w, h);
+            SglImage *keep = scratch_get(dst->ifmt, dst->w, dst->h);
+            if (!keep) return;
+            push_copy(dst->tex, keep->tex, bx, by, bx, by, w, h);
             push_copy(src->tex, dst->tex, ax, ay, bx, by, w, h);
             {
                 SglTarget t; memset(&t, 0, sizeof(t));
@@ -1754,13 +1805,13 @@ color_done:
                 int rect[4] = {bx, by, w, h};
                 clip_rect(&rect[0], &rect[1], &rect[2], &rect[3], t.w, t.h);
                 struct { float src[4]; float dst[4]; float size[4]; } ub = {
-                    {0, 0, (float)w, (float)h}, {(float)bx, (float)by, (float)(bx + w), (float)(by + h)},
-                    {(float)w, (float)h, 0, 0}};
-                SDL_GPUTextureSamplerBinding sb = {keep.tex,
+                    {(float)bx, (float)by, (float)(bx + w), (float)(by + h)},
+                    {(float)bx, (float)by, (float)(bx + w), (float)(by + h)},
+                    {(float)keep->w, (float)keep->h, 0, 0}};
+                SDL_GPUTextureSamplerBinding sb = {keep->tex,
                     sgl_sampler(GL_NEAREST, GL_NEAREST, GL_CLAMP_TO_EDGE, GL_CLAMP_TO_EDGE)};
                 internal_draw(SGL_IP_DEPTH_BLIT, &t, 0, 1, 0, 0, rect, &ub, (int)sizeof(ub), &sb, 1);
             }
-            sgl_release_texture(keep.tex);
             return;
         }
         if (want_d) {
@@ -1777,17 +1828,16 @@ color_done:
                 {(float)dx0, (float)dy0, (float)dx1, (float)dy1},
                 {(float)src->w, (float)src->h, 0, 0}};
             SglImage *from = src;
-            SglImage tmp; memset(&tmp, 0, sizeof(tmp));
             if (src == dst) {
-                tmp.used = 1;
-                if (!sgl_gpu_alloc_image(&tmp, src->ifmt, src->w, src->h)) return;
-                push_copy(src->tex, tmp.tex, 0, 0, 0, 0, src->w, src->h);
-                from = &tmp;
+                from = scratch_get(src->ifmt, src->w, src->h);
+                if (!from) return;
+                int r[4];
+                sample_rect(src, sx0, sy0, sx1, sy1, r);
+                push_copy(src->tex, from->tex, r[0], r[1], r[0], r[1], r[2], r[3]);
             }
             SDL_GPUTextureSamplerBinding sb = {from->tex,
                 sgl_sampler(GL_NEAREST, GL_NEAREST, GL_CLAMP_TO_EDGE, GL_CLAMP_TO_EDGE)};
             internal_draw(SGL_IP_DEPTH_BLIT, &t, 0, 1, 0, 0, rect, &ub, (int)sizeof(ub), &sb, 1);
-            if (tmp.tex) sgl_release_texture(tmp.tex);
         }
     }
 }
