@@ -19062,10 +19062,14 @@ int main(int argc, char** argv) {
             psx_shadow_camera_ram(gc.runtime.video_shadow_camera_addr);
             psx_shadow_sprite_anchors(gc.runtime.video_shadow_sprite_anchors.data(),
                                       (int)gc.runtime.video_shadow_sprite_anchors.size());
+            psx_shadow_noface_routines(gc.runtime.video_shadow_noface_routines.data(),
+                                       (int)gc.runtime.video_shadow_noface_routines.size());
             gpu_set_hidden_textures(gc.runtime.video_shadow_hide_tpage.data(), gc.runtime.video_shadow_hide_clut.data(),
                                     (int)gc.runtime.video_shadow_hide_tpage.size());
             gpu_set_shadow_off_textures(gc.runtime.video_shadow_off_tpage.data(), gc.runtime.video_shadow_off_clut.data(),
                                         (int)gc.runtime.video_shadow_off_tpage.size());
+            gpu_set_shadow_nocast_textures(gc.runtime.video_shadow_nocast_tpage.data(), gc.runtime.video_shadow_nocast_clut.data(),
+                                           (int)gc.runtime.video_shadow_nocast_tpage.size());
             gpu_set_shadow_sun_areas(gc.runtime.video_shadow_sun_area.data(), gc.runtime.video_shadow_sun_az.data(),
                                      gc.runtime.video_shadow_sun_el.data(), (int)gc.runtime.video_shadow_sun_area.size());
             {   /* tools/sun_tool's file: the sun and moon per area, over sun_areas */

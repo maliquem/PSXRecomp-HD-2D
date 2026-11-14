@@ -136,6 +136,28 @@ Only opaque primitives count: a glow sharing the palette (BoF4's sun glare
 in the dragon's cutscene, CLUT 0x3e00 on an additive page) switched the
 effects off and on every few frames.
 
+`off_textures` matches a texture page and palette anywhere in the game. In BoF4
+both world-map entries also matched other screens: `0x1e:0x3dc0` is also the
+river ripples at the fishing spots, so the sun and GI were off there. Prefer
+`sun_areas "off"` by area; use `off_textures` only for a texture no other
+screen draws.
+
+`nocast_textures` names page:CLUT pieces (at most 16; CLUT may be `*`). They
+are drawn exactly as before, but the lighting effects see them as glass (the
+same path as faces textured from a copy of the picture): no depth, no shadow
+cast, and they take the light of the floor under them. BoF4's river ripples
+(`0x1e:0x3dc0`) cast dark shadows on the river bed and darkened it around them
+until listed here. Page and colour depth are compared.
+
+`noface_routines` names return addresses (at most 16) of GTE RTPT projections
+that are not faces, such as the points of an object. The framework takes a
+triangle an RTPT leaves with the culled winding as a culled face that casts;
+for these routines it does not. BoF4's fish at the fishing spots (RA
+`0x8013DE80`) laid long dark bands across the river without it. The TCP
+`shadow_cache` now reports `"bf_ras": [["0xRA", count], ...]`, the culled faces
+taken per routine since the last read (reset on each read), to find such a
+routine.
+
 The sun can be set per place: `sun_areas = ["0xAREA:az:el", "0xAREA:off"]`
 gives an area its own azimuth and elevation (degrees), over the pass's
 `u_sun`, or no sun at all ("off": a cave; the stages reading `shadow` are
@@ -235,7 +257,8 @@ overdraw = [64, 64]         # px past the picture the game's screen culls keep; 
                             # are clipped as before and cast (a mod may ask for more: psx_mod_set_overdraw_extra)
 scene_keys = ["0xADDR:4"]   # guest RAM whose change starts a new scene (memory only)
 hide_textures = ["0x46:0x7c43", "0x149:*"]   # page:CLUT of the game's own blob shadows
-off_textures = ["0x1e:0x3dc0", "*:0x3e00"]   # page:CLUT only a sunless screen draws (no shadow effects)
+nocast_textures = ["0x1e:0x3dc0"]   # page:CLUT drawn as glass for the effects (ripples)
+noface_routines = ["0x8013DE80"]   # RTPT return addresses that are no faces (no culled-face casters)
 sprite_anchors = ["0x80141FA0", "0x80141FD8"]   # return addresses of the foot-point RTPS calls
 ```
 

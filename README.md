@@ -85,7 +85,8 @@ games, before it lands.
 - **Fewer false lights:** dim grey dust and smoke, black pieces, and faces textured from a copy of the picture
   (treated as glass).
 - **Games with a 256-wide, off-centre, Z-up picture** work with shadows and depth effects.
-- **`off_textures`:** turns shadows off on screens such as a world map.
+- **`off_textures`:** turns shadows off while a texture only a sunless screen draws is shown (prefer `sun_areas "off"` by area).
+- **`nocast_textures` and `noface_routines`:** pieces drawn as glass for the effects (water ripples), and GTE projections that are no faces (a fish's points) left out of the culled-face casters.
 - **Window light:** shafts take each window's shape (`window_masks.bin`) and merge where they meet, follow the last sun
   seen outdoors, bounce to bring the room's colours back, and the window itself shines with a halo on its wall. Fire
   lights have an optional steady mode.

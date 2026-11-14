@@ -1294,6 +1294,24 @@ static void sc_add_sprite_tri(int x1, int y1, int x2, int y2, const int *xs, con
 }
 /* The atlas of this slot's sprite pieces, rows in use (0 = none). */
 static int sc_atlas_rows(const ScSlot *sl) { return sl && sl->atl ? sl->atl_y + sl->atl_h : 0; }
+/* [video.shadow] nocast_textures: page (9 bits: its page and colour depth are
+ * compared) + CLUT (0xFFFF = any) of pieces drawn as ever but seen by the
+ * effects as what is behind them, as glass (scopy_note): no depth, no
+ * shadow cast, the lighting of the floor under them (BoF4: a river's
+ * ripples, which darkened its bed). Set once at start. */
+static int      s_nocast_n = 0;
+static uint16_t s_nocast_tpage[16], s_nocast_clut[16];
+void gpu_set_shadow_nocast_textures(const uint32_t *tpage, const uint32_t *clut, int n) {
+    s_nocast_n = n < 0 ? 0 : n > 16 ? 16 : n;
+    for (int i = 0; i < s_nocast_n; i++) { s_nocast_tpage[i] = (uint16_t)(tpage[i] & 0x1FFu); s_nocast_clut[i] = (uint16_t)clut[i]; }
+}
+static int tex_nocast(int base_x, int base_y, int clut_x, int clut_y, int depth) {
+    const unsigned tp = ((unsigned)base_x / 64u & 15u) | ((unsigned)base_y / 256u & 1u) << 4 | ((unsigned)depth & 3u) << 7;
+    const unsigned cl = ((unsigned)clut_x / 16u & 63u) | ((unsigned)clut_y & 511u) << 6;
+    for (int i = 0; i < s_nocast_n; i++)
+        if ((s_nocast_tpage[i] & 0x19Fu) == tp && (s_nocast_clut[i] == 0xFFFFu || s_nocast_clut[i] == cl)) return 1;
+    return 0;
+}
 /* tex: NULL = untextured, else {u0,v0,u1,v1,u2,v2, page x, page y, clut x,
  * clut y, depth, window}. tone: its colour as drawn (tone_tex_rgb,
  * tone_flat_rgb), NULL = none: the slot's tone sums it by its area. */
@@ -6486,8 +6504,10 @@ static void gpu_textured_triangle(const int *xs, const int *ys,
         }
         const int batch_semi = batch_class.key;
         const int isolate = batch_class.isolate;
-        /* glass: a 3D face textured with a copy of the picture (scopy_note) */
-        const int glass = depth == 2 && pgxp_tri_is_3d() && scopy_holds(base_x, base_y, us, vs);
+        /* glass: a 3D face textured with a copy of the picture (scopy_note), or a
+         * nocast_textures piece */
+        const int glass = (depth == 2 && pgxp_tri_is_3d() && scopy_holds(base_x, base_y, us, vs)) ||
+                          (s_nocast_n && !s_selected_bank_tex && tex_nocast(base_x, base_y, clut_x, clut_y, depth));
         if (glass) s_scopy_glass++;
         const int tdmode = glass ? 0 : pgxp_tri_depth_mode(semi);
         /* the batch's mark (bcls_passes / b3dm_passes): 3D, or a painted backdrop; 3 glass (none) */

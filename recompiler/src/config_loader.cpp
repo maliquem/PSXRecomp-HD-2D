@@ -1021,6 +1021,19 @@ static RuntimeConfig parse_runtime_block(const toml::value& cfg, const fs::path&
                 if (rt.video_shadow_off_tpage.size() > 16)
                     throw std::runtime_error("[video.shadow] off_textures: at most 16");
             }
+            if (sh.contains("nocast_textures")) {
+                for (const auto& k : toml::find<std::vector<std::string>>(sh, "nocast_textures")) {
+                    const auto colon = k.find(':');
+                    if (colon == std::string::npos)
+                        throw std::runtime_error(fmt::format(
+                            "[video.shadow] nocast_textures entries are \"0xPAGE:0xCLUT\" (the CLUT may be *): {}", k));
+                    const std::string c = k.substr(colon + 1);
+                    rt.video_shadow_nocast_tpage.push_back((uint32_t)std::stoul(k.substr(0, colon), nullptr, 0) & 0x1FFu);
+                    rt.video_shadow_nocast_clut.push_back(c == "*" ? 0xFFFFu : (uint32_t)std::stoul(c, nullptr, 0));
+                }
+                if (rt.video_shadow_nocast_tpage.size() > 16)
+                    throw std::runtime_error("[video.shadow] nocast_textures: at most 16");
+            }
             if (sh.contains("sun_areas")) {
                 for (const auto& k : toml::find<std::vector<std::string>>(sh, "sun_areas")) {
                     const auto c1 = k.find(':'), c2 = c1 == std::string::npos ? c1 : k.find(':', c1 + 1);
@@ -1048,6 +1061,12 @@ static RuntimeConfig parse_runtime_block(const toml::value& cfg, const fs::path&
                     rt.video_shadow_sprite_anchors.push_back((uint32_t)std::stoul(k, nullptr, 0));
                 if (rt.video_shadow_sprite_anchors.size() > 8)
                     throw std::runtime_error("[video.shadow] sprite_anchors: at most 8");
+            }
+            if (sh.contains("noface_routines")) {
+                for (const auto& k : toml::find<std::vector<std::string>>(sh, "noface_routines"))
+                    rt.video_shadow_noface_routines.push_back((uint32_t)std::stoul(k, nullptr, 0));
+                if (rt.video_shadow_noface_routines.size() > 16)
+                    throw std::runtime_error("[video.shadow] noface_routines: at most 16");
             }
         }
         if (video.contains("supersample")) {

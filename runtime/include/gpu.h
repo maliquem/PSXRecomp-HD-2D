@@ -485,6 +485,9 @@ float psx_shadow_camera_scale(void);
 void psx_shadow_camera_normalize(int on);
 /* sprite_anchors: return addresses of the calls projecting sprite foot points. */
 void psx_shadow_sprite_anchors(const uint32_t *ra, int n);
+/* noface_routines: return addresses of RTPT projections that are no faces
+ * (no culled face of theirs casts; TCP shadow_cache "bf_ras" finds them). */
+void psx_shadow_noface_routines(const uint32_t *ra, int n);
 /* A sprite's foot point named by a title's plugin (world coordinates), while
  * the GTE holds the camera that projected the sprite: for a game that projects
  * its sprites inline, with no call of their own to know them by. */
@@ -521,6 +524,10 @@ int  gpu_prim_nolight_now(void);
  * sun (sun_areas "off"), gpu_shadow_off_active is 1 and the effects that
  * read the shadow map are skipped. */
 void gpu_set_shadow_off_textures(const uint32_t *tpage, const uint32_t *clut, int n);
+/* [video.shadow] nocast_textures: textured primitives (page 9 bits + CLUT,
+ * 0xFFFF = any) drawn as ever but seen by the effects as glass: no depth, no
+ * shadow cast, the floor's light under them (a river's ripples). */
+void gpu_set_shadow_nocast_textures(const uint32_t *tpage, const uint32_t *clut, int n);
 int  gpu_shadow_off_active(void);
 /* [video.shadow] sun_areas: the sun (azimuth, elevation in degrees) in the
  * areas with these numbers (a mod's map id, else the scene_keys');

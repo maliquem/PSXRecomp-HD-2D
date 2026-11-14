@@ -1138,10 +1138,25 @@ static int shadow_disc_quad(int semi, uint16_t tpage, uint16_t clut, const uint3
 }
 static float    sh_last_bad[10];
 static int sh_ts_n;   /* routines that draw both windings (below) */
+/* TCP shadow_cache "bf_ras": culled faces taken per routine (return address)
+ * since the last read, to find a routine whose projections are no faces */
+enum { SH_BFR_MAX = 16 };
+static uint32_t sh_bfr_ra[SH_BFR_MAX], sh_bfr_cnt[SH_BFR_MAX];
+static int      sh_bfr_n = 0;
+static void sh_bfr_note(uint32_t ra) {
+    for (int i = 0; i < sh_bfr_n; i++) if (sh_bfr_ra[i] == ra) { sh_bfr_cnt[i]++; return; }
+    if (sh_bfr_n < SH_BFR_MAX) { sh_bfr_ra[sh_bfr_n] = ra; sh_bfr_cnt[sh_bfr_n++] = 1; }
+}
 int psx_shadow_state(char *out, int cap) {
     float saz = 0.0f, sel = 0.0f;
     const int sun = gpu_shadow_sun_area(&saz, &sel);
-    return snprintf(out, (size_t)cap, "\"scene\":\"0x%08x\",\"scene_sun\":[%d,%.1f,%.1f],\"two_sided\":%d,\"cfg_camera\":%d,\"overdraw\":[%d,%d],\"overdraw_on\":%d,\"overdraw_extra\":[%d,%d,%u],"
+    int k = snprintf(out, (size_t)cap, "\"bf_ras\":[");
+    for (int i = 0; i < sh_bfr_n && k < cap - 40; i++)
+        k += snprintf(out + k, (size_t)(cap - k), "%s[\"0x%08x\",%u]", i ? "," : "", (unsigned)sh_bfr_ra[i], (unsigned)sh_bfr_cnt[i]);
+    k += snprintf(out + k, (size_t)(cap - k), "],");
+    sh_bfr_n = 0;
+    out += k; cap -= k;
+    return k + snprintf(out, (size_t)cap, "\"scene\":\"0x%08x\",\"scene_sun\":[%d,%.1f,%.1f],\"two_sided\":%d,\"cfg_camera\":%d,\"overdraw\":[%d,%d],\"overdraw_on\":%d,\"overdraw_extra\":[%d,%d,%u],"
                     "\"keys\":%d,\"hide\":%d,\"hidden\":%u,\"discs\":%u,\"fed\":%u,\"rejected\":%u,\"cam_taken\":%u,\"anchors\":%u,\"blobs\":%u,"
                     "\"last_bad\":[%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f]",
                     (unsigned)sh_area, sun, saz, sel, sh_ts_n, sh_camera, sh_od_x, sh_od_y, sh_od_on, ws_overdraw_ex, ws_overdraw_ey, ws_overdraw_extras, sh_nkeys, sh_hide_n, sh_hidden, sh_discs, sh_fed, sh_rejected, sh_cam_taken, sh_anc_taken, sh_blobs,
@@ -4661,6 +4676,10 @@ static int sh_ts_has(uint32_t ra) {
     for (int i = 0; i < sh_ts_n; i++) if (sh_ts_ra[i] == ra) return 1;
     return 0;
 }
+/* the config's routines (noface_routines) start the list: as learned */
+void psx_shadow_noface_routines(const uint32_t *ra, int n) {
+    for (int i = 0; i < n && sh_ts_n < SH_TS_MAX; i++) if (!sh_ts_has(ra[i])) sh_ts_ra[sh_ts_n++] = ra[i];
+}
 static void sh_bfm_reset(int l) {
     for (int b = 0; b < SH_BFM_HASH; b++) sh_bfm_head[l][b] = -1;
     sh_bfm_n[l] = 0;
@@ -4708,7 +4727,7 @@ static void sh_bf_take(const uint32_t *d, uint32_t ra) {
     const uint16_t sz[3] = {(uint16_t)d[17], (uint16_t)d[18], (uint16_t)d[19]};
     const int n0 = sh_bf_n;
     psx_shadow_backface(sxy, sz);
-    if (sh_bf_n > n0) sh_bf_vra[n0] = ra;
+    if (sh_bf_n > n0) { sh_bf_vra[n0] = ra; sh_bfr_note(ra); }
     sh_bfm_add(sxy, ra);
 }
 static void shadow_note_projection(int nverts) {

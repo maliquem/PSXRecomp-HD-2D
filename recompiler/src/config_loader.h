@@ -565,6 +565,10 @@ struct RuntimeConfig {
     // frame); while it is drawn the effects that read the shadow map are skipped.
     std::vector<uint32_t> video_shadow_off_tpage;
     std::vector<uint32_t> video_shadow_off_clut;
+    // nocast_textures = ["0xPAGE:0xCLUT" or "0xPAGE:*", ...]: 3D pieces drawn as
+    // ever that cast no shadow (water ripples over a river bed).
+    std::vector<uint32_t> video_shadow_nocast_tpage;
+    std::vector<uint32_t> video_shadow_nocast_clut;
     // sun_areas = ["0xAREA:azimuth:elevation", ...]: the sun (degrees, as the
     // shadow pass's u_sun) in the area whose scene_keys give AREA (TCP
     // shadow_cache "scene"), lined up with the shadows painted in its textures;
@@ -575,6 +579,10 @@ struct RuntimeConfig {
     // sprite_anchors = ["0xRA", ...]: return addresses of the game's calls whose
     // RTPS projects a sprite's foot point (sprite shadows; camera "ram:" only).
     std::vector<uint32_t> video_shadow_sprite_anchors;
+    // noface_routines = ["0xRA", ...]: return addresses of the game's GTE
+    // projections (RTPT) that are no faces (points of an effect, a fish under
+    // water): what their winding shows culled is not taken as a casting face.
+    std::vector<uint32_t> video_shadow_noface_routines;
     // supersample: factor on the internal-resolution target (Match display or
     // a line preset), 1.0..4.0, kept in thousandths (internal_resolution.h).
     int                   video_supersample_milli = 1000;
