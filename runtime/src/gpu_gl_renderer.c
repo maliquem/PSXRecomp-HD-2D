@@ -14030,6 +14030,11 @@ static double    s_fg_gen_gpu_ms = 0.0, s_fg_gen_cpu_ms = 0.0;   /* the last one
 /* Schedule after a flip: n generated frames, then the real one. */
 static int       s_fg_pending = 0, s_fg_n = 0, s_fg_k = 0;
 static uint64_t  s_fg_t0 = 0, s_fg_step_ns = 0, s_fg_flip_ns = 0;
+/* This game frame's display intervals (fg_slots_carry, its remainder in
+ * s_fg_slot_carry), the n of the last queued real frame, and the last
+ * flip's VBlank count before it is agreed on. */
+static int       s_fg_slots_now = 0, s_fg_queued_n = 0, s_fg_vb_raw = 0;
+static double    s_fg_slot_carry = 0.0;
 /* Any-rate presents: one global grid at the display's refresh (or its
  * panel maximum under VRR), never faster, across game frames. */
 static uint64_t  s_fg_due = 0, s_fg_last_present_ns = 0;
@@ -16326,12 +16331,18 @@ static uint64_t fg_tick(void *user, uint64_t now) {
          * PSX_FG_CLOCK_PHASE=1 brings the clock's back (to compare). */
         static int clock = -1;
         if (clock < 0) { const char *e = getenv("PSX_FG_CLOCK_PHASE"); clock = e && e[0] == '1'; }
+        /* Phase = the interval the image is shown at over the game frame's
+         * intervals: k / (n + 1) when every interval has an image. */
+        const int slot = fg_image_slot(s_fg_k, s_fg_n, s_fg_slots_now);
         const double t = clock ? fg_clock_phase(now - s_fg_t0, s_fg_step_ns, s_fg_flip_ns)
-                               : (double)s_fg_k / (double)(s_fg_n + 1);
+                       : s_fg_slots_now > s_fg_n ? (double)slot / (double)s_fg_slots_now
+                                                 : (double)s_fg_k / (double)(s_fg_n + 1);
         if (t > 0.0) {
             fg_generate_timed(t);
             s_fg_k++;
             fg_note_present(now);
+            const int gap = fg_image_slot(s_fg_k, s_fg_n, s_fg_slots_now) - slot;
+            if (gap > 1) s_fg_due += (uint64_t)(gap - 1) * s_fg_step_ns;
             return s_fg_due;
         }
         s_fg_flushed++;
@@ -16340,6 +16351,11 @@ static uint64_t fg_tick(void *user, uint64_t now) {
     fg_present_real();
     return 0;
 }
+
+static int fg_queue_real(uint16_t op, const uint8_t *p, uint32_t bytes, FgList *B, int n, int slots,
+                         double flip_s, double rhz, uint64_t arrive_ns, uint64_t bp);
+static int fg_hold_real(uint16_t op, const uint8_t *p, uint32_t bytes, int stale, int slots,
+                        double flip_s, double rhz, uint64_t arrive_ns, uint64_t bp);
 
 /* A present record replayed with frame generation on. Returns 1 when it was
  * handled (scheduled or dropped), 0 to present it as usual. */
@@ -16399,8 +16415,11 @@ static int fg_on_present(uint16_t op, const uint8_t *p, uint32_t bytes, int stal
     if (s_fg_pending) fg_flush();
     s_fg_flips++;
     {
-        const int vb = s_fg_have_last ? s_fg_vblanks : 1;
-        atomic_store(&s_fg_flip_vb, vb > 4 ? 4 : vb);
+        int vb = s_fg_have_last ? s_fg_vblanks : 1;
+        if (vb > 4) vb = 4;
+        /* One late game frame is not a new rate: it changes when two flips agree. */
+        if (vb == s_fg_vb_raw || !s_fg_have_last) atomic_store(&s_fg_flip_vb, vb);
+        s_fg_vb_raw = vb;
     }
     s_fg_vblanks = 0;
     s_fg_have_last = 1; s_fg_last_dx = disp[0]; s_fg_last_dy = disp[1];
@@ -16453,7 +16472,8 @@ static int fg_on_present(uint16_t op, const uint8_t *p, uint32_t bytes, int stal
     FG_BRK_INIT();
     const double ghz = atomic_load(&s_fg_guest_hz), rhz = atomic_load(&s_fg_refresh_hz);
     const double flip_s = (double)s_fg_flip_vb / (ghz > 1.0 ? ghz : 59.94);
-    const int slots = fg_slots(flip_s, rhz);   /* as the clock shows them */
+    /* The intervals this game frame gets: rounded down, the rest carried. */
+    const int slots = fg_slots_carry(flip_s, rhz, &s_fg_slot_carry);
     s_fg_last_slots = slots;
     /* What one generated frame may cost (its swap included) to fit. */
     const double real_s = s_fg_real_ema * (double)s_fg_flip_vb + s_fg_swap_ema;
@@ -16478,7 +16498,7 @@ static int fg_on_present(uint16_t op, const uint8_t *p, uint32_t bytes, int stal
         else if (fg_breaker_open(&s_fg_brk, now) && !stale && !held) {
             const double est = fg_cost_estimate(fg_cost(), now, s_fg_fit_s);
             atomic_store(&s_fg_cost_ema_pub, fg_cost()->ema);
-            n = fg_plan(flip_s, fg_plan_hz(flip_s, rhz), real_s, est > 0.0 ? est + s_fg_swap_ema : 0.0, 0.85,
+            n = fg_plan(flip_s, (double)slots / flip_s, real_s, est > 0.0 ? est + s_fg_swap_ema : 0.0, 0.85,
                         fg_ceiling_get(fg_ceil(), now));
         }
         if (n == 0) {
@@ -16496,7 +16516,7 @@ static int fg_on_present(uint16_t op, const uint8_t *p, uint32_t bytes, int stal
         s_fg_noplan_why = "window minimized";
     }
     s_fg_last_n = n;
-    if (n <= 0) return 0;
+    if (n <= 0) return fg_hold_real(op, p, bytes, stale, slots, flip_s, rhz, arrive_ns, bp);
     /* Match the two frames' triangles. */
     const uint64_t m0 = rt_now_ns();
     /* Which frame is redrawn: the one the in-between camera sees more of.
@@ -16558,8 +16578,27 @@ static int fg_on_present(uint16_t op, const uint8_t *p, uint32_t bytes, int stal
         s_fg_rejected++;
         s_fg_reject_why = s_fg_fit.why;
         s_fg_last_n = 0;
-        return 0;
+        return fg_hold_real(op, p, bytes, stale, slots, flip_s, rhz, arrive_ns, bp);
     }
+    return fg_queue_real(op, p, bytes, B, n, slots, flip_s, rhz, arrive_ns, bp);
+}
+
+/* No in-between frames this game frame. Right after one that had them, its
+ * real frame is held to where the plan would have shown it, for this one
+ * frame (shown at once, the image before it would stay up n intervals
+ * longer than this one); otherwise, or when behind, it goes as usual (0). */
+static int fg_hold_real(uint16_t op, const uint8_t *p, uint32_t bytes, int stale, int slots,
+                        double flip_s, double rhz, uint64_t arrive_ns, uint64_t bp) {
+    const int was = s_fg_queued_n;
+    s_fg_queued_n = 0;
+    if (was <= 0 || stale || slots < 2) return 0;
+    return fg_queue_real(op, p, bytes, NULL, 0, slots, flip_s, rhz, arrive_ns, bp);
+}
+
+/* Keep the composed real frame and show it after n in-between frames
+ * spread over `slots` display intervals (n = 0: at the last of them). */
+static int fg_queue_real(uint16_t op, const uint8_t *p, uint32_t bytes, FgList *B, int n, int slots,
+                         double flip_s, double rhz, uint64_t arrive_ns, uint64_t bp) {
     /* The real frame waits for the generated ones before it. */
     if (s_fg_real_cap < bytes) {
         uint8_t *nb = (uint8_t *)realloc(s_fg_real_p, bytes);
@@ -16578,11 +16617,16 @@ static int fg_on_present(uint16_t op, const uint8_t *p, uint32_t bytes, int stal
     if (s_fg_reproject && B) rp_snapshot_list((int)(B - s_fg_l), B->disp);
     s_fg_pa = s_fg_older; s_fg_pb = s_fg_newer;
     s_fg_n = n; s_fg_k = 1;
+    s_fg_slots_now = slots;
+    s_fg_queued_n = n;
     s_fg_t0 = arrive_ns;
     fg_tl_note(2, 0.0, arrive_ns);
     s_fg_flip_ns = (uint64_t)(flip_s * 1e9);
     s_fg_step_ns = (uint64_t)(fg_step_s(flip_s, rhz, n) * 1e9);
     if (s_fg_due < s_fg_t0 || s_fg_due > s_fg_t0 + s_fg_step_ns) s_fg_due = s_fg_t0;
+    /* The first image goes out at its own interval (fewer than slots-1
+     * in-between frames are spread, not bunched at the start). */
+    s_fg_due += (uint64_t)(fg_image_slot(1, n, slots) - 1) * s_fg_step_ns;
     s_fg_pending = 1;
     s_fg_bp_seen = bp;
     uint64_t next = fg_tick(NULL, rt_now_ns());

@@ -161,6 +161,13 @@ void fg_hud_lerp(const FgPrimList *L, const FgPrimList *O, double u, float *x, f
  * fg_plan sees, so its slots are exactly fg_slots. */
 int fg_slots(double flip_s, double refresh_hz);
 double fg_plan_hz(double flip_s, double refresh_hz);
+/* fg_slots_carry: the display intervals this game frame gets, the ratio
+ * rounded down and the remainder carried to the next frames in *carry
+ * (30 fps on 144 Hz: 4, 5, 5, 5, 5, never more swaps than intervals).
+ * fg_image_slot: the interval (1..slots) image k (1..n+1, n+1 the real
+ * frame) is shown at when n in-between frames are spread over `slots`. */
+int fg_slots_carry(double flip_s, double refresh_hz, double *carry);
+int fg_image_slot(int k, int n, int slots);
 /* The next present time on the global grid after presenting at `now`. */
 uint64_t fg_next_due(uint64_t due, uint64_t now, uint64_t step_ns);
 

@@ -599,7 +599,34 @@ static void test_near_vertex_clamp(void) {
     }
 }
 
+/* Display intervals per game frame: rounded down, the rest carried (never
+ * more swaps than intervals), and fewer in-between frames than intervals
+ * spread over them instead of bunched at the start. */
+static void test_slots_carry(void) {
+    double c = 0.0;
+    int sum = 0, most = 0;
+    for (int i = 0; i < 100; i++) {
+        const int s = fg_slots_carry(1.0 / 30.0, 144.0, &c);
+        sum += s;
+        if (s > most) most = s;
+    }
+    check(sum == 480 && most == 5, "30 fps on 144 Hz: 4.8 intervals a game frame");
+    c = 0.0; sum = 0;
+    for (int i = 0; i < 100; i++) sum += fg_slots_carry(1.0 / 30.0, 165.0, &c);
+    check(sum == 550, "30 fps on 165 Hz: 5.5 intervals a game frame");
+    c = 0.0;
+    check(fg_slots_carry(2.0 / 59.94, 60.0, &c) == 2, "59.94 Hz content at half rate on 60 Hz: 2");
+    c = 0.0;
+    check(fg_slots_carry(1.0 / 60.0, 60.0, &c) == 1, "the display's own rate: 1, nothing generated");
+    check(fg_image_slot(1, 1, 4) == 2 && fg_image_slot(2, 1, 4) == 4, "one in-between over 4 intervals: at the 2nd");
+    check(fg_image_slot(1, 3, 4) == 1 && fg_image_slot(4, 3, 4) == 4, "a full plan is not moved");
+    int prev = 0, inc = 1;
+    for (int k = 1; k <= 3; k++) { const int s = fg_image_slot(k, 2, 5); inc &= s > prev; prev = s; }
+    check(inc && prev == 5, "two over 5 intervals: increasing, the real frame at the last");
+}
+
 int main(void) {
+    test_slots_carry();
     test_two_instances_one_older();
     test_many_views();
     test_fast_object_held();

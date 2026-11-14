@@ -96,7 +96,15 @@ has measured time to spare.
 - **Schedule.** With `n` in-between frames per game frame, at the flip the
   real frame is composed and kept (its buffer may be drawn over before it is
   shown), frames `t = k/(n+1)` are presented one display interval apart
-  (`fg_next_due`), then the kept real frame. Timed work runs from the
+  (`fg_next_due`), then the kept real frame. With fewer in-between frames
+  than intervals (cost, ceiling) they are spread over them: image k at
+  interval round(k x slots / (n+1)) (`fg_image_slot`), phase = that
+  interval / slots, instead of bunched at the start with the real frame
+  then held. The game frame rate changes only when two flips agree (one
+  late frame does not double the interval for one frame), and a frame
+  without in-between frames right after one with them keeps the real
+  frame's delay for that one frame (shown at once, the image before it
+  stayed up n intervals longer). Timed work runs from the
   render-thread core's `tick` hook between records and while idle. The
   phases are fixed, all `n` drawn: phases taken from the clock instead (the
   time since the game frame arrived plus one interval, the rest dropped past
@@ -108,10 +116,12 @@ has measured time to spare.
   that lead to it: up to `n/(n+1)` of a game frame later than without
   generation (R4 at 30 Hz on 120 Hz: 25 ms at n = 3, 17 ms at n = 1).
   Extrapolation (no delay, guessed motion) is not offered.
-- **Plan.** `n = fg_plan(...)`: slots = `fg_slots`, the display intervals
-  the clock actually fills (in-between frames at phase k / (flip × refresh)
-  below 0.985, plus the real one: R4 on 120 Hz: 4; 59.94 Hz content on a
-  60 Hz panel, 2.002 intervals: 2, one in-between frame), limited to what fits in 85 % of the interval after the
+- **Plan.** `n = fg_plan(...)`: slots = `fg_slots_carry`, the display
+  intervals of this game frame, flip × refresh rounded down (within 0.015)
+  and the remainder carried to the next frames (R4 on 120 Hz: 4; 59.94 Hz
+  content on a 60 Hz panel, 2.002 intervals: 2, one in-between frame; 30 fps
+  on 144 Hz, 4.8: 4, 5, 5, 5, 5; rounded up, 5 every frame, the swaps took
+  34.7 ms of a 33.3 ms frame and the last ones were flushed), limited to what fits in 85 % of the interval after the
   real frames' render-thread CPU time and one swap, at the measured cost of a
   generated frame (CPU, GPU via `GL_TIME_ELAPSED`, plus a swap). On macOS a
   real frame's `TIME_ELAPSED` span reads close to the whole interval (it

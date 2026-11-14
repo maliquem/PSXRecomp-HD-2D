@@ -731,6 +731,22 @@ int fg_slots(double flip_s, double refresh_hz) {
     return k;   /* the shown in-between frames + the real one */
 }
 
+int fg_slots_carry(double flip_s, double refresh_hz, double *carry) {
+    if (flip_s <= 0.0 || refresh_hz <= 0.0) { *carry = 0.0; return 0; }
+    const double r = flip_s * refresh_hz + *carry;
+    int s = (int)floor(r + (1.0 - FG_PHASE_LAST));
+    if (s < 1) s = 1;
+    if (s > 64) s = 64;
+    *carry = r - (double)s;
+    if (*carry < -1.0 || *carry > 1.0) *carry = 0.0;   /* a rate change: start over */
+    return s;
+}
+
+int fg_image_slot(int k, int n, int slots) {
+    if (n < 0 || n + 1 >= slots) return k;
+    return (int)floor((double)k * (double)slots / (double)(n + 1) + 0.5);
+}
+
 double fg_plan_hz(double flip_s, double refresh_hz) {
     if (flip_s <= 0.0 || refresh_hz <= 0.0) return refresh_hz;
     return (double)fg_slots(flip_s, refresh_hz) / flip_s;
