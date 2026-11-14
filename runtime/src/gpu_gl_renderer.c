@@ -3764,14 +3764,17 @@ static void hr_end(void) {
  * Mode 1 is two passes so that near-coplanar surfaces keep the PS1's
  * painter order (R4's lane markings and decals are separate polygons drawn
  * after the road, a hair off its plane once SZ is quantised per vertex): the
- * colour pass tests LEQUAL with its depth pulled toward the camera by a
- * relative tolerance (u_zbias, s_pgxp_depth_tol of the distance) and writes
- * no depth; depth_restore then lays down the true depth in a colourless
- * pass. A later polygon within the tolerance of what is already there wins,
- * as in painter order; anything clearly behind is still occluded.
+ * batch's true depth goes down first in a colourless pass (LEQUAL, writes),
+ * then the colour pass tests LEQUAL with its depth pulled toward the camera
+ * by a relative tolerance (u_zbias, s_pgxp_depth_tol of the distance) and
+ * writes no depth. A later polygon within the tolerance of what is already
+ * there wins, as in painter order; anything clearly behind is still
+ * occluded, inside the batch too (the depth pass already holds the batch's
+ * front surface: a candle's pins behind it stay hidden).
  * DuckStation's depth buffer is a plain LEQUAL with no bias and has this
  * decal problem; this tolerance is our own. Every caller that applies 1 or 2
- * calls depth_restore after its draw (tex: textured program bound). */
+ * calls depth_restore after its draw (tex: textured program bound; n: the
+ * vertex count of the bound buffer, uploaded before depth_apply). */
 static GLint s_geo_uZbias = -1, s_tex_uZbias = -1;
 static float s_pgxp_depth_tol = -1.0f;
 static float pgxp_depth_tol(void) {
@@ -3783,7 +3786,7 @@ static float pgxp_depth_tol(void) {
     }
     return s_pgxp_depth_tol;
 }
-static void depth_apply_ex(int mode, int tex) {
+static void depth_apply_ex(int mode, int tex, int n) {
     if (mode == 0) return;
     glEnable(GL_DEPTH_TEST);
     if (mode == 2) {
@@ -3794,27 +3797,27 @@ static void depth_apply_ex(int mode, int tex) {
     } else {
         /* Tolerance 0: one pass that tests and writes per triangle, so
          * surfaces inside one batch occlude each other (plain LEQUAL). */
-        glDepthMask(pgxp_depth_tol() > 0.0f ? GL_FALSE : GL_TRUE);
         glDepthFunc(GL_LEQUAL);
+        if (pgxp_depth_tol() > 0.0f) {   /* the depth pass (bound buffer, n vertices) */
+            p_glUniform1f(tex ? s_tex_uZbias : s_geo_uZbias, 0.0f);
+            GLboolean st = glIsEnabled(GL_STENCIL_TEST), bl = glIsEnabled(GL_BLEND);
+            glDisable(GL_STENCIL_TEST); glDisable(GL_BLEND);
+            glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
+            glDepthMask(GL_TRUE);
+            if (tex) p_glUniform1i(s_uSemipass, 0);
+            glDrawArrays(GL_TRIANGLES, 0, n);
+            glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+            if (st) glEnable(GL_STENCIL_TEST);
+            if (bl) glEnable(GL_BLEND);
+        }
+        glDepthMask(pgxp_depth_tol() > 0.0f ? GL_FALSE : GL_TRUE);
         p_glUniform1f(tex ? s_tex_uZbias : s_geo_uZbias, pgxp_depth_tol());
     }
 }
-/* After the colour pass of mode 1: the depth-only pass (n vertices of the
- * bound buffer), then back to the default state. */
-static void depth_restore_ex(int mode, int tex, int n) {
+/* After the colour pass: back to the default state. */
+static void depth_restore_ex(int mode, int tex) {
     if (mode == 0) return;
-    if (mode == 1 && pgxp_depth_tol() > 0.0f) {
-        p_glUniform1f(tex ? s_tex_uZbias : s_geo_uZbias, 0.0f);
-        GLboolean st = glIsEnabled(GL_STENCIL_TEST), bl = glIsEnabled(GL_BLEND);
-        glDisable(GL_STENCIL_TEST); glDisable(GL_BLEND);
-        glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
-        glDepthMask(GL_TRUE);
-        if (tex) p_glUniform1i(s_uSemipass, 0);
-        glDrawArrays(GL_TRIANGLES, 0, n);
-        glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
-        if (st) glEnable(GL_STENCIL_TEST);
-        if (bl) glEnable(GL_BLEND);
-    }
+    if (mode == 1 && pgxp_depth_tol() > 0.0f) p_glUniform1f(tex ? s_tex_uZbias : s_geo_uZbias, 0.0f);
     glDepthMask(GL_TRUE);
     glDisable(GL_DEPTH_TEST);
     if (mode == 2) glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
@@ -5608,9 +5611,9 @@ static void hiw_replay_wide(void) {
             p_glUniform1i(s_uMaskset, c->mask);
             p_glBufferData(PSXGL_ARRAY_BUFFER, (ptrdiff_t)((size_t)c->vcount * TEXV * sizeof(float)),
                            s_hq_v + c->vfirst, PSXGL_STREAM_DRAW);
-            depth_apply_ex(c->depth, 1);
+            depth_apply_ex(c->depth, 1, c->vcount);
             { const int om_ = s_fg_obj_mark; s_fg_obj_mark = c->obj; tex_draw_passes_ex(c->vcount, c->semi, c->mask, c->check, 0, c->b3d); s_fg_obj_mark = om_; }
-            depth_restore_ex(c->depth, 1, c->vcount);
+            depth_restore_ex(c->depth, 1);
         } else {
             if (cur != HQ_GEO) {
                 p_glUseProgram(s_geo_prog);
@@ -5625,9 +5628,9 @@ static void hiw_replay_wide(void) {
             mask_stencil_ex(c->mask, c->check);
             p_glBufferData(PSXGL_ARRAY_BUFFER, (ptrdiff_t)((size_t)c->vcount * 6 * sizeof(float)),
                            s_hq_v + c->vfirst, PSXGL_STREAM_DRAW);
-            depth_apply_ex(c->depth, 0);
+            depth_apply_ex(c->depth, 0, c->vcount);
             { const int om_ = s_fg_obj_mark; s_fg_obj_mark = c->obj; BCLS_DRAW(c->semi, c->depth, c->mask, c->check, c->b3d, glDrawArrays(GL_TRIANGLES, 0, c->vcount)); s_fg_obj_mark = om_; }
-            depth_restore_ex(c->depth, 0, c->vcount);
+            depth_restore_ex(c->depth, 0);
         }
     }
     if (!any) return;
@@ -5692,9 +5695,9 @@ static void hiw_flush_queue(void) {
                 p_glUniform1i(s_uMaskset, c->mask);
                 p_glBufferData(PSXGL_ARRAY_BUFFER, (ptrdiff_t)((size_t)c->vcount * TEXV * sizeof(float)),
                                s_hq_v + c->vfirst, PSXGL_STREAM_DRAW);
-                depth_apply_ex(c->depth, 1);
+                depth_apply_ex(c->depth, 1, c->vcount);
                 { const int om_ = s_fg_obj_mark; s_fg_obj_mark = c->obj; tex_draw_passes_ex(c->vcount, c->semi, c->mask, c->check, 0, c->b3d); s_fg_obj_mark = om_; }
-                depth_restore_ex(c->depth, 1, c->vcount);
+                depth_restore_ex(c->depth, 1);
             } else {
                 if (cur != HQ_GEO) {
                     p_glUseProgram(s_geo_prog);
@@ -5706,9 +5709,9 @@ static void hiw_flush_queue(void) {
                 mask_stencil_ex(c->mask, c->check);
                 p_glBufferData(PSXGL_ARRAY_BUFFER, (ptrdiff_t)((size_t)c->vcount * 6 * sizeof(float)),
                                s_hq_v + c->vfirst, PSXGL_STREAM_DRAW);
-                depth_apply_ex(c->depth, 0);
+                depth_apply_ex(c->depth, 0, c->vcount);
                 { const int om_ = s_fg_obj_mark; s_fg_obj_mark = c->obj; BCLS_DRAW(c->semi, c->depth, c->mask, c->check, c->b3d, glDrawArrays(GL_TRIANGLES, 0, c->vcount)); s_fg_obj_mark = om_; }
-                depth_restore_ex(c->depth, 0, c->vcount);
+                depth_restore_ex(c->depth, 0);
             }
         }
     }
@@ -5756,9 +5759,9 @@ static void flush_tex_batch_impl(void) {
     p_glBindBuffer(PSXGL_ARRAY_BUFFER, s_tex_vbo);
     p_glBufferData(PSXGL_ARRAY_BUFFER, (ptrdiff_t)(nverts * TEXV * sizeof(float)), s_tb, PSXGL_STREAM_DRAW);
 
-    depth_apply_ex(dmode, 1);
+    depth_apply_ex(dmode, 1, nverts);
     tex_batch_draw_passes(nverts, semi);
-    depth_restore_ex(dmode, 1, nverts);
+    depth_restore_ex(dmode, 1);
 
     /* Native-wide mirror — skipped for a batch fully inside the 4:3 frame (its
      * centre content comes from the present-time canonical blit; nothing to add
@@ -5785,9 +5788,9 @@ static void flush_tex_batch_impl(void) {
         gl_perf_mirror_begin();
         wide_target_begin(dx, s_tex_uXoff, s_tex_uXhalf);
         wide_set_bd_scale(s_tex_uXscale, s_tex_uXcenter);
-        depth_apply_ex(dmode, 1);
+        depth_apply_ex(dmode, 1, nverts);
         if (s_ws_ablate != 2) tex_batch_draw_passes(nverts, semi);
-        depth_restore_ex(dmode, 1, nverts);
+        depth_restore_ex(dmode, 1);
         wide_clear_bd_scale(s_tex_uXscale, s_tex_uXcenter);
         wide_target_end(s_tex_uXoff, s_tex_uXhalf);
         gl_perf_mirror_end();
@@ -5896,10 +5899,10 @@ static void flush_flat_batch_impl(void) {
     if (nl) memcpy(&s_fb[nverts * 6], s_fbl, (size_t)nl * 2 * 6 * sizeof(float));
     p_glBufferData(PSXGL_ARRAY_BUFFER, (ptrdiff_t)((nverts + 2 * nl) * 6 * sizeof(float)),
                    s_fb, PSXGL_STREAM_DRAW);
-    depth_apply_ex(dmode, 0);
+    depth_apply_ex(dmode, 0, nverts);
     BCLS_DRAW(semi, dmode, mask, s_mask_check, b3d, if (nl) flat_batch_draw_hr_lines(nverts, nl);
                        else glDrawArrays(fmode, 0, nverts));
-    depth_restore_ex(dmode, 0, nverts);
+    depth_restore_ex(dmode, 0);
     int mirror = g_wide_cur && !s_wide_suppress && s_ws_ablate != 1 && !mirror_gate_clipped(s_fb_gate) &&
                  !(!g_ws_bd_stretch_on && mirror_flat_batch_center_only(nverts));
     if (mirror) {
@@ -5919,9 +5922,9 @@ static void flush_flat_batch_impl(void) {
         gl_perf_mirror_begin();
         wide_target_begin(dx, s_geo_uXoff, s_geo_uXhalf);
         wide_set_bd_scale(s_geo_uXscale, s_geo_uXcenter);
-        depth_apply_ex(dmode, 0);
+        depth_apply_ex(dmode, 0, nverts);
         if (s_ws_ablate != 2) BCLS_DRAW(semi, dmode, mask, s_mask_check, b3d, glDrawArrays(fmode, 0, nverts));
-        depth_restore_ex(dmode, 0, nverts);
+        depth_restore_ex(dmode, 0);
         wide_clear_bd_scale(s_geo_uXscale, s_geo_uXcenter);
         wide_target_end(s_geo_uXoff, s_geo_uXhalf);
         gl_perf_mirror_end();
