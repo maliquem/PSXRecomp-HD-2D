@@ -510,3 +510,9 @@ sem a aprovação dela; nada de push.
   (mais um texel para o filtro linear). `set_uniform` só marca o bloco sujo quando o valor muda
   (a chave de pipeline já tinha o cache de 16 assinaturas). `glBeginQuery` não força mais um
   envio: o intervalo medido começa no último envio e inclui o trabalho ainda não enviado.
+- 2026-11-14, auditoria (etapa 5): `SDL_SetGPUAllowedFramesInFlight` medido e não adotado. BoF4,
+  deserto, Smooth motion, 120 Hz, 30 s x 3 por valor: com 2 (o padrão do SDL) as três rodadas
+  deram 119,9 fps, p99 13,0-13,6 ms e intervalo do swapchain 8,3 ms com p99 13,2-14,5. Com 1 e com 3,
+  duas rodadas ficaram parecidas e uma teve travadas (pior intervalo 208-215 ms). A espera para pegar a
+  imagem do swapchain fica em 0,01-0,04 ms com qualquer valor: a fila não segura a thread de
+  render, então o padrão fica.
