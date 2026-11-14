@@ -865,6 +865,7 @@ static uint32_t sh_key_addr[8], sh_key_size[8], sh_key_last = 0xFFFFFFFFu;
 static uint32_t sh_fed = 0, sh_rejected = 0;   /* VBlank reads handed over / not a rotation */
 static uint32_t sh_cam_taken = 0;                /* camera ram: matches with the GTE */
 static uint32_t sh_anc_taken = 0, sh_blobs = 0;   /* sprite foot points; game blobs not drawn */
+static uint32_t sh_baked = 0;                     /* baked shadow pieces not drawn (shadow_baked_piece) */
 /* [video.shadow] hide_textures: the game's own blob shadows (a dark disc
  * under characters and objects), as texture page (9 bits) + CLUT (0xFFFF =
  * any: some games animate the shadow's palette) of the
@@ -1157,9 +1158,9 @@ int psx_shadow_state(char *out, int cap) {
     sh_bfr_n = 0;
     out += k; cap -= k;
     return k + snprintf(out, (size_t)cap, "\"scene\":\"0x%08x\",\"scene_sun\":[%d,%.1f,%.1f],\"two_sided\":%d,\"cfg_camera\":%d,\"overdraw\":[%d,%d],\"overdraw_on\":%d,\"overdraw_extra\":[%d,%d,%u],"
-                    "\"keys\":%d,\"hide\":%d,\"hidden\":%u,\"discs\":%u,\"fed\":%u,\"rejected\":%u,\"cam_taken\":%u,\"anchors\":%u,\"blobs\":%u,"
+                    "\"keys\":%d,\"hide\":%d,\"hidden\":%u,\"discs\":%u,\"fed\":%u,\"rejected\":%u,\"cam_taken\":%u,\"anchors\":%u,\"blobs\":%u,\"baked\":%u,"
                     "\"last_bad\":[%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f]",
-                    (unsigned)sh_area, sun, saz, sel, sh_ts_n, sh_camera, sh_od_x, sh_od_y, sh_od_on, ws_overdraw_ex, ws_overdraw_ey, ws_overdraw_extras, sh_nkeys, sh_hide_n, sh_hidden, sh_discs, sh_fed, sh_rejected, sh_cam_taken, sh_anc_taken, sh_blobs,
+                    (unsigned)sh_area, sun, saz, sel, sh_ts_n, sh_camera, sh_od_x, sh_od_y, sh_od_on, ws_overdraw_ex, ws_overdraw_ey, ws_overdraw_extras, sh_nkeys, sh_hide_n, sh_hidden, sh_discs, sh_fed, sh_rejected, sh_cam_taken, sh_anc_taken, sh_blobs, sh_baked,
                     sh_last_bad[0], sh_last_bad[1], sh_last_bad[2], sh_last_bad[3], sh_last_bad[4],
                     sh_last_bad[5], sh_last_bad[6], sh_last_bad[7], sh_last_bad[8], sh_last_bad[9]);
 }
@@ -1368,6 +1369,54 @@ static int shadow_blob_quad(int semi, uint32_t p0, uint32_t p1, uint32_t p2, uin
     }
     return 0;
 }
+/* The game's own baked shadows (an arch's shade on a town's floor): a
+ * translucent textured piece that darkens (blend 0 or 2) laid on the corners
+ * of the scenery drawn under it this frame. While our sun draws the
+ * scenery's shadows they fight it, so they are not drawn. Its texture (page
+ * and CLUT) is then known as a shadow's for a while: its pieces that cut
+ * across the scenery's tiles (a corner or none on them) go too. A fish under
+ * water or a sprite's blob shares no corner with the scenery. */
+enum { SH_SV_HASH = 4096 };
+static uint32_t sh_sv_key[SH_SV_HASH], sh_sv_frame[SH_SV_HASH];
+static int sh_bake_on = 0;
+enum { SH_BK_MAX = 16, SH_BK_KEEP = 120 };   /* shadow textures, kept that many VBlanks after the last proof */
+static uint32_t sh_bk_tex[SH_BK_MAX], sh_bk_frame[SH_BK_MAX];
+/* the scenery corner table's slot for a screen corner (its own, or a free/stale one; -1: full) */
+static int shadow_sv_slot(uint32_t key) {
+    unsigned h = (key * 2654435761u) >> 20;
+    const uint32_t fr = (uint32_t)s_frame_count;
+    for (int i = 0; i < 8; i++, h = (h + 1) & (SH_SV_HASH - 1))
+        if (sh_sv_key[h] == key || fr - sh_sv_frame[h] > 2u) return (int)h;
+    return -1;
+}
+/* 1: a baked shadow piece, not drawn (an opaque one only notes its corners) */
+static int shadow_baked_piece(int semi, uint16_t tpage, uint16_t clut, const uint32_t *p, int n) {
+    if (!sh_bake_on) return 0;
+    const uint32_t fr = (uint32_t)s_frame_count;
+    if (!semi) {   /* the scenery's corners (any opaque textured piece) */
+        for (int i = 0; i < n; i++) {
+            const int s = shadow_sv_slot(p[i] & 0x07FF07FFu);
+            if (s >= 0) { sh_sv_key[s] = p[i] & 0x07FF07FFu; sh_sv_frame[s] = fr; }
+        }
+        return 0;
+    }
+    if (((tpage >> 5) & 1u) != 0) return 0;   /* blend 1 (adds light) or 3 */
+    int met = 0;
+    for (int i = 0; i < n; i++) {
+        const int s = shadow_sv_slot(p[i] & 0x07FF07FFu);
+        if (s >= 0 && sh_sv_key[s] == (p[i] & 0x07FF07FFu) && fr - sh_sv_frame[s] <= 2u) met++;
+    }
+    const uint32_t tex = (uint32_t)(tpage & 0x1FFu) << 16 | clut;
+    int k = -1, old = 0;
+    for (int i = 0; i < SH_BK_MAX; i++) {
+        if (sh_bk_frame[i] && sh_bk_tex[i] == tex) { k = i; break; }
+        if (fr - sh_bk_frame[i] > fr - sh_bk_frame[old]) old = i;
+    }
+    if (met >= 2) { if (k < 0) { k = old; sh_bk_tex[k] = tex; } sh_bk_frame[k] = fr; }
+    else if (k < 0 || fr - sh_bk_frame[k] > SH_BK_KEEP) return 0;
+    sh_baked++;
+    return 1;
+}
 /* A blob painted into a sprite's own picture (BoF4's battle sprites: a
  * black ellipse under the feet, in one near-black CLUT entry the sprite uses
  * for nothing else). It is learnt from an opaque 4/8-bit quad holding a foot
@@ -1515,6 +1564,11 @@ static void shadow_vblank(void) {
     sh_hide_on = ours && sh_hide_n > 0;
     sh_sub_on = ours && sh_sub_allow;
     sh_disc_on = ours;
+    {   /* the game's baked shadows: off while our sun shades the scenery */
+        int scenery = 0;
+        gl_renderer_shadow_sun_info(NULL, &scenery);
+        sh_bake_on = wanted && scenery;
+    }
     if (wanted != sh_od_on && (sh_od_x || sh_od_y)) {
         gpu_set_overdraw(wanted ? sh_od_x : 0, wanted ? sh_od_y : 0);
         sh_od_on = wanted;
@@ -6674,7 +6728,9 @@ static int native_wide_projective_draw(void) {
 /* Execute textured triangle (GP0 0x24-0x27) */
 static void gp0_exec_textured_tri(void) {
     if (native_wide_projective_draw()) return;
-    if (gp0_tex_hidden((uint16_t)(gp0_cmd_buf[4] >> 16), (uint16_t)(gp0_cmd_buf[2] >> 16))) {
+    if (gp0_tex_hidden((uint16_t)(gp0_cmd_buf[4] >> 16), (uint16_t)(gp0_cmd_buf[2] >> 16)) ||
+        shadow_baked_piece((gp0_cmd_buf[0] >> 25) & 1, (uint16_t)(gp0_cmd_buf[4] >> 16), (uint16_t)(gp0_cmd_buf[2] >> 16),
+                           (const uint32_t[3]){gp0_cmd_buf[1], gp0_cmd_buf[3], gp0_cmd_buf[5]}, 3)) {
         set_tpage_from_poly((uint16_t)(gp0_cmd_buf[4] >> 16)); return;
     }
     uint32_t color24 = gp0_cmd_buf[0] & 0xFFFFFFu;
@@ -6724,6 +6780,8 @@ static void gp0_exec_textured_quad(void) {
     if (gp0_tex_hidden((uint16_t)(gp0_cmd_buf[4] >> 16), (uint16_t)(gp0_cmd_buf[2] >> 16)) ||
         gp0_sub_hidden((gp0_cmd_buf[0] >> 25) & 1, (int)(gp0_cmd_buf[4] >> 21) & 3) ||
         shadow_blob_quad((gp0_cmd_buf[0] >> 25) & 1, gp0_cmd_buf[1], gp0_cmd_buf[3], gp0_cmd_buf[5], gp0_cmd_buf[7]) ||
+        shadow_baked_piece((gp0_cmd_buf[0] >> 25) & 1, (uint16_t)(gp0_cmd_buf[4] >> 16), (uint16_t)(gp0_cmd_buf[2] >> 16),
+                           (const uint32_t[4]){gp0_cmd_buf[1], gp0_cmd_buf[3], gp0_cmd_buf[5], gp0_cmd_buf[7]}, 4) ||
         shadow_disc_quad((gp0_cmd_buf[0] >> 25) & 1, (uint16_t)(gp0_cmd_buf[4] >> 16), (uint16_t)(gp0_cmd_buf[2] >> 16), disc_uv)) {
         set_tpage_from_poly((uint16_t)(gp0_cmd_buf[4] >> 16)); return;
     }
@@ -6852,7 +6910,9 @@ static void gp0_exec_textured_quad(void) {
 /* Execute shaded textured triangle (GP0 0x34-0x37) */
 static void gp0_exec_shaded_textured_tri(void) {
     if (native_wide_projective_draw()) return;
-    if (gp0_tex_hidden((uint16_t)(gp0_cmd_buf[5] >> 16), (uint16_t)(gp0_cmd_buf[2] >> 16))) {
+    if (gp0_tex_hidden((uint16_t)(gp0_cmd_buf[5] >> 16), (uint16_t)(gp0_cmd_buf[2] >> 16)) ||
+        shadow_baked_piece((gp0_cmd_buf[0] >> 25) & 1, (uint16_t)(gp0_cmd_buf[5] >> 16), (uint16_t)(gp0_cmd_buf[2] >> 16),
+                           (const uint32_t[3]){gp0_cmd_buf[1], gp0_cmd_buf[4], gp0_cmd_buf[7]}, 3)) {
         set_tpage_from_poly((uint16_t)(gp0_cmd_buf[5] >> 16)); return;
     }
     int semi_trans = (gp0_cmd_buf[0] >> 25) & 1;
@@ -6923,8 +6983,11 @@ int psx_mod_texture_banks_supported(void) {
 static void gp0_exec_shaded_textured_quad(void) {
     if (native_wide_projective_draw()) return;
     const uint32_t disc_uv[4] = { gp0_cmd_buf[2], gp0_cmd_buf[5], gp0_cmd_buf[8], gp0_cmd_buf[11] };
+    /* no blob test here: a shaded translucent quad is the scenery's own (the
+     * shadow an arch lays on a town's floor), not a sprite's blob */
     if (gp0_tex_hidden((uint16_t)(gp0_cmd_buf[5] >> 16), (uint16_t)(gp0_cmd_buf[2] >> 16)) ||
-        shadow_blob_quad((gp0_cmd_buf[0] >> 25) & 1, gp0_cmd_buf[1], gp0_cmd_buf[4], gp0_cmd_buf[7], gp0_cmd_buf[10]) ||
+        shadow_baked_piece((gp0_cmd_buf[0] >> 25) & 1, (uint16_t)(gp0_cmd_buf[5] >> 16), (uint16_t)(gp0_cmd_buf[2] >> 16),
+                           (const uint32_t[4]){gp0_cmd_buf[1], gp0_cmd_buf[4], gp0_cmd_buf[7], gp0_cmd_buf[10]}, 4) ||
         shadow_disc_quad((gp0_cmd_buf[0] >> 25) & 1, (uint16_t)(gp0_cmd_buf[5] >> 16), (uint16_t)(gp0_cmd_buf[2] >> 16), disc_uv)) {
         set_tpage_from_poly((uint16_t)(gp0_cmd_buf[5] >> 16)); return;
     }

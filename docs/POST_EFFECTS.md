@@ -158,6 +158,20 @@ for these routines it does not. BoF4's fish at the fishing spots (RA
 taken per routine since the last read (reset on each read), to find such a
 routine.
 
+With GI on and the sun on the scenery of an area, the game's own baked shadows
+are not drawn in any scene. A translucent textured polygon with a darkening
+blend (mode 0 or 2; modes 1 and 3 add light and are left) that has at least
+two corners exactly on corners of opaque textured polygons drawn in the last
+two VBlanks is taken as a baked shadow (`shadow_baked_piece`, the corners in
+`shadow_sv_slot`). Its texture (tpage and CLUT) is remembered for 120 VBlanks
+after the last such proof, and all its translucent pieces are hidden, including
+those cutting across floor tiles, which have 0 or 1 corner on the scenery. The
+fish in the river and the sprites' blob shadows are not affected. Blob shadows
+are flat quads (0x2C-0x2F); a shaded translucent quad (0x3C-0x3F) is not tested
+as a blob (`shadow_blob_quad`). With GI off, or in an area with `sun_areas`
+"off", the game's shadows stay. The TCP `shadow_cache` counts the pieces not
+drawn as `"baked"`.
+
 The sun can be set per place: `sun_areas = ["0xAREA:az:el", "0xAREA:off"]`
 gives an area its own azimuth and elevation (degrees), over the pass's
 `u_sun`, or no sun at all ("off": a cave; the stages reading `shadow` are
