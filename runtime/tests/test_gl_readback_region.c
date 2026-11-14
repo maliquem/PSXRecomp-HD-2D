@@ -58,6 +58,9 @@ void gpu_hd_textures_invalidate(int x,int y,int w,int h){(void)x;(void)y;(void)w
 void gpu_hd_textures_track_upload(int x,int y,int w,int h,const uint16_t *d){(void)x;(void)y;(void)w;(void)h;(void)d;}
 /* No shadows, lights, OT tracking, overdraw, MDEC, overlays or telemetry. */
 int area_lights_get(uint32_t a,AreaLightSet *o){(void)a;(void)o;return 0;}
+const unsigned char *area_lights_masks(int *side,int *count){*side=0;*count=0;return 0;}
+int gpu_prim_nolight_now(void){return 0;}
+int gpu_shadow_area_off(void){return 0;}
 int gpu_ot_front_now(void){return 0;}
 uint32_t gpu_shadow_current_area(void){return 0;}
 int gpu_shadow_moon_area(float *az,float *el){(void)az;(void)el;return 0;}

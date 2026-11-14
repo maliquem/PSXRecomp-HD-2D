@@ -99,6 +99,7 @@ void psx_host_sleep_micros(unsigned us){(void)us;}
 int psx_present_vsync_owns_cadence(void){return 0;}
 void latency_ring_mark(LatencyStage s){(void)s;}
 void gpu_timeline_note(uint8_t k,uint32_t a,uint32_t b){(void)k;(void)a;(void)b;}
+#include "gl_renderer_hooks_stubs.inc"
 
 static uint16_t vram[1024*512];
 static int checks, failures;

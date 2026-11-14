@@ -11,6 +11,9 @@
 #include <string.h>
 #include <time.h>
 
+/* host_sampler.c (linked for render_thread.c) stamps each sample with these runtime-owned globals. */
+int g_psx_render_pass_active;
+uint64_t s_frame_count;
 static int checks, failures;
 #define CHECK(c, ...) do { checks++; if (!(c)) { failures++; \
     fprintf(stderr, "FAIL %s:%d: ", __FILE__, __LINE__); \

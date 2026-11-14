@@ -1696,7 +1696,7 @@ if(BUILD_TESTING)
     # The fixture itself uses POSIX threads and nanosleep (MinGW has both;
     # the core takes its Win32 path there).
     if(NOT MSVC)
-        add_executable(render_thread_test tests/test_render_thread.c src/render_thread.c)
+        add_executable(render_thread_test tests/test_render_thread.c src/render_thread.c src/host_sampler.c)
         target_include_directories(render_thread_test PRIVATE include)
         find_package(Threads REQUIRED)
         target_link_libraries(render_thread_test PRIVATE Threads::Threads)

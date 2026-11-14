@@ -72,8 +72,10 @@ def main():
                  ("rp", src / "render_pass_plan.c"), ("xr", src / "psx_openxr.c"),
                  ("rth", src / "render_thread.c"), ("pth", src / "present_thread.c"),
                  ("fg", src / "frame_gen.c"), ("hov", src / "host_overlay.c"),
-                 ("al", src / "area_lights.c"),
                  ("sgl_gl", src / "sgl/sgl_gl.c"), ("sgl_gpu", src / "sgl/sgl_gpu.c")]
+    # A fixture that stubs area_lights_get() must not also link the real one.
+    if "area_lights_get(" not in text:
+        c_sources.append(("al", src / "area_lights.c"))
     cxx_sources = [("sgl_shader", src / "sgl/sgl_shader.cpp")]
     log = []
 
