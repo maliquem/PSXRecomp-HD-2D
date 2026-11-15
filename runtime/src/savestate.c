@@ -120,6 +120,8 @@ typedef struct SavestateThumbHeader {
     uint32_t w;
     uint32_t h;
 } SavestateThumbHeader;
+/* The thumbnail file stores this struct raw: a padded layout would change the file. */
+typedef char savestate_thumb_header_is_12_bytes[sizeof(SavestateThumbHeader) == 12 ? 1 : -1];
 
 /* Mid-FMV / present-edge IRQ fast paths often pass resume_pc=0 (cpu->pc is
  * parked). Prefer sticky BB / compiled latches over writing a null resume. */
