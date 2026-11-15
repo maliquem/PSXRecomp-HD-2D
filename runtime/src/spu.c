@@ -350,7 +350,7 @@ static inline int16_t cd_input_volume(uint16_t raw) {
 }
 
 void spu_cd_audio_reset(void) {
-    memset(cd_ring, 0, sizeof(cd_ring));
+    /* cd_ring is not cleared: every reader is bounded by cd_frame_count (0 here). */
     cd_read_pos = 0;
     cd_write_pos = 0;
     cd_frame_count = 0;
