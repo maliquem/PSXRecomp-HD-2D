@@ -1165,6 +1165,34 @@ uint64_t g_kseg2_ignored_writes;
 /* Cache control register (KSEG2: 0xFFFE0130). */
 static uint32_t cache_ctrl;
 
+/* BS_SEC_MEMCTL (EST-7/MEM-4): mem_ctrl[16], ram_size_reg, cache_ctrl as u32
+ * LE. Plain latches (any value a store can leave), so only the length is
+ * checked. A state without the section keeps the live values. */
+#define MEMCTL_SNAPSHOT_WORDS 18u
+uint32_t memory_ctrl_snapshot_bytes(void) { return MEMCTL_SNAPSHOT_WORDS * 4u; }
+void memory_ctrl_snapshot_write(uint8_t *p) {
+    PstW w;
+    pst_w_init(&w, p, MEMCTL_SNAPSHOT_WORDS * 4u);
+    for (int i = 0; i < 16; i++) pst_w_u32(&w, mem_ctrl[i]);
+    pst_w_u32(&w, ram_size_reg);
+    pst_w_u32(&w, cache_ctrl);
+}
+int memory_ctrl_snapshot_validate(const uint8_t *p, uint32_t len) {
+    return p && len == MEMCTL_SNAPSHOT_WORDS * 4u;
+}
+int memory_ctrl_snapshot_read(const uint8_t *p, uint32_t len) {
+    uint32_t v[MEMCTL_SNAPSHOT_WORDS];
+    PstR r;
+    if (!memory_ctrl_snapshot_validate(p, len)) return 0;
+    pst_r_init(&r, p, len);
+    for (uint32_t i = 0; i < MEMCTL_SNAPSHOT_WORDS; i++)
+        if (!pst_r_u32(&r, &v[i])) return 0;
+    memcpy(mem_ctrl, v, sizeof mem_ctrl);
+    ram_size_reg = v[16];
+    cache_ctrl = v[17];
+    return 1;
+}
+
 /* Pointer to cpu->cop0[12] (SR).  Set once at init.
  * Used by write functions to check the IsC (Isolate Cache) bit: while it is
  * set, a CPU store goes to the caches and never reaches the bus (isc_store). */
@@ -1381,6 +1409,7 @@ void memory_init(const char* bios_path) {
      * live outside device *_init (I_STAT/I_MASK cleared in interrupts_init). */
     memset(mem_ctrl, 0, sizeof(mem_ctrl));
     ram_size_reg = 0;
+    cache_ctrl = 0;
     i_stat = 0;
     i_mask = 0;
     /* Host dirty/text/overlay bitmaps survive memset(ram) and fork dig0. */

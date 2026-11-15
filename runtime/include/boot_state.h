@@ -108,6 +108,9 @@ enum {
     BS_SEC_DIRTY  = 0x0E,  /* dirty-RAM page bitmap (guest-written code pages)    */
     BS_SEC_MDEC   = 0x0F,  /* MDEC command/FIFOs/quant/scale (FMV decode resume)  */
     BS_SEC_SPUCD  = 0x15,  /* SPU CD-input frames queued (u32 n + n*(l,r) s16) */
+    BS_SEC_MEMCTL = 0x16,  /* memory control 0x1F801000..103C, RAM size
+                              0x1F801060, cache control 0xFFFE0130 (18 u32).
+                              Absent => the live values are kept. */
     BS_SEC_CPUTIM = 0x14,  /* [timing] in-flight CPU stall state, relative to
                               the clock: GTE / mul-div cycles left, the load-
                               delay give-back (read_absorb[33], which, fudge,

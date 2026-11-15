@@ -80,6 +80,10 @@ extern uint32_t spu_get_ram_bytes(void);
 extern uint32_t cdrom_snapshot_bytes(void);
 extern int      cdrom_snapshot_validate(const uint8_t* p, uint32_t len);
 extern int      cdrom_snapshot_disc_matches(const uint8_t* p, uint32_t len);
+extern uint32_t memory_ctrl_snapshot_bytes(void);
+extern void     memory_ctrl_snapshot_write(uint8_t* p);
+extern int      memory_ctrl_snapshot_validate(const uint8_t* p, uint32_t len);
+extern int      memory_ctrl_snapshot_read(const uint8_t* p, uint32_t len);
 extern void     cdrom_snapshot_write(uint8_t* p);
 extern int      cdrom_snapshot_read(const uint8_t* p, uint32_t len);
 extern uint32_t dma_snapshot_bytes(void);
@@ -425,7 +429,7 @@ static int boot_state_save_to(BsOut* o, const CPUState* cpu,
     h.codegen_hash  = (uint32_t)PSX_OVERLAY_CODEGEN_HASH;
     h.abi_tag       = (int32_t)PSX_OVERLAY_ABI_TAG;
     h.codegen_ver   = BOOT_STATE_IMPLEMENTATION_KEY;
-    h.section_count = 18 + (cpu ? 1u : 0u) + (psx_mod_memory_snapshot_bytes() ? 1u : 0u) +
+    h.section_count = 19 + (cpu ? 1u : 0u) + (psx_mod_memory_snapshot_bytes() ? 1u : 0u) +
                       (psx_guest_cycle_scale_config() != 1u ? 1u : 0u);
 
     /* Publish deferred cycle charges before ANY section: IRQ (cycles since
@@ -578,6 +582,9 @@ static int boot_state_save_to(BsOut* o, const CPUState* cpu,
         ok = pst_w_u32(&w, g[0]) && pst_w_u32(&w, g[1]) && pst_w_u32(&w, g[2]) &&
              write_section(o, BS_SEC_GCS, gb, sizeof gb);
     }
+    /* Appended last so every older section keeps its place. */
+    if (ok) ok = write_module_section(o, BS_SEC_MEMCTL, memory_ctrl_snapshot_bytes,
+                                      memory_ctrl_snapshot_write);
     return ok;
 }
 
@@ -823,6 +830,8 @@ static int apply_section(uint32_t tag, const uint8_t* p, uint32_t len,
         psx_guest_cycle_scale_restore(g);
         return 1;
     }
+    case BS_SEC_MEMCTL:
+        return memory_ctrl_snapshot_read(p, len);
     case BS_SEC_ICACHE: {
         PstR r;
         if (len != 1024u * 4u) return 0;
@@ -890,6 +899,7 @@ static int validate_section(uint32_t tag, const uint8_t* p, uint32_t len) {
     case BS_SEC_GCS:    return len == PSX_GCS_SNAPSHOT_BYTES;
     case BS_SEC_CPUTIM: return len == BS_CPUTIM_BYTES;
     case BS_SEC_SPUCD:  return spu_cd_snapshot_validate(p, len);
+    case BS_SEC_MEMCTL: return memory_ctrl_snapshot_validate(p, len);
     default:            return 1;
     }
 }

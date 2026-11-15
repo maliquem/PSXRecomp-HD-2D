@@ -179,6 +179,7 @@ int cdrom_snapshot_disc_matches(const uint8_t *p, uint32_t len) { (void)p; (void
 int sio_snapshot_validate(const uint8_t *p, uint32_t len) { return p && len == 48u; }
 int mdec_snapshot_validate(const uint8_t *p, uint32_t len) { return p && len == 400u; }
 int spu_cd_snapshot_validate(const uint8_t *p, uint32_t len) { return p && len == 4u; }
+int g_spu_cd_restored; /* spu.c: cleared by boot_state.c after a load */
 /* boot_state.c drains the SPU before saving; there is no SPU here. */
 void spu_catch_up(void) {}
 

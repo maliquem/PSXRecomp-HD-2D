@@ -408,6 +408,58 @@ static void check_state_file_replaced_whole(void) {
     remove(other);
 }
 
+/* ---- EST-7/MEM-4: BS_SEC_MEMCTL round trip and older states ---------- */
+extern int memory_ctrl_snapshot_validate(const uint8_t *p, uint32_t len);
+extern void memory_ctrl_snapshot_write(uint8_t *p);
+static void memctl_set(uint32_t salt) {
+    for (uint32_t i = 0; i < 16; i++) psx_write_word(0x1F801000u + i * 4u, salt + i);
+    psx_write_word(0x1F801060u, salt ^ 0x0B88u);
+    psx_write_word(0xFFFE0130u, salt ^ 0x0001E988u);
+}
+/* Read back through the section writer: MMIO reads trap in this link. */
+static int memctl_is(uint32_t salt) {
+    uint8_t w[72], e[72];
+    memory_ctrl_snapshot_write(w);
+    for (uint32_t i = 0; i < 16; i++) put32(e + i * 4u, salt + i);
+    put32(e + 64, salt ^ 0x0B88u);
+    put32(e + 68, salt ^ 0x0001E988u);
+    return memcmp(w, e, sizeof w) == 0 && psx_read_word(0xFFFE0130u) == (salt ^ 0x0001E988u);
+}
+static void check_memctl_section(void) {
+    CPUState cpu;
+    size_t len = 0;
+    uint8_t *state;
+    const uint32_t frame = 16u + 72u; /* section header + 18 u32 */
+    set_geometry(0);
+    memctl_set(0x1000u);
+    check(memctl_is(0x1000u), "memctl registers read back");
+    state = save_state(&len, 0x31u);
+    check(state != NULL, "memctl: save");
+    if (!state) return;
+    memctl_set(0x2000u);
+    check(boot_state_load_buffer(state, len, 0x12345678u, 0x80010000u, &cpu) == 1,
+          "memctl: load");
+    check(memctl_is(0x1000u), "memctl: save -> load restores the 18 registers");
+    /* A state from an older build has no MEMCTL section (it is the last one):
+     * it still loads and the live values stay. */
+    {
+        uint32_t tag = (uint32_t)state[len - frame] | ((uint32_t)state[len - frame + 1] << 8);
+        uint32_t count = (uint32_t)state[28] | ((uint32_t)state[29] << 8) |
+                         ((uint32_t)state[30] << 16) | ((uint32_t)state[31] << 24);
+        check(tag == BS_SEC_MEMCTL, "memctl: section is appended last");
+        put32(state + 28, count - 1u);
+        memctl_set(0x3000u);
+        check(boot_state_load_buffer(state, len - frame, 0x12345678u, 0x80010000u, &cpu) == 1,
+              "memctl: state without the section loads");
+        check(memctl_is(0x3000u), "memctl: absent section keeps the live values");
+    }
+    check(!memory_ctrl_snapshot_validate(state + len - 72u, 71u) &&
+          !memory_ctrl_snapshot_validate(state + len - 72u, 76u) &&
+          memory_ctrl_snapshot_validate(state + len - 72u, 72u),
+          "memctl: pass 1 accepts only the exact length");
+    free(state);
+}
+
 int main(void) {
     /* Process start and memory_init() without the mod: retail. */
     check_helpers_everywhere(0, "default geometry is retail 2 MiB mirroring");
@@ -432,6 +484,7 @@ int main(void) {
     check_savestates();
     check_dma_snapshot_ranges();
     check_state_file_replaced_whole();
+    check_memctl_section();
 
     if (failures == 0) printf("PASS  psx_ram_runtime_map (2 and 8 MiB, real memory/DMA/savestate paths)\n");
     return failures ? 1 : 0;
