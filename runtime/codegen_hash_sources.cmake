@@ -22,7 +22,6 @@ set(PSXRECOMP_CODEGEN_HASH_SRCS
     ${PSXRECOMP_CODEGEN_HASH_ROOT}/recompiler/src/gpr_locals.h
     ${PSXRECOMP_CODEGEN_HASH_ROOT}/recompiler/src/mips_decoder.cpp
     ${PSXRECOMP_CODEGEN_HASH_ROOT}/recompiler/src/control_flow.cpp
-    ${PSXRECOMP_CODEGEN_HASH_ROOT}/recompiler/src/basic_block.cpp
     ${PSXRECOMP_CODEGEN_HASH_ROOT}/recompiler/src/function_analysis.cpp
     ${PSXRECOMP_CODEGEN_HASH_ROOT}/recompiler/src/recompiler_patch.cpp
     ${PSXRECOMP_CODEGEN_HASH_ROOT}/recompiler/src/recompiler_patch.h
@@ -34,6 +33,20 @@ set(PSXRECOMP_CODEGEN_HASH_SRCS
     ${PSXRECOMP_CODEGEN_HASH_ROOT}/recompiler/src/pgxp_hook_emitter.h
     ${PSXRECOMP_CODEGEN_HASH_ROOT}/recompiler/src/function_discovery.cpp
     ${PSXRECOMP_CODEGEN_HASH_ROOT}/recompiler/src/function_discovery.h
+    # Orchestration + config + rewrite stages that decide emitted text (not just the
+    # core emitters above); all are compiled into psxrecomp-game.
+    ${PSXRECOMP_CODEGEN_HASH_ROOT}/recompiler/src/main_psx.cpp
+    ${PSXRECOMP_CODEGEN_HASH_ROOT}/recompiler/src/config_loader.cpp
+    ${PSXRECOMP_CODEGEN_HASH_ROOT}/recompiler/src/config_loader.h
+    ${PSXRECOMP_CODEGEN_HASH_ROOT}/recompiler/src/segment_variants.cpp
+    ${PSXRECOMP_CODEGEN_HASH_ROOT}/recompiler/src/segment_variants.h
+    ${PSXRECOMP_CODEGEN_HASH_ROOT}/recompiler/src/game_dispatch_emitter.cpp
+    ${PSXRECOMP_CODEGEN_HASH_ROOT}/recompiler/src/game_dispatch_emitter.h
+    ${PSXRECOMP_CODEGEN_HASH_ROOT}/recompiler/src/bios_address_model.cpp
+    ${PSXRECOMP_CODEGEN_HASH_ROOT}/recompiler/src/bios_address_model.h
+    ${PSXRECOMP_CODEGEN_HASH_ROOT}/recompiler/src/annotations.cpp
+    ${PSXRECOMP_CODEGEN_HASH_ROOT}/recompiler/src/annotations.hpp
+    ${PSXRECOMP_CODEGEN_HASH_ROOT}/recompiler/include/mips_decoder.h
     ${PSXRECOMP_CODEGEN_HASH_ROOT}/recompiler/include/gte_register_classification.h
     # Shared instruction detector changes alter emitted overlay substitutions.
     ${PSXRECOMP_CODEGEN_HASH_ROOT}/runtime/include/ws_backdrop_detect.h
@@ -57,7 +70,6 @@ set(PSXRECOMP_CODEGEN_HASH_SRCS
     ${PSXRECOMP_CODEGEN_HASH_ROOT}/recompiler/src/ps1_exe_parser.cpp
     ${PSXRECOMP_CODEGEN_HASH_ROOT}/recompiler/include/control_flow.h
     ${PSXRECOMP_CODEGEN_HASH_ROOT}/recompiler/include/function_analysis.h
-    ${PSXRECOMP_CODEGEN_HASH_ROOT}/recompiler/include/basic_block.h
     ${PSXRECOMP_CODEGEN_HASH_ROOT}/recompiler/include/code_generator.h
 
     # --- Shard COMPILE surface -------------------------------------------------
@@ -77,4 +89,5 @@ set(PSXRECOMP_CODEGEN_HASH_SRCS
     ${PSXRECOMP_CODEGEN_HASH_ROOT}/runtime/include/psx_cyc.h
     ${PSXRECOMP_CODEGEN_HASH_ROOT}/runtime/include/psx_cycles.h
     ${PSXRECOMP_CODEGEN_HASH_ROOT}/runtime/include/ws_cull_edge.h
+    ${PSXRECOMP_CODEGEN_HASH_ROOT}/runtime/include/psx_gpr_locals.h
     ${PSXRECOMP_CODEGEN_HASH_ROOT}/runtime/include/overlay_dispatch_preamble.c.inc)
