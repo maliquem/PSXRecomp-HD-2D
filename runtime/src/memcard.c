@@ -58,6 +58,8 @@ typedef struct {
     uint8_t data[MEMCARD_SIZE];
     char    path[sizeof(((MemCard *)0)->filepath)];
     int     pending;
+    /* data is the card image plus every sector written since (mirrored under s_wlock) */
+    int     exact;
 } PendingWrite;
 
 static PendingWrite s_pending[MAX_CARDS];
@@ -120,6 +122,7 @@ static void writer_loop(void) {
         if (rc != 0 && !s_pending[card].pending) {
             memcpy(&s_pending[card], &job, sizeof(job));   /* try again */
             s_pending[card].pending = 1;
+            s_pending[card].exact = 0;   /* a sector may have landed in cards[] since the snapshot */
         }
         wsignal(&s_widle);
         wunlock();
@@ -160,9 +163,14 @@ static int writer_enqueue(int card) {
     writer_start_locked();
     started = s_writer_started;
     if (started) {
-        memcpy(s_pending[card].data, cards[card].data, MEMCARD_SIZE);
-        snprintf(s_pending[card].path, sizeof(s_pending[card].path), "%s", cards[card].filepath);
-        s_pending[card].pending = 1;
+        PendingWrite *p = &s_pending[card];
+        /* Still queued and kept in step by memcard_write_sector: nothing to copy. */
+        if (!(p->pending && p->exact && strcmp(p->path, cards[card].filepath) == 0)) {
+            memcpy(p->data, cards[card].data, MEMCARD_SIZE);
+            snprintf(p->path, sizeof(p->path), "%s", cards[card].filepath);
+            p->exact = 1;
+        }
+        p->pending = 1;
         wsignal(&s_wwake);
     }
     wunlock();
@@ -317,6 +325,9 @@ static int card_lock_busy(int i, const char* path) {
 void memcard_init_slots(const char* dir, const MemcardSlotConfig slots[2]) {
     /* A reboot re-reads the files: writes still queued land first. */
     (void)memcard_flush_wait(10000);
+    wlock();   /* cards[] is re-read below without mirroring */
+    for (int i = 0; i < MAX_CARDS; i++) s_pending[i].exact = 0;
+    wunlock();
     for (int i = 0; i < MAX_CARDS; i++) card_unlock(i);
     memset(cards, 0, sizeof(cards));
     snprintf(s_memcard_dir, sizeof(s_memcard_dir), "%s", dir ? dir : "");
@@ -432,7 +443,11 @@ int memcard_write_sector(int card, int sector, const uint8_t* buf) {
     if (!cards[card].present) return -1;
     if (sector < 0 || sector >= MEMCARD_SECTORS) return -1;
 
+    wlock();
     memcpy(cards[card].data + sector * MEMCARD_SECTOR_SIZE, buf, MEMCARD_SECTOR_SIZE);
+    if (s_pending[card].pending && s_pending[card].exact && !cards[card].memory_only)
+        memcpy(s_pending[card].data + sector * MEMCARD_SECTOR_SIZE, buf, MEMCARD_SECTOR_SIZE);
+    wunlock();
     cards[card].dirty = 1;
     return 0;
 }
@@ -495,6 +510,9 @@ int memcard_export_raw(int card, uint8_t *dst) {
 int memcard_import_raw(int card, const uint8_t *src) {
     if (card < 0 || card >= MAX_CARDS || !src) return -1;
     if (cards[card].filepath[0] == '\0') return -1;
+    wlock();
+    s_pending[card].exact = 0;
+    wunlock();
     memcpy(cards[card].data, src, MEMCARD_SIZE);
     cards[card].present = 1;
     cards[card].dirty = 1;
@@ -557,6 +575,9 @@ int memcard_rebind_path(int card, const char *path) {
 int memcard_reload_bound(void) {
     int i;
     (void)memcard_flush_wait(10000);
+    wlock();   /* cards[] is re-read below without mirroring */
+    for (i = 0; i < MAX_CARDS; i++) s_pending[i].exact = 0;
+    wunlock();
     for (i = 0; i < MAX_CARDS; i++) {
         FILE *f;
         if (cards[i].filepath[0] == '\0') {
@@ -597,6 +618,9 @@ int memcard_mount_image(int card, const uint8_t *image) {
     if (!cards[card].present || cards[card].memory_only) return -1;
     /* Anything the game wrote to the player's card is on disk first. */
     memcard_flush(card);
+    wlock();
+    s_pending[card].exact = 0;   /* data is replaced without mirroring */
+    wunlock();
     memcpy(cards[card].data, image, MEMCARD_SIZE);
     cards[card].memory_only = 1;
     cards[card].dirty = 0;
@@ -606,6 +630,9 @@ int memcard_mount_image(int card, const uint8_t *image) {
 int memcard_unmount_image(int card, const uint8_t *restore) {
     if (card < 0 || card >= MAX_CARDS || !restore) return -1;
     if (!cards[card].memory_only) return -1;
+    wlock();
+    s_pending[card].exact = 0;
+    wunlock();
     memcpy(cards[card].data, restore, MEMCARD_SIZE);
     cards[card].memory_only = 0;
     cards[card].dirty = 0;

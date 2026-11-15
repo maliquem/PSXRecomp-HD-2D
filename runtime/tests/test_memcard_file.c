@@ -241,6 +241,28 @@ static void test_wrong_size_card_left_alone(void) {
     remove(path);
 }
 
+/* MEM-O3: a burst of sector writes+flushes (most merge into one queued image
+ * without a 128 KB copy) must land on disk byte for byte as the card holds it. */
+static void test_sector_burst_lands_whole(void) {
+    const char *path = "memcard_file_scratch/burst.mcd";
+    MemcardSlotConfig slots[2] = { { NULL, 1 }, { NULL, 0 } };
+    uint8_t sec[MEMCARD_SECTOR_SIZE], want[MEMCARD_SIZE];
+
+    remove(path);
+    slots[0].path = path;
+    memcard_init_slots("memcard_file_scratch", slots);
+    check(memcard_is_present(0), "burst: card present");
+    for (int s = 0; s < MEMCARD_SECTORS; s++) {
+        memset(sec, (int)(s * 5 + 1), sizeof(sec));
+        check(memcard_write_sector(0, s, sec) == 0, "burst: write sector");
+        memcard_flush(0);
+    }
+    check(memcard_flush_wait(10000) == 0, "burst: writer drains");
+    check(memcard_export_raw(0, want) == 0, "burst: export");
+    check(file_equals(path, want, MEMCARD_SIZE), "burst: file equals card image");
+    remove(path);
+}
+
 int main(void) {
     for (size_t i = 0; i < MEMCARD_SIZE; i++) card_bytes[i] = (uint8_t)(i * 7u + 3u);
 #ifdef _WIN32
@@ -254,6 +276,7 @@ int main(void) {
     test_atomic_write_and_rewrite();
     test_atomic_write_failure_keeps_old();
     test_wrong_size_card_left_alone();
+    test_sector_burst_lands_whole();
     if (failures == 0) printf("PASS  memcard_file (unreadable card kept, missing created, private tmp)\n");
     return failures ? 1 : 0;
 }
