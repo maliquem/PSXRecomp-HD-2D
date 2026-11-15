@@ -60,6 +60,7 @@ static char     s_capture_path[768];
 static int      s_active   = 0;
 static int      s_enabled  = 0;   /* config gate; off unless overlay cache enabled */
 static SDL_mutex *s_commit_mutex;
+static SDL_mutex *s_history_mutex;
 static SDL_atomic_t s_snapshot_seq;
 static uint64_t s_latest_commit_seq;
 
@@ -186,6 +187,7 @@ void overlay_capture_set_out_dir(const char *out_dir)
     snprintf(s_capture_path, sizeof(s_capture_path),
              "%s/overlay_captures.json", out_dir ? out_dir : ".");
     if (!s_commit_mutex) s_commit_mutex = SDL_CreateMutex();
+    if (!s_history_mutex) s_history_mutex = SDL_CreateMutex();
     (void)preserve_writer_start();
 }
 
@@ -199,6 +201,7 @@ int overlay_capture_set_path(const char *path)
     }
     snprintf(s_capture_path, sizeof(s_capture_path), "%s", resolved);
     if (!s_commit_mutex) s_commit_mutex = SDL_CreateMutex();
+    if (!s_history_mutex) s_history_mutex = SDL_CreateMutex();
     (void)preserve_writer_start();
     return 1;
 }
@@ -803,7 +806,12 @@ static uint64_t capture_commit_temp(const char *temp_path, const char *reason,
      * "latest" path, which another writer can replace at any time), and
      * outside the commit lock since durable-history I/O (an optional
      * persist_dir copy plus a JSONL append) can be comparatively slow. */
-    if (history_ok) persist_history_snapshot(contribution, reason, sig);
+    /* Serialize history state and the shared .jsonl across writer threads. */
+    if (history_ok) {
+        if (s_history_mutex) SDL_LockMutex(s_history_mutex);
+        persist_history_snapshot(contribution, reason, sig);
+        if (s_history_mutex) SDL_UnlockMutex(s_history_mutex);
+    }
     return history_ok ? sig : 0;
 }
 
