@@ -1974,7 +1974,10 @@ std::string CodeGenerator::translate_instruction_core(uint32_t addr, uint32_t in
                             "  /* mfc0 (delayed load) */",
                             reg_name(rt), rd, rt);
                     } else if (cop_op == 0x04) { // MTC0 - move to COP0
-                        code = fmt::format("cpu->cop0[{}] = {};  /* mtc0 */", rd, reg_name(rt));
+                        if (rd == 13) // Cause: only SW interrupt bits 9:8 are writable (same as dirty_ram_interp.c)
+                            code = fmt::format("cpu->cop0[13] = (cpu->cop0[13] & ~0x0300u) | ({} & 0x0300u);  /* mtc0 */", reg_name(rt));
+                        else
+                            code = fmt::format("cpu->cop0[{}] = {};  /* mtc0 */", rd, reg_name(rt));
                     } else if (cop_op == 0x10 && (instr & 0x3F) == 0x10) { // RFE
                         // Restore interrupt enable bits: shift bits 5:2 → 3:0.
                         // Fix B: arm the host exception-return escape if this RFE runs

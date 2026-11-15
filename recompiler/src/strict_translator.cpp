@@ -1327,9 +1327,11 @@ TranslateResult StrictTranslator::translate_impl(const PSXRecomp::DecodedInstruc
             r.supported = true;
             // cop0[rd] is NOT subject to $zero rules; even cop0[0] is a
             // real writable register (Index). Direct assignment.
-            r.c_code = fmt::format(
-                "cpu->cop0[{}] = cpu->gpr[{}];",
-                static_cast<int>(rd), static_cast<int>(rt));
+            r.c_code = rd == 13  // Cause: only SW interrupt bits 9:8 are writable
+                ? fmt::format("cpu->cop0[13] = (cpu->cop0[13] & ~0x0300u) | (cpu->gpr[{}] & 0x0300u);",
+                              static_cast<int>(rt))
+                : fmt::format("cpu->cop0[{}] = cpu->gpr[{}];",
+                              static_cast<int>(rd), static_cast<int>(rt));
             r.comment = fmt::format("mtc0 {}, cop0[{}]", gpr_name(rt), rd);
             return r;
         }

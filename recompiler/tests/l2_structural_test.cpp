@@ -316,6 +316,10 @@ static const Form kForms[] = {
           return "";
       })},
 
+    // MTC0 $v1, $13  (write Cause: only bits 9:8 are writable)
+    { I_TYPE(0x10, 0x04, V1, 13 << 11), "mtc0_v1_cause",
+      must_contain_in_order({"cop0[13] = (cpu->cop0[13] & ~0x0300u)", "gpr[3] & 0x0300u"}) },
+
     // === $zero writes should be discarded ===
     // ADDIU $zero, $v1, 1 → should be discarded/commented
     { I_TYPE(0x09, V1, 0, 1), "addiu_zero_v1_1",
