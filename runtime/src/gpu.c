@@ -5309,7 +5309,7 @@ uint32_t gpu_read_gpustat(void) {
         case 0: break; /* bit 25 = 0 */
         case 1: stat |= (1u << 25); break;
         case 2: stat |= (1u << 25); break; /* mirrors ready-to-receive */
-        case 3: stat |= (1u << 25); break; /* mirrors ready-to-send */
+        case 3: if (vram_read_active) stat |= (1u << 25); break; /* = bit 27 */
     }
 
     /* Bit 26: ready to receive cmd word — 1 when not busy */
@@ -9463,6 +9463,17 @@ void gpu_draw_skip_counts(uint64_t *skipped, uint64_t *drawn, uint64_t *prims) {
 }
 uint64_t gpu_draw_skip_pgxp_frames(void) { return s_draw_skip_held_frames; }
 
+/* 1 when the turbo drops this primitive. A dropped textured polygon still
+ * latches its texpage word into draw mode, as the drawn path does. */
+static int draw_skip_prim(uint8_t opcode) {
+    if (!s_draw_skip || opcode < 0x20 || opcode > 0x7F) return 0;
+    if ((opcode & 0xE4) == 0x24)   /* 0x24-27, 2C-2F, 34-37, 3C-3F */
+        set_tpage_from_poly((uint16_t)(gp0_cmd_buf[(opcode & 0x10) ? 5 : 4] >> 16));
+    s_draw_skip_prims++;
+    s_draw_skip_dropped = 1;
+    return 1;
+}
+
 static void gp0_execute_command(void) {
     uint8_t opcode = (gp0_cmd_buf[0] >> 24) & 0xFF;
     gp0_opcode_count[opcode]++;
@@ -9516,11 +9527,7 @@ static void gp0_execute_command(void) {
     else if (opcode >= 0x80 && opcode <= 0xDF) gp0_copy_count++;
     else if (opcode >= 0xE1 && opcode <= 0xE6) gp0_env_count++;
 
-    if (s_draw_skip && opcode >= 0x20 && opcode <= 0x7F) {
-        s_draw_skip_prims++;
-        s_draw_skip_dropped = 1;
-        return;   /* a frame the turbo does not show */
-    }
+    if (draw_skip_prim(opcode)) return;   /* a frame the turbo does not show */
 
     if (opcode >= 0x20 && opcode <= 0x7F && ws_shared_ui_packet()) {
         for (ws_shared_ui_copy = 0; ws_shared_ui_copy < 2; ws_shared_ui_copy++)

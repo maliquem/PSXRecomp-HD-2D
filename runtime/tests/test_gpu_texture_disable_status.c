@@ -42,6 +42,25 @@ int main(void) {
     stat = gpu_read_gpustat();
     CHECK((stat & 0x87FFu) == 0u);
 
+    /* Bit 25 follows GP1(04h): 0 off, 1/2 set (FIFO not full/empty), 3 mirrors bit 27. */
+    {
+        gp1_dma_direction(0u);
+        CHECK(((gpu_read_gpustat() >> 25) & 1u) == 0u);
+        gp1_dma_direction(1u);
+        CHECK(((gpu_read_gpustat() >> 25) & 1u) == 1u);
+        gp1_dma_direction(2u);
+        CHECK(((gpu_read_gpustat() >> 25) & 1u) == 1u);
+        gp1_dma_direction(3u);
+        vram_read_active = 0;
+        stat = gpu_read_gpustat();
+        CHECK(((stat >> 25) & 1u) == 0u && ((stat >> 27) & 1u) == 0u);
+        vram_read_active = 1;
+        stat = gpu_read_gpustat();
+        CHECK(((stat >> 25) & 1u) == 1u && ((stat >> 27) & 1u) == 1u);
+        vram_read_active = 0;
+        gp1_dma_direction(0u);
+    }
+
     /* A saved GP0 cursor outside gp0_cmd_buf, or an unknown GP0 state, is
      * refused by the load's validate pass. */
     {

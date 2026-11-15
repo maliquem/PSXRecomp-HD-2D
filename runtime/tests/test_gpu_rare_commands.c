@@ -83,6 +83,26 @@ int main(void) {
         }
     }
 
+    /* GPU-4: a primitive the turbo drops still latches a textured polygon's
+     * texpage (GPUSTAT bits 0-8, psx-spx TPage bits 0-8 = GP0(E1h) bits 0-8). */
+    set_tpage_from_poly(0);
+    s_draw_skip = 0;
+    gp0_cmd_buf[4] = 0x01A50000u;
+    CHECK(draw_skip_prim(0x24) == 0);                 /* no turbo: dispatch decides */
+    CHECK((gpu_read_gpustat() & 0x1FFu) == 0u);
+    s_draw_skip = 1;
+    CHECK(draw_skip_prim(0x24) == 1);                 /* textured tri: word 4 */
+    CHECK((gpu_read_gpustat() & 0x1FFu) == 0x1A5u);
+    gp0_cmd_buf[5] = 0x00930000u;
+    CHECK(draw_skip_prim(0x3E) == 1);                 /* shaded textured quad: word 5 */
+    CHECK((gpu_read_gpustat() & 0x1FFu) == 0x093u);
+    gp0_cmd_buf[4] = gp0_cmd_buf[5] = 0x01FF0000u;
+    CHECK(draw_skip_prim(0x28) == 1);                 /* untextured quad */
+    CHECK(draw_skip_prim(0x64) == 1);                 /* rectangle: no texpage word */
+    CHECK((gpu_read_gpustat() & 0x1FFu) == 0x093u);
+    CHECK(draw_skip_prim(0xE1) == 0);                 /* not a primitive */
+    s_draw_skip = 0;
+
     /* Not exercised (cannot link in this build): GP1(09h) and GP1(20h-3Fh)
      * reach psx_fatal_halt in gpu_write_gp1. */
     KNOWN("GP1(09h) and GP1(20h-3Fh): fatal halt in gpu_write_gp1 (not exercised)", 0);
