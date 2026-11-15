@@ -227,8 +227,8 @@ std::string make_unsupported_json(const PSXRecompV4::WalkResult& w) {
            << fmt::format("    \"address\": \"0x{:08X}\",\n", u.address)
            << fmt::format("    \"raw_word\": \"0x{:08X}\",\n", u.raw)
            << fmt::format("    \"opcode_top6\": \"0x{:02X}\",\n", u.opcode_top6)
-           << fmt::format("    \"decoded_format\": \"{}\",\n", u.decoded_format)
-           << fmt::format("    \"reason\": \"{}\"\n", u.reason)
+           << fmt::format("    \"decoded_format\": \"{}\",\n", json_escape(u.decoded_format))
+           << fmt::format("    \"reason\": \"{}\"\n", json_escape(u.reason))
            << "  }" << (i + 1 < w.unsupported.size() ? "," : "") << "\n";
     }
     os << "]\n";
@@ -254,14 +254,14 @@ std::string make_manifest_json(const PSXRecompV4::WalkResult& w,
     os << "      \"discovered_by\": \"reset_vector\",\n";
     os << fmt::format("      \"instructions\": {},\n", w.instruction_count);
     os << fmt::format("      \"ends_at\": \"0x{:08X}\",\n", w.end_addr);
-    os << fmt::format("      \"termination_reason\": \"{}\"", w.termination_reason);
+    os << fmt::format("      \"termination_reason\": \"{}\"", json_escape(w.termination_reason));
     if (w.termination_reason == "j" || w.termination_reason == "jal") {
         os << ",\n";
         os << fmt::format("      \"terminator_target\": \"0x{:08X}\"", w.terminator_target);
     }
     if (!w.termination_note.empty()) {
         os << ",\n";
-        os << fmt::format("      \"termination_note\": \"{}\"", w.termination_note);
+        os << fmt::format("      \"termination_note\": \"{}\"", json_escape(w.termination_note));
     }
     os << "\n    }\n";
     os << "  ]\n";
