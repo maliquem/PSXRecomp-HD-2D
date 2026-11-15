@@ -2142,11 +2142,9 @@ static void exec_command(uint8_t cmd) {
 
     switch (cmd) {
     case 0x01: /* GetStat */
-        if (has_disc()) {
-            stat_reg |= CDSTAT_MOTOR;
-        } else {
+        /* psx-spx Nop(01h): returns stat as is; it never spins the motor up. */
+        if (!has_disc())
             stat_reg |= CDSTAT_SHELL;
-        }
         response_push(stat_reg);
         if (cdrom_lid_acknowledge_closed_shell(&s_lid))
             stat_reg &= (uint8_t)~CDSTAT_SHELL;

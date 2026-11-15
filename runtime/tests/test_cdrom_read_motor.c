@@ -24,6 +24,10 @@ int main(void) {
         exec_command(0x08);
         complete_command();
         MOTOR_CHECK(!(stat_reg & CDSTAT_MOTOR));
+        exec_command(0x01); /* GetStat after Stop reports the motor still off */
+        MOTOR_CHECK(response_count == 1 && !(response_fifo[0] & CDSTAT_MOTOR));
+        MOTOR_CHECK(!(stat_reg & CDSTAT_MOTOR));
+        response_clear(); ack();
         exec_command(commands[n]);
         MOTOR_CHECK(irq_flag == CDIRQ_ACK && reading);
         MOTOR_CHECK(stat_reg & CDSTAT_MOTOR);
