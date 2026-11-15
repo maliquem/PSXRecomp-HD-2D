@@ -3357,7 +3357,12 @@ static void discard_unhealthy_active_toolchain(void) {
             unlink(pack);
 #endif
         } else if (path_is_dir(pack)) {
-            char quarantine[1500];
+            /* Only the managed cache may be renamed/deleted; a user-owned
+             * toolchain dir (env var / project) is just unselected below. */
+            char quarantine[1500], cache[1400];
+            if (!preferred_toolchain_cache_root(cache, sizeof(cache)) ||
+                !path_is_under_dir(pack, cache))
+                goto unselect;
             snprintf(quarantine, sizeof(quarantine), "%s.broken", pack);
             rmtree_path(quarantine);
 #if defined(_WIN32)
@@ -3369,6 +3374,7 @@ static void discard_unhealthy_active_toolchain(void) {
 #endif
         }
     }
+unselect:
     clear_project_toolchain_stamp();
     g_toolchain_bin[0] = '\0';
     g_cli_toolchain_bin[0] = '\0';
