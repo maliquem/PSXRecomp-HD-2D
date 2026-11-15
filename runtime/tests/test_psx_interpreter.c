@@ -134,6 +134,18 @@ int main(void) {
     CHECK(s_cpu.cop0[14] == PROG, "slot irq EPC 0x%X", s_cpu.cop0[14]);
     CHECK(s_cpu.cop0[13] & 0x80000000u, "slot irq BD clear");
 
+    /* REGIMM links only for rt 0x10/0x11; undefined rt values act as bltz/bgez without a link. */
+    reset();
+    mem[PROG / 4 + 0] = I(0x01, 0, 0x10, 1);      /* bltzal $0,+1 (not taken, still links) */
+    interp_step(&s_cpu, 1);
+    CHECK(s_cpu.gpr[31] == PROG + 8u, "bltzal link 0x%X", s_cpu.gpr[31]);
+    for (uint32_t rt = 0x12; rt <= 0x13; ++rt) {
+        reset();
+        mem[PROG / 4 + 0] = I(0x01, 0, rt, 1);
+        interp_step(&s_cpu, 1);
+        CHECK(s_cpu.gpr[31] == 0u, "regimm rt=0x%X linked: 0x%X", rt, s_cpu.gpr[31]);
+    }
+
     if (failures) { fprintf(stderr, "%d failure(s)\n", failures); return 1; }
     printf("psx_interpreter_test: OK\n");
     return 0;

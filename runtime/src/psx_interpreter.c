@@ -314,7 +314,8 @@ static void exec_one(CPUState* cpu) {
 
     case 0x01: { /* REGIMM: BLTZ, BGEZ, BLTZAL, BGEZAL */
         uint32_t rt = RT(insn);
-        int link = (rt & 0x10) != 0;
+        /* Same decode as the generated code: bit 0 picks the sense, link only for rt 0x10/0x11. */
+        int link = (rt & 0x1Eu) == 0x10u;
         int cond = (rt & 0x01) ? ((int32_t)rs_val >= 0) : ((int32_t)rs_val < 0);
         if (link) set_reg(cpu, 31, pc + 8);
         set_branch(cond, pc + 4 + (SIMM(insn) << 2));
