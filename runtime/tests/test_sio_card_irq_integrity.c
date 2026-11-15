@@ -56,6 +56,8 @@ int main(int argc, char **argv) {
     const char *scenario = argc > 1 ? argv[1] : "absent";
     sio_init(); clock_now = 0; i_mask = 0x0d; i_stat = 0x201;
     card_present = strcmp(scenario, "absent") != 0;
+    sio_write(0x1F801048, 0xFFCD);
+    check("MODE bits 6-7 and 9-15 read as zero", sio_read(0x1F801048) == 0x010D);
     sio_write(0x1F801048, 0x0d);
     sio_write(0x1F80104e, 0x88);
     sio_write(0x1F80104a, card_present ? 0x1003 : 3);

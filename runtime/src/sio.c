@@ -2298,7 +2298,7 @@ void sio_write(uint32_t addr, uint32_t value) {
         break;
 
     case 0x1F801048: /* SIO_MODE */
-        sio_mode = (uint16_t)value;
+        sio_mode = (uint16_t)value & 0x013F; /* psx-spx: SIO0 MR bits 6-7 always 0, 9-15 unused */
         sr_record(SR_EVT_MODE_WRITE, (uint8_t)(value & 0xFF), (uint8_t)((value >> 8) & 0xFF));
         break;
 
