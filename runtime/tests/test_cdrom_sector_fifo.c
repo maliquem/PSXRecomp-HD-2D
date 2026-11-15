@@ -439,8 +439,37 @@ static void setmode_keeps_cdda_queue(void) {
     cdda_playing = 0;
 }
 
+static int test_cdda_audio;
+
+/* CDS-3: Play without a pending Setloc resumes where Pause left the head. */
+static void play_resumes_after_pause(void) {
+    setup(); reading = 0; test_cdda_audio = 1;
+    param_fifo[0] = 0; param_fifo[1] = 4; param_fifo[2] = 0; param_count = 3;
+    exec_command(0x02); ack();
+    param_count = 0; exec_command(0x03); ack();
+    CHECK(cdda_playing && cdda_lba == 150 && !setloc_pending);
+    cdda_lba = 160; /* ten sectors played */
+    exec_command(0x09); ack();
+    CHECK(!cdda_playing && msf_to_lba(read_min, read_sec, read_sect) == 160);
+    param_count = 0; exec_command(0x03); ack();
+    CHECK(cdda_playing && cdda_lba == 160);
+    /* A new Setloc still takes precedence over the head. */
+    exec_command(0x09); ack();
+    param_fifo[0] = 0; param_fifo[1] = 5; param_fifo[2] = 0; param_count = 3;
+    exec_command(0x02); ack();
+    param_count = 0; exec_command(0x03); ack();
+    CHECK(cdda_playing && cdda_lba == 225 && !setloc_pending);
+    /* ReadN without Setloc after music starts where the music stopped. */
+    cdda_lba = 230;
+    exec_command(0x06);
+    CHECK(reading && !cdda_playing && msf_to_lba(read_min, read_sec, read_sect) == 230);
+    ack();
+    test_cdda_audio = 0;
+}
+
 int main(void) {
     xa_mute_keeps_decoding();
+    play_resumes_after_pause();
     setmode_keeps_cdda_queue();
     failed_disc_change_keeps_current_disc();
     pause_read_resumes_position();
@@ -475,7 +504,7 @@ uint32_t iso_cdda_track_start_lba(void* h,int track) {(void)h;(void)track;return
 uint32_t iso_cdda_track_pregap_lba(void* h,int track) {(void)h;(void)track;return 0;}
 int iso_cdda_track_count(void* h) {(void)h;return 1;}
 uint32_t iso_cdda_sector_count(void* h) {(void)h;return 1000;}
-int iso_cdda_track_is_audio(void* h,int track) {(void)h;(void)track;return 0;}
+int iso_cdda_track_is_audio(void* h,int track) {(void)h;(void)track;return test_cdda_audio;}
 uint32_t iso_sector_count(void* h) {(void)h;return 1000;}
 int iso_track_count(void* h) {(void)h;return 1;}
 void event_ring_record_aux(uint16_t k,uint8_t d,uint32_t a) {(void)k;(void)d;(void)a;}

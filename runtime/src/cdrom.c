@@ -1646,12 +1646,19 @@ static int read_continues_current_stream(void) {
     return 1;
 }
 
-static void start_read_stream(uint8_t cmd) {
+static void stop_cdda_playback(void) {
+    /* The head stays where the music stopped (psx-spx 09h Pause); a later
+     * Play or ReadN without a pending Setloc resumes from read_*. */
+    if (cdda_playing) lba_to_msf((int)cdda_lba, 150, &read_min, &read_sec, &read_sect);
     cdda_playing = 0;
     cdda_track = 0;
     cdda_delay = 0;
     cdda_data_end_pending = 0;
     stat_reg &= (uint8_t)~(CDSTAT_PLAY | CDSTAT_SEEK);   /* a read supersedes a seek in flight */
+}
+
+static void start_read_stream(uint8_t cmd) {
+    stop_cdda_playback();
     clear_sector_buffer();
     /* Drive-state change cancels any pended notification (Beetle clears
      * AIP on Play/Read/Pause/Stop/Seek alike). */
@@ -1713,13 +1720,6 @@ static void stop_read_stream(void) {
     cdrom_clear_pending_dataready();
 }
 
-static void stop_cdda_playback(void) {
-    cdda_playing = 0;
-    cdda_track = 0;
-    cdda_delay = 0;
-    cdda_data_end_pending = 0;
-    stat_reg &= (uint8_t)~(CDSTAT_PLAY | CDSTAT_SEEK);   /* a read supersedes a seek in flight */
-}
 
 static void deliver_cdda_data_end(void) {
     if (!cdda_data_end_pending || irq_flag != 0) return;
@@ -1811,9 +1811,10 @@ static int start_cdda_playback(int requested_track) {
         track = requested_track;
         lba = iso_cdda_track_start_lba(iso_handle, track);
     } else {
-        int pos = s_setloc_lba >= 0
+        /* psx-spx 03h Play: a pending Setloc, else the current head position. */
+        int pos = setloc_pending
             ? s_setloc_lba
-            : msf_to_lba(seek_min, seek_sec, seek_sect);
+            : msf_to_lba(read_min, read_sec, read_sect);
         if (pos < 0) pos = 0;
         lba = (uint32_t)pos;
         track = cdda_track_for_lba(lba);
@@ -1829,6 +1830,7 @@ static int start_cdda_playback(int requested_track) {
     cdda_playing = 1;
     cdda_track = track;
     cdda_lba = lba;
+    if (requested_track == 0) setloc_pending = 0;   /* Play performs the Setloc seek */
     cdda_delay = CDROM_SINGLE_SPEED_SECTOR_CYCLES;
     stat_reg = (stat_reg & ~(CDSTAT_SEEK | CDSTAT_READ)) |
                CDSTAT_MOTOR | CDSTAT_PLAY;
