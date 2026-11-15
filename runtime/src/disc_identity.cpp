@@ -250,10 +250,21 @@ DiscIdentity identify_disc(const fs::path& path,
 
     const fs::path data_path = resolved.data;
     PS1::ISOReader disc;
+    // CHD takes the same netplay disc policy as the BIN path.
+    auto finish_chd = [&](DiscIdentity& d) -> DiscIdentity& {
+        if (netplay_expect) {
+            // A CHD is a complete multi-track image, so it satisfies
+            // require_cue; tracks, lead-out and fingerprint are still checked.
+            NetplayDiscExpect e = *netplay_expect;
+            e.require_cue = false;
+            apply_netplay_disc_expect(d, e);
+        } else if (!d.toc_opened) d.netplay_ok = false;
+        return d;
+    };
     if (is_chd_path(resolved.mount)) {
         if (!disc.Open(resolved.mount.string())) {
             v.detail = "Could not open or decode the CHD disc image.";
-            return v;
+            return finish_chd(v);
         }
         v.opened = true;
 
@@ -265,7 +276,7 @@ DiscIdentity identify_disc(const fs::path& path,
             v.detail =
                 "No ISO9660 CD001 header was found in the CHD data track.";
             v.region = region_from_serial(expected_serial);
-            return v;
+            return finish_chd(v);
         }
 
         std::string vol((const char*)&sector[40], 32);
@@ -314,7 +325,7 @@ DiscIdentity identify_disc(const fs::path& path,
                 v.crc_matches = v.crc == expected_crc;
             }
         }
-        return v;
+        return finish_chd(v);
     }
 
     std::ifstream f(data_path, std::ios::binary | std::ios::ate);
