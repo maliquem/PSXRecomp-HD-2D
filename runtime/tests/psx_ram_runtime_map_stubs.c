@@ -177,6 +177,8 @@ int gpu_snapshot_validate(const uint8_t *p, uint32_t len) { return p && len == 9
 int spu_snapshot_validate(const uint8_t *p, uint32_t len) { return p && len == 80u; }
 int cdrom_snapshot_validate(const uint8_t *p, uint32_t len) { return p && len == 64u; }
 int cdrom_snapshot_disc_matches(const uint8_t *p, uint32_t len) { (void)p; (void)len; return 1; }
+int cdrom_snapshot_prepare_disc(const uint8_t *p, uint32_t len) { (void)p; (void)len; return 0; }
+void cdrom_snapshot_drop_prepared(void) {}
 int sio_snapshot_validate(const uint8_t *p, uint32_t len) { return p && len == 48u; }
 int mdec_snapshot_validate(const uint8_t *p, uint32_t len) { return p && len == 400u; }
 int spu_cd_snapshot_validate(const uint8_t *p, uint32_t len) { return p && len == 4u; }

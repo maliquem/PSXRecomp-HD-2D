@@ -195,6 +195,12 @@ public:
      */
     std::vector<ISOFileEntry> ListFiles(const std::string& path = "");
 
+    /** List a directory found by an earlier listing (any depth). */
+    std::vector<ISOFileEntry> ListDirectory(const ISOFileEntry& dir) {
+        return dir.is_directory ? ListFilesByLBA(dir.lba, dir.size > 0 ? dir.size : 2048)
+                                : std::vector<ISOFileEntry>();
+    }
+
     /**
      * Find a file by name in the root directory
      * @param path Filename to search for (e.g., "SYSTEM.CNF" or "SCUS_942.36")

@@ -33,6 +33,12 @@
 
 #define MAX_CARDS 2
 
+/* Host-side counters for the multi-disc save registry; not machine state.
+ * s_binds moves whenever a card's bytes or file are replaced wholesale. */
+static uint32_t s_writes[MAX_CARDS], s_reads[MAX_CARDS], s_binds[MAX_CARDS];
+static int s_last_read[MAX_CARDS] = { -1, -1 };
+static void note_rebind(int card) { if (card >= 0 && card < MAX_CARDS) s_binds[card]++; }
+
 typedef struct {
     uint8_t data[MEMCARD_SIZE];
     char filepath[512];
@@ -328,7 +334,7 @@ void memcard_init_slots(const char* dir, const MemcardSlotConfig slots[2]) {
     wlock();   /* cards[] is re-read below without mirroring */
     for (int i = 0; i < MAX_CARDS; i++) s_pending[i].exact = 0;
     wunlock();
-    for (int i = 0; i < MAX_CARDS; i++) card_unlock(i);
+    for (int i = 0; i < MAX_CARDS; i++) { card_unlock(i); note_rebind(i); }
     memset(cards, 0, sizeof(cards));
     snprintf(s_memcard_dir, sizeof(s_memcard_dir), "%s", dir ? dir : "");
     memcard_ensure_dir(dir);
@@ -435,6 +441,8 @@ int memcard_read_sector(int card, int sector, uint8_t* buf) {
     if (sector < 0 || sector >= MEMCARD_SECTORS) return -1;
 
     memcpy(buf, cards[card].data + sector * MEMCARD_SECTOR_SIZE, MEMCARD_SECTOR_SIZE);
+    s_reads[card]++;
+    s_last_read[card] = sector;
     return 0;
 }
 
@@ -449,7 +457,17 @@ int memcard_write_sector(int card, int sector, const uint8_t* buf) {
         memcpy(s_pending[card].data + sector * MEMCARD_SECTOR_SIZE, buf, MEMCARD_SECTOR_SIZE);
     wunlock();
     cards[card].dirty = 1;
+    s_writes[card]++;
     return 0;
+}
+
+void memcard_activity(int card, uint32_t *writes, uint32_t *reads, int *last_read_sector,
+                      uint32_t *binds) {
+    const int ok = card >= 0 && card < MAX_CARDS;
+    if (binds) *binds = ok ? s_binds[card] : 0;
+    if (writes) *writes = ok ? s_writes[card] : 0;
+    if (reads) *reads = ok ? s_reads[card] : 0;
+    if (last_read_sector) *last_read_sector = ok ? s_last_read[card] : -1;
 }
 
 void memcard_flush(int card) {
@@ -514,6 +532,7 @@ int memcard_import_raw(int card, const uint8_t *src) {
     s_pending[card].exact = 0;
     wunlock();
     memcpy(cards[card].data, src, MEMCARD_SIZE);
+    note_rebind(card);
     cards[card].present = 1;
     cards[card].dirty = 1;
     memcard_flush(card);
@@ -529,6 +548,7 @@ int memcard_rebind_dir(const char *dir) {
             continue;
         snprintf(cards[i].filepath, sizeof(cards[i].filepath),
                  "%s/card%d.mcd", dir, i + 1);
+        note_rebind(i);
         /* Force a flush of current RAM into the sandbox path when dirty or
          * when establishing the guest mirror for the first time. */
         cards[i].dirty = 1;
@@ -538,6 +558,8 @@ int memcard_rebind_dir(const char *dir) {
 }
 
 int memcard_rebind_paths(const char *path0, const char *path1) {
+    note_rebind(0);
+    note_rebind(1);
     if (path0 && path0[0]) {
         snprintf(cards[0].filepath, sizeof(cards[0].filepath), "%s", path0);
     }
@@ -549,6 +571,7 @@ int memcard_rebind_paths(const char *path0, const char *path1) {
 
 int memcard_rebind_path(int card, const char *path) {
     if (card < 0 || card >= MAX_CARDS) return -1;
+    note_rebind(card);
     if (path && path[0]) {
         snprintf(cards[card].filepath, sizeof(cards[card].filepath), "%s", path);
         /* The first flush must not fail on a missing directory (the host's
@@ -580,6 +603,7 @@ int memcard_reload_bound(void) {
     wunlock();
     for (i = 0; i < MAX_CARDS; i++) {
         FILE *f;
+        note_rebind(i);
         if (cards[i].filepath[0] == '\0') {
             cards[i].present = 0;
             cards[i].dirty = 0;
@@ -622,6 +646,7 @@ int memcard_mount_image(int card, const uint8_t *image) {
     s_pending[card].exact = 0;   /* data is replaced without mirroring */
     wunlock();
     memcpy(cards[card].data, image, MEMCARD_SIZE);
+    note_rebind(card);
     cards[card].memory_only = 1;
     cards[card].dirty = 0;
     return 0;
@@ -634,6 +659,7 @@ int memcard_unmount_image(int card, const uint8_t *restore) {
     s_pending[card].exact = 0;
     wunlock();
     memcpy(cards[card].data, restore, MEMCARD_SIZE);
+    note_rebind(card);
     cards[card].memory_only = 0;
     cards[card].dirty = 0;
     return 0;

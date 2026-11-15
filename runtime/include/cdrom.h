@@ -13,6 +13,11 @@ int cdrom_snapshot_validate(const uint8_t *p, uint32_t len);
 /* 0 when a valid snapshot block was taken on another roster disc than the
  * mounted one (EST-8). Older blocks and single-disc runs always match. */
 int cdrom_snapshot_disc_matches(const uint8_t *p, uint32_t len);
+/* A state from another roster disc: open that image while the load can still
+ * be refused (0 = missing); cdrom_snapshot_read mounts it. Drop releases an
+ * image a refused load opened. */
+int cdrom_snapshot_prepare_disc(const uint8_t *p, uint32_t len);
+void cdrom_snapshot_drop_prepared(void);
 
 /* Did cdrom_init() actually mount an image? 0 = the drive is empty.
  *
@@ -90,6 +95,15 @@ int  cdrom_disc_roster_count(void);
 int  cdrom_disc_selected(void);
 const char *cdrom_disc_roster_path(int index_1based);
 int  cdrom_disc_select(int index_1based);
+
+/* The same image swap without the lid: no ShellOpen, no 2 s wait, transfers
+ * and position kept. Only for discs of one set whose files sit at the same
+ * LBAs (the setup checks that), so the guest cannot tell. 0 = not opened. */
+int  cdrom_disc_mount_quiet(int index_1based);
+/* Mount disc N quietly right before the next command that positions the
+ * drive (Setloc, Play, ReadN, ReadS, SeekL, SeekP); 0 cancels. */
+void cdrom_disc_set_pending_quiet(int index_1based);
+int  cdrom_disc_pending_quiet(void);
 
 /* TOC of the image currently mounted; 0 when the drive is empty. Two images
  * of a set have different TOCs, so this is how a caller confirms that a disc

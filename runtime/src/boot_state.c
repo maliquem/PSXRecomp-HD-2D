@@ -81,6 +81,8 @@ extern uint32_t spu_get_ram_bytes(void);
 extern uint32_t cdrom_snapshot_bytes(void);
 extern int      cdrom_snapshot_validate(const uint8_t* p, uint32_t len);
 extern int      cdrom_snapshot_disc_matches(const uint8_t* p, uint32_t len);
+extern int      cdrom_snapshot_prepare_disc(const uint8_t* p, uint32_t len);
+extern void     cdrom_snapshot_drop_prepared(void);
 extern uint32_t memory_ctrl_snapshot_bytes(void);
 extern void     memory_ctrl_snapshot_write(uint8_t* p);
 extern int      memory_ctrl_snapshot_validate(const uint8_t* p, uint32_t len);
@@ -902,9 +904,14 @@ static int validate_section(uint32_t tag, const uint8_t* p, uint32_t len) {
     case BS_SEC_SPURAM: return len == spu_get_ram_bytes();
     case BS_SEC_CDROM:
         if (cdrom_snapshot_validate(p, len)) return 1;
-        /* EST-8: a state from the other disc is refused, not remounted. */
-        if (!cdrom_snapshot_disc_matches(p, len))
-            boot_state_note_reject("other disc mounted", NULL);
+        /* EST-8: a state from another disc of the set brings its disc back
+         * in (opened here, mounted in pass 2); refused only when that
+         * disc's image is missing. */
+        if (!cdrom_snapshot_disc_matches(p, len)) {
+            if (cdrom_snapshot_prepare_disc(p, len))
+                return cdrom_snapshot_validate(p, len);
+            boot_state_note_reject("state disc missing", NULL);
+        }
         return 0;
     case BS_SEC_DMA:    return dma_snapshot_validate(p, len);
     case BS_SEC_SIO:    return sio_snapshot_validate(p, len);
@@ -1181,6 +1188,9 @@ int boot_state_load_buffer(const uint8_t* file, size_t file_len,
             else apply_other_ms += dt;
         }
     }
+    /* A refused load gives back the other disc it opened (no-op after pass
+     * 2 mounted it). */
+    cdrom_snapshot_drop_prepared();
     for (uint32_t i = 0; i < n_sections; i++)
         free(sections[i].owned);
     free(sections);
