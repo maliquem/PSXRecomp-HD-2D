@@ -107,12 +107,19 @@ int main(void) {
     bad[GPU_LL + L_PHASE] = 0xFF;
     check("refuses GPU list phase 0xFF", !dma_snapshot_validate(bad, n) && !dma_snapshot_read(bad, n));
     refuse32("refuses GPU payload_index above word_count", GPU_LL + L_PAYLOAD, 9u);
+    /* The walk writes max_nodes 0 or 0x40000 and word_count header >> 24. */
+    refuse32("refuses GPU max_nodes above the walk limit", GPU_LL + L_MAXNODES, 0x40001u);
+    refuse32("refuses GPU max_nodes 0xFFFFFFFF", GPU_LL + L_MAXNODES, 0xFFFFFFFFu);
+    refuse32("refuses GPU word_count above a header's 8 bits", GPU_LL + L_WORDS, 0x100u);
+    memcpy(bad, good, n);
+    put32(bad + GPU_LL + L_MAXNODES, 0x40000u);
+    put32(bad + GPU_LL + L_WORDS, 0xFFu);
+    check("accepts GPU max_nodes 0x40000 and word_count 0xFF", dma_snapshot_validate(bad, n));
 
-    /* Accepted without a range check today (dma.c dma_snapshot_validate). */
+    /* Accepted without a range check: masked or resolved where used. */
     known32("gpu_linked_list.start_addr", GPU_LL + L_START, 0xFFFFFFFCu);
     known32("gpu_linked_list.current_addr", GPU_LL + L_CUR, 0xFFFFFFFCu);
     known32("gpu_linked_list.next_addr", GPU_LL + L_NEXT, 0xFFFFFFFCu);
-    known32("gpu_linked_list.max_nodes", GPU_LL + L_MAXNODES, 0xFFFFFFFFu);
     known32("channels[0].madr", CH_BASE, 0xFFFFFFFFu);
     known32("cdrom_async.total_words", ASYNC0 + 2 * ASYNC_SZ + A_TOTAL, 0xFFFFFFFFu);
     printf("%d KNOWN unchecked field(s)\n", known);

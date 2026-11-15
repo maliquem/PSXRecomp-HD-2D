@@ -52,6 +52,8 @@ void (*dma_gpu_perf_observer)(int begin) = NULL;
  * through the live geometry: retail folds to 2 MiB exactly as the DMAC's
  * 0x1FFFFC decode does; the opt-in 8 MB map addresses its unique high pages. */
 #define DMA_RAM_ADDR(a) (psx_ram_canonical_offset(a) & ~3u)
+/* Node limit of a GPU linked-list walk; a loaded state may not exceed it. */
+#define DMA_GPU_LL_MAX_NODES 0x40000u
 /* Memory access — defined in memory.c */
 extern uint32_t psx_read_word(uint32_t addr);
 extern void     psx_write_word(uint32_t addr, uint32_t val);
@@ -836,7 +838,7 @@ static void start_async_gpu_linked_list(void) {
      * packets to GP0. The event-driven walker below performs every guest-visible
      * header and payload read at its consumption boundary. */
     gpu_ws_prepass_linked_list(start_addr);
-    dma_gpu_ll_start(&gpu_linked_list, start_addr, 0x40000u);
+    dma_gpu_ll_start(&gpu_linked_list, start_addr, DMA_GPU_LL_MAX_NODES);
     gpu_timeline_note(GTL_LL_START, start_addr, 0);
     event_ring_record_aux(EV_DMA_SCHED, 2u, channels[2].chcr);
     gpu_ot_stats.starts++;
@@ -1633,7 +1635,11 @@ void dma_snapshot_write(uint8_t *p) {
 
 /* Pass-1 check for boot_state's two-pass load. It parses into locals, so the
  * read below cannot fail halfway, and refuses an async start address outside
- * live RAM (finish_async_cdrom_transfer spans ram + start_addr). */
+ * live RAM (finish_async_cdrom_transfer spans ram + start_addr). The GPU list
+ * node limit and node size bound the render-pass walk (UINT32_MAX budget);
+ * the walk only ever writes max_nodes 0 or DMA_GPU_LL_MAX_NODES and a node
+ * size of header >> 24. Addresses, MADR and total_words are masked or
+ * clamped where used, so they stay unchecked. */
 int dma_snapshot_validate(const uint8_t *p, uint32_t len) {
     PstR r;
     DMAAsyncChannel a;
@@ -1645,7 +1651,8 @@ int dma_snapshot_validate(const uint8_t *p, uint32_t len) {
         if (!dma_r_async(&r, &a) || a.start_addr != DMA_RAM_ADDR(a.start_addr) ||
             a.remaining_words > a.total_words)
             return 0;
-    return dma_r_gpu_ll(&r, &ll);
+    return dma_r_gpu_ll(&r, &ll) && ll.max_nodes <= DMA_GPU_LL_MAX_NODES &&
+           ll.word_count <= 0xFFu;
 }
 
 int dma_snapshot_read(const uint8_t *p, uint32_t len) {
