@@ -2613,8 +2613,12 @@ static inline void psx_cyc_readmem(CPUState* cpu, uint32_t phys, uint32_t size,
 /* Resolve PSX_LOAD_DELAY once (shared with inlined psx_cyc.h helpers). */
 int psx_load_delay_enabled(void) {
     if (g_psx_load_delay < 0) {
+#ifdef PSX_NO_DEBUG_TOOLS
+        g_psx_load_delay = 1; /* shipping builds: env must not change cycle accounting */
+#else
         const char* e = getenv("PSX_LOAD_DELAY");
         g_psx_load_delay = (e && e[0] == '0') ? 0 : 1;
+#endif
     }
     return g_psx_load_delay;
 }
