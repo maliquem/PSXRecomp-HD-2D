@@ -262,14 +262,14 @@ Loads and validates the BIOS, game, options and user settings TOML files, and wr
 - `derive_out_stem` (L1693) — Derives an output name stem from a ROM file name by removing its extension, matched without regard to case.
 - `load_bios_config` (L1710) — Load a BIOS config TOML.
 - `load_game_config` (L1997) — Load a game config TOML.
-- `load_game_options` (L3386) — Load game_options.toml ([[option]] array of {name, addr, size}).
-- `valid_user_audio_freq` (L3423) — True when an audio frequency is one of the allowed user values: 32040, 32000, 44100 or 48000.
-- `load_user_settings` (L3427) — Load settings.toml. Returns an all-defaults (all has_*=false) struct if the file is missing or unreadable.
-- `relative_to_folder` (L3886) — Returns a path relative to a folder when the path is absolute, or the path unchanged when it is not.
-- `toml_escape` (L3900) — A basic TOML string must not carry a raw quote, backslash or control char.
-- `write_text_atomic` (L3916) — Write to a sibling temp file then rename, so a crash never leaves a cut file.
-- `save_user_settings` (L3931) — Write settings.toml deterministically.
-- `upsert_game_toml_controller_bool` (L4175) — Sets a boolean key in the controller section of a game TOML file, adding or updating it, and returns whether the write succeeded.
+- `load_game_options` (L3385) — Load game_options.toml ([[option]] array of {name, addr, size}).
+- `valid_user_audio_freq` (L3422) — True when an audio frequency is one of the allowed user values: 32040, 32000, 44100 or 48000.
+- `load_user_settings` (L3426) — Load settings.toml. Returns an all-defaults (all has_*=false) struct if the file is missing or unreadable.
+- `relative_to_folder` (L3885) — Returns a path relative to a folder when the path is absolute, or the path unchanged when it is not.
+- `toml_escape` (L3899) — A basic TOML string must not carry a raw quote, backslash or control char.
+- `write_text_atomic` (L3915) — Write to a sibling temp file then rename, so a crash never leaves a cut file.
+- `save_user_settings` (L3930) — Write settings.toml deterministically.
+- `upsert_game_toml_controller_bool` (L4174) — Sets a boolean key in the controller section of a game TOML file, adding or updating it, and returns whether the write succeeded.
 
 ### recompiler/src/config_loader.h
 
@@ -406,28 +406,29 @@ Command-line entry point for the psxrecomp-analyze tool, which discovers functio
 
 Command-line entry point for psxrecomp-bios, which builds a BIOS boot slice and function manifests from a BIOS image.
 
-- `sha256_hex` (L157) — Returns the SHA-256 hash of the data as a lowercase hex string.
-- `load_file_strict` (L166) — Reads a whole file and throws if it cannot be opened or is not the expected size.
-- `write_file` (L190) — Writes content to a file only when the bytes differ, so unchanged files keep their timestamps.
-- `make_unsupported_json` (L197) — Builds a JSON list of the unsupported instructions found by the BIOS walk.
-- `make_manifest_json` (L217) — Builds the JSON manifest that records the BIOS file, its size, its hash and the walk results.
-- `make_boot_slice_c` (L251) — Builds the C source of the BIOS boot slice, with the BIOS hash written in a comment.
-- `find_c_compiler` (L294) — Picks the C compiler to use: the command-line override when given, otherwise gcc, clang or cl.
-- `self_validate_c_file` (L318) — Compiles the generated boot slice C file with a compile-only command to check it builds; throws on failure.
-- `scan_for_stub_markers` (L342) — Warns when generated content still contains placeholder markers such as TODO, FIXME, XXX or for now.
-- `load_seeds` (L355) — Reads seed addresses from a seed file into a list of seeds, throwing if the file cannot be opened.
-- `add_bios_vector_target_seeds` (L443) — Adds seeds for the BIOS vector targets read from the ROM and returns how many were added.
-- `make_function_manifest_json` (L499) — Builds the JSON manifest that lists every discovered function with its address and size.
-- `make_function_edges_json` (L534) — Builds the JSON list of call edges between the discovered functions.
-- `make_discovery_log_json` (L556) — Builds the JSON discovery log, recording the seeds used and the discovery results.
-- `make_indirect_jumps_json` (L616) — Builds the JSON list of indirect jump sites and their resolved targets.
-- `make_indirect_jump_classes_json` (L650) — Builds the JSON that groups indirect jump sites by their classification.
-- `make_unsupported_json_discovery` (L684) — Builds the JSON list of unsupported instructions found during discovery.
-- `run_boot_slice` (L704) — Runs the boot slice step: walks the BIOS, writes the slice C file and manifest, and returns an exit code.
-- `split_segment_variant_seeds` (L776) — A runtime PC inside a relocated copy window, in another segment than the window runs in, asks for a segment variant of the code at those ROM bytes (docs/SEGMENT_AWARE_CODE.md §5.4; SCPH-1001's kernel
-- `run_emit_full` (L811) — Runs the full emit step, writing the generated C for the BIOS from the seeds, and returns an exit code.
-- `run_discover` (L935) — Runs the discovery step over the BIOS, writing the function manifests and logs, and returns an exit code.
-- `main` (L1001) — Entry point of psxrecomp-bios; reads the arguments, runs the selected step and returns the exit code.
+- `json_escape` (L62) — Escapes a string for use inside a JSON string literal.
+- `sha256_hex` (L178) — Returns the SHA-256 hash of the data as a lowercase hex string.
+- `load_file_strict` (L187) — Reads a whole file and throws if it cannot be opened or is not the expected size.
+- `write_file` (L211) — Writes content to a file only when the bytes differ, so unchanged files keep their timestamps.
+- `make_unsupported_json` (L218) — Builds a JSON list of the unsupported instructions found by the BIOS walk.
+- `make_manifest_json` (L238) — Builds the JSON manifest that records the BIOS file, its size, its hash and the walk results.
+- `make_boot_slice_c` (L272) — Builds the C source of the BIOS boot slice, with the BIOS hash written in a comment.
+- `find_c_compiler` (L315) — Picks the C compiler to use: the command-line override when given, otherwise gcc, clang or cl.
+- `self_validate_c_file` (L339) — Compiles the generated boot slice C file with a compile-only command to check it builds; throws on failure.
+- `scan_for_stub_markers` (L363) — Warns when generated content still contains placeholder markers such as TODO, FIXME, XXX or for now.
+- `load_seeds` (L376) — Reads seed addresses from a seed file into a list of seeds, throwing if the file cannot be opened.
+- `add_bios_vector_target_seeds` (L464) — Adds seeds for the BIOS vector targets read from the ROM and returns how many were added.
+- `make_function_manifest_json` (L520) — Builds the JSON manifest that lists every discovered function with its address and size.
+- `make_function_edges_json` (L555) — Builds the JSON list of call edges between the discovered functions.
+- `make_discovery_log_json` (L577) — Builds the JSON discovery log, recording the seeds used and the discovery results.
+- `make_indirect_jumps_json` (L637) — Builds the JSON list of indirect jump sites and their resolved targets.
+- `make_indirect_jump_classes_json` (L671) — Builds the JSON that groups indirect jump sites by their classification.
+- `make_unsupported_json_discovery` (L705) — Builds the JSON list of unsupported instructions found during discovery.
+- `run_boot_slice` (L725) — Runs the boot slice step: walks the BIOS, writes the slice C file and manifest, and returns an exit code.
+- `split_segment_variant_seeds` (L797) — A runtime PC inside a relocated copy window, in another segment than the window runs in, asks for a segment variant of the code at those ROM bytes (docs/SEGMENT_AWARE_CODE.md §5.4; SCPH-1001's kernel
+- `run_emit_full` (L832) — Runs the full emit step, writing the generated C for the BIOS from the seeds, and returns an exit code.
+- `run_discover` (L956) — Runs the discovery step over the BIOS, writing the function manifests and logs, and returns an exit code.
+- `main` (L1022) — Entry point of psxrecomp-bios; reads the arguments, runs the selected step and returns the exit code.
 
 ### recompiler/src/main_cli.cpp
 
@@ -2205,18 +2206,18 @@ Builds the present-time color lookup table that maps game colors to the chosen d
 
 Co-simulation oracle engine: compares guest state at fixed instruction checkpoints and serves them over a small TCP server (PSX_COSIM builds only).
 
-- `fold` (L67) — Mixes one 64-bit value into a running FNV-style hash, byte by byte.
-- `cosim_block` (L75) — Block-leader hook (emitted under PSX_COSIM + called from the interp loop).
-- `cosim_last_block` (L76) — Returns the PC of the most recent block leader.
-- `cosim_cycles_to_next_checkpoint` (L78) — ---- engine (cosim.c) ---- void cosim_init(void); /* start the TCP oracle server (call once at startup) void cosim_block(uint32_t pc); /* block-leader pc stash (emitted + interp), reporting uint32_t c
-- `cosim_record_checkpoint` (L92) — Instruction-count-keyed checkpoint — taken inside cosim_instr, which both backends call exactly once per retirement event (a branch and its delay slot retire as ONE event in both the dirty-RAM interp
-- `cosim_tick` (L112) — Empty hook kept for the cycle-advance call sites; checkpoints happen in cosim_instr.
-- `cosim_instr` (L117) — Counts one retired instruction and takes a checkpoint when the count reaches the next boundary, parking the guest for the coordinator.
-- `send_line` (L148) — Sends one text line to a socket, retrying partial sends; returns 0 on failure.
-- `server_loop` (L159) — Opens the listening TCP socket on the port and accepts clients, handling their commands one line at a time.
-- `handle_line` (L195) — Runs one text command from the oracle client and sends back the reply.
-- `server_thread` (L360) — Thread entry that runs the server loop on the given port.
-- `cosim_init` (L367) — Call once at startup (from the clean-build main, before the guest runs).
+- `fold` (L68) — Mixes one 64-bit value into a running FNV-style hash, byte by byte.
+- `cosim_block` (L76) — Block-leader hook (emitted under PSX_COSIM + called from the interp loop).
+- `cosim_last_block` (L77) — Returns the PC of the most recent block leader.
+- `cosim_cycles_to_next_checkpoint` (L79) — ---- engine (cosim.c) ---- void cosim_init(void); /* start the TCP oracle server (call once at startup) void cosim_block(uint32_t pc); /* block-leader pc stash (emitted + interp), reporting uint32_t c
+- `cosim_record_checkpoint` (L93) — Instruction-count-keyed checkpoint — taken inside cosim_instr, which both backends call exactly once per retirement event (a branch and its delay slot retire as ONE event in both the dirty-RAM interp
+- `cosim_tick` (L113) — Empty hook kept for the cycle-advance call sites; checkpoints happen in cosim_instr.
+- `cosim_instr` (L118) — Counts one retired instruction and takes a checkpoint when the count reaches the next boundary, parking the guest for the coordinator.
+- `send_line` (L149) — Sends one text line to a socket, retrying partial sends; returns 0 on failure.
+- `server_loop` (L160) — Opens the listening TCP socket on the port and accepts clients, handling their commands one line at a time.
+- `handle_line` (L196) — Runs one text command from the oracle client and sends back the reply.
+- `server_thread` (L361) — Thread entry that runs the server loop on the given port.
+- `cosim_init` (L368) — Call once at startup (from the clean-build main, before the guest runs).
 
 ### runtime/src/cosim_state.c
 
@@ -4048,162 +4049,160 @@ The PS1 GPU emulation: GP0 and GP1 command handling, software rasterising, VRAM 
 - `textured_quad_precise_vertices` (L6158) — A textured quad whose four packet vertices form an axis-aligned rectangle (in integer screen space and in UV) is drawn by the 2D rectangle shortcut, at the native integer position and without perspect
 - `gpu_texture_correction_stats` (L6191) — Returns the perspective texture correction statistics.
 - `prepare_texture_triangle` (L6204) — Enable perspective UVs only when every position word came from an exact SWC2 projection store at that same DMA packet address.
-- `raster_pixel` (L6229) — Write a single pixel to VRAM with draw area clipping and mask bit handling
-- `draw_area_wide_x_margin` (L6263) — Inclusive draw-area reject (same predicate as raster_pixel / hardware clip).
-- `draw_area_host_x_bounds` (L6272) — Host X bounds of the drawing area.
-- `draw_area_out_point` (L6289) — 1 when a point lies outside the drawing area.
-- `draw_area_out_bbox` (L6296) — 1 when a bounding box lies outside the drawing area.
-- `draw_area_out_poly` (L6316) — A polygon wholly past the drawing area draws nothing.
-- `draw_area_out_rect` (L6333) — 1 when a rectangle lies outside the drawing area.
-- `raster_triangle` (L6345) — Rasterize a flat-shaded triangle using DDA scanline fill.
-- `gp0_exec_mono_tri` (L6418) — Execute mono triangle (GP0 0x20-0x23)
-- `ws_local_viewport_divider` (L6442) — Execute mono quad (GP0 0x28-0x2B) — two triangles: (0,1,2) and (2,1,3) A native split divider belongs to the combined framebuffer.
-- `gp0_exec_mono_quad` (L6453) — Draws a flat-colour quad (two triangles) as GP0 commands.
-- `gp0_exec_shaded_tri` (L6576) — Execute shaded triangle (GP0 0x30-0x33) — Gouraud shaded
-- `gpu_arm_shaded_quad_capture` (L6602) — Arms a capture of the next shaded quad.
-- `gpu_get_shaded_quad_capture` (L6603) — Returns the captured shaded quad.
-- `gp0_exec_shaded_quad` (L6610) — Execute shaded quad (GP0 0x38-0x3B)
-- `current_texpage` (L6663) — Helper: build texpage word from GPU state for SW renderer.
-- `set_tpage_from_poly` (L6676) — Hardware: the texpage attribute word carried inside every textured polygon (GP0 0x24-0x3F with the texture bit) is copied into the GPU draw-mode state (GPUSTAT bits 0-8) exactly like GP0(E1) bits 0-8
-- `setup_textured_draw` (L6686) — Helper: set up SW renderer state before a textured draw.
-- `native_wide_projective_draw` (L6698) — A close corner may cross the camera plane while the face is still visible.
-- `gp0_exec_textured_tri` (L6733) — Execute textured triangle (GP0 0x24-0x27)
-- `gp0_exec_textured_quad` (L6781) — Execute textured quad (GP0 0x2C-0x2F)
-- `gp0_exec_shaded_textured_tri` (L6915) — Execute shaded textured triangle (GP0 0x34-0x37)
-- `psx_mod_texture_banks_supported` (L6982) — 1 when the texture banks are supported by the mod.
-- `gp0_exec_shaded_textured_quad` (L6987) — Execute shaded textured quad (GP0 0x3C-0x3F)
-- `gp0_exec_mono_line` (L7062) — Execute mono line (GP0 0x40-0x47) — Bresenham
-- `gp0_exec_shaded_line` (L7092) — Execute shaded line (GP0 0x50-0x57)
-- `gp0_exec_mono_rect` (L7114) — Execute mono rectangle (GP0 0x60-0x63)
-- `ws_repeat_textured_rect_reveal` (L7154) — Repeats a textured rectangle into the native-wide reveal margins.
-- `ws_fb_base_holding` (L7181) — The framebuffer whose canonical columns hold VRAM x, or -1.
-- `ws_feedback_rect_reveal` (L7190) — A tagged 15-bit sprite copying another framebuffer continues into the bands from that buffer's wide surface (it has no band columns in VRAM).
-- `gp0_exec_textured_rect` (L7221) — Execute textured rectangle (GP0 0x64-0x67)
-- `gp0_exec_mono_dot` (L7311) — Execute 1x1 dot (GP0 0x68-0x6B)
-- `gp0_exec_textured_dot` (L7325) — Execute textured 1x1 dot (GP0 0x6C-0x6F)
-- `gp0_exec_textured_8x8` (L7344) — Execute 8x8 textured sprite (GP0 0x74-0x77)
-- `gp0_exec_mono_8x8` (L7371) — Execute 8x8 sprite (GP0 0x70-0x73)
-- `gp0_exec_textured_16x16` (L7389) — Execute 16x16 textured sprite (GP0 0x7C-0x7F)
-- `gp0_exec_nop` (L7434) — GP0 no-op command handler.
-- `gp0_exec_fill_rect` (L7438) — GP0 fill-rectangle command handler: fills a VRAM rectangle with a colour.
-- `gp0_exec_draw_mode` (L7470) — GP0 draw-mode (texpage) command handler.
-- `gp0_exec_texture_window` (L7492) — GP0 texture-window command handler.
-- `gp0_exec_draw_area_tl` (L7502) — GP0 draw-area top-left command handler.
-- `gp0_exec_draw_area_br` (L7517) — GP0 draw-area bottom-right command handler.
-- `gp0_exec_draw_offset` (L7531) — GP0 draw-offset command handler.
-- `gp0_exec_mask_bit` (L7547) — GP0 mask-bit setting command handler.
-- `gpu_get_a0_history` (L7579) — Returns the history of GP0 0xC0 reads.
-- `gpu_get_a0_count` (L7589) — Number of GP0 0xA0 transfer records.
-- `gpu_get_a0_extra` (L7590) — Extra arguments of the last GP0 0xA0 transfer.
-- `gpu_get_a0_src` (L7601) — True source pointer + arg regs + frame for the LoadImage upload (s2 = source).
-- `gp0_exec_cpu_to_vram` (L7610) — GP0 CPU-to-VRAM transfer command handler.
-- `gpu_get_c0_total` (L7680) — Total GP0 C0 reads since boot; the ring holds the newest C0_HISTORY_CAP.
-- `gpu_get_c0_count` (L7681) — Number of GP0 0xC0 reads kept in the ring.
-- `gpu_get_c0_history` (L7685) — index 0 = oldest entry still in the ring.
-- `gpu_get_c0_frame` (L7701) — Frame of a GP0 0xC0 read.
-- `gp0_exec_vram_to_cpu` (L7708) — GP0 VRAM-to-CPU transfer command handler.
-- `gp0_command_word_count` (L7745) — Determine how many words a GP0 command requires (header only, not counting variable-length data for 0xA0).
-- `gpu_gp0_command_word_count` (L7831) — Fixed command words; -1 denotes a terminated polyline, 0 an unknown opcode.
-- `ws_ui_prepass_add` (L7835) — Adds a UI prepass record for a primitive.
-- `ws_ui_untextured_op` (L7976) — 1 when a primitive is an untextured operation for UI grouping.
-- `ws_ui_encloses` (L7981) — 1 when one UI item encloses another.
-- `ws_ui_attached` (L7991) — Part of the same widget: sharing screen columns and overlapping or stacked within WS_UI_GROUP_STACK_GAP rows (ws_ui_group.c same_element()).
-- `gpu_ws_prepass_linked_list` (L8002) — Prepass over the linked list that collects UI and backdrop primitives.
-- `gpu_ws_set_backdrop_images` (L8403) — The backdrop-image rule (native-wide): what a frame draws before its 3D world, as images (a picture's tiles together, a band each for pieces stacked in it), each decided on its own: past the wide edge
-- `bdi_enabled` (L8405) — 1 when backdrop images are enabled.
-- `bdi_find` (L8413) — Finds a backdrop image record.
-- `bdi_insert` (L8424) — Inserts a backdrop image record.
-- `bdi_texel` (L8436) — One texel as BGR555 with its stp bit, 0 = transparent.
-- `bdi_colour` (L8449) — A sample's colour (BGR555, no stp) as drawn: the texel times the vertex colour (0x80 = 1.0) unless raw; untextured: the vertex colour.
-- `bdi_side_samples` (L8473) — One side of a band (whole: of an image, all its bands): its edge (the primitives at that extreme, each by the two vertices furthest that way: a slanted edge, a perspective plane whose top row is narro
-- `bdi_mode` (L8503) — The colour most samples sit within 'tol' levels of; *count how many do.
-- `bdi_dark` (L8519) — A colour's brightest channel at most 'lv' levels (of 31).
-- `bdi_flat` (L8527) — Mostly one colour: the colour at least 90% of the samples sit within 1 level of (a lighter edge with a faint pattern is art, not a flat colour); a very dark edge (a night sky with faint clouds: up to
-- `bdi_prim_parse` (L8537) — Parses a backdrop primitive's position and colour.
-- `bdi_prim_rows` (L8579) — Returns the rows a backdrop primitive covers.
-- `bdi_split_bands` (L8590) — Each image into bands: its primitives whose rows overlap (by more than a row: pieces stacked edge to edge are apart).
-- `bdi_tile_of` (L8635) — Returns the tile index of a backdrop primitive.
-- `bdi_tile_eq` (L8643) — 1 when two backdrop tiles are equal.
-- `bdi_tile_mem` (L8652) — Memory tile comparison for backdrop tiles.
-- `bdi_strip` (L8669) — A band laid as one row of textured rectangles: their indices by x.
-- `bdi_tiles_learn` (L8685) — Each strip's neighbouring tiles, remembered.
-- `bdi_wrap_side` (L8705) — A strip's side short of the wide edge: the tiles seen beyond its end (one after another, up to 3) planned there; 0 (nothing planned) when they are not remembered or do not reach the wide edge.
-- `bdi_side_piece_w` (L8728) — The narrowest piece at a side of a band (whole: of an image).
-- `bdi_drop_wraps` (L8742) — Drops wrapped backdrop tile records.
-- `bdi_decide` (L8754) — One band (whole: an image, all its bands together): its stretch, filled sides and (a band) tiles drawn in its gaps into *im.
-- `bdi_fill_runs` (L8810) — A filled side, row by row: the colour at the edge on that row (a sky's gradient goes on into the margin with no seam), the side's main colour where no primitive is at the edge; kept as runs of one col
-- `bdi_square` (L8850) — A primitive laid square: a rectangle, or a quad whose corners sit on two columns and two rows (to a pixel).
-- `bdi_gte_polygon` (L8861) — A polygon with a corner the GTE projected (PGXP's dataflow shadow of its packet word): 3D world, not a still.
-- `bdi_prepass` (L8876) — Prepass that collects backdrop images from the linked list.
-- `bdi_gate` (L9029) — The answer for the primitive being drawn: -1 none (not a backdrop image); 0 drawn as it is; else (marked ?
-- `bdi_fill_note` (L9041) — At an image's first primitive: its filled margins, before any of it.
-- `gpu_ws_backdrop_images_json` (L9073) — TCP ws_backdrop_images: the last linked list's images.
-- `ws_ui_prepass_order_cmp` (L9095) — qsort comparison of two UI prepass records.
-- `ws_ui_prepass_find_node` (L9103) — The first prepass record of 'resolved', as the linear scan found it.
-- `gpu_ws_validate_linked_list_header` (L9125) — Validates a linked-list header word for the widescreen state.
-- `gpu_ws_validate_linked_list_node` (L9137) — Validates a linked-list node for the widescreen state.
-- `gpu_get_opcode_count` (L9167) — Number of opcodes seen in the GP0 stream, for diagnostics.
-- `gp0_capture_builder_chain` (L9189) — Bounded guest-stack unwind for VRAM-copy builder attribution.
-- `gpu_gp0_ring_set_frozen` (L9227) — Freeze/unfreeze the always-on GP0 command ring (capture mark).
-- `gp0_ring_record` (L9229) — Records one GP0 word in the command ring.
-- `gpu_gp0_ring_total` (L9255) — Public accessors for debug_server.c
-- `gpu_gp0_ring_capacity` (L9256) — Capacity of the GP0 command ring in commands.
-- `gpu_gp0_ring_max_words` (L9257) — Maximum words stored per GP0 command in the ring.
-- `gpu_gp0_ring_dump_frame` (L9262) — Fill 'out[0..max_out-1]' with entries from the requested frame; returns count.
-- `gpu_gp0_ring_frame_span` (L9278) — Report the frame range currently held in the ring (oldest..newest).
-- `gpu_set_gp0_source` (L9311) — Sets the RAM source address of the current GP0 word.
-- `prim_sx_extent` (L9342) — Screen-X extent (raw vertex coords = SX, pre-draw_offset) across a prim's position vertices.
-- `gpu_ws_prim_x_span` (L9365) — The screen-X span of the primitive being drawn, for a title's native-wide predicate (gpu.h): polygons by their vertices, rectangles with their width, lines by both ends; in the coordinates the game se
-- `ws_note_overhang` (L9394) — Natural-overhang noter (see the ws_ovh_* block up top for the rationale).
-- `ws_note_backdrop` (L9428) — Finite-backdrop noter (ws_backdrop_extent.h).
-- `ws_census_record` (L9449) — Records one census row for the widescreen census.
-- `gpu_ws_census_dump` (L9471) — Dump census rows for frames [f0,f1] to a CSV file.
-- `gpu_ws_census_set` (L9492) — Sets the widescreen census state.
-- `gpu_ws_census_seq` (L9493) — Current sequence number of the widescreen census.
-- `psx_mod_set_turbo_pgxp_skip` (L9520) — The turbo keeps the PGXP hooks off while a frame it will not show computes its geometry (gpu.c).
-- `draw_skip_hold` (L9524) — Holds a draw skip decision for a frame.
-- `gpu_draw_skip_shown_partial` (L9532) — 1 when a partially shown frame skipped its draws.
-- `gpu_draw_skip_vblank` (L9533) — Reports a VBlank in the draw-skip state.
-- `gpu_draw_skip_counts` (L9545) — Counts draw skips for the diagnostic output.
-- `gpu_draw_skip_pgxp_frames` (L9550) — Counts PGXP frames skipped by the turbo.
-- `gp0_execute_command` (L9552) — Executes one GP0 command word, dispatching by its opcode.
-- `gp0_dispatch_command` (L9620) — Dispatches a GP0 command to its handler.
-- `gpu_get_gp0_count` (L9827) — Total number of GP0 writes since init.
-- `gpu_get_gp0_stats` (L9829) — uint64_t gpu_get_gp0_count(void); /* Total GP0 writes since init
-- `gpu_get_draw_area` (L9834) — Returns the drawing area rectangle.
-- `gpu_vram_peek` (L9843) — One VRAM pixel as the GPU has it.
-- `gpu_vram_drawn_check` (L9859) — TCP vram_drawn_check: the proof of the cells above.
-- `psx_mod_vram_write` (L9878) — psx_mod_vram_write: a title's own pixels, as an unmasked CPU->VRAM copy, in the guest's VRAM and the renderer's (as shadow_blob_key_put does).
-- `gpu_write_gp0_body` (L9890) — Body of a GP0 write, handling the command and data words.
-- `gpu_write_gp0` (L10088) — Wall-time sampler bracket (phase_profile): tag GP0 command processing — rasterization / batching / VRAM transfer work on the emu thread — as its own phase so it is separable from the guest code that i
-- `gp1_reset` (L10099) — GP1 reset command handler (0x00): resets the GPU.
-- `gp1_reset_command_buffer` (L10106) — GP1 reset-command-buffer handler (0x01).
-- `gp1_ack_irq1` (L10115) — GP1 acknowledge-IRQ handler (0x02).
-- `gp1_display_enable` (L10120) — GP1 display enable handler (0x03).
-- `gp1_dma_direction` (L10134) — GP1 DMA direction handler (0x04).
-- `gpu_display_flips` (L10142) — Display starts that moved (GP1(05h) to another place): the game's own frames of a double-buffered picture, for the FPS readout.
-- `gp1_display_area_start` (L10144) — GP1 display area start handler (0x05).
-- `gp1_h_display_range` (L10170) — GP1 horizontal display range handler (0x06).
-- `gp1_v_display_range` (L10178) — GP1 vertical display range handler (0x07).
-- `gp1_display_mode` (L10197) — GP1 display mode handler (0x08).
-- `gp1_get_info` (L10226) — GP1 get-info handler (0x10): returns the requested GPU info.
-- `gpu_write_gp1` (L10259) — Writes a GP1 control word and dispatches it by its command number.
-- `gpu_snap_emit` (L10332) — GPU snap fields are scalars / u32 arrays — emit as LE u32/i32 (no struct pad).
-- `gpu_snap_parse` (L10365) — Reads GPU snapshot fields from a buffer.
-- `gpu_snapshot_bytes` (L10406) — Byte size of the GPU snapshot.
-- `gpu_snapshot_write` (L10411) — Writes the GPU snapshot into a buffer.
-- `gpu_cosim_snapshot_bytes` (L10416) — Byte size of the co-simulation snapshot.
-- `gpu_cosim_snapshot_write` (L10417) — Writes the co-simulation snapshot into a buffer.
-- `gpu_cosim_dump` (L10418) — Debug: dumps the co-simulation state.
-- `gpu_snapshot_validate` (L10459) — Pass-1 check for boot_state's two-pass load: refuses a GP0 state the parser would accept but gpu_write_gp0 would index gp0_cmd_buf out of range with.
-- `gpu_snapshot_read` (L10474) — Restores the GPU state from a snapshot buffer.
-- `gpu_pass_provenance_transfer` (L10552) — One transfer list keeps save and restore symmetric.
-- `gpu_pass_scene_transfer` (L10597) — Scene transfer list for a render pass checkpoint.
-- `gpu_pass_checkpoint_save` (L10629) — Render-pass GPU register checkpoint (render_pass.c).
-- `gpu_pass_checkpoint_restore` (L10646) — Restores the GPU registers from a render-pass checkpoint.
-- `gpu_pass_state_hash` (L10672) — FNV-1a over the checkpointed register set (PSX_RENDER_PASS_VERIFY).
-- `gpu_get_vram_ptr` (L10685) — Pointer to the VRAM buffer.
-- `gpu_get_vram_bytes` (L10686) — Size of the VRAM buffer in bytes.
+- `draw_area_wide_x_margin` (L6251) — Inclusive draw-area reject (same predicate as the hardware clip).
+- `draw_area_host_x_bounds` (L6260) — Host X bounds of the drawing area.
+- `draw_area_out_point` (L6277) — 1 when a point lies outside the drawing area.
+- `draw_area_out_bbox` (L6284) — 1 when a bounding box lies outside the drawing area.
+- `draw_area_out_poly` (L6304) — A polygon wholly past the drawing area draws nothing.
+- `draw_area_out_rect` (L6321) — 1 when a rectangle lies outside the drawing area.
+- `gp0_exec_mono_tri` (L6332) — Execute mono triangle (GP0 0x20-0x23)
+- `ws_local_viewport_divider` (L6356) — Execute mono quad (GP0 0x28-0x2B) — two triangles: (0,1,2) and (2,1,3) A native split divider belongs to the combined framebuffer.
+- `gp0_exec_mono_quad` (L6367) — Draws a flat-colour quad (two triangles) as GP0 commands.
+- `gp0_exec_shaded_tri` (L6490) — Execute shaded triangle (GP0 0x30-0x33) — Gouraud shaded
+- `gpu_arm_shaded_quad_capture` (L6516) — Arms a capture of the next shaded quad.
+- `gpu_get_shaded_quad_capture` (L6517) — Returns the captured shaded quad.
+- `gp0_exec_shaded_quad` (L6524) — Execute shaded quad (GP0 0x38-0x3B)
+- `current_texpage` (L6577) — Helper: build texpage word from GPU state for SW renderer.
+- `set_tpage_from_poly` (L6590) — Hardware: the texpage attribute word carried inside every textured polygon (GP0 0x24-0x3F with the texture bit) is copied into the GPU draw-mode state (GPUSTAT bits 0-8) exactly like GP0(E1) bits 0-8
+- `setup_textured_draw` (L6600) — Helper: set up SW renderer state before a textured draw.
+- `native_wide_projective_draw` (L6612) — A close corner may cross the camera plane while the face is still visible.
+- `gp0_exec_textured_tri` (L6647) — Execute textured triangle (GP0 0x24-0x27)
+- `gp0_exec_textured_quad` (L6695) — Execute textured quad (GP0 0x2C-0x2F)
+- `gp0_exec_shaded_textured_tri` (L6829) — Execute shaded textured triangle (GP0 0x34-0x37)
+- `psx_mod_texture_banks_supported` (L6896) — 1 when the texture banks are supported by the mod.
+- `gp0_exec_shaded_textured_quad` (L6901) — Execute shaded textured quad (GP0 0x3C-0x3F)
+- `gp0_exec_mono_line` (L6976) — Execute mono line (GP0 0x40-0x47) — Bresenham
+- `gp0_exec_shaded_line` (L7006) — Execute shaded line (GP0 0x50-0x57)
+- `gp0_exec_mono_rect` (L7028) — Execute mono rectangle (GP0 0x60-0x63)
+- `ws_repeat_textured_rect_reveal` (L7068) — Repeats a textured rectangle into the native-wide reveal margins.
+- `ws_fb_base_holding` (L7095) — The framebuffer whose canonical columns hold VRAM x, or -1.
+- `ws_feedback_rect_reveal` (L7104) — A tagged 15-bit sprite copying another framebuffer continues into the bands from that buffer's wide surface (it has no band columns in VRAM).
+- `gp0_exec_textured_rect` (L7135) — Execute textured rectangle (GP0 0x64-0x67)
+- `gp0_exec_mono_dot` (L7225) — Execute 1x1 dot (GP0 0x68-0x6B)
+- `gp0_exec_textured_dot` (L7239) — Execute textured 1x1 dot (GP0 0x6C-0x6F)
+- `gp0_exec_textured_8x8` (L7258) — Execute 8x8 textured sprite (GP0 0x74-0x77)
+- `gp0_exec_mono_8x8` (L7285) — Execute 8x8 sprite (GP0 0x70-0x73)
+- `gp0_exec_textured_16x16` (L7303) — Execute 16x16 textured sprite (GP0 0x7C-0x7F)
+- `gp0_exec_nop` (L7348) — GP0 no-op command handler.
+- `gp0_exec_fill_rect` (L7352) — GP0 fill-rectangle command handler: fills a VRAM rectangle with a colour.
+- `gp0_exec_draw_mode` (L7384) — GP0 draw-mode (texpage) command handler.
+- `gp0_exec_texture_window` (L7406) — GP0 texture-window command handler.
+- `gp0_exec_draw_area_tl` (L7416) — GP0 draw-area top-left command handler.
+- `gp0_exec_draw_area_br` (L7431) — GP0 draw-area bottom-right command handler.
+- `gp0_exec_draw_offset` (L7445) — GP0 draw-offset command handler.
+- `gp0_exec_mask_bit` (L7461) — GP0 mask-bit setting command handler.
+- `gpu_get_a0_history` (L7493) — Returns the history of GP0 0xC0 reads.
+- `gpu_get_a0_count` (L7503) — Number of GP0 0xA0 transfer records.
+- `gpu_get_a0_extra` (L7504) — Extra arguments of the last GP0 0xA0 transfer.
+- `gpu_get_a0_src` (L7515) — True source pointer + arg regs + frame for the LoadImage upload (s2 = source).
+- `gp0_exec_cpu_to_vram` (L7524) — GP0 CPU-to-VRAM transfer command handler.
+- `gpu_get_c0_total` (L7594) — Total GP0 C0 reads since boot; the ring holds the newest C0_HISTORY_CAP.
+- `gpu_get_c0_count` (L7595) — Number of GP0 0xC0 reads kept in the ring.
+- `gpu_get_c0_history` (L7599) — index 0 = oldest entry still in the ring.
+- `gpu_get_c0_frame` (L7615) — Frame of a GP0 0xC0 read.
+- `gp0_exec_vram_to_cpu` (L7622) — GP0 VRAM-to-CPU transfer command handler.
+- `gp0_command_word_count` (L7659) — Determine how many words a GP0 command requires (header only, not counting variable-length data for 0xA0).
+- `gpu_gp0_command_word_count` (L7745) — Fixed command words; -1 denotes a terminated polyline, 0 an unknown opcode.
+- `ws_ui_prepass_add` (L7749) — Adds a UI prepass record for a primitive.
+- `ws_ui_untextured_op` (L7890) — 1 when a primitive is an untextured operation for UI grouping.
+- `ws_ui_encloses` (L7895) — 1 when one UI item encloses another.
+- `ws_ui_attached` (L7905) — Part of the same widget: sharing screen columns and overlapping or stacked within WS_UI_GROUP_STACK_GAP rows (ws_ui_group.c same_element()).
+- `gpu_ws_prepass_linked_list` (L7916) — Prepass over the linked list that collects UI and backdrop primitives.
+- `gpu_ws_set_backdrop_images` (L8317) — The backdrop-image rule (native-wide): what a frame draws before its 3D world, as images (a picture's tiles together, a band each for pieces stacked in it), each decided on its own: past the wide edge
+- `bdi_enabled` (L8319) — 1 when backdrop images are enabled.
+- `bdi_find` (L8327) — Finds a backdrop image record.
+- `bdi_insert` (L8338) — Inserts a backdrop image record.
+- `bdi_texel` (L8350) — One texel as BGR555 with its stp bit, 0 = transparent.
+- `bdi_colour` (L8363) — A sample's colour (BGR555, no stp) as drawn: the texel times the vertex colour (0x80 = 1.0) unless raw; untextured: the vertex colour.
+- `bdi_side_samples` (L8387) — One side of a band (whole: of an image, all its bands): its edge (the primitives at that extreme, each by the two vertices furthest that way: a slanted edge, a perspective plane whose top row is narro
+- `bdi_mode` (L8417) — The colour most samples sit within 'tol' levels of; *count how many do.
+- `bdi_dark` (L8433) — A colour's brightest channel at most 'lv' levels (of 31).
+- `bdi_flat` (L8441) — Mostly one colour: the colour at least 90% of the samples sit within 1 level of (a lighter edge with a faint pattern is art, not a flat colour); a very dark edge (a night sky with faint clouds: up to
+- `bdi_prim_parse` (L8451) — Parses a backdrop primitive's position and colour.
+- `bdi_prim_rows` (L8493) — Returns the rows a backdrop primitive covers.
+- `bdi_split_bands` (L8504) — Each image into bands: its primitives whose rows overlap (by more than a row: pieces stacked edge to edge are apart).
+- `bdi_tile_of` (L8549) — Returns the tile index of a backdrop primitive.
+- `bdi_tile_eq` (L8557) — 1 when two backdrop tiles are equal.
+- `bdi_tile_mem` (L8566) — Memory tile comparison for backdrop tiles.
+- `bdi_strip` (L8583) — A band laid as one row of textured rectangles: their indices by x.
+- `bdi_tiles_learn` (L8599) — Each strip's neighbouring tiles, remembered.
+- `bdi_wrap_side` (L8619) — A strip's side short of the wide edge: the tiles seen beyond its end (one after another, up to 3) planned there; 0 (nothing planned) when they are not remembered or do not reach the wide edge.
+- `bdi_side_piece_w` (L8642) — The narrowest piece at a side of a band (whole: of an image).
+- `bdi_drop_wraps` (L8656) — Drops wrapped backdrop tile records.
+- `bdi_decide` (L8668) — One band (whole: an image, all its bands together): its stretch, filled sides and (a band) tiles drawn in its gaps into *im.
+- `bdi_fill_runs` (L8724) — A filled side, row by row: the colour at the edge on that row (a sky's gradient goes on into the margin with no seam), the side's main colour where no primitive is at the edge; kept as runs of one col
+- `bdi_square` (L8764) — A primitive laid square: a rectangle, or a quad whose corners sit on two columns and two rows (to a pixel).
+- `bdi_gte_polygon` (L8775) — A polygon with a corner the GTE projected (PGXP's dataflow shadow of its packet word): 3D world, not a still.
+- `bdi_prepass` (L8790) — Prepass that collects backdrop images from the linked list.
+- `bdi_gate` (L8943) — The answer for the primitive being drawn: -1 none (not a backdrop image); 0 drawn as it is; else (marked ?
+- `bdi_fill_note` (L8955) — At an image's first primitive: its filled margins, before any of it.
+- `gpu_ws_backdrop_images_json` (L8987) — TCP ws_backdrop_images: the last linked list's images.
+- `ws_ui_prepass_order_cmp` (L9009) — qsort comparison of two UI prepass records.
+- `ws_ui_prepass_find_node` (L9017) — The first prepass record of 'resolved', as the linear scan found it.
+- `gpu_ws_validate_linked_list_header` (L9039) — Validates a linked-list header word for the widescreen state.
+- `gpu_ws_validate_linked_list_node` (L9051) — Validates a linked-list node for the widescreen state.
+- `gpu_get_opcode_count` (L9081) — Number of opcodes seen in the GP0 stream, for diagnostics.
+- `gp0_capture_builder_chain` (L9103) — Bounded guest-stack unwind for VRAM-copy builder attribution.
+- `gpu_gp0_ring_set_frozen` (L9141) — Freeze/unfreeze the always-on GP0 command ring (capture mark).
+- `gp0_ring_record` (L9143) — Records one GP0 word in the command ring.
+- `gpu_gp0_ring_total` (L9169) — Public accessors for debug_server.c
+- `gpu_gp0_ring_capacity` (L9170) — Capacity of the GP0 command ring in commands.
+- `gpu_gp0_ring_max_words` (L9171) — Maximum words stored per GP0 command in the ring.
+- `gpu_gp0_ring_dump_frame` (L9176) — Fill 'out[0..max_out-1]' with entries from the requested frame; returns count.
+- `gpu_gp0_ring_frame_span` (L9192) — Report the frame range currently held in the ring (oldest..newest).
+- `gpu_set_gp0_source` (L9225) — Sets the RAM source address of the current GP0 word.
+- `prim_sx_extent` (L9256) — Screen-X extent (raw vertex coords = SX, pre-draw_offset) across a prim's position vertices.
+- `gpu_ws_prim_x_span` (L9279) — The screen-X span of the primitive being drawn, for a title's native-wide predicate (gpu.h): polygons by their vertices, rectangles with their width, lines by both ends; in the coordinates the game se
+- `ws_note_overhang` (L9308) — Natural-overhang noter (see the ws_ovh_* block up top for the rationale).
+- `ws_note_backdrop` (L9342) — Finite-backdrop noter (ws_backdrop_extent.h).
+- `ws_census_record` (L9363) — Records one census row for the widescreen census.
+- `gpu_ws_census_dump` (L9385) — Dump census rows for frames [f0,f1] to a CSV file.
+- `gpu_ws_census_set` (L9406) — Sets the widescreen census state.
+- `gpu_ws_census_seq` (L9407) — Current sequence number of the widescreen census.
+- `psx_mod_set_turbo_pgxp_skip` (L9434) — The turbo keeps the PGXP hooks off while a frame it will not show computes its geometry (gpu.c).
+- `draw_skip_hold` (L9438) — Holds a draw skip decision for a frame.
+- `gpu_draw_skip_shown_partial` (L9446) — 1 when a partially shown frame skipped its draws.
+- `gpu_draw_skip_vblank` (L9447) — Reports a VBlank in the draw-skip state.
+- `gpu_draw_skip_counts` (L9459) — Counts draw skips for the diagnostic output.
+- `gpu_draw_skip_pgxp_frames` (L9464) — Counts PGXP frames skipped by the turbo.
+- `gp0_execute_command` (L9466) — Executes one GP0 command word, dispatching by its opcode.
+- `gp0_dispatch_command` (L9534) — Dispatches a GP0 command to its handler.
+- `gpu_get_gp0_count` (L9741) — Total number of GP0 writes since init.
+- `gpu_get_gp0_stats` (L9743) — uint64_t gpu_get_gp0_count(void); /* Total GP0 writes since init
+- `gpu_get_draw_area` (L9748) — Returns the drawing area rectangle.
+- `gpu_vram_peek` (L9757) — One VRAM pixel as the GPU has it.
+- `gpu_vram_drawn_check` (L9773) — TCP vram_drawn_check: the proof of the cells above.
+- `psx_mod_vram_write` (L9792) — psx_mod_vram_write: a title's own pixels, as an unmasked CPU->VRAM copy, in the guest's VRAM and the renderer's (as shadow_blob_key_put does).
+- `gpu_write_gp0_body` (L9804) — Body of a GP0 write, handling the command and data words.
+- `gpu_write_gp0` (L10001) — Wall-time sampler bracket (phase_profile): tag GP0 command processing — rasterization / batching / VRAM transfer work on the emu thread — as its own phase so it is separable from the guest code that i
+- `gp1_reset` (L10012) — GP1 reset command handler (0x00): resets the GPU.
+- `gp1_reset_command_buffer` (L10019) — GP1 reset-command-buffer handler (0x01).
+- `gp1_ack_irq1` (L10028) — GP1 acknowledge-IRQ handler (0x02).
+- `gp1_display_enable` (L10033) — GP1 display enable handler (0x03).
+- `gp1_dma_direction` (L10047) — GP1 DMA direction handler (0x04).
+- `gpu_display_flips` (L10055) — Display starts that moved (GP1(05h) to another place): the game's own frames of a double-buffered picture, for the FPS readout.
+- `gp1_display_area_start` (L10057) — GP1 display area start handler (0x05).
+- `gp1_h_display_range` (L10083) — GP1 horizontal display range handler (0x06).
+- `gp1_v_display_range` (L10091) — GP1 vertical display range handler (0x07).
+- `gp1_display_mode` (L10110) — GP1 display mode handler (0x08).
+- `gp1_get_info` (L10139) — GP1 get-info handler (0x10): returns the requested GPU info.
+- `gpu_write_gp1` (L10172) — Writes a GP1 control word and dispatches it by its command number.
+- `gpu_snap_emit` (L10245) — GPU snap fields are scalars / u32 arrays — emit as LE u32/i32 (no struct pad).
+- `gpu_snap_parse` (L10278) — Reads GPU snapshot fields from a buffer.
+- `gpu_snapshot_bytes` (L10319) — Byte size of the GPU snapshot.
+- `gpu_snapshot_write` (L10324) — Writes the GPU snapshot into a buffer.
+- `gpu_cosim_snapshot_bytes` (L10329) — Byte size of the co-simulation snapshot.
+- `gpu_cosim_snapshot_write` (L10330) — Writes the co-simulation snapshot into a buffer.
+- `gpu_cosim_dump` (L10331) — Debug: dumps the co-simulation state.
+- `gpu_snapshot_validate` (L10372) — Pass-1 check for boot_state's two-pass load: refuses a GP0 state the parser would accept but gpu_write_gp0 would index gp0_cmd_buf out of range with.
+- `gpu_snapshot_read` (L10387) — Restores the GPU state from a snapshot buffer.
+- `gpu_pass_provenance_transfer` (L10465) — One transfer list keeps save and restore symmetric.
+- `gpu_pass_scene_transfer` (L10510) — Scene transfer list for a render pass checkpoint.
+- `gpu_pass_checkpoint_save` (L10542) — Render-pass GPU register checkpoint (render_pass.c).
+- `gpu_pass_checkpoint_restore` (L10559) — Restores the GPU registers from a render-pass checkpoint.
+- `gpu_pass_state_hash` (L10585) — FNV-1a over the checkpointed register set (PSX_RENDER_PASS_VERIFY).
+- `gpu_get_vram_ptr` (L10598) — Pointer to the VRAM buffer.
+- `gpu_get_vram_bytes` (L10599) — Size of the VRAM buffer in bytes.
 
 ### runtime/src/gpu_edge.inc
 
@@ -8061,25 +8060,26 @@ The R3000A instruction cache tag store, used only for timing.
 
 A minimal R3000A interpreter for oracle builds, with PC breakpoints and an instruction trace ring.
 
-- `interp_init` (L75) — Initialize interpreter state.
-- `interp_ld_delay_discard` (L90) — Drop host-static pending load-delay (not in boot_state).
-- `interp_break_add` (L97) — Adds a PC breakpoint to the table and returns its slot, or -1 when the table is full.
-- `interp_break_remove` (L103) — Removes a PC breakpoint; returns 1 if it was found and removed, otherwise 0.
-- `interp_break_clear_all` (L113) — --- PC breakpoints --- int interp_break_add(uint32_t pc); /* returns slot, or -1 int interp_break_remove(uint32_t pc); /* returns 1 if removed
-- `interp_hit_breakpoint` (L114) — Check if interpreter hit a breakpoint on the last run.
-- `interp_trace_enable` (L118) — Turns the instruction trace ring on or off.
-- `interp_trace_count` (L119) — Returns how many instructions have been traced since the start.
-- `interp_trace_get` (L121) — Get entry by index into ring (0 = oldest available).
-- `interp_faults` (L130) — Copy of the interpreter fault counters (NULL jump, unknown COP0/COP2, last PC).
-- `trace_record` (L132) — Stores the current PC, instruction word, registers and HI/LO into the next trace ring slot.
-- `set_reg` (L148) — Writes a general register, ignoring writes to register zero.
-- `apply_load_delay` (L154) — Applies the pending delayed load to its register and clears the pending load.
-- `set_load_delay` (L161) — Queues a delayed load so its register and value take effect after the next instruction.
-- `raise_exception` (L168) — Raises a CPU exception with the given code: pushes the status stack and updates the cause register.
-- `exec_one` (L186) — Executes one MIPS instruction at the current PC; prints a message and halts if the PC is zero.
-- `interp_check_interrupts` (L596) — Ticks the SIO, schedules VBlank and timer events, and delivers any pending interrupt to the CPU.
-- `interp_step` (L640) — Execute exactly 'count' instructions.
-- `interp_run` (L663) — Run until breakpoint, halt, or max_instructions reached.
+- `interp_init` (L81) — Initialize interpreter state.
+- `interp_ld_delay_discard` (L97) — Drop host-static pending load-delay (not in boot_state).
+- `interp_break_add` (L105) — Adds a PC breakpoint to the table and returns its slot, or -1 when the table is full.
+- `interp_break_remove` (L111) — Removes a PC breakpoint; returns 1 if it was found and removed, otherwise 0.
+- `interp_break_clear_all` (L121) — --- PC breakpoints --- int interp_break_add(uint32_t pc); /* returns slot, or -1 int interp_break_remove(uint32_t pc); /* returns 1 if removed
+- `interp_hit_breakpoint` (L122) — Check if interpreter hit a breakpoint on the last run.
+- `interp_trace_enable` (L126) — Turns the instruction trace ring on or off.
+- `interp_trace_count` (L127) — Returns how many instructions have been traced since the start.
+- `interp_trace_get` (L129) — Get entry by index into ring (0 = oldest available).
+- `interp_faults` (L138) — Copy of the interpreter fault counters (NULL jump, unknown COP0/COP2, last PC).
+- `trace_record` (L140) — Stores the current PC, instruction word, registers and HI/LO into the next trace ring slot.
+- `set_reg` (L156) — Writes a general register, ignoring writes to register zero.
+- `set_load_delay` (L162) — Queues a delayed load so its register and value take effect after the next instruction.
+- `set_branch` (L169) — Records a branch decision so the next instruction runs as its delay slot and then transfers to the target if taken.
+- `raise_exception` (L178) — Raises a CPU exception with the given code: pushes the status stack and updates the cause register.
+- `exec_one` (L197) — Executes one MIPS instruction at the current PC; prints a message and halts if the PC is zero.
+- `interp_tick_devices` (L567) — Ticks the SIO and schedules VBlank, timer and CD-ROM events on the legacy instruction-count clock.
+- `interp_check_interrupts` (L584) — Delivers a pending hardware or software interrupt at an instruction boundary, with EPC and BD set for a delay slot.
+- `interp_step` (L624) — Execute exactly 'count' instructions.
+- `interp_run` (L649) — Run until breakpoint, halt, or max_instructions reached.
 
 ### runtime/src/psx_jogcon_ffb_sdl.cpp
 
@@ -9263,14 +9263,14 @@ Projection history for render passes: captures the GTE camera and projections pe
 - `same_matrix` (L60) — 1 when two matrices hold identical rotation and translation values.
 - `psx_projection_reset_session` (L80) — Invalidates every projection history when a new timeline starts, such as after a load.
 - `psx_projection_create` (L87) — Capture the final model/view transforms that the game actually projects.
-- `psx_projection_invalidate` (L96) — Forgets a history's captured projections and stops it if it is the active one.
-- `psx_projection_destroy` (L102) — Invalidates a history, unlinks it from the list and frees it.
-- `psx_projection_capture_begin` (L109) — Starts capturing a history for this frame, moving the previous frame's projections aside.
-- `psx_projection_capture_end` (L115) — Ends the capture, recording the count and indexing the projections for matching.
-- `psx_projection_replay_begin` (L155) — Starts replaying a history inside a render pass at blend alpha, using the captured frame.
-- `psx_projection_replay_end` (L162) — Ends the replay of a history.
-- `psx_projection_stats` (L167) — Copies a history's statistics into out.
-- `psx_projection_command` (L170) — GTE bridge: before RTPS/RTPT imports its registers.
+- `psx_projection_invalidate` (L98) — Forgets a history's captured projections and stops it if it is the active one.
+- `psx_projection_destroy` (L104) — Invalidates a history, unlinks it from the list and frees it.
+- `psx_projection_capture_begin` (L111) — Starts capturing a history for this frame, moving the previous frame's projections aside.
+- `psx_projection_capture_end` (L117) — Ends the capture, recording the count and indexing the projections for matching.
+- `psx_projection_replay_begin` (L161) — Starts replaying a history inside a render pass at blend alpha, using the captured frame.
+- `psx_projection_replay_end` (L170) — Ends the replay of a history.
+- `psx_projection_stats` (L175) — Copies a history's statistics into out.
+- `psx_projection_command` (L178) — GTE bridge: before RTPS/RTPT imports its registers.
 
 ### runtime/src/render_thread.c
 
