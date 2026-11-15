@@ -1521,6 +1521,21 @@ static void spu_render_block(int16_t* out_stereo, int frames) {
             mix_r = clamp16(mix_r);
             mix_l = ((int32_t)mix_l * main_l) >> 15;
             mix_r = ((int32_t)mix_r * main_r) >> 15;
+        } else {
+            /* psx-spx: SPUCNT.15 does not gate CD audio playback, so the CD bus
+             * keeps draining and playing. Whether main volume applies (and its
+             * sweep steps), and whether capture/reverb run, is undocumented:
+             * main volume is applied unstepped, capture/reverb stay gated. */
+            int16_t cd_l = 0;
+            int16_t cd_r = 0;
+            if (!cd_audio_pop(&cd_l, &cd_r) && cd_on && cd_push_frames != 0)
+                cd_underflow_frames++;
+            if (cd_on) {
+                mix_l = clamp16(((int32_t)cd_l * cd_vol_l) >> 15);
+                mix_r = clamp16(((int32_t)cd_r * cd_vol_r) >> 15);
+                mix_l = ((int32_t)mix_l * main_l) >> 15;
+                mix_r = ((int32_t)mix_r * main_r) >> 15;
+            }
         }
 
         out_stereo[f * 2 + 0] = clamp16(mix_l);
