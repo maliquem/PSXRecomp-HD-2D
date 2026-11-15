@@ -70,6 +70,12 @@ static uint32_t s_trace_write_idx;
 static uint32_t s_load_reg;
 static uint32_t s_load_val;
 
+/* Branch delay slot: the instruction after a branch/jump runs before the
+ * transfer, and an exception there reports EPC = branch with Cause.BD set. */
+static int      s_ds_next;    /* next instruction is a delay slot */
+static int      s_ds_taken;
+static uint32_t s_ds_target;
+
 /* ---- Init ---- */
 
 void interp_init(CPUState* cpu) {
@@ -83,6 +89,7 @@ void interp_init(CPUState* cpu) {
     s_trace_write_idx = 0;
     s_load_reg = 0;
     s_load_val = 0;
+    s_ds_next = 0;
     s_vblank_count = 0;
     memset(s_trace_ring, 0, sizeof(s_trace_ring));
 }
@@ -90,6 +97,7 @@ void interp_init(CPUState* cpu) {
 void interp_ld_delay_discard(void) {
     s_load_reg = 0;
     s_load_val = 0;
+    s_ds_next = 0;
 }
 
 /* ---- Breakpoints ---- */
@@ -149,23 +157,25 @@ static inline void set_reg(CPUState* cpu, uint32_t r, uint32_t v) {
     if (r != 0) cpu->gpr[r] = v;
 }
 
-/* ---- Apply pending load delay ---- */
-
-static inline void apply_load_delay(CPUState* cpu) {
-    if (s_load_reg != 0) {
-        cpu->gpr[s_load_reg] = s_load_val;
-        s_load_reg = 0;
-    }
-}
+/* ---- Load delay ---- */
 
 static inline void set_load_delay(uint32_t reg, uint32_t val) {
     s_load_reg = reg;
     s_load_val = val;
 }
 
+/* ---- Branch delay ---- */
+
+static inline void set_branch(int taken, uint32_t target) {
+    s_ds_next = 1;
+    s_ds_taken = taken;
+    s_ds_target = target;
+}
+
 /* ---- Exception ---- */
 
-static void raise_exception(CPUState* cpu, uint32_t exccode, int in_delay) {
+/* `pc` is the faulting instruction; in a delay slot EPC points at the branch. */
+static void raise_exception(CPUState* cpu, uint32_t exccode, uint32_t pc, int in_delay) {
     uint32_t sr = cpu->cop0[12];
     /* Push the SR exception stack (shift bits [5:0] left by 2). */
     cpu->cop0[12] = (sr & ~0x3Fu) | ((sr & 0x0Fu) << 2);
@@ -176,9 +186,10 @@ static void raise_exception(CPUState* cpu, uint32_t exccode, int in_delay) {
     else
         cpu->cop0[13] &= ~(1u << 31);
     /* EPC */
-    cpu->cop0[14] = in_delay ? cpu->pc - 4 : cpu->pc;
+    cpu->cop0[14] = in_delay ? pc - 4 : pc;
     /* Vector */
     cpu->pc = (sr & 0x00400000u) ? 0xBFC00180u : 0x80000080u;
+    s_ds_next = 0;
 }
 
 /* ---- Execute one instruction ---- */
@@ -200,15 +211,19 @@ static void exec_one(CPUState* cpu) {
     /* Trace before execution. */
     if (s_trace_on) trace_record(cpu, insn);
 
-    /* Advance PC (branch/jump will override). */
-    cpu->pc = pc + 4;
+    /* Next PC: a delay slot hands over to its branch's target. */
+    const int in_delay = s_ds_next;
+    cpu->pc = (in_delay && s_ds_taken) ? s_ds_target : pc + 4;
+    s_ds_next = 0;
 
-    /* Apply pending load from previous instruction. */
-    apply_load_delay(cpu);
-
+    /* Operands are read before the previous load retires: a load's delay slot
+     * still sees the old register value. */
     uint32_t op = OP(insn);
     uint32_t rs_val = cpu->gpr[RS(insn)];
     uint32_t rt_val = cpu->gpr[RT(insn)];
+    const uint32_t ld_reg = s_load_reg;
+    const uint32_t ld_val = s_load_val;
+    s_load_reg = 0;
 
     switch (op) {
     case 0x00: { /* SPECIAL */
@@ -228,21 +243,11 @@ static void exec_one(CPUState* cpu) {
                    psx_pgxp_alu(cpu, insn, cpu->gpr[rd], rt_val, rs_val); break; /* SRLV */
         case 0x07: set_reg(cpu, rd, (uint32_t)((int32_t)rt_val >> (rs_val & 31)));
                    psx_pgxp_alu(cpu, insn, cpu->gpr[rd], rt_val, rs_val); break; /* SRAV */
-        case 0x08: { /* JR */
-            uint32_t target = rs_val;
-            exec_one(cpu); /* delay slot */
-            cpu->pc = target;
-            return;
-        }
-        case 0x09: { /* JALR */
-            uint32_t target = rs_val;
-            set_reg(cpu, rd, pc + 8);
-            exec_one(cpu); /* delay slot */
-            cpu->pc = target;
-            return;
-        }
-        case 0x0C: raise_exception(cpu, 8, 0); return;              /* SYSCALL */
-        case 0x0D: raise_exception(cpu, 9, 0); return;              /* BREAK */
+        case 0x08: set_branch(1, rs_val); break;                    /* JR */
+        case 0x09: set_reg(cpu, rd, pc + 8);                        /* JALR */
+                   set_branch(1, rs_val); break;
+        case 0x0C: raise_exception(cpu, 8, pc, in_delay); break;    /* SYSCALL */
+        case 0x0D: raise_exception(cpu, 9, pc, in_delay); break;    /* BREAK */
         case 0x10: set_reg(cpu, rd, cpu->hi);
                    psx_pgxp_alu(cpu, insn, cpu->gpr[rd], cpu->hi, 0); break;   /* MFHI */
         case 0x11: cpu->hi = rs_val;
@@ -274,7 +279,7 @@ static void exec_one(CPUState* cpu) {
             break;
         case 0x20: { /* ADD (overflow trap) */
             int64_t r = (int64_t)(int32_t)rs_val + (int64_t)(int32_t)rt_val;
-            if (r < (int64_t)INT32_MIN || r > (int64_t)INT32_MAX) { raise_exception(cpu, 12, 0); return; }
+            if (r < (int64_t)INT32_MIN || r > (int64_t)INT32_MAX) { raise_exception(cpu, 12, pc, in_delay); break; }
             set_reg(cpu, rd, (uint32_t)(int32_t)r);
             psx_pgxp_alu(cpu, insn, cpu->gpr[rd], rs_val, rt_val); break;
         }
@@ -282,7 +287,7 @@ static void exec_one(CPUState* cpu) {
                    psx_pgxp_alu(cpu, insn, cpu->gpr[rd], rs_val, rt_val); break; /* ADDU */
         case 0x22: { /* SUB (overflow trap) */
             int64_t r = (int64_t)(int32_t)rs_val - (int64_t)(int32_t)rt_val;
-            if (r < (int64_t)INT32_MIN || r > (int64_t)INT32_MAX) { raise_exception(cpu, 12, 0); return; }
+            if (r < (int64_t)INT32_MIN || r > (int64_t)INT32_MAX) { raise_exception(cpu, 12, pc, in_delay); break; }
             set_reg(cpu, rd, (uint32_t)(int32_t)r);
             psx_pgxp_alu(cpu, insn, cpu->gpr[rd], rs_val, rt_val); break;
         }
@@ -312,62 +317,22 @@ static void exec_one(CPUState* cpu) {
         int link = (rt & 0x10) != 0;
         int cond = (rt & 0x01) ? ((int32_t)rs_val >= 0) : ((int32_t)rs_val < 0);
         if (link) set_reg(cpu, 31, pc + 8);
-        if (cond) {
-            uint32_t target = pc + 4 + (SIMM(insn) << 2);
-            /* Execute delay slot, then branch. */
-            exec_one(cpu);
-            cpu->pc = target;
-            return;
-        }
+        set_branch(cond, pc + 4 + (SIMM(insn) << 2));
         break;
     }
 
-    case 0x02: { /* J */
-        uint32_t target = JTARGET(insn, pc);
-        exec_one(cpu); /* delay slot */
-        cpu->pc = target;
-        return;
-    }
-    case 0x03: { /* JAL */
-        uint32_t target = JTARGET(insn, pc);
-        set_reg(cpu, 31, pc + 8);
-        exec_one(cpu); /* delay slot */
-        cpu->pc = target;
-        return;
-    }
+    case 0x02: set_branch(1, JTARGET(insn, pc)); break;             /* J */
+    case 0x03: set_reg(cpu, 31, pc + 8);                            /* JAL */
+               set_branch(1, JTARGET(insn, pc)); break;
 
-    case 0x04: { /* BEQ */
-        if (rs_val == rt_val) {
-            uint32_t target = pc + 4 + (SIMM(insn) << 2);
-            exec_one(cpu); cpu->pc = target; return;
-        }
-        break;
-    }
-    case 0x05: { /* BNE */
-        if (rs_val != rt_val) {
-            uint32_t target = pc + 4 + (SIMM(insn) << 2);
-            exec_one(cpu); cpu->pc = target; return;
-        }
-        break;
-    }
-    case 0x06: { /* BLEZ */
-        if ((int32_t)rs_val <= 0) {
-            uint32_t target = pc + 4 + (SIMM(insn) << 2);
-            exec_one(cpu); cpu->pc = target; return;
-        }
-        break;
-    }
-    case 0x07: { /* BGTZ */
-        if ((int32_t)rs_val > 0) {
-            uint32_t target = pc + 4 + (SIMM(insn) << 2);
-            exec_one(cpu); cpu->pc = target; return;
-        }
-        break;
-    }
+    case 0x04: set_branch(rs_val == rt_val, pc + 4 + (SIMM(insn) << 2)); break;     /* BEQ */
+    case 0x05: set_branch(rs_val != rt_val, pc + 4 + (SIMM(insn) << 2)); break;     /* BNE */
+    case 0x06: set_branch((int32_t)rs_val <= 0, pc + 4 + (SIMM(insn) << 2)); break; /* BLEZ */
+    case 0x07: set_branch((int32_t)rs_val > 0, pc + 4 + (SIMM(insn) << 2)); break;  /* BGTZ */
 
     case 0x08: { /* ADDI (overflow trap) */
         int64_t r = (int64_t)(int32_t)rs_val + (int64_t)SIMM(insn);
-        if (r < (int64_t)INT32_MIN || r > (int64_t)INT32_MAX) { raise_exception(cpu, 12, 0); return; }
+        if (r < (int64_t)INT32_MIN || r > (int64_t)INT32_MAX) { raise_exception(cpu, 12, pc, in_delay); break; }
         set_reg(cpu, RT(insn), (uint32_t)(int32_t)r);
         psx_pgxp_alu(cpu, insn, cpu->gpr[RT(insn)], rs_val, (uint32_t)SIMM(insn)); break;
     }
@@ -400,7 +365,7 @@ static void exec_one(CPUState* cpu) {
         case 0x10: /* RFE */
             if ((insn & 0x3F) == 0x10) {
                 uint32_t sr = cpu->cop0[12];
-                cpu->cop0[12] = (sr & 0xFFFFFFC0u) | ((sr >> 2) & 0x0Fu);
+                cpu->cop0[12] = (sr & 0xFFFFFFF0u) | ((sr >> 2) & 0x0Fu);  /* KUo/IEo stay */
             }
             break;
         default:
@@ -469,14 +434,15 @@ static void exec_one(CPUState* cpu) {
         uint32_t addr = rs_val + (uint32_t)SIMM(insn);
         uint32_t aligned = addr & ~3u;
         uint32_t word = cpu->read_word(aligned);
-        uint32_t cur = cpu->gpr[RT(insn)];
+        /* LWL/LWR merge with an in-flight load of the same register. */
+        uint32_t cur = (ld_reg == RT(insn)) ? ld_val : rt_val;
         switch (addr & 3) {
             case 0: cur = (cur & 0x00FFFFFFu) | (word << 24); break;
             case 1: cur = (cur & 0x0000FFFFu) | (word << 16); break;
             case 2: cur = (cur & 0x000000FFu) | (word <<  8); break;
             case 3: cur = word; break;
         }
-        set_reg(cpu, RT(insn), cur);
+        set_load_delay(RT(insn), cur);
         psx_pgxp_load(cpu, insn, addr, cur);
         break;
     }
@@ -505,14 +471,14 @@ static void exec_one(CPUState* cpu) {
         uint32_t addr = rs_val + (uint32_t)SIMM(insn);
         uint32_t aligned = addr & ~3u;
         uint32_t word = cpu->read_word(aligned);
-        uint32_t cur = cpu->gpr[RT(insn)];
+        uint32_t cur = (ld_reg == RT(insn)) ? ld_val : rt_val;
         switch (addr & 3) {
             case 0: cur = word; break;
             case 1: cur = (cur & 0xFF000000u) | (word >>  8); break;
             case 2: cur = (cur & 0xFFFF0000u) | (word >> 16); break;
             case 3: cur = (cur & 0xFFFFFF00u) | (word >> 24); break;
         }
-        set_reg(cpu, RT(insn), cur);
+        set_load_delay(RT(insn), cur);
         psx_pgxp_load(cpu, insn, addr, cur);
         break;
     }
@@ -587,13 +553,18 @@ static void exec_one(CPUState* cpu) {
         break;
     }
 
+    /* The previous load retires after its delay slot ran, so on a
+     * same-register conflict the load wins (dirty_ram_interp.c contract). */
+    if (ld_reg != 0) cpu->gpr[ld_reg] = ld_val;
+
     /* Enforce $0 = 0 after every instruction. */
     cpu->gpr[0] = 0;
 }
 
 /* ---- Interrupt injection ---- */
 
-static void interp_check_interrupts(CPUState* cpu) {
+/* Device pump, still on the legacy instruction-count clock (no cycle model). */
+static void interp_tick_devices(void) {
     /* SIO tick. cycles=0 in legacy mode (Phase 1.0a signature change;
      * body ignores cycles, behaves identically to original). */
     sio_tick(0);
@@ -607,17 +578,30 @@ static void interp_check_interrupts(CPUState* cpu) {
         timers_tick(33868);
         cdrom_tick();
     }
+}
 
-    /* Check if interrupt should fire. */
-    if ((i_stat & i_mask) == 0) return;
-
+/* Take a deliverable interrupt at this instruction boundary. */
+static void interp_check_interrupts(CPUState* cpu) {
     uint32_t sr = cpu->cop0[COP0_SR];
+    /* Software interrupts: CAUSE.IP0/IP1 gated by SR.IM0/IM1. */
+    uint32_t sw_pending = cpu->cop0[COP0_CAUSE] & sr & 0x0300u;
     if (!(sr & 0x01u)) return;       /* IEc disabled */
-    if (!(sr & (1u << 10))) return;   /* IM2 not set */
+    if (sw_pending == 0 && ((i_stat & i_mask) == 0 || !(sr & (1u << 10)))) return;
+
+    /* The pipeline drains before the exception: retire a pending load. */
+    if (s_load_reg != 0) cpu->gpr[s_load_reg] = s_load_val;
+    s_load_reg = 0;
 
     /* Fire interrupt exception.
      * Push SR stack, set Cause, set EPC, jump to vector. */
     cpu->cop0[COP0_CAUSE] = (cpu->cop0[COP0_CAUSE] & ~0x7Cu) | (0u << 2); /* ExcCode=0 (interrupt) */
+    /* Between a branch and its slot: EPC = branch, BD set, branch re-runs. */
+    const int in_delay = s_ds_next;
+    if (in_delay)
+        cpu->cop0[COP0_CAUSE] |= (1u << 31);
+    else
+        cpu->cop0[COP0_CAUSE] &= ~(1u << 31);
+    s_ds_next = 0;
     /* IP2 is combinational — it mirrors the INTC line and is owned solely by
      * psx_irq_refresh_cause_ip2() (interrupts.c). Latching it here with |= was
      * the same defect as the compiled delivery path had: the bit was set at
@@ -626,7 +610,7 @@ static void interp_check_interrupts(CPUState* cpu) {
      * (i_stat & i_mask) != 0, so the mirror necessarily asserts it. */
     psx_irq_refresh_cause_ip2();
     cpu->cop0[COP0_SR] = (sr & ~0x3Fu) | ((sr & 0x0Fu) << 2);
-    cpu->cop0[COP0_EPC] = cpu->pc;
+    cpu->cop0[COP0_EPC] = in_delay ? cpu->pc - 4 : cpu->pc;
 
     /* Vector: BEV selects between RAM and ROM exception vectors. */
     if (sr & 0x00400000u)
@@ -652,10 +636,12 @@ uint32_t interp_step(CPUState* cpu, uint32_t count) {
         executed++;
         if (s_halted) break;
 
-        /* Check interrupts periodically (every 16 instructions). */
+        /* Devices keep their legacy 16-instruction cadence; delivery is
+         * checked at every instruction boundary. */
         if ((executed & 0xF) == 0) {
-            interp_check_interrupts(cpu);
+            interp_tick_devices();
         }
+        interp_check_interrupts(cpu);
     }
     return executed;
 }
