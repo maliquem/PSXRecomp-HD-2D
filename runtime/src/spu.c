@@ -135,7 +135,7 @@ static SweepEnv sweep_main_env[2];                    /* [0=L 1=R] */
 extern uint64_t s_frame_count;
 
 /* ---- Always-on event ring -------------------------------------------- */
-/* 1M entries × ~32B = 32 MB. Power of 2 so wrap is a mask. Beetle peaks at
+/* 1M entries × 72B = 72 MB of BSS, resident only as written. Power of 2 so wrap is a mask. Beetle peaks at
  * a few hundred audible-voice events per chime second; recomp at <1k total
  * per chime. 1M gives ~minutes of headroom for game-scene capture too. */
 #define SPU_EVENT_CAP (1u << 20)
@@ -1184,7 +1184,7 @@ void spu_init(void) {
     memset(voices, 0, sizeof(voices));
     memset(private_regs,0,sizeof private_regs);memset(private_modes,0,sizeof private_modes);
     private_enabled=0;
-    memset(s_events, 0, sizeof(s_events));
+    /* s_events is not cleared: every slot is rewritten before s_event_seq exposes it. */
     transfer_addr = 0;
     key_on_count = 0;
     render_frames = 0;
@@ -2005,7 +2005,6 @@ uint32_t spu_event_get(SpuEvent* out, uint32_t max_count) {
 void spu_event_reset(void) {
     s_event_idx = 0;
     s_event_seq = 0;
-    memset(s_events, 0, sizeof(s_events));
 }
 
 /* ---- boot snapshot: complete SPU register + voice state (LE field wire) ---- */
