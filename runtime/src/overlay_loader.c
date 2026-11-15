@@ -4399,7 +4399,7 @@ typedef struct {
     uint32_t out_regs[34];   /* r0..r31, hi, lo at exit                        */
 } FpEnt;
 #define FP_CAP (1u << 16)   /* ~19 MB with full reg files; ~65K executions     */
-static FpEnt    s_fp[FP_CAP];
+static FpEnt   *s_fp;      /* allocated on the first logged entry, only when the fp log is on */
 static uint64_t s_fp_seq = 0;
 
 int overlay_loader_is_candidate(uint32_t phys) {
@@ -4423,12 +4423,6 @@ int overlay_fp_enabled(void) {
  * so the comparison isolates COMPUTATION (and is longjmp-safe). A divergence
  * here = a real codegen bug (function + exact register/RAM). Zero divergence =
  * computation is correct and the fault is timing/interrupt-ordering. */
-/* Snapshots cover the live RAM (retail 2 MiB unless the 8 MB mod is on). */
-#define SHADOW_RAM_SIZE  psx_ram_live_bytes()
-#define SHADOW_SPAD_SIZE 1024u
-static uint8_t  s_ram0[PSX_MAIN_RAM_BACKING_BYTES], s_ramN[PSX_MAIN_RAM_BACKING_BYTES],
-                s_ramI[PSX_MAIN_RAM_BACKING_BYTES];
-static uint8_t  s_spad0[SHADOW_SPAD_SIZE], s_spadI[SHADOW_SPAD_SIZE];
 static uint64_t s_shadow_skipped_dev = 0;  /* unsafe/incomplete traces skipped */
 /* s_diff_mode / s_in_shadow declared above (before dispatch). */
 
@@ -4468,189 +4462,6 @@ void overlay_loader_get_shadow_summary(uint64_t *calls, uint64_t *divergences,
 }
 
 void overlay_loader_set_diff_mode(int on) { s_diff_mode = on ? 1 : 0; }
-
-static void run_shadow_diff_legacy(CPUState *cpu, Candidate *c, uint32_t addr) {
-    extern uint8_t *memory_get_ram_ptr(void);
-    extern uint8_t *memory_get_scratchpad_ptr(void);
-    extern int dirty_ram_dispatch(CPUState *cpu, uint32_t addr, uint32_t stop_addr);
-    extern void psx_dispatch_call(CPUState *cpu, uint32_t addr, uint32_t return_addr);
-    extern int      g_shadow_mmio_watch;   /* memory.c — device-access detector */
-    extern uint64_t g_shadow_mmio_hits;
-    uint8_t *ram  = memory_get_ram_ptr();
-    uint8_t *spad = memory_get_scratchpad_ptr();
-
-    extern uint64_t psx_exception_setjmp_epoch(void);
-    s_in_shadow = 1;
-    s_shadow_epoch = psx_exception_setjmp_epoch();
-    int saved_supp = s_suppress_irq;
-    s_suppress_irq = 1;                 /* isolate computation; longjmp-safe */
-    s_shadow_saved_supp = saved_supp;   /* escape-fixup mirror (see decl) */
-    s_shadow_saved_mmio_watch = g_shadow_mmio_watch;
-    s_shadow_saved_exec_phase = g_exec_phase;
-    s_shadow_scheduler_bail = 0;
-    /* Validate ONE function at a time: nested OVERLAY calls run via the
-     * INTERPRETER on BOTH passes (s_native_exec=0). Otherwise the native pass
-     * dispatches each callee as its own native shard while the interp pass runs
-     * it interp, so the diff compares the whole call TREE and a callee that bails
-     * or diverges is misattributed to this candidate (e.g. a contract bail that
-     * skips THIS function's epilogue -> $sp off by the frame size). Per-function
-     * isolation proves exactly this shard's codegen vs the interp oracle; whole-
-     * tree soundness then follows by induction. */
-    int sv = s_native_exec;
-    s_native_exec = 0;
-    s_shadow_saved_native_exec = sv;    /* escape-fixup mirror (see decl) */
-
-    CPUState cpu0 = *cpu;
-    memcpy(s_ram0,  ram,  SHADOW_RAM_SIZE);
-    memcpy(s_spad0, spad, SHADOW_SPAD_SIZE);
-
-    /* PASS 1 — INTERPRETER, the authoritative single execution, with the device
-     * detector armed. Running interp FIRST (not native) guarantees device I/O
-     * happens AT MOST ONCE and only via the trusted path: if this function (or a
-     * callee) touches ANY MMIO we abandon the native pass entirely — device I/O
-     * must never be double-executed (one spurious card/SIO/DMA write corrupts
-     * hardware state and wedges the guest, e.g. the save-load crash). */
-    uint64_t mmio0 = g_shadow_mmio_hits;
-    g_shadow_mmio_watch++;
-    dirty_ram_dispatch(cpu, addr, cpu->gpr[31]);
-    g_shadow_mmio_watch--;
-    s_shadow_calls++;
-
-    if (g_shadow_mmio_hits != mmio0) {
-        /* Device-touching: keep the interp result live (already in *cpu/ram/spad),
-         * mark the candidate so it ALWAYS runs via the interpreter (never its
-         * shard, never re-diffed). Device functions stay on the interpreter —
-         * safe by construction, no double I/O. */
-        c->device_touch = 1;
-        s_shadow_skipped_dev++;
-        g_psx_call_bail = 0;
-        s_native_exec  = sv;
-        s_suppress_irq = saved_supp;
-        s_in_shadow    = 0;
-        return;
-    }
-
-    /* Device-free: preserve the interp result, then run the NATIVE shard from the
-     * same input and compare. No device I/O on either pass (proven clean above). */
-    CPUState cpuI = *cpu;
-    memcpy(s_ramI,  ram,  SHADOW_RAM_SIZE);
-    memcpy(s_spadI, spad, SHADOW_SPAD_SIZE);
-
-    *cpu = cpu0;
-    memcpy(ram,  s_ram0,  SHADOW_RAM_SIZE);
-    memcpy(spad, s_spad0, SHADOW_SPAD_SIZE);
-    uint32_t stop_ra = cpu->gpr[31];   /* entry $ra = the function's return point */
-    /* Arm the own-interior native route for the NATIVE pass only (see
-     * s_shadow_cand decl): the candidate's CPS continuation re-entries run
-     * native so the diff exercises every block of the function, not just the
-     * first segment (nested CALLS still run interp on both passes —
-     * s_native_exec=0 above). Never armed during the interp pass, which must
-     * stay pure interp. */
-    s_shadow_cand = c;
-    /* Preserve the authoritative interpreter's projection provenance while
-     * making every host-only cache read miss and every cache write a no-op for
-     * the speculative native pass. */
-    gte_precision_speculative_begin();
-    {
-        int prev_phase = g_exec_phase;
-        OverlayFlushFn prev_flush = overlay_flush_enter(c);
-        g_exec_phase = 2;
-        c->fn(cpu);
-        overlay_flush_leave(prev_flush);
-        g_exec_phase = prev_phase;
-    }
-    /* CPS shards exit with cpu->pc set to the next tail target. Chain through
-     * the normal dispatcher to the original caller return, with s_native_exec=0
-     * above so nested overlay calls still run through the interpreter on both
-     * passes. dirty_ram_dispatch alone cannot follow clean/static BIOS targets
-     * and creates false shadow divergences for tail-transfer-heavy functions. */
-    {
-        int guard = 0;
-        while (cpu->pc != 0 && !g_psx_call_bail && guard++ < 8192) {
-            uint32_t tv = cpu->pc;
-            if (tv == stop_ra) break;  /* returned (the exact PC, §5.7) */
-            cpu->pc = 0;
-            int prev_phase = g_exec_phase;
-            g_exec_phase = 3;   /* compiled route; dirty/native callees re-tag inside */
-            psx_dispatch_call(cpu, tv, stop_ra);
-            g_exec_phase = prev_phase;
-        }
-    }
-    s_shadow_cand = NULL;
-    gte_precision_speculative_end();
-    CPUState cpuN = *cpu;
-    memcpy(s_ramN, ram, SHADOW_RAM_SIZE);
-    int scheduler_bail = s_shadow_scheduler_bail;
-
-    /* Compare native (cpuN/s_ramN) vs interp (cpuI/s_ramI) under identical input. */
-    int reg = -1;
-    for (int r = 1; r < 32; r++) if (cpuN.gpr[r] != cpuI.gpr[r]) { reg = r; break; }
-    int hidiff = (cpuN.hi != cpuI.hi), lodiff = (cpuN.lo != cpuI.lo);
-    int64_t ramoff = -1;
-    if (memcmp(s_ramN, s_ramI, SHADOW_RAM_SIZE) != 0) {
-        for (uint32_t a = 0; a < SHADOW_RAM_SIZE; a++)
-            if (s_ramN[a] != s_ramI[a]) { ramoff = (int64_t)a; break; }
-    }
-    if (!scheduler_bail && reg < 0 && !hidiff && !lodiff && ramoff < 0) {
-        /* Clean pass: credit the verify budget. */
-        if (c->diff_passes < OVERLAY_DIFF_BUDGET) c->diff_passes++;
-    } else {
-        /* Divergence: reset the budget. Promotion to live requires N CONSECUTIVE
-         * clean passes (the spec's "0 divergences over the budget"), so an
-         * intermittently-wrong shard can never accumulate enough lucky passes to be
-         * trusted — it stays diff-gated (interp result kept) and never runs live. */
-        c->diff_passes = 0;
-        s_shadow_divs++;
-        if (scheduler_bail && c->state != ENTRY_BLACKLIST) {
-            /* The interpreter pass completed without switching threads, so a
-             * native-only scheduler attempt proves control-flow divergence.
-             * Permanently keep this shard off the live path. */
-            c->state = ENTRY_BLACKLIST;
-            if (s_valid_count > 0) s_valid_count--;
-            loader_log("blacklist shadow scheduler divergence 0x%08X", c->addr);
-        }
-        if (!s_detail_captured) {
-            s_detail_captured = 1;
-            s_detail_addr = c->addr;
-            for (int r = 0; r < 32; r++) {
-                s_detail_nat_gpr[r] = cpuN.gpr[r];
-                s_detail_int_gpr[r] = cpuI.gpr[r];
-            }
-            s_detail_nat_hi = cpuN.hi; s_detail_nat_lo = cpuN.lo;
-            s_detail_int_hi = cpuI.hi; s_detail_int_lo = cpuI.lo;
-        }
-        /* Ring-flood guard: one persistently-diverging site must not evict
-         * every other site's records (512x 0xB0 drowned the 0xF514 hunt).
-         * Cap records per address; the divergence COUNTER still increments. */
-        int addr_recs = 0;
-        for (int i = 0; i < s_sdiv_n; i++)
-            if (s_sdiv[i].addr == c->addr && ++addr_recs >= 16) break;
-        if (s_sdiv_n < SDIV_CAP && addr_recs < 16) {
-            ShadowDiv *d = &s_sdiv[s_sdiv_n++];
-            d->seq = s_shadow_calls; d->addr = c->addr;
-            d->reg = reg;
-            d->reg_native = (reg >= 0) ? cpuN.gpr[reg] : 0;
-            d->reg_interp = (reg >= 0) ? cpuI.gpr[reg] : 0;
-            d->hi_diff = hidiff; d->lo_diff = lodiff;
-            d->ram_off = ramoff;
-            if (ramoff >= 0) {
-                uint32_t a = (uint32_t)ramoff & ~3u;
-                d->ram_native = *(uint32_t *)&s_ramN[a];
-                d->ram_interp = *(uint32_t *)&s_ramI[a];
-            }
-        }
-    }
-    /* Restore the interp result as the authoritative live state (native discarded).
-     * A bail raised by the shadow run must never leak into live execution (a
-     * spurious in-progress unwind wedges the guest). */
-    *cpu = cpuI;
-    memcpy(ram,  s_ramI,  SHADOW_RAM_SIZE);
-    memcpy(spad, s_spadI, SHADOW_SPAD_SIZE);
-    g_psx_call_bail = 0;
-    s_native_exec  = sv;
-    s_suppress_irq = saved_supp;
-    s_in_shadow    = 0;
-}
 
 enum {
     SHDIFF_NONE = 0, SHDIFF_PC, SHDIFF_GPR, SHDIFF_HI, SHDIFF_LO,
@@ -5034,6 +4845,7 @@ static uint32_t regs34_crc(const uint32_t *r) {
 void overlay_fp_log(uint32_t addr, const uint32_t *in_regs,
                     const CPUState *cpu, int native) {
     extern uint64_t psx_get_cycle_count(void);
+    if (!s_fp && !(s_fp = (FpEnt *)calloc(FP_CAP, sizeof *s_fp))) return;
     uint64_t s = s_fp_seq++;
     FpEnt *e = &s_fp[s & (FP_CAP - 1u)];
     e->seq = s; e->cycle = psx_get_cycle_count();
