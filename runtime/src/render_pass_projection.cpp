@@ -88,7 +88,9 @@ extern "C" PSXProjectionHistory* psx_projection_create(uint32_t capacity) {
     if (!capacity || capacity > 262144) return nullptr;
     auto* h = new (std::nothrow) PSXProjectionHistory;
     if (h) {
-        h->capacity = capacity; h->current.reserve(capacity); h->previous.reserve(capacity);
+        h->capacity = capacity;
+        try { h->current.reserve(capacity); h->previous.reserve(capacity); }
+        catch (...) { delete h; return nullptr; }  // no C++ exception may cross extern "C"
         h->next = histories; histories = h;
     }
     return h;
@@ -119,6 +121,7 @@ extern "C" void psx_projection_capture_end(PSXProjectionHistory* h, uint32_t tic
     if (active == h) { active = nullptr; g_psx_projection_command = nullptr; }
     h->stats.captured = uint32_t(h->current.size());
     h->index.clear();
+    try {
     if (h->history_valid && ticks && ticks <= 8 && !h->stats.overflow) {
         for (uint32_t i=0; i<h->previous.size(); ++i) h->index[h->previous[i].key].push_back(i);
         h->used.assign(h->previous.size(), 0);
@@ -151,11 +154,16 @@ extern "C" void psx_projection_capture_end(PSXProjectionHistory* h, uint32_t tic
     // projections. Never blend a different vertex because an ordinal shifted.
     h->index.clear();
     for (uint32_t i=0; i<h->current.size(); ++i) h->index[h->current[i].key].push_back(i);
+    } catch (...) {  // allocation failure: drop history; replay then finds nothing
+        h->index.clear(); h->used.clear(); h->history_valid = false;
+    }
 }
 extern "C" void psx_projection_replay_begin(PSXProjectionHistory* h, uint32_t alpha) {
     if (!h || !g_psx_render_pass_active) return;
-    h->capturing = false; h->replaying = true;
-    h->used.assign(h->current.size(), 0);
+    h->capturing = false;
+    try { h->used.assign(h->current.size(), 0); }
+    catch (...) { h->replaying = false; return; }
+    h->replaying = true;
     h->alpha = std::min(alpha, 65536u) / 65536.0;
     h->stats.replayed = 0; active = h; g_psx_projection_command = psx_projection_command;
 }
@@ -178,7 +186,7 @@ extern "C" int psx_projection_command(CPUState* cpu, uint32_t command) {
     Projection p = projection(cpu, command);
     if (h->capturing && !g_psx_render_pass_active) {
         if (h->current.size() == h->capacity) ++h->stats.overflow;
-        else h->current.push_back(p);
+        else try { h->current.push_back(p); } catch (...) { ++h->stats.overflow; }
         return 0;
     }
     if (!h->replaying || !g_psx_render_pass_active) return 0;
