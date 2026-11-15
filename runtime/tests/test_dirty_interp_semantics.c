@@ -70,7 +70,8 @@ uint32_t gte_read_ctrl(CPUState *cpu, uint8_t r) { (void)cpu; (void)r; return 0;
 uint32_t gte_read_data(CPUState *cpu, uint8_t r) { (void)cpu; (void)r; return 0; }
 void gte_write_ctrl(CPUState *cpu, uint8_t r, uint32_t v) { (void)cpu; (void)r; (void)v; }
 void gte_write_data(CPUState *cpu, uint8_t r, uint32_t v) { (void)cpu; (void)r; (void)v; }
-int overlay_loader_call_native(CPUState *cpu, uint32_t a) { (void)cpu; (void)a; return 0; }
+static uint32_t s_native_v0;  /* v0 a native callee would see (CPU-7 (d)) */
+int overlay_loader_call_native(CPUState *cpu, uint32_t a) { (void)a; s_native_v0 = cpu->gpr[2]; return 0; }
 void psx_bail_record(uint32_t ra, uint32_t sp, uint32_t pc, uint32_t gsp) {
     (void)ra; (void)sp; (void)pc; (void)gsp;
 }
@@ -362,12 +363,47 @@ static void test_reserved(void) {
     g_unsupported_seen = 0;
 }
 
+/* ---- load delay (BIOS kernel RAM, where the interpreter models it) --------- */
+/* psx-spx "Caution - Load Delay": the load's target is not updated until the
+ * next opcode has completed. Audit CPU-7 (c) and (d). */
+#define KCODE 0x80001000u /* phys 0x1000: inside the BIOS load-delay window */
+static void test_load_delay(void) {
+    const uint32_t lw0 = i_type(0x23, A0, V0, 0);   /* lw v0,0(a0) */
+    const uint32_t lw4 = i_type(0x23, A0, V0, 4);   /* lw v0,4(a0) */
+
+    /* (c) Two loads of v0 in a row; the second loads v0's old value. */
+    reset();
+    dirty_ram_ld_delay_discard();
+    s_cpu.gpr[A0] = DATA;
+    s_cpu.gpr[V0] = 0x11u;
+    put_word(DATA, 0x22u);
+    put_word(DATA + 4u, 0x11u);
+    step(KCODE, lw0);
+    CHECK("lw: next opcode sees old v0", s_cpu.gpr[V0] == 0x11u);
+    step(KCODE + 4u, lw4);
+    dirty_ram_ld_delay_flush(&s_cpu);
+    CHECK("lw v0; lw v0 (old value): the second load lands", s_cpu.gpr[V0] == 0x11u);
+
+    /* (d) jal with a load in its slot: a native callee sees the loaded v0. */
+    reset();
+    dirty_ram_ld_delay_discard();
+    s_cpu.gpr[A0] = DATA;
+    s_cpu.gpr[V0] = 0x11u;
+    put_word(DATA, 0x22u);
+    put_word(KCODE + 0x104u, lw0);
+    s_native_v0 = 0;
+    step(KCODE + 0x100u, (0x03u << 26) | ((0x80030000u >> 2) & 0x03FFFFFFu)); /* jal */
+    CHECK("jal + lw slot: native callee sees loaded v0", s_native_v0 == 0x22u);
+    dirty_ram_ld_delay_discard();
+}
+
 int main(void) {
     test_unaligned();
     test_div();
     test_overflow();
     test_delay_slot();
     test_reserved();
+    test_load_delay();
     if (s_fail) return 1;
     printf("dirty_interp_semantics_test: ok (%d known)\n", s_known);
     return 0;

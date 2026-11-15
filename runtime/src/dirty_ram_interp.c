@@ -335,9 +335,11 @@ int psx_exec_phase(void) { return g_exec_phase; }
  * 128-byte memory-card frame was stored to one address (cards read as
  * permanently unformatted; the send side transmitted one byte 128x).
  *
- * Contract: on a same-register conflict the LOAD wins (it retires later),
- * matching the compiled emitter. Pending state is flushed on interpreter exit
- * and before exception delivery, where the pipeline would have drained. */
+ * Contract: on a same-register conflict the LOAD wins (it retires later);
+ * the compiled emitters let the successor's write win instead, and psx-spx
+ * does not say which is right (audit CPU-7 (b), open). Pending state is
+ * flushed on interpreter exit, before native code runs and before exception
+ * delivery, where the pipeline would have drained. */
 static uint32_t s_ld_pend_rt    = 0;
 static uint32_t s_ld_pend_val   = 0;
 static uint32_t s_ld_pend_age   = 0;  /* 0 = armed; 1 = delay slot has run */
@@ -1374,6 +1376,7 @@ static int interp_enter_compiled(CPUState *cpu, uint32_t target) {
         g_psx_call_bail = 1;
         return 1;
     }
+    dirty_ram_ld_delay_flush(cpu);  /* compiled code cannot see an owed load */
     g_mixed_depth++;
     ls_func_enter(target, cpu);
     int prev_phase = g_exec_phase;
@@ -1528,14 +1531,16 @@ static int exec_one_fetched(CPUState *cpu, uint32_t pc, uint32_t insn,
 
     if (is_ld) {
         const uint32_t loaded = cpu->gpr[ld_rt];
-        if (loaded != ld_before) {
+        /* A newer load of the owed rt replaces it even with an equal value. */
+        if (loaded != ld_before ||
+            (rv == 0 && s_ld_pend_armed && s_ld_pend_rt == ld_rt)) {
             /* Back-to-back loads: retire the older writeback before reusing the
              * slot, otherwise its register write would be dropped entirely. */
             if (s_ld_pend_armed && s_ld_pend_rt != ld_rt && s_ld_pend_rt != 0u)
                 cpu->gpr[s_ld_pend_rt] = s_ld_pend_val;
             /* Undo the eager write; it becomes visible one instruction later.
-             * On a same-register conflict this naturally makes the LOAD win,
-             * matching what the compiled backend emits for a dependent pair. */
+             * On a same-register conflict this naturally makes the LOAD win
+             * (see the contract above dirty_ram_ld_delay_flush). */
             cpu->gpr[ld_rt] = ld_before;
             s_ld_pend_rt    = ld_rt;
             s_ld_pend_val   = loaded;
@@ -1739,6 +1744,7 @@ static int exec_one_fetched_inner(CPUState *cpu, uint32_t pc, uint32_t insn,
                 cpu->pc = target;
                 CRET(CRES_PCCHAIN, 1);
             }
+            dirty_ram_ld_delay_flush(cpu);  /* a slot load must land before a native callee runs */
 #ifdef PSX_HAS_GAME_DISPATCH
             cpu->pc = 0;
             if (interp_enter_compiled(cpu, target)) {
@@ -1982,6 +1988,7 @@ static int exec_one_fetched_inner(CPUState *cpu, uint32_t pc, uint32_t insn,
         /* slice / lockstep-replay / guest span: plain transfer, never execute the
          * callee (a span's runner calls it with the full trampoline). */
         if (g_precise_mode || g_ls_replay_active || span_forced(pc & 0x1FFFFFFFu)) { cpu->pc = target; return 1; }
+        dirty_ram_ld_delay_flush(cpu);  /* a slot load must land before a native callee runs */
 #ifdef PSX_HAS_GAME_DISPATCH
         cpu->pc = 0;
         if (interp_enter_compiled(cpu, target)) {
@@ -3500,6 +3507,7 @@ static int dirty_ram_dispatch_inner(CPUState* cpu, uint32_t addr, uint32_t stop_
                  * before executing it, so incomplete/self-modified bytes stay on
                  * this authoritative interpreter path. */
                 if (overlay_loader_is_candidate(target_phys)) {
+                    dirty_ram_ld_delay_flush(cpu);  /* native overlay code cannot see an owed load */
                     extern int overlay_loader_dispatch(CPUState *cpu, uint32_t addr);
                     if (overlay_loader_dispatch(cpu, target)) {
                         g_dirty_ram_native_handoffs++;
