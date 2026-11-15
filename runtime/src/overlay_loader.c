@@ -2432,6 +2432,24 @@ static int overlay_irq_suppressed_now(void) {
     return 0;
 }
 
+/* COP0 software interrupts (Cause.IP0/IP1 & SR.IM0/IM1): a guest MTC0 to Cause
+ * raises them with no INTC bit, so the area edge must test them like the
+ * static edge (psx_edge.h) and psx_check_interrupts do. */
+static inline uint32_t overlay_sw_irq_pending(const CPUState *cpu) {
+    return cpu->cop0[13] & cpu->cop0[12] & 0x0300u;
+}
+
+/* IEc must be set; the INTC line needs IM2, a software interrupt only its own
+ * IM bit (already folded into sw). */
+static inline int overlay_irq_sr_allows(const CPUState *cpu, uint32_t sw) {
+    uint32_t sr = cpu->cop0[12];
+    if (!(sr & 1u)) return 0;
+    return sw != 0 || ((i_stat & i_mask) != 0 && (sr & (1u << 10)) != 0);
+}
+
+/* psx_interrupt_delivery_needed only sees the INTC line, so with sw pending
+ * the wrappers go straight to psx_check_interrupts, which applies the
+ * frozen-time, cooldown and nesting gates itself (as the static edge does). */
 static void overlay_ci_wrapper(CPUState *cpu) {
     /* Legacy blanket deferral inside a nested call unit (A/B knob only; default
      * is to deliver — see g_call_unit_depth / overlay_unit_defer.h). */
@@ -2444,12 +2462,10 @@ static void overlay_ci_wrapper(CPUState *cpu) {
      * block. Avoid entering the full scheduler/diagnostic path when COP0 could
      * not take the IRQ anyway. FMV polling loops can execute this edge millions
      * of times while an INTC bit is pending but IEc is deliberately clear. */
-    if ((i_stat & i_mask) == 0) { s_ci_skip_none++; return; }
-    if ((cpu->cop0[12] & ((1u << 10) | 1u)) != ((1u << 10) | 1u)) {
-        s_ci_skip_sr++;
-        return;
-    }
-    if (!psx_interrupt_delivery_needed(cpu)) { s_ci_skip_deliv++; return; }
+    uint32_t sw = overlay_sw_irq_pending(cpu);
+    if ((i_stat & i_mask) == 0 && sw == 0) { s_ci_skip_none++; return; }
+    if (!overlay_irq_sr_allows(cpu, sw)) { s_ci_skip_sr++; return; }
+    if (sw == 0 && !psx_interrupt_delivery_needed(cpu)) { s_ci_skip_deliv++; return; }
     s_ci_enter++;
     if (s_irq_defer_cdrom && (i_stat & (1u << IRQ_CDROM))) {
         uint32_t saved_cd = i_stat & (1u << IRQ_CDROM);
@@ -2488,7 +2504,8 @@ static void overlay_ci_at_wrapper(CPUState *cpu, uint32_t resume_pc) {
         return;
     }
     if (overlay_irq_suppressed_now()) { s_ci_skip_supp++; return; }
-    if ((i_stat & i_mask) == 0) {
+    uint32_t sw = overlay_sw_irq_pending(cpu);
+    if ((i_stat & i_mask) == 0 && sw == 0) {
         s_ci_skip_none++;
         /* An area's poll loop sees no interrupt on nearly every back edge, so
          * the detector has to look from here. A skip can raise the event the
@@ -2499,11 +2516,8 @@ static void overlay_ci_at_wrapper(CPUState *cpu, uint32_t resume_pc) {
         }
         if ((i_stat & i_mask) == 0) return;
     }
-    if ((cpu->cop0[12] & ((1u << 10) | 1u)) != ((1u << 10) | 1u)) {
-        s_ci_skip_sr++;
-        return;
-    }
-    if (!psx_interrupt_delivery_needed(cpu)) { s_ci_skip_deliv++; return; }
+    if (!overlay_irq_sr_allows(cpu, sw)) { s_ci_skip_sr++; return; }
+    if (sw == 0 && !psx_interrupt_delivery_needed(cpu)) { s_ci_skip_deliv++; return; }
     s_ci_enter++;
     extern int g_idle_note_suppress;
     int suppress_idle_note = overlay_idle_note_is_internal_or_return(cpu, resume_pc);
