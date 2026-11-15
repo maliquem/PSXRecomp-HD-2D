@@ -75,17 +75,16 @@ Writes analysis results to disk as JSON, TOML, TSV, disassembly and Ghidra scrip
 
 - `json_escape` (L18) — Escapes a string so it can sit inside a JSON string literal.
 - `q` (L38) — Returns the string escaped and wrapped in double quotes, as a JSON string value.
-- `open_out` (L40) — Creates the parent folder if needed and opens the file for binary writing, setting error when that fails.
-- `saved_regs_str` (L53) — Turns a saved-register bit mask into MIPS register names joined by bars, such as s0|s1|ra.
-- `tag_string` (L69) — Builds the pipe-separated tag list for a function, such as bios, leaf, gte, mmio or orphan.
-- `write_json_bundle` (L90) — ---------------------------------------------------------------------------
-- `write_symbols_toml` (L231) — ---------------------------------------------------------------------------
-- `write_symbol_addrs` (L308) — ---------------------------------------------------------------------------
-- `write_ghidra_script` (L325) — ---------------------------------------------------------------------------
-- `write_tsv` (L375) — ---------------------------------------------------------------------------
-- `write_disasm` (L395) — ---------------------------------------------------------------------------
-- `print_report` (L441) — ---------------------------------------------------------------------------
-- `print_diff` (L513) — ---------------------------------------------------------------------------
+- `saved_regs_str` (L40) — Turns a saved-register bit mask into MIPS register names joined by bars, such as s0|s1|ra.
+- `tag_string` (L56) — Builds the pipe-separated tag list for a function, such as bios, leaf, gte, mmio or orphan.
+- `write_json_bundle` (L77) — ---------------------------------------------------------------------------
+- `write_symbols_toml` (L238) — ---------------------------------------------------------------------------
+- `write_symbol_addrs` (L315) — ---------------------------------------------------------------------------
+- `write_ghidra_script` (L337) — ---------------------------------------------------------------------------
+- `write_tsv` (L392) — ---------------------------------------------------------------------------
+- `write_disasm` (L417) — ---------------------------------------------------------------------------
+- `print_report` (L468) — ---------------------------------------------------------------------------
+- `print_diff` (L540) — ---------------------------------------------------------------------------
 
 ### recompiler/src/annotations.cpp
 
@@ -248,7 +247,7 @@ Loads and validates the BIOS, game, options and user settings TOML files, and wr
 - `pad_mode_to_string` (L309) — Returns the settings name for a pad mode; it never returns hybrid, which is a runtime-only request and not a saved preference.
 - `toml_number` (L321) — Parse a hex string ("0x...") to uint32_t.
 - `parse_hex` (L326) — Parses a hex string into a 32-bit value, throwing an error that names the field when the text is not valid hex.
-- `parse_u32_auto` (L350) — Whole-string unsigned 32-bit number, base auto-detected like std::stoul(s, 0, 0) ("0x1F", "31", "017"), but a bad value names its key and trailing junk, a sign or leading blanks are errors instead of 
+- `parse_u32_auto` (L350) — Whole-string unsigned 32-bit number, base auto-detected like std::stoul(s, 0, 0) ("0x1F", "31", "017"), but a bad value names its key and trailing junk, a sign or leading blanks are errors instead of
 - `parse_float_strict` (L363) — Whole-string finite float; a bad value throws naming its key.
 - `strict_pad_mode` (L374) — game.toml [controller] mode: unlike the settings file, a typo is an error, not "analog".
 - `toml_finite` (L384) — A TOML number key that must be finite (nan/inf parse as valid TOML floats).
@@ -266,14 +265,14 @@ Loads and validates the BIOS, game, options and user settings TOML files, and wr
 - `derive_out_stem` (L1758) — Derives an output name stem from a ROM file name by removing its extension, matched without regard to case.
 - `load_bios_config` (L1775) — Load a BIOS config TOML.
 - `load_game_config` (L2062) — Load a game config TOML.
-- `load_game_options` (L3450) — Load game_options.toml ([[option]] array of {name, addr, size}).
-- `valid_user_audio_freq` (L3487) — True when an audio frequency is one of the allowed user values: 32040, 32000, 44100 or 48000.
-- `load_user_settings` (L3491) — Load settings.toml. Returns an all-defaults (all has_*=false) struct if the file is missing or unreadable.
-- `relative_to_folder` (L3950) — Returns a path relative to a folder when the path is absolute, or the path unchanged when it is not.
-- `toml_escape` (L3964) — A basic TOML string must not carry a raw quote, backslash or control char.
-- `write_text_atomic` (L3980) — Write to a sibling temp file then rename, so a crash never leaves a cut file.
-- `save_user_settings` (L3995) — Write settings.toml deterministically.
-- `upsert_game_toml_controller_bool` (L4239) — Sets a boolean key in the controller section of a game TOML file, adding or updating it, and returns whether the write succeeded.
+- `load_game_options` (L3459) — Load game_options.toml ([[option]] array of {name, addr, size}).
+- `valid_user_audio_freq` (L3496) — True when an audio frequency is one of the allowed user values: 32040, 32000, 44100 or 48000.
+- `load_user_settings` (L3500) — Load settings.toml. Returns an all-defaults (all has_*=false) struct if the file is missing or unreadable.
+- `relative_to_folder` (L3959) — Returns a path relative to a folder when the path is absolute, or the path unchanged when it is not.
+- `toml_escape` (L3973) — A basic TOML string must not carry a raw quote, backslash or control char.
+- `write_text_atomic` (L3989) — Write to a sibling temp file then rename, so a crash never leaves a cut file.
+- `save_user_settings` (L4004) — Write settings.toml deterministically.
+- `upsert_game_toml_controller_bool` (L4248) — Sets a boolean key in the controller section of a game TOML file, adding or updating it, and returns whether the write succeeded.
 
 ### recompiler/src/config_loader.h
 
@@ -573,11 +572,11 @@ Static scan that finds widescreen-related code sites in a PS1 executable and wri
 - `uimm_of` (L54) — Returns the 16-bit immediate of an instruction word, zero-extended.
 - `dis1` (L56) — Disassembles the single instruction at a pc into text, or returns an empty string when there is none.
 - `scan_widescreen` (L75) — Scans the executable's code for widescreen candidates, using the analysis database and options, and returns the results.
-- `of_kind` (L359) — Returns the candidates of one kind that meet a minimum confidence.
-- `imm_list` (L369) — Formats a list of immediates as comma-separated hex values.
-- `write_ws_sites_toml` (L378) — Writes the widescreen sites found by the scan as a TOML file, keeping candidates at or above the minimum confidence.
-- `write_ws_sites_json` (L432) — Writes the widescreen scan results to a JSON file, returning false with an error when that fails.
-- `print_ws_report` (L475) — Prints a text report of the widescreen scan results, showing the top candidates.
+- `of_kind` (L371) — Returns the candidates of one kind that meet a minimum confidence.
+- `imm_list` (L381) — Formats a list of immediates as comma-separated hex values.
+- `write_ws_sites_toml` (L390) — Writes the widescreen sites found by the scan as a TOML file, keeping candidates at or above the minimum confidence.
+- `write_ws_sites_json` (L444) — Writes the widescreen scan results to a JSON file, returning false with an error when that fails.
+- `print_ws_report` (L487) — Prints a text report of the widescreen scan results, showing the top candidates.
 
 ### recompiler/src/write_if_changed.h
 
@@ -1545,52 +1544,52 @@ Background overlay compiler: runs the configured compile command as a child proc
 - `ac_state_load` (L57) — Reads the compile state atomically, so the watcher and emulation threads agree on it.
 - `ac_state_store` (L60) — Stores the compile state atomically for both the watcher and emulation threads.
 - `autocompile_now_ms` (L87) — Monotonic millisecond clock used for the retry back-off.
-- `autocompile_note_failure` (L117) — Counts a failed compile run and prints a one-time warning when the toolchain does not match the exe.
-- `autocompile_note_success` (L139) — Clears the failure streak and the retry back-off after a good run.
-- `autocompile_set_degraded` (L175) — Records why autocompile cannot work; only the first reason is kept.
-- `autocompile_degraded_reason` (L183) — Why overlay autocompile cannot work, or NULL if nothing is known to be wrong.
-- `autocompile_report_broken_once` (L237) — See the forward declaration above for why this is loud.
-- `shard_result_values` (L282) — Parse result markers while stdout is streaming, not from s_out after exit.
-- `shard_result_line_locked` (L312) — Parses one shard result line and stores its ok, failed and skipped counts; returns 1 if the line matched.
-- `child_line_locked` (L328) — Handles one complete child output line: a shard result line, or a published shard path to queue.
-- `publish_parse_locked` (L351) — Splits streamed child output into lines under the lock and passes each complete line on.
-- `publish_prepare_thread_main` (L377) — The pipe reader only queues paths.
-- `publish_ready_pop` (L480) — Takes the next prepared shard off the ready queue, or NULL when the queue is empty.
-- `publish_commit_finished` (L495) — Marks one shard commit as finished and wakes any waiting threads.
-- `publish_pending` (L502) — Returns 1 while any shard is queued, being prepared, or being committed.
-- `publish_note_load_failure` (L511) — Counts one shard that failed to load.
-- `publish_discard_all` (L517) — Drops all queued shards when the publisher is idle; returns 0 and changes nothing while a load is still running.
-- `out_append` (L548) — Appends child output to the tail buffer, keeping only the newest AC_OUT_CAP bytes, and parses the new lines.
-- `autocompile_test_feed_output` (L567) — Test hook: feeds fake compiler output into the output parser.
-- `autocompile_test_start_preparer` (L571) — Test hook: starts the shard preparer thread; returns 1 on success.
-- `autocompile_test_finish_input` (L581) — Test hook: marks the fake output as finished so the preparer thread can drain and exit.
-- `autocompile_test_join_preparer` (L588) — Test hook: waits up to timeout_ms for the preparer thread to end; returns 1 when it has.
-- `autocompile_test_ready_count` (L597) — Test hook: number of prepared shards waiting in the ready queue.
-- `autocompile_test_ready_highwater` (L606) — Test hook: the largest ready-queue length seen so far.
-- `autocompile_test_preparing_count` (L614) — Test hook: number of shards currently being prepared.
-- `autocompile_test_discard_all` (L622) — Test hook: discards all queued publish items.
-- `watch_thread` (L629) — Windows watcher: reads the compiler's output pipe until it closes, waits for the process, then records its exit code.
-- `posix_watch_thread` (L743) — POSIX watcher: reads the compiler's output until EOF, feeding each chunk to the output parser.
-- `autocompile_report_interpreter` (L782) — Name the interpreter the spawn will run, once, at configure time: the command's first token, resolved the way 'sh -c' resolves it.
-- `posix_kill_child_tree` (L811) — Kill the whole compile tree (sh -> python -> gcc share the child's process group), then reap it through the watcher.
-- `autocompile_check_path_args` (L924) — Pulls the path after each --recompiler or --runtime-include flag out of the command line so it can be checked.
-- `autocompile_configure` (L978) — Store the command line + working directory.
-- `autocompile_set_cache_paths` (L1032) — Pin the canonical overlay cache dir + captures file the LOADER actually uses (<exe>/cache and <exe>/overlay_captures.json — computed once in main.cpp).
-- `autocompile_configured` (L1037) — Returns 1 when a compile command has been set.
-- `autocompile_busy` (L1038) — 1 while a compile process is running.
-- `autocompile_toolchain_available` (L1045) — Probe PATH for a real C compiler (gcc/cc/clang).
-- `ac_pick_core` (L1095) — One core for the emulation thread: the one it is on, unless that is a slower class of core on a hybrid CPU.
-- `autocompile_test_pick_core` (L1107) — Test hook: runs the core-picking logic on the given masks and efficiency classes.
-- `ac_core_list` (L1114) — Lists the physical cores the process may use, with each core's efficiency class and affinity mask.
-- `ac_release_core` (L1142) — Gives back the reserved core: restores the game thread's affinity and clears the core masks.
-- `ac_reserve_core` (L1152) — Runs with the child still suspended, so nothing in the tree ever executes on the reserved core.
-- `ac_game_thread_tick` (L1192) — Records the game thread's current processor group and number, for choosing a core later.
-- `autocompile_request` (L1206) — Kick a compile if configured and idle.
-- `parse_shard_result` (L1499) — Scan the child-output tail ring for the LAST "PSX_SHARD_RESULT ok=N failed=M skipped=K" line and record the counts.
-- `autocompile_poll_main` (L1540) — Emu-thread tick: applies a finished compile (cache rescan on success).
-- `autocompile_shutdown` (L1626) — Process-shutdown teardown, emu thread only: stops the publication pipeline, kills the compiler process tree (job object), and JOINS the watcher and preparer threads — waiting out any in-flight LoadLib
-- `json_escape_into` (L1677) — Minimal JSON string escaper for the output tail.
-- `autocompile_status_json` (L1696) — JSON status blob for the debug server: state, run/fail counters, last exit code, and the output tail.
+- `autocompile_note_failure` (L118) — Counts a failed compile run and prints a one-time warning when the toolchain does not match the exe.
+- `autocompile_note_success` (L140) — Clears the failure streak and the retry back-off after a good run.
+- `autocompile_set_degraded` (L176) — Records why autocompile cannot work; only the first reason is kept.
+- `autocompile_degraded_reason` (L184) — Why overlay autocompile cannot work, or NULL if nothing is known to be wrong.
+- `autocompile_report_broken_once` (L238) — See the forward declaration above for why this is loud.
+- `shard_result_values` (L283) — Parse result markers while stdout is streaming, not from s_out after exit.
+- `shard_result_line_locked` (L313) — Parses one shard result line and stores its ok, failed and skipped counts; returns 1 if the line matched.
+- `child_line_locked` (L329) — Handles one complete child output line: a shard result line, or a published shard path to queue.
+- `publish_parse_locked` (L352) — Splits streamed child output into lines under the lock and passes each complete line on.
+- `publish_prepare_thread_main` (L378) — The pipe reader only queues paths.
+- `publish_ready_pop` (L481) — Takes the next prepared shard off the ready queue, or NULL when the queue is empty.
+- `publish_commit_finished` (L496) — Marks one shard commit as finished and wakes any waiting threads.
+- `publish_pending` (L503) — Returns 1 while any shard is queued, being prepared, or being committed.
+- `publish_note_load_failure` (L512) — Counts one shard that failed to load.
+- `publish_discard_all` (L518) — Drops all queued shards when the publisher is idle; returns 0 and changes nothing while a load is still running.
+- `out_append` (L549) — Appends child output to the tail buffer, keeping only the newest AC_OUT_CAP bytes, and parses the new lines.
+- `autocompile_test_feed_output` (L568) — Test hook: feeds fake compiler output into the output parser.
+- `autocompile_test_start_preparer` (L572) — Test hook: starts the shard preparer thread; returns 1 on success.
+- `autocompile_test_finish_input` (L582) — Test hook: marks the fake output as finished so the preparer thread can drain and exit.
+- `autocompile_test_join_preparer` (L589) — Test hook: waits up to timeout_ms for the preparer thread to end; returns 1 when it has.
+- `autocompile_test_ready_count` (L598) — Test hook: number of prepared shards waiting in the ready queue.
+- `autocompile_test_ready_highwater` (L607) — Test hook: the largest ready-queue length seen so far.
+- `autocompile_test_preparing_count` (L615) — Test hook: number of shards currently being prepared.
+- `autocompile_test_discard_all` (L623) — Test hook: discards all queued publish items.
+- `watch_thread` (L630) — Windows watcher: reads the compiler's output pipe until it closes, waits for the process, then records its exit code.
+- `posix_watch_thread` (L744) — POSIX watcher: reads the compiler's output until EOF, feeding each chunk to the output parser.
+- `autocompile_report_interpreter` (L783) — Name the interpreter the spawn will run, once, at configure time: the command's first token, resolved the way 'sh -c' resolves it.
+- `posix_kill_child_tree` (L812) — Kill the whole compile tree (sh -> python -> gcc share the child's process group), then reap it through the watcher.
+- `autocompile_check_path_args` (L925) — Pulls the path after each --recompiler or --runtime-include flag out of the command line so it can be checked.
+- `autocompile_configure` (L979) — Store the command line + working directory.
+- `autocompile_set_cache_paths` (L1033) — Pin the canonical overlay cache dir + captures file the LOADER actually uses (<exe>/cache and <exe>/overlay_captures.json — computed once in main.cpp).
+- `autocompile_configured` (L1038) — Returns 1 when a compile command has been set.
+- `autocompile_busy` (L1039) — 1 while a compile process is running.
+- `autocompile_toolchain_available` (L1046) — Probe PATH for a real C compiler (gcc/cc/clang).
+- `ac_pick_core` (L1096) — One core for the emulation thread: the one it is on, unless that is a slower class of core on a hybrid CPU.
+- `autocompile_test_pick_core` (L1108) — Test hook: runs the core-picking logic on the given masks and efficiency classes.
+- `ac_core_list` (L1115) — Lists the physical cores the process may use, with each core's efficiency class and affinity mask.
+- `ac_release_core` (L1143) — Gives back the reserved core: restores the game thread's affinity and clears the core masks.
+- `ac_reserve_core` (L1153) — Runs with the child still suspended, so nothing in the tree ever executes on the reserved core.
+- `ac_game_thread_tick` (L1193) — Records the game thread's current processor group and number, for choosing a core later.
+- `autocompile_request` (L1207) — Kick a compile if configured and idle.
+- `parse_shard_result` (L1500) — Scan the child-output tail ring for the LAST "PSX_SHARD_RESULT ok=N failed=M skipped=K" line and record the counts.
+- `autocompile_poll_main` (L1541) — Emu-thread tick: applies a finished compile (cache rescan on success).
+- `autocompile_shutdown` (L1627) — Process-shutdown teardown, emu thread only: stops the publication pipeline, kills the compiler process tree (job object), and JOINS the watcher and preparer threads — waiting out any in-flight LoadLib
+- `json_escape_into` (L1678) — Minimal JSON string escaper for the output tail.
+- `autocompile_status_json` (L1697) — JSON status blob for the debug server: state, run/fail counters, last exit code, and the output tail.
 
 ### runtime/src/autocompile_child_env.h
 
@@ -2104,58 +2103,58 @@ PS1 CD-ROM controller: register interface, command handling, sector reads, CD-DA
 - `queue_or_exec_command` (L2040) — Runs a command now if the interrupt line is clear, otherwise queues it.
 - `pause_complete_delay_cycles` (L2074) — Pause (0x09) completion latency — Beetle PS_CDC::Command_Pause.
 - `exec_command` (L2086) — Runs one CD-ROM controller command, setting its response and timing; the core of the command dispatcher.
-- `process_pending` (L2566) — Completes a pending command response once its due cycle has passed.
-- `warm_route_consumer_blocked` (L2671) — Route-only HLE producer/consumer handshake.
-- `authentic_sector_period` (L2712) — Returns the sector period at the real drive speed, halved in double-speed mode.
-- `accelerated_read_active` (L2717) — Returns 1 when reads run faster than the real drive speed, not during XA or filter modes.
-- `accelerated_consumer_blocked` (L2722) — Returns 1 when an accelerated read must wait for the CPU to take the last sector or interrupt.
-- `process_read_stream` (L2729) — Advances the data read stream by the elapsed cycles, delivering sectors when due and waiting for the CPU when it is behind.
-- `present_pending_dataready` (L2814) — Present a pended data-ready INT1 the moment the guest fully acks the previous INT (Beetle CheckAIP: async results present as soon as the IRQ register clears).
-- `cdrom_init` (L2830) — Starts the CD-ROM controller: clears its FIFOs and buffers, then mounts the disc image from the cue path.
-- `cdrom_has_disc` (L2924) — Did cdrom_init() actually mount an image?
-- `cdrom_read` (L2928) — MMIO read/write (0x1F801800-0x1F801803)
-- `cdrom_write` (L2978) — Handles a CPU write to the CD-ROM registers, tracing it and dispatching by register and index.
-- `cdrom_cycles_to_irq` (L3067) — Cycle-budgeted precise event slicing: guest CPU cycles until the CD-ROM raises a DELIVERABLE IRQ (bit2 unmasked in i_mask).
-- `cdrom_advance` (L3099) — Advance CD-ROM state machine by guest CPU cycles.
-- `cdrom_tick` (L3122) — Legacy frame-paced entry point for interpreter/oracle builds.
-- `cdrom_dma_read` (L3126) — DMA channel 3 interface
-- `cdrom_dma_ready` (L3138) — Returns 1 when DMA can take data now, first loading any announced sector into the FIFO.
-- `cdrom_dma_sector_word_count` (L3147) — Returns the word count for a CD DMA transfer, using one sector's size when the count is zero.
-- `cdrom_debug_snapshot` (L3160) — Copies the controller's registers and state into a debug struct.
-- `cdrom_debug_get_trace` (L3215) — Returns the register trace ring and its total count.
-- `cdrom_debug_clear_trace` (L3220) — Clears the register trace ring.
-- `cdrom_debug_get_command_history` (L3225) — Returns the command history ring and its total count.
-- `cdrom_debug_clear_command_history` (L3230) — Clears the command history ring.
-- `cdrom_debug_get_sector_history` (L3235) — Returns the sector history ring and its total count.
-- `cdrom_debug_clear_sector_history` (L3240) — Clears the sector history ring.
-- `cdrom_debug_copy_last_sector` (L3245) — Copies part of the last sector read into a buffer and fills in its debug state.
-- `cdrom_load_in_progress` (L3274) — Load-in-progress predicate for turbo-through-loads (step 4).
-- `cdrom_data_read_active` (L3285) — Physical non-XA data-read command state, without the logical load gap bridge used by cdrom_load_in_progress().
-- `cdrom_apply_savestate_delay_caps` (L3298) — Limits long pending and interrupt delays after a savestate load so the game does not stall.
-- `cdrom_accelerate_after_savestate` (L3323) — After savestate restore: clamp long CD second-response / read-start delays and arm a short boost window so post-load ReadTOC/seek/Init waits do not freeze the picture for ~1s+.
-- `cdrom_savestate_boost_vblank` (L3334) — Call once per host vblank while the boost window is armed.
-- `cdrom_savestate_cd_wait_active` (L3340) — Non-zero while boost is armed AND a CD wait is outstanding (pending second response or non-XA read).
-- `cdrom_savestate_boost_vblanks_remaining` (L3347) — Remaining boost vblanks (0 when idle).
-- `cdrom_snap_emit` (L3361) — Writes the CD-ROM controller state into a snapshot writer, in the legacy or extended layout.
-- `cdrom_snap_parse` (L3439) — Reads the CD-ROM controller state from a snapshot reader, in the legacy or extended layout.
-- `cdrom_snapshot_level_bytes` (L3533) — Returns the wire size of the snapshot layout at a given level (0 = legacy, CDROM_SNAP_LEVEL_CURRENT = newest).
-- `cdrom_snapshot_level` (L3540) — Maps a snapshot block length to its layout level; -1 when no level has that size.
-- `cdrom_snapshot_legacy_bytes` (L3546) — Returns the size of the legacy snapshot layout.
-- `cdrom_snapshot_fifos_ok` (L3552) — The parameter and response FIFO cursors index param_fifo / response_fifo; every layout starts with the legacy prefix, so this applies to all of them.
-- `cdrom_snapshot_validate` (L3562) — Checks that a snapshot block has a length matching the legacy or current layout.
-- `cdrom_snapshot_disc_matches` (L3608) — 0 when the state was taken on another disc of this game's roster than the one mounted now: its LBAs, TOC and file table belong to that other disc.
-- `cdrom_snapshot_bytes` (L3615) — boot_state / netplay digest — full controller FSM (sector FIFOs included).
-- `cdrom_snapshot_write` (L3618) — Writes the current CD-ROM snapshot block into a buffer.
-- `cdrom_snapshot_read` (L3624) — Reads a CD-ROM snapshot block, checking its length first; returns 1 on success.
-- `begin_tray_open_cycle` (L3650) — Open the tray: stop every transfer in flight, hide the media, and arm the timed close.
-- `debug_force_cd_reinsert` (L3666) — Simulates a disc swap by opening the tray, which hides the media until the timed close. — Notify the guest that the mounted disc was reinserted.
-- `cdrom_disc_roster_set` (L3670) — Sets the list of disc image paths the player can switch between, and which one is selected.
-- `cdrom_disc_roster_count` (L3690) — Returns how many discs are in the roster.
-- `cdrom_mounted_sector_count` (L3692) — TOC of the image currently mounted; 0 when the drive is empty.
-- `cdrom_mounted_track_count` (L3696) — Returns the number of tracks in the mounted image, 0 when the drive is empty.
-- `cdrom_disc_selected` (L3700) — Returns the 1-based number of the selected disc.
-- `cdrom_disc_roster_path` (L3702) — Returns the path of a disc in the roster by 1-based index, or NULL if out of range.
-- `cdrom_disc_select` (L3718) — Change the mounted image mid-session, the way a player changes a disc.
+- `process_pending` (L2567) — Completes a pending command response once its due cycle has passed.
+- `warm_route_consumer_blocked` (L2672) — Route-only HLE producer/consumer handshake.
+- `authentic_sector_period` (L2713) — Returns the sector period at the real drive speed, halved in double-speed mode.
+- `accelerated_read_active` (L2718) — Returns 1 when reads run faster than the real drive speed, not during XA or filter modes.
+- `accelerated_consumer_blocked` (L2723) — Returns 1 when an accelerated read must wait for the CPU to take the last sector or interrupt.
+- `process_read_stream` (L2730) — Advances the data read stream by the elapsed cycles, delivering sectors when due and waiting for the CPU when it is behind.
+- `present_pending_dataready` (L2815) — Present a pended data-ready INT1 the moment the guest fully acks the previous INT (Beetle CheckAIP: async results present as soon as the IRQ register clears).
+- `cdrom_init` (L2831) — Starts the CD-ROM controller: clears its FIFOs and buffers, then mounts the disc image from the cue path.
+- `cdrom_has_disc` (L2925) — Did cdrom_init() actually mount an image?
+- `cdrom_read` (L2929) — MMIO read/write (0x1F801800-0x1F801803)
+- `cdrom_write` (L2979) — Handles a CPU write to the CD-ROM registers, tracing it and dispatching by register and index.
+- `cdrom_cycles_to_irq` (L3068) — Cycle-budgeted precise event slicing: guest CPU cycles until the CD-ROM raises a DELIVERABLE IRQ (bit2 unmasked in i_mask).
+- `cdrom_advance` (L3100) — Advance CD-ROM state machine by guest CPU cycles.
+- `cdrom_tick` (L3123) — Legacy frame-paced entry point for interpreter/oracle builds.
+- `cdrom_dma_read` (L3127) — DMA channel 3 interface
+- `cdrom_dma_ready` (L3139) — Returns 1 when DMA can take data now, first loading any announced sector into the FIFO.
+- `cdrom_dma_sector_word_count` (L3148) — Returns the word count for a CD DMA transfer, using one sector's size when the count is zero.
+- `cdrom_debug_snapshot` (L3161) — Copies the controller's registers and state into a debug struct.
+- `cdrom_debug_get_trace` (L3216) — Returns the register trace ring and its total count.
+- `cdrom_debug_clear_trace` (L3221) — Clears the register trace ring.
+- `cdrom_debug_get_command_history` (L3226) — Returns the command history ring and its total count.
+- `cdrom_debug_clear_command_history` (L3231) — Clears the command history ring.
+- `cdrom_debug_get_sector_history` (L3236) — Returns the sector history ring and its total count.
+- `cdrom_debug_clear_sector_history` (L3241) — Clears the sector history ring.
+- `cdrom_debug_copy_last_sector` (L3246) — Copies part of the last sector read into a buffer and fills in its debug state.
+- `cdrom_load_in_progress` (L3275) — Load-in-progress predicate for turbo-through-loads (step 4).
+- `cdrom_data_read_active` (L3286) — Physical non-XA data-read command state, without the logical load gap bridge used by cdrom_load_in_progress().
+- `cdrom_apply_savestate_delay_caps` (L3299) — Limits long pending and interrupt delays after a savestate load so the game does not stall.
+- `cdrom_accelerate_after_savestate` (L3324) — After savestate restore: clamp long CD second-response / read-start delays and arm a short boost window so post-load ReadTOC/seek/Init waits do not freeze the picture for ~1s+.
+- `cdrom_savestate_boost_vblank` (L3335) — Call once per host vblank while the boost window is armed.
+- `cdrom_savestate_cd_wait_active` (L3341) — Non-zero while boost is armed AND a CD wait is outstanding (pending second response or non-XA read).
+- `cdrom_savestate_boost_vblanks_remaining` (L3348) — Remaining boost vblanks (0 when idle).
+- `cdrom_snap_emit` (L3362) — Writes the CD-ROM controller state into a snapshot writer, in the legacy or extended layout.
+- `cdrom_snap_parse` (L3440) — Reads the CD-ROM controller state from a snapshot reader, in the legacy or extended layout.
+- `cdrom_snapshot_level_bytes` (L3534) — Returns the wire size of the snapshot layout at a given level (0 = legacy, CDROM_SNAP_LEVEL_CURRENT = newest).
+- `cdrom_snapshot_level` (L3541) — Maps a snapshot block length to its layout level; -1 when no level has that size.
+- `cdrom_snapshot_legacy_bytes` (L3547) — Returns the size of the legacy snapshot layout.
+- `cdrom_snapshot_fifos_ok` (L3553) — The parameter and response FIFO cursors index param_fifo / response_fifo; every layout starts with the legacy prefix, so this applies to all of them.
+- `cdrom_snapshot_validate` (L3563) — Checks that a snapshot block has a length matching the legacy or current layout.
+- `cdrom_snapshot_disc_matches` (L3609) — 0 when the state was taken on another disc of this game's roster than the one mounted now: its LBAs, TOC and file table belong to that other disc.
+- `cdrom_snapshot_bytes` (L3616) — boot_state / netplay digest — full controller FSM (sector FIFOs included).
+- `cdrom_snapshot_write` (L3619) — Writes the current CD-ROM snapshot block into a buffer.
+- `cdrom_snapshot_read` (L3625) — Reads a CD-ROM snapshot block, checking its length first; returns 1 on success.
+- `begin_tray_open_cycle` (L3651) — Open the tray: stop every transfer in flight, hide the media, and arm the timed close.
+- `debug_force_cd_reinsert` (L3667) — Simulates a disc swap by opening the tray, which hides the media until the timed close. — Notify the guest that the mounted disc was reinserted.
+- `cdrom_disc_roster_set` (L3671) — Sets the list of disc image paths the player can switch between, and which one is selected.
+- `cdrom_disc_roster_count` (L3691) — Returns how many discs are in the roster.
+- `cdrom_mounted_sector_count` (L3693) — TOC of the image currently mounted; 0 when the drive is empty.
+- `cdrom_mounted_track_count` (L3697) — Returns the number of tracks in the mounted image, 0 when the drive is empty.
+- `cdrom_disc_selected` (L3701) — Returns the 1-based number of the selected disc.
+- `cdrom_disc_roster_path` (L3703) — Returns the path of a disc in the roster by 1-based index, or NULL if out of range.
+- `cdrom_disc_select` (L3719) — Change the mounted image mid-session, the way a player changes a disc.
 
 ### runtime/src/cdrom_irq.h
 
