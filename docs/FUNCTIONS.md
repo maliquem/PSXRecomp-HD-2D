@@ -7337,7 +7337,7 @@ Writes overlay capture manifests and snapshots to disk (atomically, with history
 - `overlay_autocapture_tick` (L1401) — Per-vblank check of auto-capture pressure: samples it, latches the gates and fires a capture when pressure stays high.
 - `overlay_capture_wait_pending` (L1510) — Join any background snapshot writer before process shutdown.
 - `overlay_autocapture_shutdown` (L1539) — Join any in-flight atomic writer before the final shutdown snapshot.
-- `overlay_capture_get_region_crc` (L1555) — CRC of the bytes in a RAM region, read from a copy of the region.
+- `overlay_capture_get_region_crc` (L1557) — CRC of the bytes in a RAM region, read from a copy of the region.
 
 ### runtime/src/overlay_loader.c
 
@@ -7467,74 +7467,74 @@ Loads native overlay code (compiled DLL shards of the game's own functions) on d
 - `overlay_loader_clear_lazy_miss` (L3244) — Drop the negative lazy-lookup memo (host-only).
 - `overlay_loader_resync_validation_after_restore` (L3250) — After RAM restore: bust overlay candidate gen fast-path + static-match cache so native vs interp is re-decided against restored bytes.
 - `overlay_loader_rescan` (L3270) — Re-scan the cache dir for DLLs compiled after init (step 2.8 autocompile) and clear the checked-regions memo so the next dispatch into a window region reconsiders the cache.
-- `native_rank_allows` (L3294) — 1 when this candidate is within the native rank limit; gives it a rank on first use and logs it.
-- `dll_already_loaded` (L3314) — 1 when a DLL with this path is already loaded.
-- `cache_entry_already_loaded` (L3325) — A lazy manifest chain may have hundreds of functions from the same DLL.
-- `overlay_library_close` (L3334) — Closes an overlay library handle with FreeLibrary or dlclose; ignores NULL.
-- `load_one_dll` (L3345) — Consumes prepared on every path.
-- `load_one_dll_prepared` (L3447) — Publishes a prepared library by passing it to the normal single-DLL loader.
-- `published_root_canonical` (L3454) — Resolves the cache root to its canonical path once; returns 0 while it cannot be resolved, so the publish is refused.
-- `published_path_valid` (L3471) — Validates dll_path and writes its CANONICAL form into canon; every later consumer (LoadLibrary, .ranges derivation, loaded-path tracking) uses the canonical string, never the raw pipe text.
-- `overlay_loader_prepare_published` (L3494) — Checks a published DLL path and loads it into a prepared image that can be committed later; NULL when the path is invalid.
-- `overlay_loader_commit_published` (L3535) — Commits a prepared image into the loader when loads are allowed, otherwise discards it; returns 1 when committed.
-- `overlay_loader_discard_prepared` (L3556) — Closes and frees a prepared image that will not be committed.
-- `lazy_man_contains` (L3563) — 1 when a lazy manifest's entries or code ranges cover this physical address in the same segment.
-- `lazy_man_crc` (L3574) — 1 and *crc = CRC of the manifest's live bytes, 0 when it has none.
-- `lazy_man_gensum` (L3578) — Generation sum over the code ranges of a lazy manifest.
-- `lazy_man_matches` (L3582) — 1 when the live bytes of a lazy manifest still match its CRC; records the result as valid or invalid.
-- `lazy_bundle_matches` (L3604) — A CPS DLL can directly own internal tail targets, so one matching entry does not prove the rest of that captured snapshot is current.
-- `lazy_candidate_preferred` (L3626) — Same-tier artifacts that both pass the live-byte gate compute the same thing, but their block edges differ (where a page cut or another capture's branch targets end a block), so under cpu_timing = "bl
-- `lazy_choose_complete_or_fallback` (L3638) — Prefer GCC over TCC even when the TCC option happens to be a broader bundle.
-- `overlay_image_warm_seed_boot_text` (L3652) — A streamed variant is not byte-coherent until immediately before its first call, too late to hide Windows' first image-map cost.
-- `lazy_is_loadable` (L3666) — 1 when a lazy manifest entry can be loaded now for this region and segment.
-- `lazy_better_bundle` (L3683) — Chooses between two lazy bundles by manifest index order only, never by size or timestamp.
-- `lazy_load_selected` (L3693) — Loads the cache entry of a selected lazy manifest, unless it has failed, is suppressed or is already loaded.
-- `try_load_region` (L3715) — Load the cached shard of 'seg' (§5.7) that serves phys.
-- `lazy_has_exact_entry` (L3816) — O(1)-bucket discriminator between a real manifested function entry and an interior CPS continuation.
-- `range_candidate_matches` (L3840) — CPS (§25): find a non-blacklisted candidate whose code range CONTAINS phys — i.e.
-- `range_candidate_preferred` (L3893) — 1 when candidate should replace current: a higher tier wins, and among equal tiers the newer candidate wins.
-- `overlay_find_by_range` (L3900) — Finds the candidate whose code range holds this physical address in the given segment; -1 when none or the loader is off.
-- `overlay_loader_dispatch` (L3943) — Called from dirty_ram_dispatch before the interpreter.
-- `overlay_loader_dispatch_seg` (L3977) — A shard's body bakes the PCs of the segment it was compiled for: the $ra a jal/jalr writes, its jump and exception-resume PCs, its I-cache fetch tags and store-PC stamps (docs/SEGMENT_AWARE_CODE.md §5
-- `overlay_loader_active_write_check` (L4332) — ---- Self-modification of an actively-executing entry (§8.5) ------------ Lazy re-hash on the NEXT dispatch is too late if a native function modifies its own code and continues executing the modified
-- `overlay_loader_get_counters` (L4359) — Reports the loader counters: loads, invalidations, native and interpreted dispatches, and details of the last write.
-- `overlay_loader_get_load_timing` (L4380) — Reports the total, maximum and last DLL load times, in microseconds.
-- `overlay_loader_take_hot_native` (L4387) — Opt-in PSX_RUNTIME_PERF_DIAG sampler: returns and clears the hottest native owner since the preceding call.
-- `overlay_loader_get_reload_debug` (L4412) — Reload diagnostics. Repurposed for the per-entry model: r0_valid -> candidates currently VALID r0_writes...
-- `overlay_loader_registered_count` (L4428) — Returns number of functions currently registered in the dynamic table.
-- `overlay_loader_gen_fastpath` (L4433) — Dispatches that ran native via the unchanged-page-generation fast path, i.e.
-- `overlay_loader_range_link_count` (L4434) — Number of range index links in use.
-- `overlay_loader_range_index_overflow` (L4435) — 1 when the range index ran out of space.
-- `overlay_loader_lazy_manifest_count` (L4436) — Number of lazy manifest entries indexed.
-- `overlay_loader_lazy_manifest_overflow` (L4437) — 1 when the lazy manifest table overflowed.
-- `overlay_loader_candidate_overflow` (L4438) — Number of candidates refused because the candidate table was full.
-- `overlay_loader_pair_aliases` (L4439) — Number of shard pairs that aliased an already loaded pair.
-- `overlay_loader_segment_alias_interp` (L4440) — KUSEG/KSEG1 (and unmapped-segment) dispatches the loader left to the interpreter: no shard compiled for their segment is cached or valid yet (docs/SEGMENT_AWARE_CODE.md §5.7).
-- `overlay_loader_segment_native` (L4441) — KUSEG/KSEG1 dispatches run natively by a shard compiled for their segment.
-- `overlay_loader_is_candidate` (L4468) — 1 when the physical address is a known exact function entry and the loader is active.
-- `overlay_fp_enabled` (L4473) — 1 when the fingerprint log is on, set by the PSX_OVERLAY_FP_LOG variable.
-- `overlay_loader_get_shadow_summary` (L4525) — Reports the shadow-diff call and divergence counts and the first divergent PC.
-- `overlay_loader_set_diff_mode` (L4533) — Turns shadow diff mode on or off.
-- `run_shadow_diff_legacy` (L4535) — Older shadow diff: runs the interpreter and the native candidate on the same state and compares the results.
-- `shadow_cpu_diff` (L4727) — Compares two CPU states field by field; returns the kind of the first difference, with its index and both values.
-- `run_shadow_diff` (L4770) — Authoritative interpreter RECORD + side-effect-free native REPLAY.
-- `shadow_escape_cleanup` (L4949) — A nonlocal scheduler bail during the speculative native replay pass (see overlay_loader_shadow_native_thread_switch_bail) means the interpreter pass — authoritative and already complete by the time th
-- `shadow_escape_flush_cycles` (L4980) — Commits pending cycles and clears the cycle-flush hook after a host unwind skipped a candidate's epilogue.
-- `overlay_loader_shadow_escape_fixup` (L5000) — Called by deferred_exception_longjmp() (interrupts.c) before it unwinds.
-- `overlay_loader_shadow_scheduler_escape_fixup` (L5010) — The deterministic HLE scheduler uses a different jmp_buf and therefore has no exception-setjmp epoch.
-- `overlay_loader_dump_shadow_detail` (L5015) — Writes the captured shadow-diff detail (address and registers) as JSON into out; returns the length.
-- `overlay_loader_dump_shadow` (L5036) — Writes the shadow-diff summary and its records as JSON into out; returns the length.
-- `overlay_regs_crc` (L5075) — Fingerprint over the general registers (r1..r31) + hi/lo.
-- `overlay_regs_snap` (L5084) — Snapshot r0..r31 + hi/lo into a 34-word buffer (entry-state capture).
-- `regs34_crc` (L5091) — CRC over words 1..33 (r0 excluded — always 0), matching overlay_regs_crc.
-- `overlay_fp_log` (L5097) — Records one fingerprint entry (address, cycle, registers, native or interpreted) in the ring.
-- `overlay_loader_call_native` (L5120) — Execute 'addr' natively if a validated overlay candidate exists, keeping the §5-E fingerprint record (same as the dirty_ram_dispatch chokepoint).
-- `overlay_loader_write_fp_file` (L5152) — Write the whole fingerprint log to a file (no TCP size limit).
-- `overlay_loader_dump_native_ring` (L5183) — Dump the native-call ring (most-recent first) + the in-progress entry.
-- `overlay_loader_dump_candidates` (L5209) — Diagnostic: dump every candidate with its stored vs live hash and generation state, so reload behaviour can be inspected directly (Rule 3 — visibility via the debug server, not logs).
-- `overlay_loader_dump_candidates_at` (L5232) — Focused form for live miss diagnosis.
-- `overlay_loader_dump_lazy_at` (L5259) — Focused view of manifest-only candidates that have not been loaded yet.
-- `overlay_loader_get_status` (L5309) — Reports the loader status: active flag, registered count, regions checked, cache folder, game id and last CRC.
+- `native_rank_allows` (L3295) — 1 when this candidate is within the native rank limit; gives it a rank on first use and logs it.
+- `dll_already_loaded` (L3315) — 1 when a DLL with this path is already loaded.
+- `cache_entry_already_loaded` (L3326) — A lazy manifest chain may have hundreds of functions from the same DLL.
+- `overlay_library_close` (L3335) — Closes an overlay library handle with FreeLibrary or dlclose; ignores NULL.
+- `load_one_dll` (L3346) — Consumes prepared on every path.
+- `load_one_dll_prepared` (L3449) — Publishes a prepared library by passing it to the normal single-DLL loader.
+- `published_root_canonical` (L3456) — Resolves the cache root to its canonical path once; returns 0 while it cannot be resolved, so the publish is refused.
+- `published_path_valid` (L3473) — Validates dll_path and writes its CANONICAL form into canon; every later consumer (LoadLibrary, .ranges derivation, loaded-path tracking) uses the canonical string, never the raw pipe text.
+- `overlay_loader_prepare_published` (L3496) — Checks a published DLL path and loads it into a prepared image that can be committed later; NULL when the path is invalid.
+- `overlay_loader_commit_published` (L3537) — Commits a prepared image into the loader when loads are allowed, otherwise discards it; returns 1 when committed.
+- `overlay_loader_discard_prepared` (L3558) — Closes and frees a prepared image that will not be committed.
+- `lazy_man_contains` (L3565) — 1 when a lazy manifest's entries or code ranges cover this physical address in the same segment.
+- `lazy_man_crc` (L3576) — 1 and *crc = CRC of the manifest's live bytes, 0 when it has none.
+- `lazy_man_gensum` (L3580) — Generation sum over the code ranges of a lazy manifest.
+- `lazy_man_matches` (L3584) — 1 when the live bytes of a lazy manifest still match its CRC; records the result as valid or invalid.
+- `lazy_bundle_matches` (L3606) — A CPS DLL can directly own internal tail targets, so one matching entry does not prove the rest of that captured snapshot is current.
+- `lazy_candidate_preferred` (L3628) — Same-tier artifacts that both pass the live-byte gate compute the same thing, but their block edges differ (where a page cut or another capture's branch targets end a block), so under cpu_timing = "bl
+- `lazy_choose_complete_or_fallback` (L3640) — Prefer GCC over TCC even when the TCC option happens to be a broader bundle.
+- `overlay_image_warm_seed_boot_text` (L3654) — A streamed variant is not byte-coherent until immediately before its first call, too late to hide Windows' first image-map cost.
+- `lazy_is_loadable` (L3668) — 1 when a lazy manifest entry can be loaded now for this region and segment.
+- `lazy_better_bundle` (L3685) — Chooses between two lazy bundles by manifest index order only, never by size or timestamp.
+- `lazy_load_selected` (L3695) — Loads the cache entry of a selected lazy manifest, unless it has failed, is suppressed or is already loaded.
+- `try_load_region` (L3717) — Load the cached shard of 'seg' (§5.7) that serves phys.
+- `lazy_has_exact_entry` (L3818) — O(1)-bucket discriminator between a real manifested function entry and an interior CPS continuation.
+- `range_candidate_matches` (L3842) — CPS (§25): find a non-blacklisted candidate whose code range CONTAINS phys — i.e.
+- `range_candidate_preferred` (L3895) — 1 when candidate should replace current: a higher tier wins, and among equal tiers the newer candidate wins.
+- `overlay_find_by_range` (L3902) — Finds the candidate whose code range holds this physical address in the given segment; -1 when none or the loader is off.
+- `overlay_loader_dispatch` (L3945) — Called from dirty_ram_dispatch before the interpreter.
+- `overlay_loader_dispatch_seg` (L3979) — A shard's body bakes the PCs of the segment it was compiled for: the $ra a jal/jalr writes, its jump and exception-resume PCs, its I-cache fetch tags and store-PC stamps (docs/SEGMENT_AWARE_CODE.md §5
+- `overlay_loader_active_write_check` (L4334) — ---- Self-modification of an actively-executing entry (§8.5) ------------ Lazy re-hash on the NEXT dispatch is too late if a native function modifies its own code and continues executing the modified
+- `overlay_loader_get_counters` (L4361) — Reports the loader counters: loads, invalidations, native and interpreted dispatches, and details of the last write.
+- `overlay_loader_get_load_timing` (L4382) — Reports the total, maximum and last DLL load times, in microseconds.
+- `overlay_loader_take_hot_native` (L4389) — Opt-in PSX_RUNTIME_PERF_DIAG sampler: returns and clears the hottest native owner since the preceding call.
+- `overlay_loader_get_reload_debug` (L4414) — Reload diagnostics. Repurposed for the per-entry model: r0_valid -> candidates currently VALID r0_writes...
+- `overlay_loader_registered_count` (L4430) — Returns number of functions currently registered in the dynamic table.
+- `overlay_loader_gen_fastpath` (L4435) — Dispatches that ran native via the unchanged-page-generation fast path, i.e.
+- `overlay_loader_range_link_count` (L4436) — Number of range index links in use.
+- `overlay_loader_range_index_overflow` (L4437) — 1 when the range index ran out of space.
+- `overlay_loader_lazy_manifest_count` (L4438) — Number of lazy manifest entries indexed.
+- `overlay_loader_lazy_manifest_overflow` (L4439) — 1 when the lazy manifest table overflowed.
+- `overlay_loader_candidate_overflow` (L4440) — Number of candidates refused because the candidate table was full.
+- `overlay_loader_pair_aliases` (L4441) — Number of shard pairs that aliased an already loaded pair.
+- `overlay_loader_segment_alias_interp` (L4442) — KUSEG/KSEG1 (and unmapped-segment) dispatches the loader left to the interpreter: no shard compiled for their segment is cached or valid yet (docs/SEGMENT_AWARE_CODE.md §5.7).
+- `overlay_loader_segment_native` (L4443) — KUSEG/KSEG1 dispatches run natively by a shard compiled for their segment.
+- `overlay_loader_is_candidate` (L4470) — 1 when the physical address is a known exact function entry and the loader is active.
+- `overlay_fp_enabled` (L4475) — 1 when the fingerprint log is on, set by the PSX_OVERLAY_FP_LOG variable.
+- `overlay_loader_get_shadow_summary` (L4527) — Reports the shadow-diff call and divergence counts and the first divergent PC.
+- `overlay_loader_set_diff_mode` (L4535) — Turns shadow diff mode on or off.
+- `run_shadow_diff_legacy` (L4537) — Older shadow diff: runs the interpreter and the native candidate on the same state and compares the results.
+- `shadow_cpu_diff` (L4729) — Compares two CPU states field by field; returns the kind of the first difference, with its index and both values.
+- `run_shadow_diff` (L4772) — Authoritative interpreter RECORD + side-effect-free native REPLAY.
+- `shadow_escape_cleanup` (L4951) — A nonlocal scheduler bail during the speculative native replay pass (see overlay_loader_shadow_native_thread_switch_bail) means the interpreter pass — authoritative and already complete by the time th
+- `shadow_escape_flush_cycles` (L4982) — Commits pending cycles and clears the cycle-flush hook after a host unwind skipped a candidate's epilogue.
+- `overlay_loader_shadow_escape_fixup` (L5002) — Called by deferred_exception_longjmp() (interrupts.c) before it unwinds.
+- `overlay_loader_shadow_scheduler_escape_fixup` (L5012) — The deterministic HLE scheduler uses a different jmp_buf and therefore has no exception-setjmp epoch.
+- `overlay_loader_dump_shadow_detail` (L5017) — Writes the captured shadow-diff detail (address and registers) as JSON into out; returns the length.
+- `overlay_loader_dump_shadow` (L5038) — Writes the shadow-diff summary and its records as JSON into out; returns the length.
+- `overlay_regs_crc` (L5077) — Fingerprint over the general registers (r1..r31) + hi/lo.
+- `overlay_regs_snap` (L5086) — Snapshot r0..r31 + hi/lo into a 34-word buffer (entry-state capture).
+- `regs34_crc` (L5093) — CRC over words 1..33 (r0 excluded — always 0), matching overlay_regs_crc.
+- `overlay_fp_log` (L5099) — Records one fingerprint entry (address, cycle, registers, native or interpreted) in the ring.
+- `overlay_loader_call_native` (L5122) — Execute 'addr' natively if a validated overlay candidate exists, keeping the §5-E fingerprint record (same as the dirty_ram_dispatch chokepoint).
+- `overlay_loader_write_fp_file` (L5154) — Write the whole fingerprint log to a file (no TCP size limit).
+- `overlay_loader_dump_native_ring` (L5185) — Dump the native-call ring (most-recent first) + the in-progress entry.
+- `overlay_loader_dump_candidates` (L5211) — Diagnostic: dump every candidate with its stored vs live hash and generation state, so reload behaviour can be inspected directly (Rule 3 — visibility via the debug server, not logs).
+- `overlay_loader_dump_candidates_at` (L5234) — Focused form for live miss diagnosis.
+- `overlay_loader_dump_lazy_at` (L5261) — Focused view of manifest-only candidates that have not been loaded yet.
+- `overlay_loader_get_status` (L5311) — Reports the loader status: active flag, registered count, regions checked, cache folder, game id and last CRC.
 
 ### runtime/src/overlay_path_canon.c
 
@@ -7551,12 +7551,12 @@ POSIX side of the overlay loader: scans cache folders for compiled overlay libra
 - `parse_hex8` (L13) — Reads eight hex digits into value; returns 1 on success and 0 when any character is not hex.
 - `psx_overlay_cache_name_parse` (L24) — Parses a cache file name of the form address and CRC plus the library extension into region start and content CRC; 0 when it does not match.
 - `psx_overlay_posix_scan_cache_dir` (L56) — Calls visitor for each cache library in dir and returns how many were visited; 0 when the folder cannot be opened.
-- `note_first_cache_file` (L85) — Visitor that sets a flag on the first cache file it sees and stops the scan.
-- `psx_overlay_posix_find_other_cache_tag` (L91) — Looks for a cache subfolder whose tag differs from expected_tag and copies the tag it finds into found_tag; returns 1 when found.
-- `psx_overlay_posix_library_open` (L120) — Opens a shared library with dlopen; on failure writes the dlerror text into error and returns NULL.
-- `psx_overlay_posix_library_symbol` (L131) — Looks up a named symbol in an open library; NULL when the handle or the symbol is missing.
-- `psx_overlay_posix_library_entry` (L135) — Looks up the func_ symbol for a guest entry address, written as eight hex digits.
-- `psx_overlay_posix_library_close` (L141) — Closes an open overlay library handle; ignores NULL.
+- `note_first_cache_file` (L84) — Visitor that sets a flag on the first cache file it sees and stops the scan.
+- `psx_overlay_posix_find_other_cache_tag` (L90) — Looks for a cache subfolder whose tag differs from expected_tag and copies the tag it finds into found_tag; returns 1 when found.
+- `psx_overlay_posix_library_open` (L119) — Opens a shared library with dlopen; on failure writes the dlerror text into error and returns NULL.
+- `psx_overlay_posix_library_symbol` (L130) — Looks up a named symbol in an open library; NULL when the handle or the symbol is missing.
+- `psx_overlay_posix_library_entry` (L134) — Looks up the func_ symbol for a guest entry address, written as eight hex digits.
+- `psx_overlay_posix_library_close` (L140) — Closes an open overlay library handle; ignores NULL.
 
 ### runtime/src/overlay_unit_defer.h
 
@@ -7886,17 +7886,17 @@ Reads the optional projection scale setting from the [video] config section and 
 
 Keeps the registry of BIOS backends, selects and publishes the active one, and forwards dispatch calls to it.
 
-- `registry_seed` (L56) — Loads the built-in BIOS backends into the registry once; later calls do nothing.
-- `psx_bios_register` (L67) — Add a backend loaded at run time.
-- `psx_bios_registry_seeded_count` (L79) — Seeds the registry if needed and returns how many backends it holds.
-- `psx_bios_registry_ctor` (L90) — Startup hook that seeds the BIOS backend registry before main runs.
-- `__attribute__` (L94) — Constructor attribute (GCC form) on the startup hook that seeds the BIOS backend registry before main.
-- `psx_dispatch` (L102) — Dispatch — defined in generated/SCPH1001_dispatch.c
-- `psx_dispatch_call` (L108) — Forwards a dispatch to the active BIOS backend; does nothing when no backend is active.
-- `psx_bios_find` (L116) — Look up a compiled-in backend by its profile id ("SCPH-1001", "OPENBIOS").
-- `psx_bios_bundled` (L129) — The bundled, redistributable backend (image_bundled != 0), or null if this build has none.
-- `psx_bios_activate` (L139) — Select a backend and publish it (also assigns the global psx_bios_image).
-- `psx_bios_has_selectable` (L160) — Is there any image the player could supply, i.e.
+- `registry_seed` (L57) — Loads the built-in BIOS backends into the registry once; later calls do nothing.
+- `psx_bios_register` (L68) — Add a backend loaded at run time.
+- `psx_bios_registry_seeded_count` (L80) — Seeds the registry if needed and returns how many backends it holds.
+- `psx_bios_registry_ctor` (L91) — Startup hook that seeds the BIOS backend registry before main runs.
+- `__attribute__` (L95) — Constructor attribute (GCC form) on the startup hook that seeds the BIOS backend registry before main.
+- `psx_dispatch` (L103) — Dispatch — defined in generated/SCPH1001_dispatch.c
+- `psx_dispatch_call` (L111) — Forwards a dispatch to the active BIOS backend; does nothing when no backend is active.
+- `psx_bios_find` (L120) — Look up a compiled-in backend by its profile id ("SCPH-1001", "OPENBIOS").
+- `psx_bios_bundled` (L133) — The bundled, redistributable backend (image_bundled != 0), or null if this build has none.
+- `psx_bios_activate` (L143) — Select a backend and publish it (also assigns the global psx_bios_image).
+- `psx_bios_has_selectable` (L164) — Is there any image the player could supply, i.e.
 
 ### runtime/src/psx_bios_module.c
 
@@ -8919,43 +8919,43 @@ Rewind feature: a ring of recent machine snapshots with thumbnails, plus the on-
 
 Full-screen save-state slot browser drawn into a software panel, with optional title canvases, HUD and toast notices.
 
-- `fill_rect` (L90) — Fills a clipped rectangle of the menu panel with a colour.
-- `stroke_rect` (L103) — Draws a one-pixel outline rectangle on the menu panel.
-- `fill_disc` (L111) — Fills a clipped solid disc of radius r on the menu panel.
-- `draw_line` (L123) — Draws a thick line into a buffer by stepping pixels from one end to the other.
-- `draw_psx_button` (L151) — Draws a PSX pad button glyph (x, square or circle) at a position on the menu panel.
-- `draw_char` (L173) — Draws one 8 by 8 font glyph at a scale factor, uppercased, with '?' for unknown characters.
-- `draw_text` (L196) — Draws a string at a scale factor, advancing 8 times the scale per character.
-- `psx_ui_text` (L206) — Draws text into any ARGB buffer with the menu font and scale; returns the x position after the text.
-- `blit_thumb` (L229) — Scales a save thumbnail into a rectangle of the panel, forcing it opaque.
-- `format_slot_status` (L243) — Writes a slot's status line: NEW SLOT when empty, otherwise the save's date and time.
-- `refresh_thumbs` (L262) — Reloads every slot's thumbnail from its save file.
-- `rasterize_panel` (L272) — Redraws the whole slot browser panel: header, slot cards, selection and key hints.
-- `psx_savestate_menu_set_state` (L341) — Sets whether the menu is open and which slot is selected (clamped), marking it for redraw when changed.
-- `psx_savestate_menu_note_slots_changed` (L351) — Marks the menu for redraw after the save slots changed.
-- `psx_savestate_menu_needs_present` (L356) — 1 while the menu, page or a notice is visible, so the frame must be presented.
-- `psx_savestate_menu_set_renderer` (L361) — Sets the renderer that paints the selected slot's title canvas and marks the menu for redraw.
-- `all_dirty` (L367) — Marks the menu, page, HUD and notices for redraw.
-- `psx_savestate_menu_set_window` (L375) — The window's size, for the canvas' aspect (redrawn when it changes).
-- `psx_savestate_menu_set_scale` (L383) — Every title canvas (this menu's, the page's, the HUD's, the notices') is 240 x scale lines and 320..1024 x scale columns (1 or 2; 1 by default): a title drawing the PSX picture's pixels as scale x sca
-- `psx_savestate_menu_scale` (L392) — Returns the canvas scale factor (1 or 2).
-- `psx_savestate_menu_set_page` (L397) — Sets the title's full-screen page drawn behind the menu; marks the menu and HUD for redraw.
-- `psx_savestate_menu_page_redraw` (L405) — Asks for the title page to be drawn again at the next present.
-- `psx_savestate_menu_set_hud` (L410) — Sets the title's HUD renderer; clearing it turns the HUD off.
-- `psx_savestate_menu_hud_redraw` (L417) — Asks for the HUD to be drawn again at the next present.
-- `psx_savestate_menu_set_toast` (L422) — A title's notices over all of it (psx_mod_set_title_toast): blended over the menu's or page's canvas or the HUD, or shown alone; a renderer that returns 2 is drawn again at the next present.
-- `psx_savestate_menu_toast_redraw` (L429) — Asks for the notices to be drawn again at the next present.
-- `psx_savestate_menu_overlay_blend` (L434) — The current image has transparency (a title's canvas): blend it.
-- `canvas_height` (L440) — Canvas height in pixels: 240 lines times the scale.
-- `canvas_width` (L445) — Canvas width in pixels matching the window aspect, clamped between 320 and the maximum times the scale.
-- `canvas_buffer` (L453) — Allocates the canvas buffer on first use at maximum size and returns it.
-- `render_canvas` (L462) — The title's canvas, when it has a renderer and draws this time.
-- `title_canvas` (L472) — Draws the title's canvas with its renderer into the buffer; returns 1 when it drew.
-- `give` (L482) — Returns an image pointer and its size through the out parameters; reports whether pixels exist.
-- `base_image` (L491) — The menu's, page's or HUD's image, without the notices.
-- `toast_update` (L529) — The notices' canvas, drawn when asked or while moving (renderer 2).
-- `blend_over` (L546) — Straight-alpha "over": the notices on top of the canvas under them.
-- `psx_savestate_menu_overlay_image` (L566) — Returns the final overlay image: the base image, with the notices blended on top when they are shown.
+- `fill_rect` (L92) — Fills a clipped rectangle of the menu panel with a colour.
+- `stroke_rect` (L105) — Draws a one-pixel outline rectangle on the menu panel.
+- `fill_disc` (L113) — Fills a clipped solid disc of radius r on the menu panel.
+- `draw_line` (L125) — Draws a thick line into a buffer by stepping pixels from one end to the other.
+- `draw_psx_button` (L153) — Draws a PSX pad button glyph (x, square or circle) at a position on the menu panel.
+- `draw_char` (L175) — Draws one 8 by 8 font glyph at a scale factor, uppercased, with '?' for unknown characters.
+- `draw_text` (L198) — Draws a string at a scale factor, advancing 8 times the scale per character.
+- `psx_ui_text` (L208) — Draws text into any ARGB buffer with the menu font and scale; returns the x position after the text.
+- `blit_thumb` (L231) — Scales a save thumbnail into a rectangle of the panel, forcing it opaque.
+- `format_slot_status` (L245) — Writes a slot's status line: NEW SLOT when empty, otherwise the save's date and time.
+- `refresh_thumbs` (L264) — Reloads every slot's thumbnail from its save file.
+- `rasterize_panel` (L279) — Redraws the whole slot browser panel: header, slot cards, selection and key hints.
+- `psx_savestate_menu_set_state` (L351) — Sets whether the menu is open and which slot is selected (clamped), marking it for redraw when changed.
+- `psx_savestate_menu_note_slots_changed` (L363) — Marks the menu for redraw after the save slots changed.
+- `psx_savestate_menu_needs_present` (L369) — 1 while the menu, page or a notice is visible, so the frame must be presented.
+- `psx_savestate_menu_set_renderer` (L374) — Sets the renderer that paints the selected slot's title canvas and marks the menu for redraw.
+- `all_dirty` (L380) — Marks the menu, page, HUD and notices for redraw.
+- `psx_savestate_menu_set_window` (L388) — The window's size, for the canvas' aspect (redrawn when it changes).
+- `psx_savestate_menu_set_scale` (L396) — Every title canvas (this menu's, the page's, the HUD's, the notices') is 240 x scale lines and 320..1024 x scale columns (1 or 2; 1 by default): a title drawing the PSX picture's pixels as scale x sca
+- `psx_savestate_menu_scale` (L405) — Returns the canvas scale factor (1 or 2).
+- `psx_savestate_menu_set_page` (L410) — Sets the title's full-screen page drawn behind the menu; marks the menu and HUD for redraw.
+- `psx_savestate_menu_page_redraw` (L418) — Asks for the title page to be drawn again at the next present.
+- `psx_savestate_menu_set_hud` (L423) — Sets the title's HUD renderer; clearing it turns the HUD off.
+- `psx_savestate_menu_hud_redraw` (L430) — Asks for the HUD to be drawn again at the next present.
+- `psx_savestate_menu_set_toast` (L435) — A title's notices over all of it (psx_mod_set_title_toast): blended over the menu's or page's canvas or the HUD, or shown alone; a renderer that returns 2 is drawn again at the next present.
+- `psx_savestate_menu_toast_redraw` (L442) — Asks for the notices to be drawn again at the next present.
+- `psx_savestate_menu_overlay_blend` (L447) — The current image has transparency (a title's canvas): blend it.
+- `canvas_height` (L453) — Canvas height in pixels: 240 lines times the scale.
+- `canvas_width` (L458) — Canvas width in pixels matching the window aspect, clamped between 320 and the maximum times the scale.
+- `canvas_buffer` (L466) — Allocates the canvas buffer on first use at maximum size and returns it.
+- `render_canvas` (L475) — The title's canvas, when it has a renderer and draws this time.
+- `title_canvas` (L485) — Draws the title's canvas with its renderer into the buffer; returns 1 when it drew.
+- `give` (L495) — Returns an image pointer and its size through the out parameters; reports whether pixels exist.
+- `base_image` (L504) — The menu's, page's or HUD's image, without the notices.
+- `toast_update` (L542) — The notices' canvas, drawn when asked or while moving (renderer 2).
+- `blend_over` (L559) — Straight-alpha "over": the notices on top of the canvas under them.
+- `psx_savestate_menu_overlay_image` (L579) — Returns the final overlay image: the base image, with the notices blended on top when they are shown.
 
 ### runtime/src/psx_sdl_audio.cpp
 
@@ -9146,45 +9146,45 @@ Host-timed render passes: runs a draw callback inside a checkpointed transaction
 - `psx_host_nesting_restore_free` (L186) — Restores the nesting saved for a host thread and frees that saved copy.
 - `nesting_balanced` (L195) — PSX_RENDER_PASS_VERIFY: a pass that returned normally must leave the nesting balanced; the restore would otherwise hide the imbalance.
 - `nesting_describe` (L217) — After a watchdog abort, before the restore: which exits the longjmp skipped (for the fault log).
-- `pass_refuse` (L303) — Records a refusal reason and status as the last failure and returns 0.
-- `watchdog_cycles` (L314) — PSX_RENDER_PASS_WATCHDOG=<guest cycles> lowers the cut-off (debug), so a title's rollback path can be exercised on real passes.
-- `verify_on` (L329) — 1 when PSX_RENDER_PASS_VERIFY is set to something other than 0.
-- `render_pass_get_stats` (L337) — Copies the render pass statistics into out, including the dropped-write counts.
-- `render_pass_verification_enabled` (L344) — Whether optional state-preservation verification is enabled.
-- `render_pass_reset_session` (L346) — Clears counters and the sticky fault latch (new mod session).
-- `psx_mod_set_render_pass_netplay` (L362) — A trusted title may opt into presentation-only passes during forward netplay.
-- `render_pass_netplay_enabled` (L366) — 1 when render passes are allowed during forward netplay.
-- `psx_mod_set_render_pass_flip` (L368) — Sets whether passes use the pending or the shown flip; returns 0 for an unknown mode.
-- `transaction_status` (L383) — Everything that must hold before guest code may run frozen, as a PSX_MOD_RENDER_PASS_* reason (READY = all of it holds).
-- `pass_status` (L405) — Returns the render pass status now, from the plain transaction check.
-- `psx_mod_render_stereo_status` (L406) — Returns busy while a stereo pair is drawing, otherwise the stereo transaction status.
-- `render_stereo_get_stats` (L409) — Copies the stereo statistics into out.
-- `psx_mod_set_stereo_presentation` (L410) — 0 disables stereo output; 1 shows a complete pair side by side.
-- `psx_mod_render_view_offset` (L413) — Camera-space addition to RT*V+TR before RTPS/RTPT perspective division.
-- `psx_mod_render_view` (L421) — Sets the camera rotation and translation for the next pass after range checks; returns 0 when refused.
-- `passes_allowed` (L434) — 1 when the render pass status is ready.
-- `psx_mod_render_pass_status` (L438) — Returns the current render pass status code; READY means passes may run.
-- `psx_mod_run_guest_span` (L442) — Runs guest code from start_pc to stop_pc through the dirty-RAM span runner; returns 1 on success.
-- `psx_mod_render_pass_plan` (L452) — Plans which vblanks get a render pass for the period, filling alpha values; returns how many were planned.
-- `fnv` (L480) — FNV-1a step over 64-bit words, then the tail bytes.
-- `state_hash` (L493) — Guest-visible state hash for PSX_RENDER_PASS_VERIFY.
-- `checkpoint_save` (L551) — Copies the whole live RAM, DMA state and related hardware state into the checkpoint so a pass can be rolled back; returns 1 on success.
-- `checkpoint_restore` (L595) — Restores the saved checkpoint: GPU, DMA, timers, interrupts and RAM.
-- `ema_ms` (L620) — Exponential moving average of a time cost in ms, weighting each new sample at 10 percent.
-- `watchdog_overrun` (L625) — Counts a pass that ran past its cycle budget and logs the first few with PC and call details.
-- `render_pass_mmio_read_allowed` (L639) — memory.c calls this before a pass reads MMIO.
-- `note_fault` (L666) — Counts a rolled-back pass, logs the first few, and latches a fault limit when faults pile up.
-- `local_scope_set` (L682) — Sets the local-view scope flag and tells the GPU.
-- `psx_mod_local_view_scope` (L686) — 1 while a psx_mod_render_local_view draw runs.
-- `transaction_kind` (L688) — Maps an eye to its transaction kind: 1 for a stereo eye, 2 for the local view, 0 for a plain pass.
-- `transaction_end` (L692) — Ends the matching transaction (stereo eye, local view or plain pass), keeping or discarding its output.
-- `render_transaction` (L699) — Runs one render transaction: checkpoints state, runs the draw, then keeps or rolls back and records its timing.
-- `psx_mod_render_local_view` (L884) — Runs a pass drawing into a local rectangle of the view; refuses rectangles out of bounds.
-- `psx_mod_render_local_view_status` (L898) — Returns the local-view transaction status.
-- `psx_mod_render_pass` (L902) — Runs a full render pass with the given callback; returns 1 on success.
-- `stereo_eye_draw` (L912) — Calls the stereo callback for one eye with its eye index.
-- `psx_mod_render_stereo` (L918) — Renders a stereo pair, one draw per eye, within a time budget; returns 1 on success.
-- `psx_mod_render_capture_rgba` (L1002) — Renders a pass into an RGBA buffer; returns 0 when the buffer, rectangle or status does not allow it.
+- `pass_refuse` (L306) — Records a refusal reason and status as the last failure and returns 0.
+- `watchdog_cycles` (L317) — PSX_RENDER_PASS_WATCHDOG=<guest cycles> lowers the cut-off (debug), so a title's rollback path can be exercised on real passes.
+- `verify_on` (L332) — 1 when PSX_RENDER_PASS_VERIFY is set to something other than 0.
+- `render_pass_get_stats` (L340) — Copies the render pass statistics into out, including the dropped-write counts.
+- `render_pass_verification_enabled` (L347) — Whether optional state-preservation verification is enabled.
+- `render_pass_reset_session` (L349) — Clears counters and the sticky fault latch (new mod session).
+- `psx_mod_set_render_pass_netplay` (L365) — A trusted title may opt into presentation-only passes during forward netplay.
+- `render_pass_netplay_enabled` (L369) — 1 when render passes are allowed during forward netplay.
+- `psx_mod_set_render_pass_flip` (L371) — Sets whether passes use the pending or the shown flip; returns 0 for an unknown mode.
+- `transaction_status` (L386) — Everything that must hold before guest code may run frozen, as a PSX_MOD_RENDER_PASS_* reason (READY = all of it holds).
+- `pass_status` (L408) — Returns the render pass status now, from the plain transaction check.
+- `psx_mod_render_stereo_status` (L409) — Returns busy while a stereo pair is drawing, otherwise the stereo transaction status.
+- `render_stereo_get_stats` (L412) — Copies the stereo statistics into out.
+- `psx_mod_set_stereo_presentation` (L413) — 0 disables stereo output; 1 shows a complete pair side by side.
+- `psx_mod_render_view_offset` (L416) — Camera-space addition to RT*V+TR before RTPS/RTPT perspective division.
+- `psx_mod_render_view` (L424) — Sets the camera rotation and translation for the next pass after range checks; returns 0 when refused.
+- `passes_allowed` (L437) — 1 when the render pass status is ready.
+- `psx_mod_render_pass_status` (L441) — Returns the current render pass status code; READY means passes may run.
+- `psx_mod_run_guest_span` (L445) — Runs guest code from start_pc to stop_pc through the dirty-RAM span runner; returns 1 on success.
+- `psx_mod_render_pass_plan` (L455) — Plans which vblanks get a render pass for the period, filling alpha values; returns how many were planned.
+- `fnv` (L483) — FNV-1a step over 64-bit words, then the tail bytes.
+- `state_hash` (L496) — Guest-visible state hash for PSX_RENDER_PASS_VERIFY.
+- `checkpoint_save` (L554) — Copies the whole live RAM, DMA state and related hardware state into the checkpoint so a pass can be rolled back; returns 1 on success.
+- `checkpoint_restore` (L601) — Restores the saved checkpoint: GPU, DMA, timers, interrupts and RAM.
+- `ema_ms` (L627) — Exponential moving average of a time cost in ms, weighting each new sample at 10 percent.
+- `watchdog_overrun` (L632) — Counts a pass that ran past its cycle budget and logs the first few with PC and call details.
+- `render_pass_mmio_read_allowed` (L646) — memory.c calls this before a pass reads MMIO.
+- `note_fault` (L673) — Counts a rolled-back pass, logs the first few, and latches a fault limit when faults pile up.
+- `local_scope_set` (L689) — Sets the local-view scope flag and tells the GPU.
+- `psx_mod_local_view_scope` (L693) — 1 while a psx_mod_render_local_view draw runs.
+- `transaction_kind` (L695) — Maps an eye to its transaction kind: 1 for a stereo eye, 2 for the local view, 0 for a plain pass.
+- `transaction_end` (L699) — Ends the matching transaction (stereo eye, local view or plain pass), keeping or discarding its output.
+- `render_transaction` (L706) — Runs one render transaction: checkpoints state, runs the draw, then keeps or rolls back and records its timing.
+- `psx_mod_render_local_view` (L891) — Runs a pass drawing into a local rectangle of the view; refuses rectangles out of bounds.
+- `psx_mod_render_local_view_status` (L905) — Returns the local-view transaction status.
+- `psx_mod_render_pass` (L909) — Runs a full render pass with the given callback; returns 1 on success.
+- `stereo_eye_draw` (L919) — Calls the stereo callback for one eye with its eye index.
+- `psx_mod_render_stereo` (L925) — Renders a stereo pair, one draw per eye, within a time budget; returns 1 on success.
+- `psx_mod_render_capture_rgba` (L1009) — Renders a pass into an RGBA buffer; returns 0 when the buffer, rectangle or status does not allow it.
 
 ### runtime/src/render_pass_frame.c
 
@@ -9946,13 +9946,13 @@ Holds the SPU volume envelope rules, covering the ADSR envelope and the volume s
 
 Re-renders the SPU voice mix in float with cubic interpolation, verified against the canonical spu.c output and used only while it stays proven.
 
-- `spu_shadow_set_enabled` (L47) — Config/launcher gate.
-- `spu_shadow_enabled` (L52) — Returns true if the shadow is enabled.
-- `spu_shadow_active` (L67) — Enabled and still running: false once the shadow gave up (never proven in its first windows since the last reset; spu_shadow.c).
-- `spu_shadow_reset` (L71) — Called once per spu_init() to (re)create verifier + per-voice resampler state.
-- `catmull_rom` (L82) — Catmull-Rom cubic through s1,s2 with neighbours s0,s3 at fraction t.
-- `spu_shadow_process` (L91) — Drive the shadow for one render block.
-- `spu_shadow_get_info` (L179) — Copies the shadow renderer's current status into the output struct.
+- `spu_shadow_set_enabled` (L49) — Config/launcher gate.
+- `spu_shadow_enabled` (L54) — Returns true if the shadow is enabled.
+- `spu_shadow_active` (L69) — Enabled and still running: false once the shadow gave up (never proven in its first windows since the last reset; spu_shadow.c).
+- `spu_shadow_reset` (L73) — Called once per spu_init() to (re)create verifier + per-voice resampler state.
+- `catmull_rom` (L84) — Catmull-Rom cubic through s1,s2 with neighbours s0,s3 at fraction t.
+- `spu_shadow_process` (L93) — Drive the shadow for one render block.
+- `spu_shadow_get_info` (L177) — Copies the shadow renderer's current status into the output struct.
 
 ### runtime/src/starvation_ring.c
 
