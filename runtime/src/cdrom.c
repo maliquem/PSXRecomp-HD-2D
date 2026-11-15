@@ -716,6 +716,24 @@ static void pending_arm(uint8_t cmd, int latency_cycles, int phase) {
     pending.due_cyc = psx_cycle_count + (uint64_t)latency_cycles;
 }
 
+/* SeekL/SeekP armed: the drive is moving the head (phase 2 = a Setloc
+ * retargeted it mid-seek, see process_pending). */
+static int seek_in_flight(void) {
+    return pending.pending && (pending.cmd == 0x15 || pending.cmd == 0x16);
+}
+
+/* Commands that neither move the drive nor arm a second response. A seek in
+ * flight finishes mechanically and still sends its INT2 across them. */
+static int cmd_leaves_drive_alone(uint8_t cmd) {
+    switch (cmd) {
+    case 0x01: case 0x02: case 0x0B: case 0x0C: case 0x0D: case 0x0E:
+    case 0x0F: case 0x10: case 0x11: case 0x13: case 0x14: case 0x19:
+        return 1;
+    default:
+        return 0;
+    }
+}
+
 static void pending_set_remaining(int rem) {
     if (!pending.pending) {
         pending.due_cyc = 0;
@@ -1631,7 +1649,7 @@ static void start_read_stream(uint8_t cmd) {
     cdda_track = 0;
     cdda_delay = 0;
     cdda_data_end_pending = 0;
-    stat_reg &= (uint8_t)~CDSTAT_PLAY;
+    stat_reg &= (uint8_t)~(CDSTAT_PLAY | CDSTAT_SEEK);   /* a read supersedes a seek in flight */
     clear_sector_buffer();
     /* Drive-state change cancels any pended notification (Beetle clears
      * AIP on Play/Read/Pause/Stop/Seek alike). */
@@ -1698,7 +1716,7 @@ static void stop_cdda_playback(void) {
     cdda_track = 0;
     cdda_delay = 0;
     cdda_data_end_pending = 0;
-    stat_reg &= (uint8_t)~CDSTAT_PLAY;
+    stat_reg &= (uint8_t)~(CDSTAT_PLAY | CDSTAT_SEEK);   /* a read supersedes a seek in flight */
 }
 
 static void deliver_cdda_data_end(void) {
@@ -2100,8 +2118,14 @@ static void exec_command(uint8_t cmd) {
      * wedged in a phase-locked DsRead FATAL/retry loop on its single-sector
      * marker reads, corrupting the streamed resource chain
      * (medal-of-honor-underground DEVLOG 2026-08-05). GT1 race loading
-     * shows the same stale-Pause overlap during ReadS streaming. */
-    if (pending.pending) {
+     * shows the same stale-Pause overlap during ReadS streaming.
+     *
+     * A seek is drive motion, not a command transaction: GetStat/Setloc/
+     * Setmode/Getloc… issued mid-seek leave it running, so SEEK clears and
+     * the INT2 arrives at its own deadline (dropping it left SEEK stuck and
+     * CdSync waiting forever). Pause, and every command that moves the
+     * drive or arms its own second response, still cancel as above. */
+    if (pending.pending && !(seek_in_flight() && cmd_leaves_drive_alone(cmd))) {
         trace_cdrom('X', 0, pending.cmd, 0);
         pending.pending = 0;
     }
@@ -2149,6 +2173,7 @@ static void exec_command(uint8_t cmd) {
             s_setloc_lba = msf_to_lba(seek_min, seek_sec, seek_sect);
             setloc_pending = 1;
             setloc_seek_far = (abs(current_lba - s_setloc_lba) > 16) ? 1 : 0;
+            if (seek_in_flight()) pending.phase = 2;   /* keep this target past the seek */
             warm_route_on_setloc(s_setloc_lba);
         }
         response_push(stat_reg);
@@ -2549,6 +2574,7 @@ static void process_pending(uint32_t cycles) {
     if (irq_flag != 0) return;
 
     done_cmd = pending.cmd;
+    int retargeted = pending.phase == 2;
     pending.pending = 0;
     pending.due_cyc = 0;
     response_clear();
@@ -2600,8 +2626,10 @@ static void process_pending(uint32_t cycles) {
     case 0x16: /* SeekP complete */
         stat_reg &= ~CDSTAT_SEEK;
         stat_reg |= CDSTAT_READ;   /* PSX-CD-003: GT1 waits for READ after seek */
-        setloc_seek_far = 0;
-    setloc_pending = 0;
+        if (!retargeted) {         /* a mid-seek Setloc stays pending for the next read */
+            setloc_seek_far = 0;
+            setloc_pending = 0;
+        }
         response_push(stat_reg);
         set_irq(CDIRQ_COMPLETE);
         fire_cdrom_irq();
