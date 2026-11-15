@@ -257,7 +257,7 @@ int render_pass_store_to(const RenderPassStoreTarget *t, uint32_t addr,
     if (phys < 0x00800000u) phys &= t->ram_size - 1u;
     if (phys < t->ram_size) {
         for (uint32_t i = 0; i < width; i++)
-            t->ram[phys + i] = (uint8_t)(val >> (8u * i));
+            t->ram[(phys + i) & (t->ram_size - 1u)] = (uint8_t)(val >> (8u * i));
         return -1;
     }
     if (phys >= 0x1F800000u && phys < 0x1F800000u + t->scratchpad_size) {
