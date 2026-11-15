@@ -735,24 +735,6 @@ bool FullFunctionEmitter::emit_function(
         branch_decls += fmt::format("    uint32_t psx_ldd_{:08X} = 0;  /* load-delay temp */\n", la);
     }
 
-    auto should_probe_pc = [](uint32_t pc) -> bool {
-        switch (pc) {
-        case 0xBFC148DCu:
-        case 0xBFC148F0u:
-        case 0xBFC148F8u:
-        case 0xBFC14900u:
-        case 0xBFC14908u:
-        case 0xBFC14934u:
-        case 0xBFC14F80u:
-        case 0xBFC15174u:
-        case 0xBFC15178u:
-        case 0xBFC15E80u:
-            return true;
-        default:
-            return false;
-        }
-    };
-
     const bool per_insn_cycles = bios_cycle_per_insn();
 
     /* Flush a deferred load writeback after its dependent successor's
@@ -959,9 +941,6 @@ bool FullFunctionEmitter::emit_function(
                     out += fmt::format("    psx_cpu_charge({}u);\n", bcyc);
                     out += "#endif\n";
                 }
-            }
-            if (should_probe_pc(addr)) {
-                out += fmt::format("    debug_server_log_probe(0x{:08X}u, cpu);\n", addr);
             }
         }
 
@@ -1466,26 +1445,14 @@ bool FullFunctionEmitter::emit_function(
                     // Continuation-passing: tail-transfer to the callee. Its
                     // jr $ra sets cpu->pc = return_addr; the trampoline then
                     // dispatches the registered continuation. No host nesting.
-                    if (target == 0x00006380u) {
-                        out += fmt::format("    debug_server_log_probe(0x{:08X}u, cpu);\n",
-                                           pb.terminator_addr);
-                    }
                     // $ra was linked once, before the delay slot (hardware order).
                     out += emit_irq_check(target);
                     out += fmt::format("    cpu->pc = 0x{:08X}u; return;\n", target);
                 } else {
                     out += "    { uint32_t _csp = cpu->gpr[29];\n";
                     // Regular call: always go through psx_dispatch (handles tail-call loop).
-                    if (target == 0x00006380u) {
-                        out += fmt::format("    debug_server_log_probe(0x{:08X}u, cpu);\n",
-                                           pb.terminator_addr);
-                    }
                     out += emit_irq_check(target);
                     out += fmt::format("    psx_dispatch(cpu, 0x{:08X}u);\n", target);
-                    if (target == 0x00006380u) {
-                        out += fmt::format("    debug_server_log_probe(0x{:08X}u, cpu);\n",
-                                           pb.terminator_addr + 1);
-                    }
                     out += fmt::format("    if (psx_call_contract(cpu, 0x{:08X}u, _csp)) return; }}\n",
                                        return_addr);
                     // Safety net: if continuation falls outside this function, tail-call to it.
