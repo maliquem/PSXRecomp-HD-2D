@@ -1806,6 +1806,11 @@ irq_deliver_eval:
     } else {
         uint32_t w0 = cpu->read_word(0x80000080u);
         uint32_t w1 = cpu->read_word(0x80000084u);
+        /* Anything but `lui r,hi` + `addiu x,r,lo` (e.g. `j h` + nop) is run by
+         * the guest vector code itself: dispatch to the vector, commit nothing. */
+        target_pc = 0x80000080u;
+        if ((w0 >> 26) == 0x0Fu && (w1 >> 26) == 0x09u &&
+            ((w0 >> 16) & 31u) == ((w1 >> 21) & 31u)) {
         uint32_t hi_val = (w0 & 0xFFFF) << 16;
         int16_t lo_val = (int16_t)(w1 & 0xFFFF);
         target_pc = hi_val + (uint32_t)(int32_t)lo_val;
@@ -1818,6 +1823,7 @@ irq_deliver_eval:
          * a BIOS instruction word (0xAD400000) as a jump target. */
         uint32_t vector_reg = (w1 >> 16) & 31u;
         if (vector_reg != 0u) cpu->gpr[vector_reg] = target_pc;
+        }
     }
 
     /* Record which fiber owns this setjmp. Any subsequent longjmp must
