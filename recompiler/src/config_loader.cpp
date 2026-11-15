@@ -3219,135 +3219,134 @@ GameConfig load_game_config(const fs::path& config_path_in) {
         }
     }
 
-    GameConfig loaded{
-        /*config_path*/      config_path,
-        /*project_root*/     root,
-        /*name*/             name,
-        /*id*/               id,
-        /*region*/           region,
-        /*players*/          players,
-        /*exe_path*/         exe_path,
-        /*load_address*/     load_address,
-        /*entry_pc*/         entry_pc,
-        /*text_size*/        text_size,
-        /*stack_base*/       stack_base,
-        /*discs*/            discs,
-        /*disc_serials*/     disc_serials,
-        /*disc_requests*/    disc_requests,
-        /*has_disc_crc*/     has_disc_crc,
-        /*disc_crc*/         disc_crc,
-        /*disc_sha1*/        disc_sha1,
-        /*netplay_require_cue*/ netplay_require_cue,
-        /*netplay_required_tracks*/ netplay_required_tracks,
-        /*has_netplay_required_leadout*/ has_netplay_required_leadout,
-        /*netplay_required_leadout_lba*/ netplay_required_leadout_lba,
-        /*netplay_required_disc_fp*/ netplay_required_disc_fp,
-        /*netplay_required_disc_fps*/ netplay_required_disc_fps,
-        /*netplay_local_viewport*/ netplay_local_viewport,
-        /*netplay_local_viewport_aspect*/ netplay_local_viewport_aspect,
-        /*netplay_local_viewport_renderer*/ netplay_local_viewport_renderer,
-        /*netplay_local_viewport_width_sites*/ netplay_local_viewport_width_sites,
-        /*netplay_local_viewport_state_addr*/ netplay_local_viewport_state_addr,
-        /*netplay_local_viewport_state_values*/ netplay_local_viewport_state_values,
-        /*netplay_content_negotiation*/ netplay_content_negotiation,
-        /*seeds_path*/       seeds_path,
-        /*bios_thunks_path*/ bios_thunks_path,
-        /*bios_config_path*/ bios_config_path,
-        /*out_dir*/          out_dir,
-        /*strict*/           strict,
-        /*discovery*/        discovery,
-        /*out_stem*/         out_stem,
-        /*recompiler_patches*/ recompiler_patches,
-        /*runtime*/          parse_runtime_block(cfg, root),
-        /*ws_sprite_tag_funcs*/   ws_sprite_tag_funcs,
-        /*ws_sprite_anchor_addr*/ ws_sprite_anchor_addr,
-        /*ws_hud_sprt_squash*/    ws_hud_sprt_squash,
-        /*ws_auto_ui_squash*/      ws_auto_ui_squash,
-        /*ws_auto_ui_in_place*/    ws_auto_ui_in_place,
-        /*ws_auto_ui_proportional*/ ws_auto_ui_proportional,
-        /*data_shard_funcs*/      data_shard_funcs,
-        /*mod_function_entry_funcs*/ mod_function_entry_funcs,
-        /*mod_instruction_sites*/ mod_instruction_sites,
-        /*hot_funcs*/             hot_funcs,
-        /*load_charge_batch*/     load_charge_batch,
-        /*load_charge_batch_funcs*/ load_charge_batch_funcs,
-        /*vsync_query_func*/      vsync_query_func,
-        /*vsync_counter_addr*/    vsync_counter_addr,
-        /*vsync_gpustat_ptr_addr*/ vsync_gpustat_ptr_addr,
-        /*vsync_timer1_ptr_addr*/ vsync_timer1_ptr_addr,
-        /*vsync_timer1_cache_addr*/ vsync_timer1_cache_addr,
-        /*vsync_event_horizon_sites*/ vsync_event_horizon_sites,
-        /*vsync_event_horizon_extra_sites*/ vsync_event_horizon_extra_sites,
-        /*vsync_event_horizon_any*/   vsync_event_horizon_any,
-        /*ws_cull_bias_sites*/    ws_cull_bias_sites,
-        /*ws_cull_bias_lower_sites*/ ws_cull_bias_lower_sites,
-        /*ws_cull_range_sites*/   ws_cull_range_sites,
-        /*ws_cull_a1_sites*/      ws_cull_a1_sites,
-        /*ws_cull_screen_x_sites*/ ws_cull_screen_x_sites,
-        /*ws_cull_screen_x_guarded*/ ws_cull_screen_x_guarded,
-        /*ws_cull_slti_sites*/    ws_cull_slti_sites,
-        /*ws_cull_slti_lower_sites*/ ws_cull_slti_lower_sites,
-        /*ws_cull_bltz_sites*/    ws_cull_bltz_sites,
-        /*ws_cull_negsub_sites*/  ws_cull_negsub_sites,
-        /*ws_cull_vxrange_sites*/ ws_cull_vxrange_sites,
-        /*ws_cull_depth_sites*/   ws_cull_depth_sites,
-        /*ws_cull_plane_nx_sites*/ ws_cull_plane_nx_sites,
-        /*ws_cull_xclip_load_sites*/ ws_cull_xclip_load_sites,
-        /*ws_cull_nclip_keep_sites*/ ws_cull_nclip_keep_sites,
-        /*ws_cull_nclip_exact_sites*/ ws_cull_nclip_exact_sites,
-        /*ws_cull_branch_keep_sites*/ ws_cull_branch_keep_sites,
-        /*ws_cull_keep_sites*/    ws_cull_keep_sites,
-        /*ws_cull_sxy_sites*/     ws_cull_sxy_sites,
-        /*ws_cull_scale_sites*/   ws_cull_scale_sites,
-        /*ws_cull_angle_sites*/   ws_cull_angle_sites,
-        /*ws_aspect_cone*/         ws_aspect_cone,
-        /*ws_cull_guard_pixels*/  ws_cull_guard_pixels,
-        /*ws_cull_activation_guard_pixels*/ ws_cull_activation_guard_pixels,
-        /*ws_cull_w_imms*/        ws_cull_w_imms,
-        /*ws_cull_h_imms*/        ws_cull_h_imms,
-        /*ws_backdrop_x_sites*/   ws_backdrop_x_sites,
-        /*ws_backdrop_unsquash_funcs*/ ws_backdrop_unsquash_funcs,
-        /*ws_dome_call_sites*/    ws_dome_call_sites,
-        /*ws_auto_screen_x_cull*/ ws_auto_screen_x_cull,
-        /*ws_auto_backdrop_preload*/ ws_auto_backdrop_preload,
-        /*ws_full_2d*/            ws_full_2d,
-        /*ws_gte_game_mode*/      ws_gte_game_mode,
-        /*ws_precise_nclip*/      ws_precise_nclip,
-        /*ws_gameplay_state_addr*/ ws_gameplay_state_addr,
-        /*ws_gameplay_state_values*/ ws_gameplay_state_values,
-        /*ws_native_wide*/        ws_native_wide,
-        /*ws_nw_hud_corners*/     ws_nw_hud_corners,
-        /*ws_nw_left_hud_packet_lo*/ ws_nw_left_hud_packet_lo,
-        /*ws_nw_left_hud_packet_hi*/ ws_nw_left_hud_packet_hi,
-        /*ws_nw_backdrop*/        ws_nw_backdrop,
-        /*ws_clear_reveal*/       ws_clear_reveal,
-        /*ws_nw_flat_backdrop*/   ws_nw_flat_backdrop,
-        /*ws_nw_phase_backdrop*/  ws_nw_phase_backdrop,
-        /*ws_nw_textured_edges*/ ws_nw_textured_edges,
-        /*ws_nw_textured_edge_scale*/ ws_nw_textured_edge_scale,
-        /*ws_nw_full_mirror*/ ws_nw_full_mirror,
-        /*ws_signed_x_bound_sites*/ ws_signed_x_bound_sites,
-        /*ws_offered*/            ws_offered,
-        /*vulkan_offered*/        vulkan_offered,
-        /*ws_adaptive_view*/      ws_adaptive_view,
-        /*ws_ultrawide_offered*/  ws_ultrawide_offered,
-        /*ws_bg2d_count_site*/    ws_bg2d_count_site,
-        /*ws_bg2d_startcol_site*/ ws_bg2d_startcol_site,
-        /*ws_bg2d_startx_site*/   ws_bg2d_startx_site,
-        /*ws_bg2d_stream_left_site*/  ws_bg2d_stream_left_site,
-        /*ws_bg2d_stream_right_site*/ ws_bg2d_stream_right_site,
-        /*ws_bg2d_bufbase_site*/  ws_bg2d_bufbase_site,
-        /*ws_bg2d_cap_site*/      ws_bg2d_cap_site,
-        /*ws_bg2d_layer_base*/    ws_bg2d_layer_base,
-        /*ws_bg2d_ring_base*/     ws_bg2d_ring_base,
-        /*ws_bg2d_map_size_addr*/ ws_bg2d_map_size_addr,
-        /*ws_bg2d_layer_stride_addr*/ ws_bg2d_layer_stride_addr,
-        /*ws_bg2d_ring_cols*/     ws_bg2d_ring_cols,
-        /*ws_bg2d_layer_count*/   ws_bg2d_layer_count,
-        /*ws_bg2d_layer_struct_stride*/ ws_bg2d_layer_struct_stride,
-        /*ws_bg2d_init_func*/     ws_bg2d_init_func,
-        /*ws_bg2d_packet_cap*/    ws_bg2d_packet_cap,
-    };
+    GameConfig loaded{};
+    loaded.config_path = config_path;
+    loaded.project_root = root;
+    loaded.name = name;
+    loaded.id = id;
+    loaded.region = region;
+    loaded.players = players;
+    loaded.exe_path = exe_path;
+    loaded.load_address = load_address;
+    loaded.entry_pc = entry_pc;
+    loaded.text_size = text_size;
+    loaded.stack_base = stack_base;
+    loaded.discs = discs;
+    loaded.disc_serials = disc_serials;
+    loaded.disc_requests = disc_requests;
+    loaded.has_disc_crc = has_disc_crc;
+    loaded.disc_crc = disc_crc;
+    loaded.disc_sha1 = disc_sha1;
+    loaded.netplay_require_cue = netplay_require_cue;
+    loaded.netplay_required_tracks = netplay_required_tracks;
+    loaded.has_netplay_required_leadout = has_netplay_required_leadout;
+    loaded.netplay_required_leadout_lba = netplay_required_leadout_lba;
+    loaded.netplay_required_disc_fp = netplay_required_disc_fp;
+    loaded.netplay_required_disc_fps = netplay_required_disc_fps;
+    loaded.netplay_local_viewport = netplay_local_viewport;
+    loaded.netplay_local_viewport_aspect = netplay_local_viewport_aspect;
+    loaded.netplay_local_viewport_renderer = netplay_local_viewport_renderer;
+    loaded.netplay_local_viewport_width_sites = netplay_local_viewport_width_sites;
+    loaded.netplay_local_viewport_state_addr = netplay_local_viewport_state_addr;
+    loaded.netplay_local_viewport_state_values = netplay_local_viewport_state_values;
+    loaded.netplay_content_negotiation = netplay_content_negotiation;
+    loaded.seeds_path = seeds_path;
+    loaded.bios_thunks_path = bios_thunks_path;
+    loaded.bios_config_path = bios_config_path;
+    loaded.out_dir = out_dir;
+    loaded.strict = strict;
+    loaded.discovery = discovery;
+    loaded.out_stem = out_stem;
+    loaded.recompiler_patches = recompiler_patches;
+    loaded.runtime = parse_runtime_block(cfg, root);
+    loaded.ws_sprite_tag_funcs = ws_sprite_tag_funcs;
+    loaded.ws_sprite_anchor_addr = ws_sprite_anchor_addr;
+    loaded.ws_hud_sprt_squash = ws_hud_sprt_squash;
+    loaded.ws_auto_ui_squash = ws_auto_ui_squash;
+    loaded.ws_auto_ui_in_place = ws_auto_ui_in_place;
+    loaded.ws_auto_ui_proportional = ws_auto_ui_proportional;
+    loaded.data_shard_funcs = data_shard_funcs;
+    loaded.mod_function_entry_funcs = mod_function_entry_funcs;
+    loaded.mod_instruction_sites = mod_instruction_sites;
+    loaded.hot_funcs = hot_funcs;
+    loaded.load_charge_batch = load_charge_batch;
+    loaded.load_charge_batch_funcs = load_charge_batch_funcs;
+    loaded.vsync_query_func = vsync_query_func;
+    loaded.vsync_counter_addr = vsync_counter_addr;
+    loaded.vsync_gpustat_ptr_addr = vsync_gpustat_ptr_addr;
+    loaded.vsync_timer1_ptr_addr = vsync_timer1_ptr_addr;
+    loaded.vsync_timer1_cache_addr = vsync_timer1_cache_addr;
+    loaded.vsync_event_horizon_sites = vsync_event_horizon_sites;
+    loaded.vsync_event_horizon_extra_sites = vsync_event_horizon_extra_sites;
+    loaded.vsync_event_horizon_any = vsync_event_horizon_any;
+    loaded.ws_cull_bias_sites = ws_cull_bias_sites;
+    loaded.ws_cull_bias_lower_sites = ws_cull_bias_lower_sites;
+    loaded.ws_cull_range_sites = ws_cull_range_sites;
+    loaded.ws_cull_a1_sites = ws_cull_a1_sites;
+    loaded.ws_cull_screen_x_sites = ws_cull_screen_x_sites;
+    loaded.ws_cull_screen_x_guarded = ws_cull_screen_x_guarded;
+    loaded.ws_cull_slti_sites = ws_cull_slti_sites;
+    loaded.ws_cull_slti_lower_sites = ws_cull_slti_lower_sites;
+    loaded.ws_cull_bltz_sites = ws_cull_bltz_sites;
+    loaded.ws_cull_negsub_sites = ws_cull_negsub_sites;
+    loaded.ws_cull_vxrange_sites = ws_cull_vxrange_sites;
+    loaded.ws_cull_depth_sites = ws_cull_depth_sites;
+    loaded.ws_cull_plane_nx_sites = ws_cull_plane_nx_sites;
+    loaded.ws_cull_xclip_load_sites = ws_cull_xclip_load_sites;
+    loaded.ws_cull_nclip_keep_sites = ws_cull_nclip_keep_sites;
+    loaded.ws_cull_nclip_exact_sites = ws_cull_nclip_exact_sites;
+    loaded.ws_cull_branch_keep_sites = ws_cull_branch_keep_sites;
+    loaded.ws_cull_keep_sites = ws_cull_keep_sites;
+    loaded.ws_cull_sxy_sites = ws_cull_sxy_sites;
+    loaded.ws_cull_scale_sites = ws_cull_scale_sites;
+    loaded.ws_cull_angle_sites = ws_cull_angle_sites;
+    loaded.ws_aspect_cone = ws_aspect_cone;
+    loaded.ws_cull_guard_pixels = ws_cull_guard_pixels;
+    loaded.ws_cull_activation_guard_pixels = ws_cull_activation_guard_pixels;
+    loaded.ws_cull_w_imms = ws_cull_w_imms;
+    loaded.ws_cull_h_imms = ws_cull_h_imms;
+    loaded.ws_backdrop_x_sites = ws_backdrop_x_sites;
+    loaded.ws_backdrop_unsquash_funcs = ws_backdrop_unsquash_funcs;
+    loaded.ws_dome_call_sites = ws_dome_call_sites;
+    loaded.ws_auto_screen_x_cull = ws_auto_screen_x_cull;
+    loaded.ws_auto_backdrop_preload = ws_auto_backdrop_preload;
+    loaded.ws_full_2d = ws_full_2d;
+    loaded.ws_gte_game_mode = ws_gte_game_mode;
+    loaded.ws_precise_nclip = ws_precise_nclip;
+    loaded.ws_gameplay_state_addr = ws_gameplay_state_addr;
+    loaded.ws_gameplay_state_values = ws_gameplay_state_values;
+    loaded.ws_native_wide = ws_native_wide;
+    loaded.ws_nw_hud_corners = ws_nw_hud_corners;
+    loaded.ws_nw_left_hud_packet_lo = ws_nw_left_hud_packet_lo;
+    loaded.ws_nw_left_hud_packet_hi = ws_nw_left_hud_packet_hi;
+    loaded.ws_nw_backdrop = ws_nw_backdrop;
+    loaded.ws_clear_reveal = ws_clear_reveal;
+    loaded.ws_nw_flat_backdrop = ws_nw_flat_backdrop;
+    loaded.ws_nw_phase_backdrop = ws_nw_phase_backdrop;
+    loaded.ws_nw_textured_edges = ws_nw_textured_edges;
+    loaded.ws_nw_textured_edge_scale = ws_nw_textured_edge_scale;
+    loaded.ws_nw_full_mirror = ws_nw_full_mirror;
+    loaded.ws_signed_x_bound_sites = ws_signed_x_bound_sites;
+    loaded.ws_offered = ws_offered;
+    loaded.vulkan_offered = vulkan_offered;
+    loaded.ws_adaptive_view = ws_adaptive_view;
+    loaded.ws_ultrawide_offered = ws_ultrawide_offered;
+    loaded.ws_bg2d_count_site = ws_bg2d_count_site;
+    loaded.ws_bg2d_startcol_site = ws_bg2d_startcol_site;
+    loaded.ws_bg2d_startx_site = ws_bg2d_startx_site;
+    loaded.ws_bg2d_stream_left_site = ws_bg2d_stream_left_site;
+    loaded.ws_bg2d_stream_right_site = ws_bg2d_stream_right_site;
+    loaded.ws_bg2d_bufbase_site = ws_bg2d_bufbase_site;
+    loaded.ws_bg2d_cap_site = ws_bg2d_cap_site;
+    loaded.ws_bg2d_layer_base = ws_bg2d_layer_base;
+    loaded.ws_bg2d_ring_base = ws_bg2d_ring_base;
+    loaded.ws_bg2d_map_size_addr = ws_bg2d_map_size_addr;
+    loaded.ws_bg2d_layer_stride_addr = ws_bg2d_layer_stride_addr;
+    loaded.ws_bg2d_ring_cols = ws_bg2d_ring_cols;
+    loaded.ws_bg2d_layer_count = ws_bg2d_layer_count;
+    loaded.ws_bg2d_layer_struct_stride = ws_bg2d_layer_struct_stride;
+    loaded.ws_bg2d_init_func = ws_bg2d_init_func;
+    loaded.ws_bg2d_packet_cap = ws_bg2d_packet_cap;
     loaded.ws_cull_bgez_sites = std::move(ws_cull_bgez_sites);
     loaded.ws_cull_clip_edge_x_load_sites =
         std::move(ws_cull_clip_edge_x_load_sites);
