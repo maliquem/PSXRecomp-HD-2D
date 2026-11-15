@@ -570,8 +570,6 @@ int sio_hold_present_for_card(void) {
     return 1;
 }
 
-/* Forward decl: defined below sio_get_freeze_diag. */
-static int sio_card_burst_drain(int max_iters);
 extern int psx_get_in_exception(void);
 extern uint8_t psx_read_byte(uint32_t addr);
 
@@ -2363,35 +2361,6 @@ void sio_write(uint32_t addr, uint32_t value) {
                 sr_record(SR_EVT_TX_DROPPED, b, 0);
             }
         }
-#else
-        {
-            uint16_t arm_dbg_ctrl_pre  = sio_ctrl;
-            uint16_t arm_dbg_stat_pre  = sio_stat;
-            sio_process_byte(sio_tx_data);
-            uint8_t  arm_dbg_dev_at_decision = (uint8_t)active_device;
-            sio_stat &= ~(SIO_STAT_TX_RDY | SIO_STAT_TX_EMPTY);
-            extern void sio_card_arm_audit_record(int dev, uint16_t ctrl_pre,
-                                                  uint16_t stat_pre, uint16_t stat_post,
-                                                  int armed, int countdown_after);
-            int armed_now = 0;
-            if ((sio_stat & SIO_STAT_ACK) && (sio_ctrl & SIO_CTRL_ACK_IRQ_EN)) {
-                sio_stat &= ~SIO_STAT_ACK;
-                sio_irq_pending = 1;
-                sio_irq_countdown = (active_device == DEV_MEMCARD)
-                    ? SIO_IRQ_DELAY_CARD : SIO_IRQ_DELAY_PAD;
-                event_ring_record_aux(EV_ENQ, (uint8_t)SRC_SIO, (uint32_t)sio_irq_countdown);
-                sio_irq_pending_source   = (active_device == DEV_MEMCARD)
-                                           ? SIO_IRQ_SRC_CARD_ACK : SIO_IRQ_SRC_PAD_ACK;
-                sio_irq_pending_slot     = (uint8_t)selected_slot;
-                sio_irq_pending_delay    = (uint8_t)sio_irq_countdown;
-                sio_irq_pending_mc_state = (uint8_t)mc_state;
-                sio_irq_pending_byte_seq = sio_trace_seq;
-                armed_now = 1;
-            }
-            sio_card_arm_audit_record(arm_dbg_dev_at_decision, arm_dbg_ctrl_pre,
-                                      arm_dbg_stat_pre, sio_stat,
-                                      armed_now, sio_irq_countdown);
-        }
 #endif
         break;
 
@@ -2604,52 +2573,9 @@ typedef struct {
 } SioBurstStats;
 
 static SioBurstStats s_burst_stats;
-static uint32_t s_irq_seq_at_burst_start = 0;
 
 extern uint8_t psx_read_byte(uint32_t addr);
 extern int     psx_get_in_exception(void);
-
-static int sio_card_burst_drain(int max_iters) {
-    if (max_iters <= 0) max_iters = 128;
-    if (max_iters > 1024) max_iters = 1024;
-
-    s_burst_stats.calls++;
-    uint32_t fires_before = sio_irq_seq;
-    int iters = 0;
-    uint8_t reason = 1; /* default: idle break */
-
-    for (; iters < max_iters; iters++) {
-        /* Idle check (do BEFORE the tick — if there's nothing pending and
-         * countdown is 0, ticking is a no-op anyway). */
-        if (!sio_irq_pending && sio_irq_countdown == 0) {
-            reason = 1;
-            break;
-        }
-        /* Card protocol returned to IDLE — transaction finished or aborted.
-         * mc_state is the authoritative "transfer in flight" signal; the
-         * BIOS-RAM word [0x75C0] is only set during the data-byte phase
-         * (after the address handshake), so checking it here would have
-         * blocked bursting through the SELECT/CMD/ADDR setup bytes that
-         * precede the data phase. */
-        if (mc_state == MC_IDLE) {
-            reason = 2;
-            break;
-        }
-        sio_tick(0);
-    }
-
-    if (iters == max_iters) reason = 3;
-
-    s_burst_stats.iters_total += (uint64_t)iters;
-    if ((uint32_t)iters > s_burst_stats.iter_max_seen) s_burst_stats.iter_max_seen = (uint32_t)iters;
-    if (reason == 1) s_burst_stats.break_idle++;
-    else if (reason == 2) s_burst_stats.break_mode_clear++;
-    else if (reason == 3) s_burst_stats.break_capped++;
-    s_burst_stats.last_iters = (uint32_t)iters;
-    s_burst_stats.last_break_reason = reason;
-    s_burst_stats.fires_in_burst += (uint32_t)(sio_irq_seq - fires_before);
-    return iters;
-}
 
 void sio_get_burst_stats(uint64_t out[10]) {
     out[0] = s_burst_stats.calls;
