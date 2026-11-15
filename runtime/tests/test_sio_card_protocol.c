@@ -199,12 +199,55 @@ static void test_msb_lsb_echo(void) {
     sio_init();
     memcard_init("test_dir");
     uint8_t rx[140];
-    uint16_t sector = 0x1234;  /* MSB=0x12, LSB=0x34 */
+    uint16_t sector = 0x0234;  /* MSB=0x02, LSB=0x34 (sector < 400h) */
     int n = run_card_read(0, sector, rx);
     EXPECT_EQ("echo.count", 140, n);
-    EXPECT_EQ("echo.idx[8]_MSB", 0x12, rx[8]);
+    EXPECT_EQ("echo.idx[8]_MSB", 0x02, rx[8]);
     EXPECT_EQ("echo.idx[9]_LSB", 0x34, rx[9]);
+    EXPECT_EQ("echo.idx[139]_end", 0x47, rx[139]);
     (void)n;
+}
+
+/* psx-spx (controllersandmemorycards): Get Card ID = FLAG 5A 5D 5C 5D 04 00 00 80. */
+static void test_get_id_sequence(void) {
+    static const uint8_t want[8] = { 0x5A, 0x5D, 0x5C, 0x5D, 0x04, 0x00, 0x00, 0x80 };
+    sio_init();
+    memcard_init("test_dir");
+    EXPECT_EQ("getid.prefix", 0xFF, card_xchg(0x81, 0));
+    EXPECT_EQ("getid.flag", 0x08, card_xchg(0x53, 0));
+    for (int i = 0; i < 8; i++) {
+        EXPECT_EQ("getid.byte", want[i], card_xchg(0x00, 0));
+    }
+    /* The transaction is over: a normal read right after is unaffected. */
+    uint8_t rx[140];
+    EXPECT_EQ("getid.next_read_count", 140, run_card_read(0, 0, rx));
+    EXPECT_EQ("getid.next_read_end", 0x47, rx[139]);
+}
+
+/* Sony card: read of sector >= 400h answers FFFFh and aborts, no data/chk/end. */
+static void test_read_invalid_sector_aborts(void) {
+    sio_init();
+    memcard_init("test_dir");
+    card_xchg(0x81, 0);
+    card_xchg(0x52, 0);
+    EXPECT_EQ("badsec.id1", 0x5A, card_xchg(0x00, 0));
+    EXPECT_EQ("badsec.id2", 0x5D, card_xchg(0x00, 0));
+    card_xchg(0x04, 0);                                   /* MSB of 0400h */
+    card_xchg(0x00, 0);                                   /* LSB */
+    EXPECT_EQ("badsec.ack1", 0x5C, card_xchg(0x00, 0));
+    EXPECT_EQ("badsec.ack2", 0x5D, card_xchg(0x00, 0));
+    EXPECT_EQ("badsec.confirm_msb", 0xFF, card_xchg(0x00, 0));
+    EXPECT_EQ("badsec.confirm_lsb", 0xFF, card_xchg(0x00, 0));
+    /* Aborted: the card sends nothing more; later bytes get no card data. */
+    EXPECT_EQ("badsec.after", 0xFF, card_xchg(0x00, 0));
+    card_deselect(0);
+
+    /* Last valid sector (3FFh) still reads in full. */
+    uint8_t rx[140];
+    EXPECT_EQ("lastsec.count", 140, run_card_read(0, 0x03FF, rx));
+    EXPECT_EQ("lastsec.msb", 0x03, rx[8]);
+    EXPECT_EQ("lastsec.lsb", 0xFF, rx[9]);
+    EXPECT_EQ("lastsec.end", 0x47, rx[139]);
 }
 
 /* ---- Tests ---- */
@@ -514,6 +557,18 @@ int main(int argc, char **argv) {
     prev_checks = g_checks; prev_fails = g_failures;
     test_msb_lsb_echo();
     fprintf(stderr, "test_msb_lsb_echo:                  %d/%d ok\n",
+            (g_checks - prev_checks) - (g_failures - prev_fails),
+            g_checks - prev_checks);
+
+    prev_checks = g_checks; prev_fails = g_failures;
+    test_get_id_sequence();
+    fprintf(stderr, "test_get_id_sequence:               %d/%d ok\n",
+            (g_checks - prev_checks) - (g_failures - prev_fails),
+            g_checks - prev_checks);
+
+    prev_checks = g_checks; prev_fails = g_failures;
+    test_read_invalid_sector_aborts();
+    fprintf(stderr, "test_read_invalid_sector_aborts:    %d/%d ok\n",
             (g_checks - prev_checks) - (g_failures - prev_fails),
             g_checks - prev_checks);
 

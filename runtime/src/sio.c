@@ -1779,6 +1779,7 @@ static void mc_process_byte(uint8_t tx_byte) {
     case MC_ID2:
         if (mc_cmd == 0x53) {
             mc_state = MC_GETID_1;
+            mc_data_idx = 0;
             sio_rx_data = 0x5D;
             sio_stat |= SIO_STAT_ACK;
         } else {
@@ -1788,23 +1789,17 @@ static void mc_process_byte(uint8_t tx_byte) {
         }
         break;
 
-    case MC_GETID_1:
-        mc_state = MC_GETID_2;
-        sio_rx_data = 0x04;
+    case MC_GETID_1: {
+        /* psx-spx Get Card ID: 5Ch 5Dh (command acks), then 04h 00h 00h 80h.
+         * GETID_1 walks the first five via mc_data_idx so the enum keeps its
+         * values (savestate validation); GETID_2/3 are no longer entered. */
+        static const uint8_t k_getid_seq[5] = { 0x5C, 0x5D, 0x04, 0x00, 0x00 };
+        if (mc_data_idx < 0 || mc_data_idx > 4) mc_data_idx = 4; /* loaded state */
+        sio_rx_data = k_getid_seq[mc_data_idx++];
+        if (mc_data_idx >= 5) mc_state = MC_GETID_4;
         sio_stat |= SIO_STAT_ACK;
         break;
-
-    case MC_GETID_2:
-        mc_state = MC_GETID_3;
-        sio_rx_data = 0x00;
-        sio_stat |= SIO_STAT_ACK;
-        break;
-
-    case MC_GETID_3:
-        mc_state = MC_GETID_4;
-        sio_rx_data = 0x00;
-        sio_stat |= SIO_STAT_ACK;
-        break;
+    }
 
     case MC_GETID_4:
         mc_state = MC_IDLE;
@@ -1864,15 +1859,22 @@ static void mc_process_byte(uint8_t tx_byte) {
         /* Per no$psx: card echoes the requested sector address back to host
          * as a confirm-the-address handshake, BEFORE sending the data bytes. */
         mc_state = MC_READ_LSB_ECHO;
-        sio_rx_data = mc_sector_msb;
+        /* psx-spx: an original Sony card answers sector >= 400h with FFFFh as
+         * confirmed address and aborts (no data, checksum or end byte). */
+        sio_rx_data = (mc_sector < MEMCARD_SECTORS) ? mc_sector_msb : 0xFF;
         sio_stat |= SIO_STAT_ACK;
         break;
 
     case MC_READ_LSB_ECHO:
-        mc_state = MC_READ_DATA;
         mc_data_idx = 0;
-        sio_rx_data = mc_sector_lsb;
-        sio_stat |= SIO_STAT_ACK;
+        if (mc_sector < MEMCARD_SECTORS) {
+            mc_state = MC_READ_DATA;
+            sio_rx_data = mc_sector_lsb;
+            sio_stat |= SIO_STAT_ACK;
+        } else {
+            mc_state = MC_IDLE; /* aborted: last byte of the transfer, no ACK */
+            sio_rx_data = 0xFF;
+        }
         break;
 
     case MC_READ_DATA:
@@ -1899,11 +1901,7 @@ static void mc_process_byte(uint8_t tx_byte) {
                                              const uint8_t *data128);
         card_read_summary_record(mc_slot, mc_cmd, mc_sector,
                                  mc_checksum, mc_data_idx, mc_data);
-        if (mc_sector < MEMCARD_SECTORS) {
-            sio_rx_data = 0x47; /* 'G' = Good */
-        } else {
-            sio_rx_data = 0xFF;
-        }
+        sio_rx_data = 0x47; /* 'G' = Good; sector >= 400h aborts before here */
         break;
     }
 
