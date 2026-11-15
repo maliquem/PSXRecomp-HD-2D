@@ -2,16 +2,18 @@
  * info mirrors. Same build recipe as test_gpu_texture_disable_status.c: the
  * fixture has no psx_fatal_halt, gr_vram_read or renderer, so only static helpers
  * that link without them are called (gp0_command_word_count, gp1_ack_irq1,
- * gp1_get_info, gpu_read_gpustat) and GPUREAD is read from gpuread_latch.
- * GP1(09h), GP1(20h+) and the GP0(1Fh) dispatch hit psx_fatal_halt or the
- * renderer in gpu.c, so they are not exercised here; the lines marked KNOWN
+ * gp1_get_info, gp0_irq_request, gpu_read_gpustat) and GPUREAD is read from gpuread_latch.
+ * GP1(09h) and GP1(20h+) hit psx_fatal_halt in gpu.c, so they are not
+ * exercised here, and the dispatch itself is not linkable, so GP0(1Fh) is
+ * tested through gp0_irq_request; the lines marked KNOWN
  * state today's behaviour that differs from psx-spx or is not covered. The
  * software renderer's texture modulation is not reachable from this build. */
 #include "../src/gpu.c"
 
 uint32_t vblank_cycles = 263000u;
 uint32_t interrupts_get_cycles_since_vblank(void) { return 0u; }
-void psx_irq_raise(uint32_t bit, uint32_t detail) { (void)bit; (void)detail; }
+static uint32_t raised_bit = 0xFFu;
+void psx_irq_raise(uint32_t bit, uint32_t detail) { raised_bit = bit; (void)detail; }
 void event_ring_record_aux(uint16_t kind, uint8_t detail, uint32_t aux) {
     (void)kind; (void)detail; (void)aux;
 }
@@ -29,6 +31,15 @@ int main(void) {
     CHECK(gp0_command_word_count(0x1F) == 1);
     CHECK(gp0_command_word_count(0x00) == 1);
     CHECK(gp0_command_word_count(0x01) == 1);
+
+    /* GP0(1Fh) sets the IRQ1 flag and raises I_STAT bit 1 (IRQ_GPU). */
+    irq1_flag = 0;
+    gp0_irq_request();
+    CHECK(irq1_flag == 1u);
+    CHECK(raised_bit == 1u);
+    CHECK(((gpu_read_gpustat() >> 24) & 1u) == 1u);
+    gp1_ack_irq1();
+    CHECK(irq1_flag == 0u);
 
     /* IRQ1 flag shows in GPUSTAT bit 24 and GP1(02h) clears it. */
     irq1_flag = 1;
@@ -72,10 +83,8 @@ int main(void) {
         }
     }
 
-    /* Not exercised (cannot link in this build): GP0(1Fh) dispatch is a NOP and
-     * never sets irq1_flag (psx-spx documents GP0(1Fh) as raising IRQ1);
-     * GP1(09h) and GP1(20h-3Fh) reach psx_fatal_halt in gpu_write_gp1. */
-    KNOWN("GP0(1Fh) irq request: gpu.c has no setter for irq1_flag (not exercised)", 0);
+    /* Not exercised (cannot link in this build): GP1(09h) and GP1(20h-3Fh)
+     * reach psx_fatal_halt in gpu_write_gp1. */
     KNOWN("GP1(09h) and GP1(20h-3Fh): fatal halt in gpu_write_gp1 (not exercised)", 0);
 
     if (failures) {

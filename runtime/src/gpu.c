@@ -9531,11 +9531,21 @@ static void gp0_execute_command(void) {
     }
 }
 
+static void gp0_irq_request(void) {
+    /* GP0(1Fh): IRQ request — GPUSTAT bit 24 and I_STAT bit 1 (IRQ_GPU) */
+    irq1_flag = 1;
+    psx_irq_raise(1, 0); /* IRQ_GPU */
+}
+
 static void gp0_dispatch_command(uint8_t opcode) {
     switch (opcode) {
         case 0x00:
         case 0x01:
             gp0_exec_nop();
+            break;
+
+        case 0x1F:
+            gp0_irq_request();
             break;
 
         case 0x02:
