@@ -2084,77 +2084,77 @@ PS1 CD-ROM controller: register interface, command handling, sector reads, CD-DA
 - `clear_sector_buffer` (L1572) — Empties the data FIFO and clears all sector buffers.
 - `cdrom_clear_pending_dataready` (L1611) — Drive-state changes (Read/Play/Pause/Stop/Seek) cancel a pended notification, matching Beetle's ClearAIP in every such command.
 - `read_continues_current_stream` (L1638) — A Read issued while the drive is ALREADY streaming the very sector the pending Setloc names is not a new read -- it is the game saying "keep going".
-- `start_read_stream` (L1649) — Starts a data read stream after a read command, resetting CD-DA playback and read timing.
-- `stop_read_stream` (L1708) — Stops the data read stream and its timing.
-- `stop_cdda_playback` (L1716) — Stops CD-DA audio playback and resets its track and delays.
+- `stop_cdda_playback` (L1649) — Stops CD-DA playback and leaves the head (read_*) where the music stopped.
+- `start_read_stream` (L1660) — Starts a data read stream after a read command, resetting CD-DA playback and read timing.
+- `stop_read_stream` (L1715) — Stops the data read stream and its timing.
 - `deliver_cdda_data_end` (L1724) — Sends the pending CD-DA end response once the interrupt line is clear.
 - `deliver_xa_data_end` (L1733) — Sends the pending XA end response once the interrupt line is clear.
 - `deliver_cdda_report` (L1750) — CD-DA position reports (Setmode bit2), psx-spx "Command 03h - Play": INT1(stat, track, index, mm/amm, ss+80h/ass, sect/asect, peaklo, peakhi) on every 10th frame of absolute time — asect BCD 00/20/40/
 - `cdda_track_for_lba` (L1790) — Returns the audio track that contains a sector, or 0 if none does.
 - `cdda_track_end_lba` (L1800) — Returns the sector where a track ends: the next track's start, or the end of the disc.
 - `start_cdda_playback` (L1807) — Starts CD-DA playback from a requested track, or from the current position.
-- `process_cdda_stream` (L1838) — Advances CD-DA playback by the elapsed cycles, sending timed reports and the end response.
-- `data_fifo_ready` (L1896) — Returns 1 when the CPU has requested data and data is available, counting starved moments.
-- `cdrom_get_dataready_fires` (L1902) — static uint64_t s_dataready_fires; /* INT1 (data-ready) raised per streamed sector — FMV dispatch probe
-- `deliver_read_sector` (L1904) — Reads the next sector of the data stream into the buffers, advances the position and raises the data-ready interrupt.
-- `deliver_read_sector_without_irq` (L1934) — A continuing DMA needs the newly filled slot immediately.
-- `cd_bisect_cmd_log` (L1948) — §93 P1: cmd timeline under PSX_RB_CD_BISECT (window via netplay).
-- `try_execute_queued_command` (L2021) — Runs a queued command once the interrupt line is clear.
-- `queue_or_exec_command` (L2040) — Runs a command now if the interrupt line is clear, otherwise queues it.
-- `pause_complete_delay_cycles` (L2074) — Pause (0x09) completion latency — Beetle PS_CDC::Command_Pause.
-- `exec_command` (L2086) — Runs one CD-ROM controller command, setting its response and timing; the core of the command dispatcher.
-- `process_pending` (L2567) — Completes a pending command response once its due cycle has passed.
-- `warm_route_consumer_blocked` (L2672) — Route-only HLE producer/consumer handshake.
-- `authentic_sector_period` (L2713) — Returns the sector period at the real drive speed, halved in double-speed mode.
-- `accelerated_read_active` (L2718) — Returns 1 when reads run faster than the real drive speed, not during XA or filter modes.
-- `accelerated_consumer_blocked` (L2723) — Returns 1 when an accelerated read must wait for the CPU to take the last sector or interrupt.
-- `process_read_stream` (L2730) — Advances the data read stream by the elapsed cycles, delivering sectors when due and waiting for the CPU when it is behind.
-- `present_pending_dataready` (L2815) — Present a pended data-ready INT1 the moment the guest fully acks the previous INT (Beetle CheckAIP: async results present as soon as the IRQ register clears).
-- `cdrom_init` (L2831) — Starts the CD-ROM controller: clears its FIFOs and buffers, then mounts the disc image from the cue path.
-- `cdrom_has_disc` (L2925) — Did cdrom_init() actually mount an image?
-- `cdrom_read` (L2929) — MMIO read/write (0x1F801800-0x1F801803)
-- `cdrom_write` (L2979) — Handles a CPU write to the CD-ROM registers, tracing it and dispatching by register and index.
-- `cdrom_cycles_to_irq` (L3068) — Cycle-budgeted precise event slicing: guest CPU cycles until the CD-ROM raises a DELIVERABLE IRQ (bit2 unmasked in i_mask).
-- `cdrom_advance` (L3100) — Advance CD-ROM state machine by guest CPU cycles.
-- `cdrom_tick` (L3123) — Legacy frame-paced entry point for interpreter/oracle builds.
-- `cdrom_dma_read` (L3127) — DMA channel 3 interface
-- `cdrom_dma_ready` (L3139) — Returns 1 when DMA can take data now, first loading any announced sector into the FIFO.
-- `cdrom_dma_sector_word_count` (L3148) — Returns the word count for a CD DMA transfer, using one sector's size when the count is zero.
-- `cdrom_debug_snapshot` (L3161) — Copies the controller's registers and state into a debug struct.
-- `cdrom_debug_get_trace` (L3216) — Returns the register trace ring and its total count.
-- `cdrom_debug_clear_trace` (L3221) — Clears the register trace ring.
-- `cdrom_debug_get_command_history` (L3226) — Returns the command history ring and its total count.
-- `cdrom_debug_clear_command_history` (L3231) — Clears the command history ring.
-- `cdrom_debug_get_sector_history` (L3236) — Returns the sector history ring and its total count.
-- `cdrom_debug_clear_sector_history` (L3241) — Clears the sector history ring.
-- `cdrom_debug_copy_last_sector` (L3246) — Copies part of the last sector read into a buffer and fills in its debug state.
-- `cdrom_load_in_progress` (L3275) — Load-in-progress predicate for turbo-through-loads (step 4).
-- `cdrom_data_read_active` (L3286) — Physical non-XA data-read command state, without the logical load gap bridge used by cdrom_load_in_progress().
-- `cdrom_apply_savestate_delay_caps` (L3299) — Limits long pending and interrupt delays after a savestate load so the game does not stall.
-- `cdrom_accelerate_after_savestate` (L3324) — After savestate restore: clamp long CD second-response / read-start delays and arm a short boost window so post-load ReadTOC/seek/Init waits do not freeze the picture for ~1s+.
-- `cdrom_savestate_boost_vblank` (L3335) — Call once per host vblank while the boost window is armed.
-- `cdrom_savestate_cd_wait_active` (L3341) — Non-zero while boost is armed AND a CD wait is outstanding (pending second response or non-XA read).
-- `cdrom_savestate_boost_vblanks_remaining` (L3348) — Remaining boost vblanks (0 when idle).
-- `cdrom_snap_emit` (L3362) — Writes the CD-ROM controller state into a snapshot writer, in the legacy or extended layout.
-- `cdrom_snap_parse` (L3440) — Reads the CD-ROM controller state from a snapshot reader, in the legacy or extended layout.
-- `cdrom_snapshot_level_bytes` (L3534) — Returns the wire size of the snapshot layout at a given level (0 = legacy, CDROM_SNAP_LEVEL_CURRENT = newest).
-- `cdrom_snapshot_level` (L3541) — Maps a snapshot block length to its layout level; -1 when no level has that size.
-- `cdrom_snapshot_legacy_bytes` (L3547) — Returns the size of the legacy snapshot layout.
-- `cdrom_snapshot_fifos_ok` (L3553) — The parameter and response FIFO cursors index param_fifo / response_fifo; every layout starts with the legacy prefix, so this applies to all of them.
-- `cdrom_snapshot_validate` (L3563) — Checks that a snapshot block has a length matching the legacy or current layout.
-- `cdrom_snapshot_disc_matches` (L3609) — 0 when the state was taken on another disc of this game's roster than the one mounted now: its LBAs, TOC and file table belong to that other disc.
-- `cdrom_snapshot_bytes` (L3616) — boot_state / netplay digest — full controller FSM (sector FIFOs included).
-- `cdrom_snapshot_write` (L3619) — Writes the current CD-ROM snapshot block into a buffer.
-- `cdrom_snapshot_read` (L3625) — Reads a CD-ROM snapshot block, checking its length first; returns 1 on success.
-- `begin_tray_open_cycle` (L3651) — Open the tray: stop every transfer in flight, hide the media, and arm the timed close.
-- `debug_force_cd_reinsert` (L3667) — Simulates a disc swap by opening the tray, which hides the media until the timed close. — Notify the guest that the mounted disc was reinserted.
-- `cdrom_disc_roster_set` (L3671) — Sets the list of disc image paths the player can switch between, and which one is selected.
-- `cdrom_disc_roster_count` (L3691) — Returns how many discs are in the roster.
-- `cdrom_mounted_sector_count` (L3693) — TOC of the image currently mounted; 0 when the drive is empty.
-- `cdrom_mounted_track_count` (L3697) — Returns the number of tracks in the mounted image, 0 when the drive is empty.
-- `cdrom_disc_selected` (L3701) — Returns the 1-based number of the selected disc.
-- `cdrom_disc_roster_path` (L3703) — Returns the path of a disc in the roster by 1-based index, or NULL if out of range.
-- `cdrom_disc_select` (L3719) — Change the mounted image mid-session, the way a player changes a disc.
+- `process_cdda_stream` (L1840) — Advances CD-DA playback by the elapsed cycles, sending timed reports and the end response.
+- `data_fifo_ready` (L1898) — Returns 1 when the CPU has requested data and data is available, counting starved moments.
+- `cdrom_get_dataready_fires` (L1904) — static uint64_t s_dataready_fires; /* INT1 (data-ready) raised per streamed sector — FMV dispatch probe
+- `deliver_read_sector` (L1906) — Reads the next sector of the data stream into the buffers, advances the position and raises the data-ready interrupt.
+- `deliver_read_sector_without_irq` (L1936) — A continuing DMA needs the newly filled slot immediately.
+- `cd_bisect_cmd_log` (L1950) — §93 P1: cmd timeline under PSX_RB_CD_BISECT (window via netplay).
+- `try_execute_queued_command` (L2023) — Runs a queued command once the interrupt line is clear.
+- `queue_or_exec_command` (L2042) — Runs a command now if the interrupt line is clear, otherwise queues it.
+- `pause_complete_delay_cycles` (L2076) — Pause (0x09) completion latency — Beetle PS_CDC::Command_Pause.
+- `exec_command` (L2088) — Runs one CD-ROM controller command, setting its response and timing; the core of the command dispatcher.
+- `process_pending` (L2595) — Completes a pending command response once its due cycle has passed.
+- `warm_route_consumer_blocked` (L2700) — Route-only HLE producer/consumer handshake.
+- `authentic_sector_period` (L2741) — Returns the sector period at the real drive speed, halved in double-speed mode.
+- `accelerated_read_active` (L2746) — Returns 1 when reads run faster than the real drive speed, not during XA or filter modes.
+- `accelerated_consumer_blocked` (L2751) — Returns 1 when an accelerated read must wait for the CPU to take the last sector or interrupt.
+- `process_read_stream` (L2758) — Advances the data read stream by the elapsed cycles, delivering sectors when due and waiting for the CPU when it is behind.
+- `present_pending_dataready` (L2843) — Present a pended data-ready INT1 the moment the guest fully acks the previous INT (Beetle CheckAIP: async results present as soon as the IRQ register clears).
+- `cdrom_init` (L2859) — Starts the CD-ROM controller: clears its FIFOs and buffers, then mounts the disc image from the cue path.
+- `cdrom_has_disc` (L2953) — Did cdrom_init() actually mount an image?
+- `cdrom_read` (L2957) — MMIO read/write (0x1F801800-0x1F801803)
+- `cdrom_write` (L3007) — Handles a CPU write to the CD-ROM registers, tracing it and dispatching by register and index.
+- `cdrom_cycles_to_irq` (L3096) — Cycle-budgeted precise event slicing: guest CPU cycles until the CD-ROM raises a DELIVERABLE IRQ (bit2 unmasked in i_mask).
+- `cdrom_advance` (L3128) — Advance CD-ROM state machine by guest CPU cycles.
+- `cdrom_tick` (L3151) — Legacy frame-paced entry point for interpreter/oracle builds.
+- `cdrom_dma_read` (L3155) — DMA channel 3 interface
+- `cdrom_dma_ready` (L3167) — Returns 1 when DMA can take data now, first loading any announced sector into the FIFO.
+- `cdrom_dma_sector_word_count` (L3176) — Returns the word count for a CD DMA transfer, using one sector's size when the count is zero.
+- `cdrom_debug_snapshot` (L3189) — Copies the controller's registers and state into a debug struct.
+- `cdrom_debug_get_trace` (L3244) — Returns the register trace ring and its total count.
+- `cdrom_debug_clear_trace` (L3249) — Clears the register trace ring.
+- `cdrom_debug_get_command_history` (L3254) — Returns the command history ring and its total count.
+- `cdrom_debug_clear_command_history` (L3259) — Clears the command history ring.
+- `cdrom_debug_get_sector_history` (L3264) — Returns the sector history ring and its total count.
+- `cdrom_debug_clear_sector_history` (L3269) — Clears the sector history ring.
+- `cdrom_debug_copy_last_sector` (L3274) — Copies part of the last sector read into a buffer and fills in its debug state.
+- `cdrom_load_in_progress` (L3303) — Load-in-progress predicate for turbo-through-loads (step 4).
+- `cdrom_data_read_active` (L3314) — Physical non-XA data-read command state, without the logical load gap bridge used by cdrom_load_in_progress().
+- `cdrom_apply_savestate_delay_caps` (L3327) — Limits long pending and interrupt delays after a savestate load so the game does not stall.
+- `cdrom_accelerate_after_savestate` (L3352) — After savestate restore: clamp long CD second-response / read-start delays and arm a short boost window so post-load ReadTOC/seek/Init waits do not freeze the picture for ~1s+.
+- `cdrom_savestate_boost_vblank` (L3363) — Call once per host vblank while the boost window is armed.
+- `cdrom_savestate_cd_wait_active` (L3369) — Non-zero while boost is armed AND a CD wait is outstanding (pending second response or non-XA read).
+- `cdrom_savestate_boost_vblanks_remaining` (L3376) — Remaining boost vblanks (0 when idle).
+- `cdrom_snap_emit` (L3390) — Writes the CD-ROM controller state into a snapshot writer, in the legacy or extended layout.
+- `cdrom_snap_parse` (L3468) — Reads the CD-ROM controller state from a snapshot reader, in the legacy or extended layout.
+- `cdrom_snapshot_level_bytes` (L3562) — Returns the wire size of the snapshot layout at a given level (0 = legacy, CDROM_SNAP_LEVEL_CURRENT = newest).
+- `cdrom_snapshot_level` (L3569) — Maps a snapshot block length to its layout level; -1 when no level has that size.
+- `cdrom_snapshot_legacy_bytes` (L3575) — Returns the size of the legacy snapshot layout.
+- `cdrom_snapshot_fifos_ok` (L3581) — The parameter and response FIFO cursors index param_fifo / response_fifo; every layout starts with the legacy prefix, so this applies to all of them.
+- `cdrom_snapshot_validate` (L3591) — Checks that a snapshot block has a length matching the legacy or current layout.
+- `cdrom_snapshot_disc_matches` (L3637) — 0 when the state was taken on another disc of this game's roster than the one mounted now: its LBAs, TOC and file table belong to that other disc.
+- `cdrom_snapshot_bytes` (L3644) — boot_state / netplay digest — full controller FSM (sector FIFOs included).
+- `cdrom_snapshot_write` (L3647) — Writes the current CD-ROM snapshot block into a buffer.
+- `cdrom_snapshot_read` (L3653) — Reads a CD-ROM snapshot block, checking its length first; returns 1 on success.
+- `begin_tray_open_cycle` (L3679) — Open the tray: stop every transfer in flight, hide the media, and arm the timed close.
+- `debug_force_cd_reinsert` (L3695) — Simulates a disc swap by opening the tray, which hides the media until the timed close. — Notify the guest that the mounted disc was reinserted.
+- `cdrom_disc_roster_set` (L3699) — Sets the list of disc image paths the player can switch between, and which one is selected.
+- `cdrom_disc_roster_count` (L3719) — Returns how many discs are in the roster.
+- `cdrom_mounted_sector_count` (L3721) — TOC of the image currently mounted; 0 when the drive is empty.
+- `cdrom_mounted_track_count` (L3725) — Returns the number of tracks in the mounted image, 0 when the drive is empty.
+- `cdrom_disc_selected` (L3729) — Returns the 1-based number of the selected disc.
+- `cdrom_disc_roster_path` (L3731) — Returns the path of a disc in the roster by 1-based index, or NULL if out of range.
+- `cdrom_disc_select` (L3747) — Change the mounted image mid-session, the way a player changes a disc.
 
 ### runtime/src/cdrom_irq.h
 
@@ -3069,67 +3069,68 @@ Emulates the PS1 DMA controller: its seven channels, transfer timing, interrupt 
 - `finish_cdrom_dma_capture` (L327) — Closes the active CD-ROM DMA history entry with its final address and end state, and stores it in the history ring.
 - `channel_enabled` (L356) — True when the DPCR enable bit of the given DMA channel is set.
 - `channel_irq_flag_armed` (L362) — True when both the channel's DICR interrupt bit and the master DMA interrupt bit are set.
-- `transfer_word_count` (L371) — Number of words a channel transfer moves, from its BCR block size and count; CD-ROM uses the sector size when the block size is 0.
-- `validate_transfer_length` (L400) — Halts the emulator with a fatal error when the channel's transfer length exceeds the sanity limit (0x80000 words).
-- `complete_transfer` (L415) — Completes a channel transfer: clears its busy and start bits, latches the DICR flag if armed, and logs the completion.
-- `cancel_async_transfer` (L430) — Stops any in-flight asynchronous transfer on the channel (MDEC, CD-ROM or GPU linked list) and resets its counters.
-- `schedule_delayed_complete` (L469) — Completes the transfer at once in render passes or when it is empty; otherwise queues completion after total words times cycles per word.
-- `advance_delayed_complete` (L487) — Counts a queued channel completion down by the given cycles and completes the transfer when it reaches zero.
-- `start_async_mdec_transfer` (L501) — Starts an asynchronous MDEC transfer on channel 0 (in) or 1 (out) when none is active, sized from its BCR.
-- `finish_async_mdec_transfer` (L519) — Finishes an MDEC transfer: logs its end, cancels the async state and completes the channel.
-- `start_async_cdrom_transfer` (L529) — Starts the asynchronous CD-ROM (channel 3) transfer, or completes it at once when it has no words.
-- `dma_host_cdrom_write` (L548) — RAM-side effects of a completed CD-ROM (ch3) transfer of host-supplied sector data, for seamless-loading adapters serving a game's own CdGetSector or read loop: overlay capture before the first word,
-- `finish_async_cdrom_transfer` (L581) — Finishes a CD-ROM transfer: closes its capture and, for game data (not FMV buffers), logs it and captures the overlay bytes.
-- `psx_dma_set_mdec_batch` (L619) — Sets the MDEC DMA batch size (words per step) from configuration.
-- `mdec_out_batch` (L620) — The MDEC DMA batch size: PSX_MDEC_DMA_BATCH from the environment, else the configured value, clamped to 1..256.
-- `advance_mdec_channel` (L630) — Advances an MDEC DMA channel by the given cycles, moving its words in steps and completing it when all are moved.
-- `execute_ch0_mdec_in` (L724) — Runs the whole channel 0 transfer (RAM to MDEC) at once, moving each word and completing the channel.
-- `execute_ch1_mdec_out` (L758) — Runs the whole channel 1 transfer (MDEC to RAM) at once, moving each word and completing the channel.
-- `gpu_ll_resolve_address` (L779) — Linked-list callback: maps a guest address to the host address the GPU DMA reads from, through the mod hook.
-- `gpu_ll_read_word` (L784) — Linked-list callback: reads one guest RAM word.
-- `gpu_ll_observe_header` (L789) — Linked-list callback: checks each linked-list node header for the widescreen validator.
-- `gpu_ll_begin_node` (L795) — Linked-list callback: starts a node of num_words words, validates it and sets the GP0 node source; always returns 1.
-- `gpu_ll_emit_word` (L803) — Linked-list callback: sends one word of the node to GP0 with its source address.
-- `gpu_ll_complete` (L809) — Linked-list callback: counts a completed walk and records its statistics and timeline event.
-- `start_async_gpu_linked_list` (L830) — Starts the asynchronous GPU linked-list walk on channel 2 unless one is already active (counted as dropped then).
-- `hold_host_ticks` (L865) — Host monotonic clock tick count, used only for hold diagnostics.
-- `hold_host_ticks_per_sec` (L874) — Ticks per second of the host clock behind hold_host_ticks.
-- `ll_bulk_enabled` (L892) — While the CPU is held and no other DMA moves RAM, the list's words cannot change under the walk: its end is known in advance (dma_gpu_ll_cycles_to_ finish), and the hold advances there in one go.
-- `hold_cpu_for_gpu_linked_list` (L901) — Holds the CPU while the GPU linked list walks, advancing guest cycles to the walk's end in one go when possible.
-- `dma_debug_get_gpu_hold` (L955) — Debug accessor: copies the GPU-hold statistics and returns the hold ring.
-- `execute_ch2_gpu` (L961) — Runs a channel 2 GPU transfer: block mode moves the words to or from the GPU, linked-list mode starts the list walk.
-- `execute_ch3_cdrom` (L1029) — Runs a channel 3 CD-ROM transfer: copies sector data from the CD-ROM buffer into RAM, or completes it when it is to the device.
-- `execute_ch4_spu` (L1045) — Returns the number of words moved so the caller can schedule a faithful delayed completion (DMA_SPU_CYCLES_PER_WORD).
-- `execute_ch6_otc` (L1082) — Runs an OTC transfer: writes a backward-linked ordering table into RAM ending with the 0xFFFFFF marker.
-- `try_execute` (L1107) — Starts a transfer on the channel when its start bit is set and the channel is enabled in DPCR, dispatching by channel.
-- `dma_get_dicr` (L1182) — The DICR register value as the CPU reads it.
-- `dma_gpu_linked_list_active` (L1184) — A GPU linked-list walk is in flight (render passes refuse to start then).
-- `dma_get_dpcr` (L1185) — The DPCR register value (DMA channel priority and enable).
-- `dma_cdrom_transfer_active` (L1186) — Nonzero while the asynchronous CD-ROM transfer is active.
-- `dma_cycles_to_irq` (L1199) — Cycle-budgeted precise event slicing: guest CPU cycles until DMA raises a DELIVERABLE IRQ (bit3 unmasked in i_mask).
-- `dma_cycles_to_internal_event` (L1222) — Mask-blind scheduler boundary: next DMA word movement or delayed completion, not merely the final IRQ.
-- `dma_cycles_to_deliverable_irq` (L1278) — Strict deliverability form for wait-loop elision: unlike the conservative scheduler bound, ignores channel completions whose DICR IRQ is disabled.
-- `dma_advance` (L1305) — Advances all DMA activity by the given guest cycles: MDEC and linked-list walks, delayed completions and CD-ROM transfers.
-- `dma_init` (L1382) — Resets all DMA channels and registers to their power-on state.
-- `dma_read` (L1394) — Reads a DMA register at the given address (DPCR, DICR or a channel register) and returns its value.
-- `dma_write_masked` (L1438) — Writes a DMA register under a bit mask, handling DPCR, DICR acknowledge bits and the channel control registers.
-- `dma_write` (L1503) — Writes a full 32-bit DMA register value.
-- `dma_debug_get_gpu_ot_stats` (L1507) — Debug accessor: copies the GPU ordering-table statistics into out.
-- `dma_debug_get_trace` (L1514) — Debug accessor: returns the DMA trace ring and its entry count.
-- `dma_debug_clear_trace` (L1519) — Clears the DMA trace ring.
-- `dma_debug_get_cdrom_history` (L1524) — Debug accessor: returns the CD-ROM DMA history ring and its entry count.
-- `dma_debug_clear_cdrom_history` (L1529) — Clears the CD-ROM DMA history ring.
-- `dma_debug_get_state` (L1537) — Debug accessor: fills out with the DMA state (registers and channel status).
-- `dma_w_async` (L1575) — Saves one asynchronous channel's state into a snapshot writer; returns 1 on success.
-- `dma_r_async` (L1580) — Restores one asynchronous channel's state from a snapshot reader; returns 1 on success.
-- `dma_w_gpu_ll` (L1585) — Saves the GPU linked-list state into a snapshot writer; returns 1 on success.
-- `dma_r_gpu_ll` (L1595) — Restores the GPU linked-list state from a snapshot reader; returns 1 on success.
-- `dma_w_delay` (L1607) — Saves a delayed-completion state into a snapshot writer; returns 1 on success.
-- `dma_r_delay` (L1611) — Restores a delayed-completion state from a snapshot reader; returns 1 on success.
-- `dma_snapshot_bytes` (L1616) — Byte size of the DMA snapshot section.
-- `dma_snapshot_write` (L1618) — Writes the DMA state into the snapshot buffer p.
-- `dma_snapshot_validate` (L1643) — Pass-1 check for boot_state's two-pass load: parses into locals and refuses an async start address outside live RAM or remaining words above the total.
-- `dma_snapshot_read` (L1658) — Restores the DMA state from a snapshot buffer of len bytes; returns nonzero on success.
+- `dma_block_words` (L373) — psx-spx dmachannels: in SyncMode 1 both BS and BA accept 0 meaning 10000h.
+- `transfer_word_count` (L379) — Number of words a channel transfer moves, from its BCR block size and count; CD-ROM uses the sector size when the block size is 0.
+- `validate_transfer_length` (L403) — Halts the emulator with a fatal error when the channel's transfer length exceeds the sanity limit (0x80000 words).
+- `complete_transfer` (L418) — Completes a channel transfer: clears its busy and start bits, latches the DICR flag if armed, and logs the completion.
+- `cancel_async_transfer` (L433) — Stops any in-flight asynchronous transfer on the channel (MDEC, CD-ROM or GPU linked list) and resets its counters.
+- `schedule_delayed_complete` (L472) — Completes the transfer at once in render passes or when it is empty; otherwise queues completion after total words times cycles per word.
+- `advance_delayed_complete` (L490) — Counts a queued channel completion down by the given cycles and completes the transfer when it reaches zero.
+- `start_async_mdec_transfer` (L504) — Starts an asynchronous MDEC transfer on channel 0 (in) or 1 (out) when none is active, sized from its BCR.
+- `finish_async_mdec_transfer` (L522) — Finishes an MDEC transfer: logs its end, cancels the async state and completes the channel.
+- `start_async_cdrom_transfer` (L532) — Starts the asynchronous CD-ROM (channel 3) transfer, or completes it at once when it has no words.
+- `dma_host_cdrom_write` (L551) — RAM-side effects of a completed CD-ROM (ch3) transfer of host-supplied sector data, for seamless-loading adapters serving a game's own CdGetSector or read loop: overlay capture before the first word,
+- `finish_async_cdrom_transfer` (L584) — Finishes a CD-ROM transfer: closes its capture and, for game data (not FMV buffers), logs it and captures the overlay bytes.
+- `psx_dma_set_mdec_batch` (L622) — Sets the MDEC DMA batch size (words per step) from configuration.
+- `mdec_out_batch` (L623) — The MDEC DMA batch size: PSX_MDEC_DMA_BATCH from the environment, else the configured value, clamped to 1..256.
+- `advance_mdec_channel` (L633) — Advances an MDEC DMA channel by the given cycles, moving its words in steps and completing it when all are moved.
+- `execute_ch0_mdec_in` (L727) — Runs the whole channel 0 transfer (RAM to MDEC) at once, moving each word and completing the channel.
+- `execute_ch1_mdec_out` (L761) — Runs the whole channel 1 transfer (MDEC to RAM) at once, moving each word and completing the channel.
+- `gpu_ll_resolve_address` (L782) — Linked-list callback: maps a guest address to the host address the GPU DMA reads from, through the mod hook.
+- `gpu_ll_read_word` (L787) — Linked-list callback: reads one guest RAM word.
+- `gpu_ll_observe_header` (L792) — Linked-list callback: checks each linked-list node header for the widescreen validator.
+- `gpu_ll_begin_node` (L798) — Linked-list callback: starts a node of num_words words, validates it and sets the GP0 node source; always returns 1.
+- `gpu_ll_emit_word` (L806) — Linked-list callback: sends one word of the node to GP0 with its source address.
+- `gpu_ll_complete` (L812) — Linked-list callback: counts a completed walk and records its statistics and timeline event.
+- `start_async_gpu_linked_list` (L833) — Starts the asynchronous GPU linked-list walk on channel 2 unless one is already active (counted as dropped then).
+- `hold_host_ticks` (L868) — Host monotonic clock tick count, used only for hold diagnostics.
+- `hold_host_ticks_per_sec` (L877) — Ticks per second of the host clock behind hold_host_ticks.
+- `ll_bulk_enabled` (L895) — While the CPU is held and no other DMA moves RAM, the list's words cannot change under the walk: its end is known in advance (dma_gpu_ll_cycles_to_ finish), and the hold advances there in one go.
+- `hold_cpu_for_gpu_linked_list` (L904) — Holds the CPU while the GPU linked list walks, advancing guest cycles to the walk's end in one go when possible.
+- `dma_debug_get_gpu_hold` (L958) — Debug accessor: copies the GPU-hold statistics and returns the hold ring.
+- `execute_ch2_gpu` (L964) — Runs a channel 2 GPU transfer: block mode moves the words to or from the GPU, linked-list mode starts the list walk.
+- `execute_ch3_cdrom` (L1028) — Runs a channel 3 CD-ROM transfer: copies sector data from the CD-ROM buffer into RAM, or completes it when it is to the device.
+- `execute_ch4_spu` (L1044) — Returns the number of words moved so the caller can schedule a faithful delayed completion (DMA_SPU_CYCLES_PER_WORD).
+- `execute_ch6_otc` (L1081) — Runs an OTC transfer: writes a backward-linked ordering table into RAM ending with the 0xFFFFFF marker.
+- `try_execute` (L1106) — Starts a transfer on the channel when its start bit is set and the channel is enabled in DPCR, dispatching by channel.
+- `dma_get_dicr` (L1181) — The DICR register value as the CPU reads it.
+- `dma_gpu_linked_list_active` (L1183) — A GPU linked-list walk is in flight (render passes refuse to start then).
+- `dma_get_dpcr` (L1184) — The DPCR register value (DMA channel priority and enable).
+- `dma_cdrom_transfer_active` (L1185) — Nonzero while the asynchronous CD-ROM transfer is active.
+- `dma_cycles_to_irq` (L1198) — Cycle-budgeted precise event slicing: guest CPU cycles until DMA raises a DELIVERABLE IRQ (bit3 unmasked in i_mask).
+- `dma_cycles_to_internal_event` (L1221) — Mask-blind scheduler boundary: next DMA word movement or delayed completion, not merely the final IRQ.
+- `dma_cycles_to_deliverable_irq` (L1277) — Strict deliverability form for wait-loop elision: unlike the conservative scheduler bound, ignores channel completions whose DICR IRQ is disabled.
+- `dma_advance` (L1304) — Advances all DMA activity by the given guest cycles: MDEC and linked-list walks, delayed completions and CD-ROM transfers.
+- `dma_init` (L1381) — Resets all DMA channels and registers to their power-on state.
+- `dma_read` (L1393) — Reads a DMA register at the given address (DPCR, DICR or a channel register) and returns its value.
+- `dma_write_masked` (L1437) — Writes a DMA register under a bit mask, handling DPCR, DICR acknowledge bits and the channel control registers.
+- `dma_write` (L1502) — Writes a full 32-bit DMA register value.
+- `dma_debug_get_gpu_ot_stats` (L1506) — Debug accessor: copies the GPU ordering-table statistics into out.
+- `dma_debug_get_trace` (L1513) — Debug accessor: returns the DMA trace ring and its entry count.
+- `dma_debug_clear_trace` (L1518) — Clears the DMA trace ring.
+- `dma_debug_get_cdrom_history` (L1523) — Debug accessor: returns the CD-ROM DMA history ring and its entry count.
+- `dma_debug_clear_cdrom_history` (L1528) — Clears the CD-ROM DMA history ring.
+- `dma_debug_get_state` (L1536) — Debug accessor: fills out with the DMA state (registers and channel status).
+- `dma_w_async` (L1574) — Saves one asynchronous channel's state into a snapshot writer; returns 1 on success.
+- `dma_r_async` (L1579) — Restores one asynchronous channel's state from a snapshot reader; returns 1 on success.
+- `dma_w_gpu_ll` (L1584) — Saves the GPU linked-list state into a snapshot writer; returns 1 on success.
+- `dma_r_gpu_ll` (L1594) — Restores the GPU linked-list state from a snapshot reader; returns 1 on success.
+- `dma_w_delay` (L1606) — Saves a delayed-completion state into a snapshot writer; returns 1 on success.
+- `dma_r_delay` (L1610) — Restores a delayed-completion state from a snapshot reader; returns 1 on success.
+- `dma_snapshot_bytes` (L1615) — Byte size of the DMA snapshot section.
+- `dma_snapshot_write` (L1617) — Writes the DMA state into the snapshot buffer p.
+- `dma_snapshot_validate` (L1642) — Pass-1 check for boot_state's two-pass load: parses into locals and refuses an async start address outside live RAM or remaining words above the total.
+- `dma_snapshot_read` (L1657) — Restores the DMA state from a snapshot buffer of len bytes; returns nonzero on success.
 
 ### runtime/src/dma_gpu_ll.c
 
@@ -4167,45 +4168,46 @@ The PS1 GPU emulation: GP0 and GP1 command handling, software rasterising, VRAM 
 - `gpu_draw_skip_vblank` (L9447) — Reports a VBlank in the draw-skip state.
 - `gpu_draw_skip_counts` (L9459) — Counts draw skips for the diagnostic output.
 - `gpu_draw_skip_pgxp_frames` (L9464) — Counts PGXP frames skipped by the turbo.
-- `gp0_execute_command` (L9466) — Executes one GP0 command word, dispatching by its opcode.
-- `gp0_irq_request` (L9534) — GP0(1Fh): sets the GPUSTAT bit 24 flag and raises I_STAT bit 1 (IRQ_GPU).
-- `gp0_dispatch_command` (L9540) — Dispatches a GP0 command to its handler.
-- `gpu_get_gp0_count` (L9751) — Total number of GP0 writes since init.
-- `gpu_get_gp0_stats` (L9753) — uint64_t gpu_get_gp0_count(void); /* Total GP0 writes since init
-- `gpu_get_draw_area` (L9758) — Returns the drawing area rectangle.
-- `gpu_vram_peek` (L9767) — One VRAM pixel as the GPU has it.
-- `gpu_vram_drawn_check` (L9783) — TCP vram_drawn_check: the proof of the cells above.
-- `psx_mod_vram_write` (L9802) — psx_mod_vram_write: a title's own pixels, as an unmasked CPU->VRAM copy, in the guest's VRAM and the renderer's (as shadow_blob_key_put does).
-- `gpu_write_gp0_body` (L9814) — Body of a GP0 write, handling the command and data words.
-- `gpu_write_gp0` (L10011) — Wall-time sampler bracket (phase_profile): tag GP0 command processing — rasterization / batching / VRAM transfer work on the emu thread — as its own phase so it is separable from the guest code that i
-- `gp1_reset` (L10022) — GP1 reset command handler (0x00): resets the GPU.
-- `gp1_reset_command_buffer` (L10029) — GP1 reset-command-buffer handler (0x01).
-- `gp1_ack_irq1` (L10038) — GP1 acknowledge-IRQ handler (0x02).
-- `gp1_display_enable` (L10043) — GP1 display enable handler (0x03).
-- `gp1_dma_direction` (L10057) — GP1 DMA direction handler (0x04).
-- `gpu_display_flips` (L10065) — Display starts that moved (GP1(05h) to another place): the game's own frames of a double-buffered picture, for the FPS readout.
-- `gp1_display_area_start` (L10067) — GP1 display area start handler (0x05).
-- `gp1_h_display_range` (L10093) — GP1 horizontal display range handler (0x06).
-- `gp1_v_display_range` (L10101) — GP1 vertical display range handler (0x07).
-- `gp1_display_mode` (L10120) — GP1 display mode handler (0x08).
-- `gp1_get_info` (L10149) — GP1 get-info handler (0x10): returns the requested GPU info.
-- `gpu_write_gp1` (L10182) — Writes a GP1 control word and dispatches it by its command number.
-- `gpu_snap_emit` (L10255) — GPU snap fields are scalars / u32 arrays — emit as LE u32/i32 (no struct pad).
-- `gpu_snap_parse` (L10292) — Reads GPU snapshot fields from a buffer.
-- `gpu_snapshot_bytes` (L10333) — Byte size of the GPU snapshot.
-- `gpu_snapshot_write` (L10338) — Writes the GPU snapshot into a buffer.
-- `gpu_cosim_snapshot_bytes` (L10343) — Byte size of the co-simulation snapshot.
-- `gpu_cosim_snapshot_write` (L10344) — Writes the co-simulation snapshot into a buffer.
-- `gpu_cosim_dump` (L10345) — Debug: dumps the co-simulation state.
-- `gpu_snapshot_validate` (L10386) — Pass-1 check for boot_state's two-pass load: refuses a GP0 state the parser would accept but gpu_write_gp0 would index gp0_cmd_buf out of range with.
-- `gpu_snapshot_read` (L10401) — Restores the GPU state from a snapshot buffer.
-- `gpu_pass_provenance_transfer` (L10479) — One transfer list keeps save and restore symmetric.
-- `gpu_pass_scene_transfer` (L10524) — Scene transfer list for a render pass checkpoint.
-- `gpu_pass_checkpoint_save` (L10556) — Render-pass GPU register checkpoint (render_pass.c).
-- `gpu_pass_checkpoint_restore` (L10573) — Restores the GPU registers from a render-pass checkpoint.
-- `gpu_pass_state_hash` (L10599) — FNV-1a over the checkpointed register set (PSX_RENDER_PASS_VERIFY).
-- `gpu_get_vram_ptr` (L10612) — Pointer to the VRAM buffer.
-- `gpu_get_vram_bytes` (L10613) — Size of the VRAM buffer in bytes.
+- `draw_skip_prim` (L9468) — 1 when the turbo drops this primitive; a dropped textured polygon still latches its texpage.
+- `gp0_execute_command` (L9477) — Executes one GP0 command word, dispatching by its opcode.
+- `gp0_irq_request` (L9541) — GP0(1Fh): sets the GPUSTAT bit 24 flag and raises I_STAT bit 1 (IRQ_GPU).
+- `gp0_dispatch_command` (L9547) — Dispatches a GP0 command to its handler.
+- `gpu_get_gp0_count` (L9758) — Total number of GP0 writes since init.
+- `gpu_get_gp0_stats` (L9760) — uint64_t gpu_get_gp0_count(void); /* Total GP0 writes since init
+- `gpu_get_draw_area` (L9765) — Returns the drawing area rectangle.
+- `gpu_vram_peek` (L9774) — One VRAM pixel as the GPU has it.
+- `gpu_vram_drawn_check` (L9790) — TCP vram_drawn_check: the proof of the cells above.
+- `psx_mod_vram_write` (L9809) — psx_mod_vram_write: a title's own pixels, as an unmasked CPU->VRAM copy, in the guest's VRAM and the renderer's (as shadow_blob_key_put does).
+- `gpu_write_gp0_body` (L9821) — Body of a GP0 write, handling the command and data words.
+- `gpu_write_gp0` (L10018) — Wall-time sampler bracket (phase_profile): tag GP0 command processing — rasterization / batching / VRAM transfer work on the emu thread — as its own phase so it is separable from the guest code that i
+- `gp1_reset` (L10029) — GP1 reset command handler (0x00): resets the GPU.
+- `gp1_reset_command_buffer` (L10036) — GP1 reset-command-buffer handler (0x01).
+- `gp1_ack_irq1` (L10045) — GP1 acknowledge-IRQ handler (0x02).
+- `gp1_display_enable` (L10050) — GP1 display enable handler (0x03).
+- `gp1_dma_direction` (L10064) — GP1 DMA direction handler (0x04).
+- `gpu_display_flips` (L10072) — Display starts that moved (GP1(05h) to another place): the game's own frames of a double-buffered picture, for the FPS readout.
+- `gp1_display_area_start` (L10074) — GP1 display area start handler (0x05).
+- `gp1_h_display_range` (L10100) — GP1 horizontal display range handler (0x06).
+- `gp1_v_display_range` (L10108) — GP1 vertical display range handler (0x07).
+- `gp1_display_mode` (L10127) — GP1 display mode handler (0x08).
+- `gp1_get_info` (L10156) — GP1 get-info handler (0x10): returns the requested GPU info.
+- `gpu_write_gp1` (L10189) — Writes a GP1 control word and dispatches it by its command number.
+- `gpu_snap_emit` (L10262) — GPU snap fields are scalars / u32 arrays — emit as LE u32/i32 (no struct pad).
+- `gpu_snap_parse` (L10299) — Reads GPU snapshot fields from a buffer.
+- `gpu_snapshot_bytes` (L10340) — Byte size of the GPU snapshot.
+- `gpu_snapshot_write` (L10345) — Writes the GPU snapshot into a buffer.
+- `gpu_cosim_snapshot_bytes` (L10350) — Byte size of the co-simulation snapshot.
+- `gpu_cosim_snapshot_write` (L10351) — Writes the co-simulation snapshot into a buffer.
+- `gpu_cosim_dump` (L10352) — Debug: dumps the co-simulation state.
+- `gpu_snapshot_validate` (L10393) — Pass-1 check for boot_state's two-pass load: refuses a GP0 state the parser would accept but gpu_write_gp0 would index gp0_cmd_buf out of range with.
+- `gpu_snapshot_read` (L10408) — Restores the GPU state from a snapshot buffer.
+- `gpu_pass_provenance_transfer` (L10486) — One transfer list keeps save and restore symmetric.
+- `gpu_pass_scene_transfer` (L10531) — Scene transfer list for a render pass checkpoint.
+- `gpu_pass_checkpoint_save` (L10563) — Render-pass GPU register checkpoint (render_pass.c).
+- `gpu_pass_checkpoint_restore` (L10580) — Restores the GPU registers from a render-pass checkpoint.
+- `gpu_pass_state_hash` (L10606) — FNV-1a over the checkpointed register set (PSX_RENDER_PASS_VERIFY).
+- `gpu_get_vram_ptr` (L10619) — Pointer to the VRAM buffer.
+- `gpu_get_vram_bytes` (L10620) — Size of the VRAM buffer in bytes.
 
 ### runtime/src/gpu_edge.inc
 
@@ -8088,10 +8090,10 @@ A minimal R3000A interpreter for oracle builds, with PC breakpoints and an instr
 - `set_branch` (L169) — Records a branch decision so the next instruction runs as its delay slot and then transfers to the target if taken.
 - `raise_exception` (L178) — Raises a CPU exception with the given code: pushes the status stack and updates the cause register.
 - `exec_one` (L197) — Executes one MIPS instruction at the current PC; prints a message and halts if the PC is zero.
-- `interp_tick_devices` (L567) — Ticks the SIO and schedules VBlank, timer and CD-ROM events on the legacy instruction-count clock.
-- `interp_check_interrupts` (L584) — Delivers a pending hardware or software interrupt at an instruction boundary, with EPC and BD set for a delay slot.
-- `interp_step` (L624) — Execute exactly 'count' instructions.
-- `interp_run` (L649) — Run until breakpoint, halt, or max_instructions reached.
+- `interp_tick_devices` (L568) — Ticks the SIO and schedules VBlank, timer and CD-ROM events on the legacy instruction-count clock.
+- `interp_check_interrupts` (L585) — Delivers a pending hardware or software interrupt at an instruction boundary, with EPC and BD set for a delay slot.
+- `interp_step` (L625) — Execute exactly 'count' instructions.
+- `interp_run` (L650) — Run until breakpoint, halt, or max_instructions reached.
 
 ### runtime/src/psx_jogcon_ffb_sdl.cpp
 
@@ -9137,7 +9139,9 @@ Graphics preset autodetection rules: maps the machine's CPU and GPU names to a L
 Recognises the small RAM trampolines psx_unknown_dispatch resolves (j, jr, li/jr, lui/jr, jump table), as a pure function over words already read.
 
 - `found` (L7) — Fills out with the trampoline kind and target and returns the kind.
-- `psx_trampoline_decode` (L13) — Decodes the n_words words read at addr as a trampoline: returns its kind with target and delay-slot register write in out, PSX_TRAMP_NONE, or PSX_TRAMP_NEED_WORDS with out->need_words when more words must be read first.
+- `slot_ok` (L15) — The delay slot runs before the jump lands (R3000), so a shape resolves only when its slot is one this decoder can apply: nop, or addiu rT,$zero,imm.
+- `need` (L25) — Asks the caller for n words in total and returns PSX_TRAMP_NEED_WORDS.
+- `psx_trampoline_decode` (L30) — Decodes the n_words words read at addr as a trampoline: returns its kind with target and delay-slot register write in out, PSX_TRAMP_NONE, or PSX_TRAMP_NEED_WORDS with out->need_words when more words must be read first.
 
 ### runtime/src/recomp_audio_drc.h
 
@@ -9802,52 +9806,52 @@ Emulates the console serial port: the controller and memory card protocols, the 
 - `sio_set_legacy_cfg` (L1318) — Tomba-only legacy pad config path ([controller] legacy_pad_config).
 - `pad_process_byte` (L1326) — Handles one byte of the controller protocol and sets the reply byte, applying any pending pad type change only while the bus is idle.
 - `mc_process_byte` (L1741) — Handles one byte of the memory card protocol and sets the reply byte while advancing the card state machine.
-- `sio_process_byte` (L1976) — Routes one byte sent by the guest to the pad or memory card, then records the reply and trace data.
-- `sio_read` (L2152) — MMIO read/write (0x1F801040-0x1F80104E)
-- `sio_peek_stat` (L2216) — Side-effect-FREE SIO register peeks for the debug/observability path ONLY.
-- `sio_peek_ctrl` (L2217) — Returns the serial control register without side effects.
-- `sio_peek_rx_data` (L2218) — Returns the received byte without side effects.
-- `sio_peek_ack_visible_reads` (L2219) — SIO_STAT reads left before a visible ACK clears (side-effect free).
-- `sio_write` (L2221) — Handles a guest write to a serial port register, advancing the timing first and the delayed IRQ after.
-- `sio_get_freeze_diag` (L2468) — Writes the pending interrupt and countdown, the status and control registers and card activity through the output pointers.
-- `sio_get_burst_stats` (L2515) — Copies the burst drain counters into a 10-entry array.
-- `sio_consume_ack_event` (L2551) — ---- Phase 1.0c-v2: cycle-paced sio_tick helpers (inert in 1.0c-v2) --- In 1.0c-v2, the TX path is still synchronous and nothing arms sio_shift_active or sio_pending_ack.
-- `sio_fire_ack_irq` (L2557) — Sets the ACK status bit and raises the serial interrupt for a card or pad ACK; the SPU interrupt bit is left alone.
-- `sio_handle_shift_complete` (L2612) — Runs when a byte finishes shifting: records the event, processes the byte and sets receive-ready in the status.
-- `sio_get_advance_called` (L2668) — Telemetry counters for sio_advance.
-- `sio_get_advance_with_work` (L2669) — Returns how many timing advance calls found work pending.
-- `sio_pace_walk` (L2673) — Consume every elapsed device deadline.
-- `sio_advance` (L2710) — Phase 1.0e-e1: peripheral-only cycle advance.
-- `sio_tick` (L2724) — Advance SIO timing by 'cycles' PSX cycles.
-- `sio_tick_quantum` (L2780) — Convenience: advance SIO by the dispatch-loop quantum.
-- `sio_get_pace_state` (L2787) — Telemetry accessor for pace_state TCP probe.
-- `sio_w_mcslot` (L2813) — Writes one memory card slot state into the snapshot stream; returns 0 when the write fails.
-- `sio_r_mcslot` (L2820) — Reads one memory card slot state from the snapshot stream; returns 0 when the data is short.
-- `sio_snap_emit_regs` (L2836) — Snapshot wire is emitted in four sections so netplay diags can CRC each independently (regs / pads / memcard / shift+irq FSM) — a single SIO digest could not say WHICH subsystem forked a resim.
-- `sio_snap_emit_pads` (L2842) — Writes the pad state to the snapshot stream: types, connection, buttons and the response buffer.
-- `sio_snap_emit_mc` (L2859) — Writes the memory card state of both slots and the active device to the snapshot stream.
-- `sio_snap_emit_fsm_pace` (L2872) — Load-bearing pacing state (guest-visible IRQ timing).
-- `sio_snap_emit_fsm_meta` (L2893) — Audit/diag metadata — must not drive netplay digests (byte_seq tracks the host-local sio_trace_seq counter, which is not itself a guest register).
-- `sio_snap_emit_rumble` (L2901) — DualShock rumble map/motors — appended after meta so pre-rumble snapshots remain loadable and netplay digests that stop at fsm_pace stay stable.
-- `sio_snap_emit_jogcon` (L2907) — Writes the JogCon steering and motor state to the snapshot stream.
-- `sio_snap_emit_pad_mode` (L2917) — 0x44 mode lock and the analog-capable device behind each port.
-- `sio_snap_emit_hold` (L2924) — writes the present-hold window (seq, progress cycle, armed flag) as the last SIO snapshot block.
-- `sio_snap_emit_mtap` (L2932) — writes the multitap block: address latch, per-port next/returned Slot-A/bulk/garbage modes, req flags, active logical pad and response bytes 8..33.
-- `sio_pad_mode_legacy_defaults` (L2944) — Sets the 0x44 lock and analog device state from the pad types, for loading older snapshots that lack them.
-- `sio_snap_emit_fsm` (L2953) — Writes the shift and interrupt state machine sections to the snapshot stream: pacing first, then metadata.
-- `sio_snap_emit` (L2957) — Writes the full serial port state to the snapshot stream in its fixed section order; returns 0 on failure.
-- `sio_snapshot_section_ends` (L2968) — Cumulative section end offsets in the snapshot wire: out[0]=regs, out[1]=pads, out[2]=memcard, out[3]=fsm_pace (netplay), out[4]=full including fsm metadata, rumble, JogCon and pad-mode state.
-- `sio_hold_legacy_defaults` (L2988) — disarms the present-hold window when a snapshot predates the hold block.
-- `sio_snap_parse_blocks` (L2994) — reads every snapshot block in order, stopping cleanly at the end of each older layout; reports whether the multitap block was present.
-- `sio_mtap_legacy_defaults` (L3145) — Pre-multitap snapshots: the active pad comes from the port, the latch restarts at Slot A, and a bulk response (only 8 of 34 bytes stored) is aborted rather than fed truncated.
-- `sio_snap_parse` (L3159) — reads the snapshot blocks, then applies the pre-multitap defaults when the multitap block is absent; returns 0 when the data is short.
-- `sio_snapshot_bytes` (L3166) — Returns the size in bytes of the serial port state snapshot.
-- `sio_snapshot_write` (L3173) — Writes the serial port state snapshot into the buffer p.
-- `sio_mc_cursor_ok` (L3183) — A saved card cursor must stay inside mc_data for every byte its state can still exchange: READ_DATA/WRITE_DATA touch mc_data[idx], WRITE_LSB_ECHO writes idx and hands idx+1 to WRITE_DATA.
-- `sio_snapshot_ranges_ok` (L3191) — Refuses a SIO snapshot whose pad/card states, selected slot, card cursors, active device or bus owner are out of range.
-- `sio_snapshot_tail_ok` (L3220) — range check for the trailing hold and multitap blocks when the accepted length includes them.
-- `sio_snapshot_validate` (L3243) — Non-mutating pre-check for boot_state's two-pass load: a section that passes cannot fail sio_snapshot_read (the parser only reads fixed-width fields, and both accepted lengths end exactly where one of
-- `sio_snapshot_read` (L3265) — Restores the serial port state from a snapshot buffer after validating it; returns 0 on failure.
+- `sio_process_byte` (L1974) — Routes one byte sent by the guest to the pad or memory card, then records the reply and trace data.
+- `sio_read` (L2150) — MMIO read/write (0x1F801040-0x1F80104E)
+- `sio_peek_stat` (L2214) — Side-effect-FREE SIO register peeks for the debug/observability path ONLY.
+- `sio_peek_ctrl` (L2215) — Returns the serial control register without side effects.
+- `sio_peek_rx_data` (L2216) — Returns the received byte without side effects.
+- `sio_peek_ack_visible_reads` (L2217) — SIO_STAT reads left before a visible ACK clears (side-effect free).
+- `sio_write` (L2219) — Handles a guest write to a serial port register, advancing the timing first and the delayed IRQ after.
+- `sio_get_freeze_diag` (L2466) — Writes the pending interrupt and countdown, the status and control registers and card activity through the output pointers.
+- `sio_get_burst_stats` (L2513) — Copies the burst drain counters into a 10-entry array.
+- `sio_consume_ack_event` (L2549) — ---- Phase 1.0c-v2: cycle-paced sio_tick helpers (inert in 1.0c-v2) --- In 1.0c-v2, the TX path is still synchronous and nothing arms sio_shift_active or sio_pending_ack.
+- `sio_fire_ack_irq` (L2555) — Sets the ACK status bit and raises the serial interrupt for a card or pad ACK; the SPU interrupt bit is left alone.
+- `sio_handle_shift_complete` (L2610) — Runs when a byte finishes shifting: records the event, processes the byte and sets receive-ready in the status.
+- `sio_get_advance_called` (L2666) — Telemetry counters for sio_advance.
+- `sio_get_advance_with_work` (L2667) — Returns how many timing advance calls found work pending.
+- `sio_pace_walk` (L2671) — Consume every elapsed device deadline.
+- `sio_advance` (L2708) — Phase 1.0e-e1: peripheral-only cycle advance.
+- `sio_tick` (L2722) — Advance SIO timing by 'cycles' PSX cycles.
+- `sio_tick_quantum` (L2778) — Convenience: advance SIO by the dispatch-loop quantum.
+- `sio_get_pace_state` (L2785) — Telemetry accessor for pace_state TCP probe.
+- `sio_w_mcslot` (L2811) — Writes one memory card slot state into the snapshot stream; returns 0 when the write fails.
+- `sio_r_mcslot` (L2818) — Reads one memory card slot state from the snapshot stream; returns 0 when the data is short.
+- `sio_snap_emit_regs` (L2834) — Snapshot wire is emitted in four sections so netplay diags can CRC each independently (regs / pads / memcard / shift+irq FSM) — a single SIO digest could not say WHICH subsystem forked a resim.
+- `sio_snap_emit_pads` (L2840) — Writes the pad state to the snapshot stream: types, connection, buttons and the response buffer.
+- `sio_snap_emit_mc` (L2857) — Writes the memory card state of both slots and the active device to the snapshot stream.
+- `sio_snap_emit_fsm_pace` (L2870) — Load-bearing pacing state (guest-visible IRQ timing).
+- `sio_snap_emit_fsm_meta` (L2891) — Audit/diag metadata — must not drive netplay digests (byte_seq tracks the host-local sio_trace_seq counter, which is not itself a guest register).
+- `sio_snap_emit_rumble` (L2899) — DualShock rumble map/motors — appended after meta so pre-rumble snapshots remain loadable and netplay digests that stop at fsm_pace stay stable.
+- `sio_snap_emit_jogcon` (L2905) — Writes the JogCon steering and motor state to the snapshot stream.
+- `sio_snap_emit_pad_mode` (L2915) — 0x44 mode lock and the analog-capable device behind each port.
+- `sio_snap_emit_hold` (L2922) — writes the present-hold window (seq, progress cycle, armed flag) as the last SIO snapshot block.
+- `sio_snap_emit_mtap` (L2930) — writes the multitap block: address latch, per-port next/returned Slot-A/bulk/garbage modes, req flags, active logical pad and response bytes 8..33.
+- `sio_pad_mode_legacy_defaults` (L2942) — Sets the 0x44 lock and analog device state from the pad types, for loading older snapshots that lack them.
+- `sio_snap_emit_fsm` (L2951) — Writes the shift and interrupt state machine sections to the snapshot stream: pacing first, then metadata.
+- `sio_snap_emit` (L2955) — Writes the full serial port state to the snapshot stream in its fixed section order; returns 0 on failure.
+- `sio_snapshot_section_ends` (L2966) — Cumulative section end offsets in the snapshot wire: out[0]=regs, out[1]=pads, out[2]=memcard, out[3]=fsm_pace (netplay), out[4]=full including fsm metadata, rumble, JogCon and pad-mode state.
+- `sio_hold_legacy_defaults` (L2986) — disarms the present-hold window when a snapshot predates the hold block.
+- `sio_snap_parse_blocks` (L2992) — reads every snapshot block in order, stopping cleanly at the end of each older layout; reports whether the multitap block was present.
+- `sio_mtap_legacy_defaults` (L3143) — Pre-multitap snapshots: the active pad comes from the port, the latch restarts at Slot A, and a bulk response (only 8 of 34 bytes stored) is aborted rather than fed truncated.
+- `sio_snap_parse` (L3157) — reads the snapshot blocks, then applies the pre-multitap defaults when the multitap block is absent; returns 0 when the data is short.
+- `sio_snapshot_bytes` (L3164) — Returns the size in bytes of the serial port state snapshot.
+- `sio_snapshot_write` (L3171) — Writes the serial port state snapshot into the buffer p.
+- `sio_mc_cursor_ok` (L3181) — A saved card cursor must stay inside mc_data for every byte its state can still exchange: READ_DATA/WRITE_DATA touch mc_data[idx], WRITE_LSB_ECHO writes idx and hands idx+1 to WRITE_DATA.
+- `sio_snapshot_ranges_ok` (L3189) — Refuses a SIO snapshot whose pad/card states, selected slot, card cursors, active device or bus owner are out of range.
+- `sio_snapshot_tail_ok` (L3218) — range check for the trailing hold and multitap blocks when the accepted length includes them.
+- `sio_snapshot_validate` (L3241) — Non-mutating pre-check for boot_state's two-pass load: a section that passes cannot fail sio_snapshot_read (the parser only reads fixed-width fields, and both accepted lengths end exactly where one of
+- `sio_snapshot_read` (L3263) — Restores the serial port state from a snapshot buffer after validating it; returns 0 on failure.
 
 ### runtime/src/spu.c
 
@@ -10068,14 +10072,14 @@ Simulates the console's three root counters: counting, targets, interrupts, cloc
 - `timer_uses_sysclk` (L124) — Determine whether this timer uses system clock ticks
 - `timer_fire_irq` (L136) — Fire IRQ for a timer — sets I_STAT bit; a one-shot timer (mode bit 6 = 0) fires only once until the next mode write.
 - `timer_tick_one` (L167) — Tick a single timer by one count.
-- `timer_advance_counts` (L186) — Adds the given number of counts to one timer, handling target and overflow events along the way.
-- `timer_advance_divided` (L217) — Advances one timer by cycles divided by its divisor, keeping the remainder for the next call.
-- `timers_advance` (L226) — Advance all timers by guest CPU cycles.
-- `timer_divisor` (L248) — Cycles until this timer's clock advances by one count, given its source.
-- `timers_cycles_to_irq` (L264) — Cycle-budgeted precise event slicing: distance (in guest CPU cycles) to the next moment this timer block would raise a DELIVERABLE IRQ — i.e.
-- `timers_read` (L300) — MMIO read/write for 0x1F801100..0x1F80112F.
-- `timers_write` (L339) — Handles a guest write to a timer register in the 0x1F801100 to 0x1F80112F range, setting its counter, target or mode.
-- `timers_tick` (L366) — Legacy coarse tick used by interpreter/oracle builds.
+- `timer_advance_counts` (L187) — Adds the given number of counts to one timer, handling target and overflow events along the way.
+- `timer_advance_divided` (L218) — Advances one timer by cycles divided by its divisor, keeping the remainder for the next call.
+- `timers_advance` (L227) — Advance all timers by guest CPU cycles.
+- `timer_divisor` (L249) — Cycles until this timer's clock advances by one count, given its source.
+- `timers_cycles_to_irq` (L265) — Cycle-budgeted precise event slicing: distance (in guest CPU cycles) to the next moment this timer block would raise a DELIVERABLE IRQ — i.e.
+- `timers_read` (L302) — MMIO read/write for 0x1F801100..0x1F80112F.
+- `timers_write` (L341) — Handles a guest write to a timer register in the 0x1F801100 to 0x1F80112F range, setting its counter, target or mode.
+- `timers_tick` (L368) — Legacy coarse tick used by interpreter/oracle builds.
 
 ### runtime/src/traps.c
 
