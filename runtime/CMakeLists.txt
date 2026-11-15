@@ -257,6 +257,11 @@ if(BUILD_TESTING)
         target_link_options(mod_memory_snapshot_test PRIVATE -flto -Wl,--gc-sections)
         add_test(NAME mod_memory_snapshot_test COMMAND mod_memory_snapshot_test)
     endif()
+    # MEM-24: SIO snapshot load with out-of-range fields; same link as the test below.
+    add_executable(sio_state_bounds_test tests/test_sio_state_bounds.c
+        src/psx_video_timing.c)
+    target_include_directories(sio_state_bounds_test PRIVATE include)
+    add_test(NAME sio_state_bounds_test COMMAND sio_state_bounds_test)
     add_executable(sio_card_irq_integrity_test tests/test_sio_card_irq_integrity.c
         src/psx_video_timing.c)
     target_include_directories(sio_card_irq_integrity_test PRIVATE include)
@@ -672,6 +677,23 @@ if(BUILD_TESTING)
             -flto -Wl,--gc-sections -Wno-lto-type-mismatch)
         target_link_libraries(psx_ram_runtime_map_test PRIVATE ZLIB::ZLIB)
         add_test(NAME psx_ram_runtime_map_test COMMAND psx_ram_runtime_map_test)
+
+        # MEM-24: DMA snapshot load with out-of-range fields; same link as above.
+        add_executable(dma_state_bounds_test
+            tests/test_dma_state_bounds.c
+            tests/psx_ram_runtime_map_stubs.c
+            src/memory.c
+            src/dma.c
+            src/gpu_timeline.c
+            src/boot_state.c
+            src/psx_ram_geometry.c)
+        target_include_directories(dma_state_bounds_test PRIVATE include src)
+        target_compile_options(dma_state_bounds_test PRIVATE
+            -O2 -flto -ffunction-sections -fdata-sections -Wno-lto-type-mismatch)
+        target_link_options(dma_state_bounds_test PRIVATE
+            -flto -Wl,--gc-sections -Wno-lto-type-mismatch)
+        target_link_libraries(dma_state_bounds_test PRIVATE ZLIB::ZLIB)
+        add_test(NAME dma_state_bounds_test COMMAND dma_state_bounds_test)
 
         # Cache-isolated (SR.IsC) CPU stores through the REAL memory.c store
         # paths and the REAL psx_icache.c tag model, against Beetle's
@@ -1733,6 +1755,11 @@ if(BUILD_TESTING)
     add_executable(cdrom_sector_fifo_test tests/test_cdrom_sector_fifo.c)
     target_include_directories(cdrom_sector_fifo_test PRIVATE include src)
     add_test(NAME cdrom_sector_fifo_test COMMAND cdrom_sector_fifo_test)
+
+    # CDS-23: XA-ADPCM sector decode against an independent reference.
+    add_executable(xa_decode_test tests/test_xa_decode.c)
+    target_include_directories(xa_decode_test PRIVATE include src)
+    add_test(NAME xa_decode_test COMMAND xa_decode_test)
 
     add_executable(audio_depletion_test tests/test_audio_depletion.c)
     target_include_directories(audio_depletion_test PRIVATE src)
