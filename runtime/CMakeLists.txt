@@ -1681,6 +1681,13 @@ if(BUILD_TESTING)
     target_include_directories(audio_depletion_test PRIVATE src)
     add_test(NAME audio_depletion_test COMMAND audio_depletion_test)
 
+    # A .dss with ranges outside the index space is refused at load (OVL-9).
+    add_executable(data_shards_load_test tests/test_data_shards_load.c src/crc32.c)
+    target_include_directories(data_shards_load_test PRIVATE include src)
+    file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/data_shards_load_scratch)
+    add_test(NAME data_shards_load_test COMMAND data_shards_load_test
+             WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/data_shards_load_scratch)
+
     add_executable(cdrom_read_motor_test tests/test_cdrom_read_motor.c)
     target_include_directories(cdrom_read_motor_test PRIVATE include src)
     add_test(NAME cdrom_read_motor_test COMMAND cdrom_read_motor_test)

@@ -336,6 +336,16 @@ static void ds_persist(const DsShard* s) {
     fclose(f);
 }
 
+/* File-supplied ranges must lie inside the index space and sum to the stored total. */
+static int ds_ranges_ok(const DsRange* r, uint32_t n, uint32_t total) {
+    uint64_t sum = 0;
+    for (uint32_t i = 0; i < n; i++) {
+        if ((uint64_t)r[i].idx + r[i].len > DS_SPACE) return 0;
+        sum += r[i].len;
+    }
+    return sum == total;
+}
+
 static void ds_load_key(uint32_t key) {
     for (int i = 0; i < s_loaded_n; i++) if (s_loaded_keys[i] == (int)key) return;
     if (s_loaded_n < 256) s_loaded_keys[s_loaded_n++] = (int)key;
@@ -351,21 +361,25 @@ static void ds_load_key(uint32_t key) {
         FILE* f = fopen(path, "rb");
         if (!f) continue;
         uint32_t hdr[8];
-        if (fread(hdr, 4, 8, f) == 8 && hdr[0] == 0x31534450u && hdr[1] == key) {
+        if (fread(hdr, 4, 8, f) == 8 && hdr[0] == 0x31534450u && hdr[1] == key
+            && hdr[4] <= DS_SPACE && hdr[5] <= DS_SPACE && hdr[6] <= DS_SPACE && hdr[7] <= DS_SPACE) {
             DsShard* s = (DsShard*)calloc(1, sizeof(DsShard));
             s->key = key;
             s->cyc_cost = (uint64_t)hdr[2] | ((uint64_t)hdr[3] << 32);
             s->nrd = hdr[4]; s->nwr = hdr[5]; s->rd_total = hdr[6]; s->wr_total = hdr[7];
-            s->rd = (DsRange*)malloc(s->nrd * sizeof(DsRange));
-            s->wr = (DsRange*)malloc(s->nwr * sizeof(DsRange));
+            s->rd = (DsRange*)malloc((s->nrd ? s->nrd : 1) * sizeof(DsRange));
+            s->wr = (DsRange*)malloc((s->nwr ? s->nwr : 1) * sizeof(DsRange));
             s->rd_bytes = (uint8_t*)malloc(s->rd_total ? s->rd_total : 1);
             s->wr_bytes = (uint8_t*)malloc(s->wr_total ? s->wr_total : 1);
-            int ok = fread(s->args, 4, 4, f) == 4
+            int ok = s->rd && s->wr && s->rd_bytes && s->wr_bytes
+                  && fread(s->args, 4, 4, f) == 4
                   && fread(s->regs, 4, DS_REG_COUNT, f) == DS_REG_COUNT
                   && fread(s->rd, sizeof(DsRange), s->nrd, f) == s->nrd
                   && fread(s->rd_bytes, 1, s->rd_total, f) == s->rd_total
                   && fread(s->wr, sizeof(DsRange), s->nwr, f) == s->nwr
-                  && fread(s->wr_bytes, 1, s->wr_total, f) == s->wr_total;
+                  && fread(s->wr_bytes, 1, s->wr_total, f) == s->wr_total
+                  && ds_ranges_ok(s->rd, s->nrd, s->rd_total)
+                  && ds_ranges_ok(s->wr, s->nwr, s->wr_total);
             if (ok) {
                 s->rd_crc = crc32_compute(s->rd_bytes, s->rd_total);
                 DsShard** b = ds_bucket(key);
