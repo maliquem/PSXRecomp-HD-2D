@@ -571,8 +571,8 @@ void check_strict_translator(bool strict_cps) {
     };
     // The syscall form is latched from PSX_CPS when the process starts.
     const char* syscall_want = strict_cps
-        ? "cpu->pc = 0x00000F00u; if (psx_syscall(cpu, cpu->gpr[2])) return;"
-        : "cpu->pc = 0x00000F00u; psx_syscall(cpu, cpu->gpr[2]); return;";
+        ? "cpu->pc = 0x00000F00u; if (psx_syscall(cpu, 0x00000u)) return;"
+        : "cpu->pc = 0x00000F00u; psx_syscall(cpu, 0x00000u); return;";
     const Case cases[] = {
         {0xAC880000u, "g_debug_last_store_pc = 0x00000F00u"},              // sw
         {0xA4880000u, "psx_unaligned_access(cpu, psx_addr, 0x00000F00u)"}, // sh

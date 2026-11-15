@@ -238,9 +238,9 @@ TranslateResult StrictTranslator::translate_impl(const PSXRecomp::DecodedInstruc
             //      dead at execution time. The walker still emits it as
             //      additional C, which is harmless.
             //
-            // SYSCALL: per PS1 ABI the syscall number lives in $v0 (gpr[2]).
-            // The 20-bit immediate field [25:6] of the SYSCALL instruction is
-            // ignored by the BIOS and not passed to psx_syscall.
+            // SYSCALL: the function number is $a0 (read by psx_syscall itself).
+            // The 20-bit code field [25:6] is passed through, as the game
+            // emitter does; the runtime does not use it.
             //
             // BREAK: the 20-bit immediate field [25:6] is the trap code; the
             // BIOS uses specific codes like 0x1c00 for divide-by-zero.
@@ -260,12 +260,12 @@ TranslateResult StrictTranslator::translate_impl(const PSXRecomp::DecodedInstruc
                     // returns to the caller via the flat trampoline. Transfers
                     // (return 1) set cpu->pc and return to the trampoline.
                     r.c_code = fmt::format(
-                        "cpu->pc = 0x{:08X}u; if (psx_syscall(cpu, cpu->gpr[2])) return;",
-                        pc);
+                        "cpu->pc = 0x{:08X}u; if (psx_syscall(cpu, 0x{:05X}u)) return;",
+                        pc, (d.raw >> 6) & 0xFFFFFu);
                 } else {
                     r.c_code = fmt::format(
-                        "cpu->pc = 0x{:08X}u; psx_syscall(cpu, cpu->gpr[2]); return;",
-                        pc);
+                        "cpu->pc = 0x{:08X}u; psx_syscall(cpu, 0x{:05X}u); return;",
+                        pc, (d.raw >> 6) & 0xFFFFFu);
                 }
                 r.comment = "syscall";
                 return r;
