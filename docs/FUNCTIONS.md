@@ -265,8 +265,10 @@ Loads and validates the BIOS, game, options and user settings TOML files, and wr
 - `valid_user_audio_freq` (L3319) — True when an audio frequency is one of the allowed user values: 32040, 32000, 44100 or 48000.
 - `load_user_settings` (L3323) — Load settings.toml. Returns an all-defaults (all has_*=false) struct if the file is missing or unreadable.
 - `relative_to_folder` (L3782) — Returns a path relative to a folder when the path is absolute, or the path unchanged when it is not.
-- `save_user_settings` (L3795) — Write settings.toml deterministically.
-- `upsert_game_toml_controller_bool` (L4040) — Sets a boolean key in the controller section of a game TOML file, adding or updating it, and returns whether the write succeeded.
+- `toml_escape` (L3796) — A basic TOML string must not carry a raw quote, backslash or control char.
+- `write_text_atomic` (L3812) — Write to a sibling temp file then rename, so a crash never leaves a cut file.
+- `save_user_settings` (L3827) — Write settings.toml deterministically.
+- `upsert_game_toml_controller_bool` (L4071) — Sets a boolean key in the controller section of a game TOML file, adding or updating it, and returns whether the write succeeded.
 
 ### recompiler/src/config_loader.h
 
@@ -1463,24 +1465,25 @@ Hand-placed lights per area: a locked table of light sets shared by the emulatio
 
 Music at its own tempo under fast-forward: a second copy of the guest SPU plays the music voices while sound effects stay on the guest timeline.
 
-- `am_set_classifier` (L51) — The title's voices of the music right now (bit v = voice v), read at each key-on; NULL = mode 2 unavailable (mode 1 is used).
-- `am_ready` (L52) — Returns 1 when a voice classifier is installed, so the music SPU mode is available.
-- `am_active` (L53) — Running (the fast-forward, trailing after it, or the crossfade out).
-- `am_music_changed` (L54) — The title's song changed: the music SPU catches up (fade out, in).
-- `sat16` (L56) — Clamps a 32-bit value to the signed 16-bit range.
-- `silence` (L61) — Voices 'mask' out of a clone: keyed off (their release tails fade out; their other registers stay: a driver that writes a register only when its own copy changes, as BoF4's, would never give a zeroed
-- `snapshot_live` (L67) — The guest SPU as it is now, into a buffer.
-- `copy_ram` (L82) — A clone's sample RAM from the guest's (the snapshot has the registers and voices only: a savestate keeps SPU RAM apart).
-- `music_from_live` (L85) — The music SPU from the guest's present, without the effects' voices.
-- `q_push` (L97) — Queues a guest SPU access with its cycle, kind, address and value; sets an overflow flag when the queue is full.
-- `tap` (L110) — Every guest access to the SPU while running: the effects SPU now, the music SPU later; a key-on goes to one or the other by its voices' owner.
-- `enter` (L139) — Starts the music SPU from a snapshot of the guest SPU and its sample RAM; returns 0 when the snapshot cannot be read.
-- `stop` (L163) — Detaches the SPU access tap and clears the running state and the event queue.
-- `am_reset` (L169) — Stop at once (savestate load).
-- `music_render` (L173) — The music SPU's next n frames at the wall clock's pace: the accesses held up to there applied at their own guest cycles, the frames between them made.
-- `sfx_pull` (L223) — Catches the effects SPU up, pops its output frames into the buffer, and returns how many frames were read.
-- `am_pump` (L231) — The pump's stream under mode 2: 'live' the guest SPU's frames just made; out gets what the host plays.
-- `am_stats` (L279) — TCP audio_turbo: state (0 idle, 1 running, 2 crossfading out, 3 trailing), the music's delay behind the guest (ms of game time), events queued, catch-ups, entries.
+- `am_set_classifier` (L56) — The title's voices of the music right now (bit v = voice v), read at each key-on; NULL = mode 2 unavailable (mode 1 is used).
+- `am_ready` (L57) — Returns 1 when a voice classifier is installed, so the music SPU mode is available.
+- `am_active` (L58) — Running (the fast-forward, trailing after it, or the crossfade out).
+- `am_music_changed` (L59) — The title's song changed: the music SPU catches up (fade out, in).
+- `sat16` (L61) — Clamps a 32-bit value to the signed 16-bit range.
+- `silence` (L66) — Voices 'mask' out of a clone: keyed off (their release tails fade out; their other registers stay: a driver that writes a register only when its own copy changes, as BoF4's, would never give a zeroed
+- `snapshot_live` (L72) — The guest SPU as it is now, into a buffer.
+- `copy_ram` (L87) — A clone's sample RAM from the guest's (the snapshot has the registers and voices only: a savestate keeps SPU RAM apart).
+- `music_from_live` (L90) — The music SPU from the guest's present, without the effects' voices.
+- `q_push` (L102) — Queues a guest SPU access with its cycle, kind, address and value; sets an overflow flag when the queue is full.
+- `tap` (L115) — Every guest access to the SPU while running: the effects SPU now, the music SPU later; a key-on goes to one or the other by its voices' owner.
+- `enter` (L144) — Starts the music SPU from a snapshot of the guest SPU and its sample RAM; returns 0 when the snapshot cannot be read.
+- `stop` (L168) — Detaches the SPU access tap and clears the running state and the event queue.
+- `am_reset` (L174) — Stop at once (savestate load).
+- `music_render` (L178) — The music SPU's next n frames at the wall clock's pace: the accesses held up to there applied at their own guest cycles, the frames between them made.
+- `live_only_sound` (L230) — Sound only the guest's SPU makes: CD audio (XA/CD-DA) and private voices, which never reach the clones.
+- `sfx_pull` (L237) — Catches the effects SPU up, pops its output frames into the buffer, and returns how many frames were read.
+- `am_pump` (L245) — The pump's stream under mode 2: 'live' the guest SPU's frames just made; out gets what the host plays.
+- `am_stats` (L295) — TCP audio_turbo: state (0 idle, 1 running, 2 crossfading out, 3 trailing), the music's delay behind the guest (ms of game time), events queued, catch-ups, entries.
 
 ### runtime/src/audio_shadow.c
 
@@ -6478,42 +6481,44 @@ Core MDEC math: dequantisation, inverse DCT, block decode and YCbCr to RGB colou
 
 Memory card emulation: keeps the card images in RAM, saves them to files on a background writer thread, and formats, imports and exports card data.
 
-- `wlock` (L70) — Takes the writer lock that guards the pending card writes.
-- `wunlock` (L71) — Releases the writer lock.
-- `wsignal` (L72) — Wakes every thread waiting on the given condition variable.
-- `wwait` (L74) — 0 when woken, -1 on timeout.
-- `wsleep` (L77) — Sleeps the calling thread for the given number of milliseconds.
-- `writer_loop` (L97) — Background thread loop: waits for a card with a pending write, then writes its image to disk.
-- `writer_main` (L129) — Thread entry point that runs writer_loop.
-- `writer_start_locked` (L135) — Called with s_wlock held.
-- `writer_enqueue` (L155) — Hand the card's current image to the writer.
-- `memcard_write_failing` (L170) — 1 while the card's background write keeps failing (disk full, no write access): the game already said "saved", so the host tells the player.
-- `memcard_flush_wait` (L172) — Wait until every queued card write is on disk.
-- `frame_checksum` (L191) — XOR checksum of bytes 0x00-0x7E, stored at 0x7F.
-- `memcard_format` (L200) — Format a 128KB card image to match a real PS1 blank card.
-- `memcard_ensure_dir` (L242) — mkdir -p: create each path component (guest sandbox is <memcard>/netplay).
-- `memcard_init_slots` (L275) — Initialize memcard subsystem with per-slot paths + enable flags.
-- `memcard_init` (L319) — Initialize memcard subsystem.
-- `memcard_format_file` (L324) — Write a freshly formatted (blank) 128KB card image to 'path', creating or overwriting it.
-- `memcard_summary_path` (L334) — Parse 'path' into 'out'.
-- `memcard_read_sector` (L373) — Read/write 128-byte sectors
-- `memcard_write_sector` (L382) — Writes one 128-byte sector into the card's RAM image and marks the card dirty; returns 0, or -1 for a bad card or sector.
-- `memcard_flush` (L392) — Flush pending writes to disk.
-- `memcard_flush_all` (L404) — Flushes every card, then waits up to 10 seconds for queued writes to reach the disk.
-- `memcard_is_present` (L411) — Check if card is present
-- `memcard_debug_info` (L416) — Reports a card's file path, first two bytes, presence and dirty flag; returns -1 for a bad card index.
-- `memcard_debug_read_buffer` (L428) — Copies up to len bytes of a present card's image, from offset, into dst; returns the number of bytes copied.
-- `memcard_export_raw` (L440) — Export / import a full 128KB card image (present cards only for export).
-- `memcard_import_raw` (L447) — Replaces a card's image with a 128KB raw copy and writes it to its file; returns -1 if the card has no path.
-- `memcard_rebind_dir` (L457) — Redirect on-disk paths for both slots (e.g.
-- `memcard_rebind_paths` (L474) — Restore explicit per-slot filepaths (from a prior snapshot).
-- `memcard_rebind_path` (L484) — Rebind ONE slot's on-disk path without touching RAM.
-- `memcard_reload_bound` (L509) — Reload in-memory images from the currently bound filepaths (0 = ok).
-- `memcard_dir` (L537) — Directory given to memcard_init/memcard_init_slots ("" when none).
-- `memcard_format_image` (L541) — Fill dst (MEMCARD_SIZE bytes) with a blank formatted card.
-- `memcard_mount_image` (L547) — Put a RAM-only image in a present slot (save slots): the slot's file is flushed first and then left alone; writes stay in RAM until unmount.
-- `memcard_unmount_image` (L558) — Leave the RAM-only image and put 'restore' back as the slot's contents (normally the image the slot held before the mount).
-- `memcard_image_mounted` (L567) — 1 while a RAM-only image is mounted in the slot.
+- `wlock` (L72) — Takes the writer lock that guards the pending card writes.
+- `wunlock` (L73) — Releases the writer lock.
+- `wsignal` (L74) — Wakes every thread waiting on the given condition variable.
+- `wwait` (L76) — 0 when woken, -1 on timeout.
+- `wsleep` (L79) — Sleeps the calling thread for the given number of milliseconds.
+- `writer_loop` (L99) — Background thread loop: waits for a card with a pending write, then writes its image to disk.
+- `writer_main` (L131) — Thread entry point that runs writer_loop.
+- `writer_start_locked` (L137) — Called with s_wlock held.
+- `writer_enqueue` (L157) — Hand the card's current image to the writer.
+- `memcard_write_failing` (L172) — 1 while the card's background write keeps failing (disk full, no write access): the game already said "saved", so the host tells the player.
+- `memcard_flush_wait` (L174) — Wait until every queued card write is on disk.
+- `frame_checksum` (L193) — XOR checksum of bytes 0x00-0x7E, stored at 0x7F.
+- `memcard_format` (L202) — Format a 128KB card image to match a real PS1 blank card.
+- `memcard_ensure_dir` (L244) — mkdir -p: create each path component (guest sandbox is <memcard>/netplay).
+- `card_unlock` (L284) — Releases this process's lock on card i.
+- `card_lock_busy` (L287) — Takes <card>.lock for this process; 1 only when another process holds it.
+- `memcard_init_slots` (L317) — Initialize memcard subsystem with per-slot paths + enable flags.
+- `memcard_init` (L367) — Initialize memcard subsystem.
+- `memcard_format_file` (L372) — Write a freshly formatted (blank) 128KB card image to 'path', creating or overwriting it.
+- `memcard_summary_path` (L382) — Parse 'path' into 'out'.
+- `memcard_read_sector` (L421) — Read/write 128-byte sectors
+- `memcard_write_sector` (L430) — Writes one 128-byte sector into the card's RAM image and marks the card dirty; returns 0, or -1 for a bad card or sector.
+- `memcard_flush` (L440) — Flush pending writes to disk.
+- `memcard_flush_all` (L452) — Flushes every card, then waits up to 10 seconds for queued writes to reach the disk.
+- `memcard_is_present` (L459) — Check if card is present
+- `memcard_debug_info` (L464) — Reports a card's file path, first two bytes, presence and dirty flag; returns -1 for a bad card index.
+- `memcard_debug_read_buffer` (L476) — Copies up to len bytes of a present card's image, from offset, into dst; returns the number of bytes copied.
+- `memcard_export_raw` (L488) — Export / import a full 128KB card image (present cards only for export).
+- `memcard_import_raw` (L495) — Replaces a card's image with a 128KB raw copy and writes it to its file; returns -1 if the card has no path.
+- `memcard_rebind_dir` (L505) — Redirect on-disk paths for both slots (e.g.
+- `memcard_rebind_paths` (L522) — Restore explicit per-slot filepaths (from a prior snapshot).
+- `memcard_rebind_path` (L532) — Rebind ONE slot's on-disk path without touching RAM.
+- `memcard_reload_bound` (L557) — Reload in-memory images from the currently bound filepaths (0 = ok).
+- `memcard_dir` (L585) — Directory given to memcard_init/memcard_init_slots ("" when none).
+- `memcard_format_image` (L589) — Fill dst (MEMCARD_SIZE bytes) with a blank formatted card.
+- `memcard_mount_image` (L595) — Put a RAM-only image in a present slot (save slots): the slot's file is flushed first and then left alone; writes stay in RAM until unmount.
+- `memcard_unmount_image` (L606) — Leave the RAM-only image and put 'restore' back as the slot's contents (normally the image the slot held before the mount).
+- `memcard_image_mounted` (L615) — 1 while a RAM-only image is mounted in the slot.
 
 ### runtime/src/memory.c
 
@@ -6635,36 +6640,36 @@ Main memory map: RAM and scratchpad, address translation, MMIO register dispatch
 - `psx_mmio_read_wait` (L2562) — Beetle MemRW device-region READ wait (libretro.cpp:859-1131), the device-dependent part of a load's access cost (added to the timestamp before the +completion).
 - `psx_cyc_readmem` (L2578) — Beetle ReadMemory data-access timing (cpu.cpp:369-448), after §1/deps/DO_LDS.
 - `psx_load_delay_enabled` (L2614) — Resolve PSX_LOAD_DELAY once (shared with inlined psx_cyc.h helpers).
-- `psx_cyc_load_timing` (L2624) — The interlock half of a load (§1+deps+(cancel)+DO_LDS+ReadMemory).
-- `psx_cyc_main_ram_fast_addr` (L2654) — Returns 1 and the physical address when an access is a plain main RAM hit with no tracing active; 0 otherwise.
-- `psx_cyc_load_word_slow` (L2676) — Slow paths for the inlined helpers in psx_cyc.h (MMIO / lockstep / shards).
-- `psx_cyc_load_half_slow` (L2680) — Slow path for a timed 16-bit load: charges the load timing, then reads the halfword.
-- `psx_cyc_load_word_timing_only` (L2684) — Charges the timing of a 32-bit load without reading the value.
-- `psx_cyc_load_byte` (L2688) — Timed 8-bit load for generated code: charges the load timing, then returns the byte from RAM or the full read.
-- `psx_cyc_lwc2_read_slow` (L2700) — LWC2 (GTE load): §1/DO_LDS done by psx_cyc_step(cpu,0); the GTE deadline stall by psx_gte_stall — both emitted before this call.
-- `psx_guest_read_word` (L2720) — Deprecated uncharged passthroughs (the +4 flat wait-state model is gone; load timing now lives in psx_cyc_load_*).
-- `psx_guest_read_half` (L2721) — Untimed 16-bit read for guest code, with no load timing charged.
-- `psx_guest_read_byte` (L2722) — Untimed 8-bit read for guest code, with no load timing charged.
-- `psx_cyc_load_word_host` (L2728) — The overlay DLLs' timed loads (overlay_loader.c callbacks): the same entries the main program inlines (psx_cyc.h), main RAM and scratchpad on the short path, everything else on the slow one.
-- `psx_cyc_load_half_host` (L2731) — Timed 16-bit load for overlay DLLs, the same as the main program's inline load.
-- `psx_cyc_load_byte_host` (L2734) — Timed 8-bit load for overlay DLLs, using the fast byte-load path.
-- `psx_cyc_lwc2_read_host` (L2737) — Timed GTE load for overlay DLLs: reads a word for LWC2 with its timing.
-- `psx_blk_load_slow` (L2743) — [recompiler] cpu_timing = "block": a load outside main RAM and the scratchpad (psx_cyc.h psx_blk_load_*): its access cost, then the read.
-- `psx_write_byte` (L2753) — Guest 8-bit store entry point, with the same fast path and special cases as the word store.
-- `psx_host_write_word` (L2772) — Host stores: the same paths as a guest store, but never cache-isolated (cpu_store_isolated).
-- `psx_host_write_half` (L2778) — Host 16-bit store: works like a guest store, but is never cache-isolated.
-- `psx_host_write_byte` (L2784) — Host 8-bit store: works like a guest store, but is never cache-isolated.
-- `psx_write_byte_raw` (L2791) — Performs an 8-bit store to RAM or a device, honouring cache isolation and KSEG2.
-- `psx_mem_gate_value` (L2876) — psx_mem_gate.h (g_psx_mem_gate lives in psx_cycles.c): raised by every writer that sets one of the stores' global gates; lowered here once all are clear.
-- `__attribute__` (L2889) — The gate was raised: lower it if every flag is clear (1: the short path may go on).
-- `psx_mem_gate_flags` (L2896) — Returns the combined store gate flags that decide whether the fast store path may be used.
-- `psx_store_pages_forget_all` (L2901) — Clears every cached store-page classification so each page is recomputed on its next store.
-- `psx_store_page_kind` (L2906) — 1: every aligned store to the page is a plain store here; 2: one is when its text line is already marked (text_line_mark would do nothing); 0: neither (kernel window, executed code, watched overlay pa
-- `psx_store_pages_audit` (L2917) — Debug check: aborts if a cached page classification no longer matches the current state.
-- `psx_store_fast_ptr` (L2934) — Where a plain store may go directly: main RAM (above the kernel window, on a page no code watcher acts on) or the scratchpad, which the full path writes with nothing else to do (no mod aperture reache
-- `psx_store_try_word` (L2970) — Tries a 32-bit store through the fast path; returns 1 when it wrote the value, 0 to fall back to the full path.
-- `psx_store_try_half` (L2982) — Tries a 16-bit store through the fast path; returns 1 when handled, 0 to fall back.
-- `psx_store_try_byte` (L2991) — Tries an 8-bit store through the fast path; returns 1 when handled, 0 to fall back.
+- `psx_cyc_load_timing` (L2628) — The interlock half of a load (§1+deps+(cancel)+DO_LDS+ReadMemory).
+- `psx_cyc_main_ram_fast_addr` (L2658) — Returns 1 and the physical address when an access is a plain main RAM hit with no tracing active; 0 otherwise.
+- `psx_cyc_load_word_slow` (L2680) — Slow paths for the inlined helpers in psx_cyc.h (MMIO / lockstep / shards).
+- `psx_cyc_load_half_slow` (L2684) — Slow path for a timed 16-bit load: charges the load timing, then reads the halfword.
+- `psx_cyc_load_word_timing_only` (L2688) — Charges the timing of a 32-bit load without reading the value.
+- `psx_cyc_load_byte` (L2692) — Timed 8-bit load for generated code: charges the load timing, then returns the byte from RAM or the full read.
+- `psx_cyc_lwc2_read_slow` (L2704) — LWC2 (GTE load): §1/DO_LDS done by psx_cyc_step(cpu,0); the GTE deadline stall by psx_gte_stall — both emitted before this call.
+- `psx_guest_read_word` (L2724) — Deprecated uncharged passthroughs (the +4 flat wait-state model is gone; load timing now lives in psx_cyc_load_*).
+- `psx_guest_read_half` (L2725) — Untimed 16-bit read for guest code, with no load timing charged.
+- `psx_guest_read_byte` (L2726) — Untimed 8-bit read for guest code, with no load timing charged.
+- `psx_cyc_load_word_host` (L2732) — The overlay DLLs' timed loads (overlay_loader.c callbacks): the same entries the main program inlines (psx_cyc.h), main RAM and scratchpad on the short path, everything else on the slow one.
+- `psx_cyc_load_half_host` (L2735) — Timed 16-bit load for overlay DLLs, the same as the main program's inline load.
+- `psx_cyc_load_byte_host` (L2738) — Timed 8-bit load for overlay DLLs, using the fast byte-load path.
+- `psx_cyc_lwc2_read_host` (L2741) — Timed GTE load for overlay DLLs: reads a word for LWC2 with its timing.
+- `psx_blk_load_slow` (L2747) — [recompiler] cpu_timing = "block": a load outside main RAM and the scratchpad (psx_cyc.h psx_blk_load_*): its access cost, then the read.
+- `psx_write_byte` (L2757) — Guest 8-bit store entry point, with the same fast path and special cases as the word store.
+- `psx_host_write_word` (L2776) — Host stores: the same paths as a guest store, but never cache-isolated (cpu_store_isolated).
+- `psx_host_write_half` (L2782) — Host 16-bit store: works like a guest store, but is never cache-isolated.
+- `psx_host_write_byte` (L2788) — Host 8-bit store: works like a guest store, but is never cache-isolated.
+- `psx_write_byte_raw` (L2795) — Performs an 8-bit store to RAM or a device, honouring cache isolation and KSEG2.
+- `psx_mem_gate_value` (L2880) — psx_mem_gate.h (g_psx_mem_gate lives in psx_cycles.c): raised by every writer that sets one of the stores' global gates; lowered here once all are clear.
+- `__attribute__` (L2893) — The gate was raised: lower it if every flag is clear (1: the short path may go on).
+- `psx_mem_gate_flags` (L2900) — Returns the combined store gate flags that decide whether the fast store path may be used.
+- `psx_store_pages_forget_all` (L2905) — Clears every cached store-page classification so each page is recomputed on its next store.
+- `psx_store_page_kind` (L2910) — 1: every aligned store to the page is a plain store here; 2: one is when its text line is already marked (text_line_mark would do nothing); 0: neither (kernel window, executed code, watched overlay pa
+- `psx_store_pages_audit` (L2921) — Debug check: aborts if a cached page classification no longer matches the current state.
+- `psx_store_fast_ptr` (L2938) — Where a plain store may go directly: main RAM (above the kernel window, on a page no code watcher acts on) or the scratchpad, which the full path writes with nothing else to do (no mod aperture reache
+- `psx_store_try_word` (L2974) — Tries a 32-bit store through the fast path; returns 1 when it wrote the value, 0 to fall back to the full path.
+- `psx_store_try_half` (L2986) — Tries a 16-bit store through the fast path; returns 1 when handled, 0 to fall back.
+- `psx_store_try_byte` (L2995) — Tries an 8-bit store through the fast path; returns 1 when handled, 0 to fall back.
 
 ### runtime/src/mod_builtin_bezel.c
 
@@ -7277,61 +7282,61 @@ Picks the overlay compile backend (gcc, tcc or auto) once at startup and reports
 
 Writes overlay capture manifests and snapshots to disk (atomically, with history and background writers) and drives the automatic capture trigger.
 
-- `capture_next_sequence` (L76) — Returns the next snapshot sequence number, using an atomic add so it never waits on the file lock.
-- `capture_process_id` (L86) — Current process id, used to build unique temporary file names.
-- `sanitize_filename` (L95) — Copies src into dst keeping only filename-safe characters, truncated to fit.
-- `sync_file` (L106) — Flushes a file and forces its data to disk; 1 on success.
-- `atomic_replace_file` (L116) — Renames tmp_path over path as one write-through step; 1 on success.
-- `capture_file_sig` (L126) — 64-bit FNV-1a hash of a file's bytes; 0 when the file cannot be read.
-- `capture_path_dirname` (L145) — Directory portion of 'path' (no trailing separator); "." when 'path' has no separator.
-- `write_b64` (L168) — Writes binary data to the file as base64 text.
-- `overlay_capture_set_out_dir` (L184) — Call once at startup (before the run loop) with the exe directory.
-- `overlay_capture_set_path` (L192) — Set the canonical capture manifest path directly.
-- `overlay_capture_init` (L206) — Legacy init alias kept for compatibility; same as set_out_dir.
-- `overlay_capture_set_enabled` (L211) — Enable/disable overlay capture.
-- `overlay_capture_configure_history` (L216) — Sets whether the capture history is kept, where it persists and the game id it is filed under.
-- `overlay_capture_on_dma` (L260) — Notes a CD-to-RAM DMA of an overlay, recording its load address, size and a copy of its bytes.
-- `write_json_window` (L322) — Emit every dirty-page run within [win_lo_page, win_hi_page) as a capture region.
-- `write_json_snapshot` (L481) — Writes one capture snapshot of the region bitmaps to path as JSON.
-- `capture_copy_file` (L526) — Copies one file to another; 1 on success.
-- `capture_files_equal` (L547) — 1 when two files have identical bytes.
-- `copy_file_atomic` (L564) — Copies a file through a temporary file and renames it into place, so readers never see a partial copy.
-- `append_history_record` (L595) — Append the canonical JSON array as one minified JSONL record.
-- `write_json_string` (L644) — Writes a string as a JSON string literal, with escapes.
-- `append_history_reference` (L664) — Dev persistence already owns an atomically published immutable full JSON snapshot.
-- `persist_history_snapshot` (L693) — Keeps a copy of a snapshot in the persistent history folder, named by its content signature.
-- `capture_commit_temp` (L741) — Persist one coherent snapshot for three deliberately different roles: - capture_path is the legacy/latest manifest consumed by existing tools; - capture_path.d/<content-hash>.json is immutable additiv
-- `capture_executed_pages` (L829) — Marks as captured every RAM page that executed code within the scope, optionally with its neighbouring pages.
-- `overlay_capture_write_current` (L857) — Writes the current capture for a scope (manifest and history) and returns its content signature.
-- `overlay_capture_write_json` (L882) — Write overlay_captures.json to the directory supplied at init time.
-- `overlay_capture_before_dma` (L892) — Called before a to-RAM CD DMA overwrites its destination.
-- `overlay_capture_count` (L942) — Returns number of unique overlays captured so far.
-- `autocap_now_ms` (L1012) — Milliseconds since the SDL timer started, used for auto-capture timing.
-- `overlay_autocapture_set_enabled` (L1060) — Variant-capture automation (step 2.8): per-vblank tick that fires an automatic capture + background compile when the dirty-RAM interpreter shows sustained pressure inside a capture window (an uncovere
-- `overlay_autocapture_get_status` (L1064) — Reports whether auto-capture is enabled, how many triggers fired and the last instruction delta.
-- `overlay_autocapture_last_insns_delta` (L1071) — Instruction count difference measured at the last pressure sample.
-- `overlay_autocapture_get_futility` (L1075) — Reports the current backoff and the count of futile captures.
-- `overlay_autocapture_gate_name` (L1085) — Wedge report: the latched gate and time since the last completed pressure sample.
-- `overlay_autocapture_ms_since_sample` (L1099) — Milliseconds since the last completed pressure sample; 0 before the first sample (nothing to conclude yet).
-- `overlay_autocapture_get_gates` (L1105) — Reports the state of each capture gate: capture active, background write state and attempts, and provider pending and attempts.
-- `overlay_capture_test_write_state` (L1122) — Test hook: current state of the background manifest writer.
-- `overlay_capture_test_write_attempts` (L1125) — Test hook: how many attempts the pending manifest write has made.
-- `overlay_capture_test_provider_pending` (L1128) — Test hook: 1 while a compile request to the provider is pending.
-- `autocap_write_job_free` (L1137) — FNV-1a of the just-written capture manifest.
-- `autocap_write_thread_main` (L1145) — Thread body that writes the capture manifest in the background and stores its signature in the job.
-- `autocap_write_retry_delay` (L1157) — Frames to wait before retrying a failed manifest write; grows with the attempt count up to a cap.
-- `autocap_provider_request_try` (L1169) — A durable contribution and a successfully started compiler request are two separate commits.
-- `autocap_write_launch` (L1207) — Marks a background manifest write as in progress and starts it on a worker thread.
-- `capture_snapshot_create` (L1223) — Copy coherent inputs on the emulation thread, then perform base64 formatting, file I/O, and verification reread on a worker.
-- `autocap_write_start` (L1279) — Starts a background manifest write covering the executed code, scoped to live coverage to keep it small.
-- `preserve_write_thread_main` (L1295) — Worker loop that writes queued preserved snapshots to disk, retrying on failure.
-- `preserve_writer_start` (L1342) — Creates the preserve-writer mutex, condition and worker thread once; 0 when that fails.
-- `preserve_snapshot_enqueue_owned` (L1362) — Transfer ownership of an already-coherent immutable snapshot to the retrying FIFO.
-- `preserve_snapshot_async` (L1383) — Capture coherent bytes before DMA mutates RAM, but keep base64, hashing, copying, and fsync off the emulation thread.
-- `overlay_autocapture_tick` (L1393) — Per-vblank check of auto-capture pressure: samples it, latches the gates and fires a capture when pressure stays high.
-- `overlay_capture_wait_pending` (L1502) — Join any background snapshot writer before process shutdown.
-- `overlay_autocapture_shutdown` (L1531) — Join any in-flight atomic writer before the final shutdown snapshot.
-- `overlay_capture_get_region_crc` (L1547) — CRC of the bytes in a RAM region, read from a copy of the region.
+- `capture_next_sequence` (L77) — Returns the next snapshot sequence number, using an atomic add so it never waits on the file lock.
+- `capture_process_id` (L87) — Current process id, used to build unique temporary file names.
+- `sanitize_filename` (L96) — Copies src into dst keeping only filename-safe characters, truncated to fit.
+- `sync_file` (L107) — Flushes a file and forces its data to disk; 1 on success.
+- `atomic_replace_file` (L117) — Renames tmp_path over path as one write-through step; 1 on success.
+- `capture_file_sig` (L127) — 64-bit FNV-1a hash of a file's bytes; 0 when the file cannot be read.
+- `capture_path_dirname` (L146) — Directory portion of 'path' (no trailing separator); "." when 'path' has no separator.
+- `write_b64` (L169) — Writes binary data to the file as base64 text.
+- `overlay_capture_set_out_dir` (L185) — Call once at startup (before the run loop) with the exe directory.
+- `overlay_capture_set_path` (L194) — Set the canonical capture manifest path directly.
+- `overlay_capture_init` (L209) — Legacy init alias kept for compatibility; same as set_out_dir.
+- `overlay_capture_set_enabled` (L214) — Enable/disable overlay capture.
+- `overlay_capture_configure_history` (L219) — Sets whether the capture history is kept, where it persists and the game id it is filed under.
+- `overlay_capture_on_dma` (L263) — Notes a CD-to-RAM DMA of an overlay, recording its load address, size and a copy of its bytes.
+- `write_json_window` (L325) — Emit every dirty-page run within [win_lo_page, win_hi_page) as a capture region.
+- `write_json_snapshot` (L484) — Writes one capture snapshot of the region bitmaps to path as JSON.
+- `capture_copy_file` (L529) — Copies one file to another; 1 on success.
+- `capture_files_equal` (L550) — 1 when two files have identical bytes.
+- `copy_file_atomic` (L567) — Copies a file through a temporary file and renames it into place, so readers never see a partial copy.
+- `append_history_record` (L598) — Append the canonical JSON array as one minified JSONL record.
+- `write_json_string` (L647) — Writes a string as a JSON string literal, with escapes.
+- `append_history_reference` (L667) — Dev persistence already owns an atomically published immutable full JSON snapshot.
+- `persist_history_snapshot` (L696) — Keeps a copy of a snapshot in the persistent history folder, named by its content signature.
+- `capture_commit_temp` (L744) — Persist one coherent snapshot for three deliberately different roles: - capture_path is the legacy/latest manifest consumed by existing tools; - capture_path.d/<content-hash>.json is immutable additiv
+- `capture_executed_pages` (L837) — Marks as captured every RAM page that executed code within the scope, optionally with its neighbouring pages.
+- `overlay_capture_write_current` (L865) — Writes the current capture for a scope (manifest and history) and returns its content signature.
+- `overlay_capture_write_json` (L890) — Write overlay_captures.json to the directory supplied at init time.
+- `overlay_capture_before_dma` (L900) — Called before a to-RAM CD DMA overwrites its destination.
+- `overlay_capture_count` (L950) — Returns number of unique overlays captured so far.
+- `autocap_now_ms` (L1020) — Milliseconds since the SDL timer started, used for auto-capture timing.
+- `overlay_autocapture_set_enabled` (L1068) — Variant-capture automation (step 2.8): per-vblank tick that fires an automatic capture + background compile when the dirty-RAM interpreter shows sustained pressure inside a capture window (an uncovere
+- `overlay_autocapture_get_status` (L1072) — Reports whether auto-capture is enabled, how many triggers fired and the last instruction delta.
+- `overlay_autocapture_last_insns_delta` (L1079) — Instruction count difference measured at the last pressure sample.
+- `overlay_autocapture_get_futility` (L1083) — Reports the current backoff and the count of futile captures.
+- `overlay_autocapture_gate_name` (L1093) — Wedge report: the latched gate and time since the last completed pressure sample.
+- `overlay_autocapture_ms_since_sample` (L1107) — Milliseconds since the last completed pressure sample; 0 before the first sample (nothing to conclude yet).
+- `overlay_autocapture_get_gates` (L1113) — Reports the state of each capture gate: capture active, background write state and attempts, and provider pending and attempts.
+- `overlay_capture_test_write_state` (L1130) — Test hook: current state of the background manifest writer.
+- `overlay_capture_test_write_attempts` (L1133) — Test hook: how many attempts the pending manifest write has made.
+- `overlay_capture_test_provider_pending` (L1136) — Test hook: 1 while a compile request to the provider is pending.
+- `autocap_write_job_free` (L1145) — FNV-1a of the just-written capture manifest.
+- `autocap_write_thread_main` (L1153) — Thread body that writes the capture manifest in the background and stores its signature in the job.
+- `autocap_write_retry_delay` (L1165) — Frames to wait before retrying a failed manifest write; grows with the attempt count up to a cap.
+- `autocap_provider_request_try` (L1177) — A durable contribution and a successfully started compiler request are two separate commits.
+- `autocap_write_launch` (L1215) — Marks a background manifest write as in progress and starts it on a worker thread.
+- `capture_snapshot_create` (L1231) — Copy coherent inputs on the emulation thread, then perform base64 formatting, file I/O, and verification reread on a worker.
+- `autocap_write_start` (L1287) — Starts a background manifest write covering the executed code, scoped to live coverage to keep it small.
+- `preserve_write_thread_main` (L1303) — Worker loop that writes queued preserved snapshots to disk, retrying on failure.
+- `preserve_writer_start` (L1350) — Creates the preserve-writer mutex, condition and worker thread once; 0 when that fails.
+- `preserve_snapshot_enqueue_owned` (L1370) — Transfer ownership of an already-coherent immutable snapshot to the retrying FIFO.
+- `preserve_snapshot_async` (L1391) — Capture coherent bytes before DMA mutates RAM, but keep base64, hashing, copying, and fsync off the emulation thread.
+- `overlay_autocapture_tick` (L1401) — Per-vblank check of auto-capture pressure: samples it, latches the gates and fires a capture when pressure stays high.
+- `overlay_capture_wait_pending` (L1510) — Join any background snapshot writer before process shutdown.
+- `overlay_autocapture_shutdown` (L1539) — Join any in-flight atomic writer before the final shutdown snapshot.
+- `overlay_capture_get_region_crc` (L1555) — CRC of the bytes in a RAM region, read from a copy of the region.
 
 ### runtime/src/overlay_loader.c
 
@@ -9903,18 +9908,18 @@ Models the PS1 Sound Processing Unit: its registers and DMA, the ADPCM voices wi
 - `spu_event_total` (L1990) — Returns the total number of SPU events recorded so far.
 - `spu_event_get` (L1992) — Copies up to max_count of the most recent SPU events into the output array and returns how many were copied.
 - `spu_event_reset` (L2005) — uint32_t spu_event_get(SpuEvent* out, uint32_t max_count); /* most recent up to max_count
-- `spu_w_voice` (L2022) — Writes the state of one voice into the snapshot stream.
-- `spu_r_voice` (L2043) — Reads the state of one voice back from the snapshot stream.
-- `spu_snapshot_bytes_v1` (L2079) — + 4: guest-clock phase (cycles since the SPU's last whole sample).
-- `spu_snapshot_bytes` (L2082) — Returns the snapshot size: the v1 layout plus four bytes for the guest-clock phase.
-- `spu_snapshot_len_ok` (L2083) — Returns 1 when a snapshot length matches one of the accepted layouts.
-- `spu_voice_wire_ok` (L2095) — Saved voice values the mixer indexes with: the sample bank bindings, the decode cursor (at most one block ahead: voice_step decodes once and the Gaussian window holds 3 + 28 samples) and the 12-bit pi
-- `spu_snapshot_validate` (L2109) — Pass-1 check for boot_state's two-pass load: walks the snapshot without touching the SPU and refuses every value spu_snapshot_read would reject halfway or the SPU would later index out of range with.
-- `spu_snapshot_write` (L2134) — Catches the SPU up to the current cycle and writes its state snapshot into the buffer.
-- `spu_snapshot_read` (L2169) — Restores the SPU state from a snapshot buffer; returns 0 on a bad length or bad data.
-- `spu_get_ram_ptr` (L2223) — Returns a pointer to the 512 KB of SPU RAM.
-- `spu_get_ram_bytes` (L2224) — Returns the size in bytes of SPU RAM.
-- `spu_snapshot_part_digests` (L2226) — Computes checksums of the separate sections of the SPU snapshot and stores them in the output struct.
+- `spu_w_voice` (L2021) — Writes the state of one voice into the snapshot stream.
+- `spu_r_voice` (L2042) — Reads the state of one voice back from the snapshot stream.
+- `spu_snapshot_bytes_v1` (L2078) — + 4: guest-clock phase (cycles since the SPU's last whole sample).
+- `spu_snapshot_bytes` (L2081) — Returns the snapshot size: the v1 layout plus four bytes for the guest-clock phase.
+- `spu_snapshot_len_ok` (L2082) — Returns 1 when a snapshot length matches one of the accepted layouts.
+- `spu_voice_wire_ok` (L2094) — Saved voice values the mixer indexes with: the sample bank bindings, the decode cursor (at most one block ahead: voice_step decodes once and the Gaussian window holds 3 + 28 samples) and the 12-bit pi
+- `spu_snapshot_validate` (L2108) — Pass-1 check for boot_state's two-pass load: walks the snapshot without touching the SPU and refuses every value spu_snapshot_read would reject halfway or the SPU would later index out of range with.
+- `spu_snapshot_write` (L2133) — Catches the SPU up to the current cycle and writes its state snapshot into the buffer.
+- `spu_snapshot_read` (L2168) — Restores the SPU state from a snapshot buffer; returns 0 on a bad length or bad data.
+- `spu_get_ram_ptr` (L2222) — Returns a pointer to the 512 KB of SPU RAM.
+- `spu_get_ram_bytes` (L2223) — Returns the size in bytes of SPU RAM.
+- `spu_snapshot_part_digests` (L2225) — Computes checksums of the separate sections of the SPU snapshot and stores them in the output struct.
 
 ### runtime/src/spu_clone_music.c
 
