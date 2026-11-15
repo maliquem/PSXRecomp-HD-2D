@@ -78,9 +78,6 @@ static void      wide_free_all(void);          /* defined with the surface helpe
 /* Draw area clipping rectangle (native coordinates) */
 static int g_clip_x1, g_clip_y1, g_clip_x2, g_clip_y2;
 
-/* Draw offset */
-static int g_offset_x, g_offset_y;
-
 /* Semi-transparency state */
 static int g_semi_trans_enabled;
 static int g_semi_trans_mode; /* 0=B/2+F/2, 1=B+F, 2=B-F, 3=B+F/4 */
@@ -469,8 +466,6 @@ void sw_renderer_init(uint16_t *vram) {
     g_clip_y1 = 0;
     g_clip_x2 = VRAM_WIDTH - 1;
     g_clip_y2 = VRAM_HEIGHT - 1;
-    g_offset_x = 0;
-    g_offset_y = 0;
     g_semi_trans_enabled = 0;
     g_semi_trans_mode = 0;
     g_mask_set_bit = 0;
@@ -639,9 +634,10 @@ void sw_get_draw_area(int *x1, int *y1, int *x2, int *y2) {
     *x2 = g_clip_x2; *y2 = g_clip_y2;
 }
 
+/* Kept for the renderer vtable (gpu_render.c); this backend never applied the offset. */
 void sw_set_draw_offset(int x, int y) {
-    g_offset_x = x;
-    g_offset_y = y;
+    (void)x;
+    (void)y;
 }
 
 /* ------------------------------------------------------------------ */
