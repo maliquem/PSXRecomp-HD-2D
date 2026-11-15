@@ -52,6 +52,17 @@ const char* gpr_name(uint8_t r) {
     return names[r & 0x1F];
 }
 
+// Ov exception (ExcCode 0Ch), same inline raise as the game emitter. The translator has no
+// delay-slot context: EPC is this instruction and BD stays clear.
+std::string overflow_exception(uint32_t pc) {
+    return fmt::format(
+        "{{ /* architectural Ov exception */ uint32_t psx_ri_sr = cpu->cop0[12]; "
+        "cpu->cop0[14] = 0x{:08X}u; cpu->cop0[13] = (cpu->cop0[13] & ~0x8000007Cu) | 0x00000030u; "
+        "cpu->cop0[12] = (psx_ri_sr & ~0x3Fu) | ((psx_ri_sr & 0x0Fu) << 2); "
+        "cpu->pc = (psx_ri_sr & 0x00400000u) ? 0xBFC00180u : 0x80000080u; return; }}",
+        pc);
+}
+
 TranslateResult unsupported(const PSXRecomp::DecodedInstruction& d, const std::string& why) {
     TranslateResult r;
     r.supported = false;
@@ -413,7 +424,8 @@ TranslateResult StrictTranslator::translate_impl(const PSXRecomp::DecodedInstruc
             // none take a shift amount.
             // -----------------------------------------------------------------
 
-            case 0x20: { // ADD rd, rs, rt -- signed; traps on overflow
+            case 0x20:   // ADD rd, rs, rt -- signed; traps on overflow
+            case 0x22: { // SUB rd, rs, rt -- signed; traps on overflow
                 r.supported = true;
                 // Even if rd == 0 the trap check must still execute, because
                 // real R3000A raises overflow before discarding the result.
@@ -431,12 +443,14 @@ TranslateResult StrictTranslator::translate_impl(const PSXRecomp::DecodedInstruc
                 r.c_code = fmt::format(
                     "{{ int32_t psx_a = (int32_t)cpu->gpr[{}]; "
                     "int32_t psx_b = (int32_t)cpu->gpr[{}]; "
-                    "int64_t psx_r = (int64_t)psx_a + (int64_t)psx_b; "
+                    "int64_t psx_r = (int64_t)psx_a {} (int64_t)psx_b; "
                     "if (psx_r < (int64_t)INT32_MIN || psx_r > (int64_t)INT32_MAX) "
-                    "{{ psx_arith_overflow(cpu); return; }} "
+                    "{} "
                     "{} }}",
-                    static_cast<int>(rs), static_cast<int>(rt), write_part);
-                r.comment = fmt::format("add {}, {}, {}", gpr_name(rd), gpr_name(rs), gpr_name(rt));
+                    static_cast<int>(rs), static_cast<int>(rt), funct == 0x22 ? "-" : "+",
+                    overflow_exception(pc), write_part);
+                r.comment = fmt::format("{} {}, {}, {}", funct == 0x22 ? "sub" : "add",
+                                        gpr_name(rd), gpr_name(rs), gpr_name(rt));
                 return r;
             }
 
@@ -449,7 +463,6 @@ TranslateResult StrictTranslator::translate_impl(const PSXRecomp::DecodedInstruc
                 return r;
             }
 
-            case 0x22: // SUB rd, rs, rt -- same as SUBU on PSX (no overflow trap in recomp)
             case 0x23: { // SUBU rd, rs, rt -- unsigned wrap, no trap
                 r.supported = true;
                 r.c_code = emit_gpr_write(rd,
@@ -769,9 +782,9 @@ TranslateResult StrictTranslator::translate_impl(const PSXRecomp::DecodedInstruc
             "int32_t psx_b = ({}); "
             "int64_t psx_r = (int64_t)psx_a + (int64_t)psx_b; "
             "if (psx_r < (int64_t)INT32_MIN || psx_r > (int64_t)INT32_MAX) "
-            "{{ psx_arith_overflow(cpu); return; }} "
+            "{} "
             "{} }}",
-            static_cast<int>(rs), simm, write_part);
+            static_cast<int>(rs), simm, overflow_exception(pc), write_part);
         r.comment = fmt::format("addi {}, {}, {}", gpr_name(rt), gpr_name(rs), simm);
         return r;
     }

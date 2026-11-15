@@ -190,7 +190,11 @@ static const Form kForms[] = {
 
     // ADD $v0, $v1, $a0  (with overflow trap)
     { R_TYPE(V1, A0, V0, 0, 0x20), "add_v0_v1_a0",
-      must_contain({"gpr[2]", "gpr[3]", "gpr[4]", "psx_arith_overflow"}) },
+      must_contain({"gpr[2]", "gpr[3]", "gpr[4]", "psx_a + (int64_t)psx_b", "| 0x00000030u;"}) },
+
+    // SUB $v0, $v1, $a0  (with overflow trap: Ov, ExcCode 0Ch)
+    { R_TYPE(V1, A0, V0, 0, 0x22), "sub_v0_v1_a0",
+      must_contain({"gpr[2]", "gpr[3]", "gpr[4]", "psx_a - (int64_t)psx_b", "| 0x00000030u;"}) },
 
     // MULTU $v1, $a0
     { R_TYPE(V1, A0, 0, 0, 0x19), "multu_v1_a0",
@@ -227,7 +231,7 @@ static const Form kForms[] = {
 
     // ADDI $v0, $v1, 42  (with overflow trap)
     { I_TYPE(0x08, V1, V0, 42), "addi_v0_v1_42",
-      must_contain({"gpr[2]", "gpr[3]", "42", "psx_arith_overflow"}) },
+      must_contain({"gpr[2]", "gpr[3]", "42", "| 0x00000030u;"}) },
 
     // ANDI $v0, $v1, 0xFF
     { I_TYPE(0x0C, V1, V0, 0xFF), "andi_v0_v1_ff",

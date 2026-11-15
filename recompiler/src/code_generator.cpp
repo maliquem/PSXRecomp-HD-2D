@@ -1892,6 +1892,26 @@ std::string CodeGenerator::translate_instruction_core(uint32_t addr, uint32_t in
         std::exit(1);
     }
 
+    // ADD/ADDI/SUB: signed overflow raises Ov (ExcCode 0Ch) and leaves the destination unwritten
+    // (psx-spx "CPU ALU Opcodes"); EPC/BD follow the reserved-opcode raise below.
+    const auto overflow_trapping = [&](uint32_t dst, const std::string& b, bool sub) {
+        const auto prev = exe_.read_word(addr - 4u);
+        const uint32_t prev_op = prev.has_value() ? (*prev >> 26) : 0u;
+        const bool in_delay = prev.has_value() && ControlFlowAnalyzer::is_control_flow(*prev) &&
+            !(prev_op >= 0x14u && prev_op <= 0x17u);
+        return fmt::format(
+            "{{ uint32_t psx_ov_a = {}; uint32_t psx_ov_b = {}; uint32_t psx_ov_r = psx_ov_a {} psx_ov_b; "
+            "if ((({}) & (psx_ov_a ^ psx_ov_r)) >> 31) {{ /* architectural Ov exception */ "
+            "uint32_t psx_ri_sr = cpu->cop0[12]; cpu->cop0[14] = 0x{:08X}u; "
+            "cpu->cop0[13] = (cpu->cop0[13] & ~0x8000007Cu) | 0x{:08X}u; "
+            "cpu->cop0[12] = (psx_ri_sr & ~0x3Fu) | ((psx_ri_sr & 0x0Fu) << 2); "
+            "cpu->pc = (psx_ri_sr & 0x00400000u) ? 0xBFC00180u : 0x80000080u; return; }} {} }}",
+            reg_name(get_rs(instr)), b, sub ? "-" : "+",
+            sub ? "psx_ov_a ^ psx_ov_b" : "psx_ov_b ^ psx_ov_r",
+            runtime_pc(in_delay ? addr - 4u : addr), (in_delay ? 0x80000000u : 0u) | (12u << 2),
+            dst == 0 ? std::string("/* $zero */") : fmt::format("{} = psx_ov_r;", reg_name(dst)));
+    };
+
     // SPECIAL opcode (0x00)
     if (opcode == 0x00) {
         switch (funct) {
@@ -1934,9 +1954,9 @@ std::string CodeGenerator::translate_instruction_core(uint32_t addr, uint32_t in
             case 0x19: code = translate_multu(instr); break;   // multu
             case 0x1A: code = translate_div(instr); break;     // div
             case 0x1B: code = translate_divu(instr); break;    // divu
-            case 0x20: code = translate_add(instr); break;     // add
+            case 0x20: code = overflow_trapping(get_rd(instr), reg_name(get_rt(instr)), false); break;  // add
             case 0x21: code = translate_addu(instr); break;    // addu
-            case 0x22: code = translate_sub(instr); break;     // sub
+            case 0x22: code = overflow_trapping(get_rd(instr), reg_name(get_rt(instr)), true); break;   // sub
             case 0x23: code = translate_subu(instr); break;    // subu
             case 0x24: code = translate_and(instr); break;     // and
             case 0x25: code = translate_or(instr); break;      // or
@@ -1951,7 +1971,8 @@ std::string CodeGenerator::translate_instruction_core(uint32_t addr, uint32_t in
     // Immediate and load/store instructions
     else {
         switch (opcode) {
-            case 0x08: code = translate_addiu(instr); break;  // addi (same as addiu)
+            case 0x08: code = overflow_trapping(get_rt(instr),  // addi
+                fmt::format("0x{:08X}u", (uint32_t)(int32_t)get_imm16(instr)), false); break;
             case 0x09: code = translate_addiu(instr); break;  // addiu
             case 0x0A: code = translate_slti(instr); break;   // slti
             case 0x0B: code = translate_sltiu(instr); break;  // sltiu

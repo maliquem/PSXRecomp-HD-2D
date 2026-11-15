@@ -872,6 +872,72 @@ void check_delay_slot_control_transfer() {
           "delay slot: the data cut no longer counts a delay-slot j as untranslatable:" + body["func_" + hex(base + 0x20)]);
 }
 
+// CPU-5/GEN-9 (psx-spx "CPU ALU Opcodes"): ADD/ADDI/SUB raise Ov (ExcCode 0Ch) on signed
+// overflow without writing the destination; in a delay slot EPC is the branch and BD is set.
+void check_overflow_trapping_alu() {
+    set_env("PSX_CPS", "1");
+    const uint32_t base = KSEG0 | kPhys;
+    const uint32_t words[] = {
+        0x00641020u,  // +00 add   $v0, $v1, $a0
+        0x03E00008u,  // +04 jr    $ra
+        0x00641022u,  // +08 sub   $v0, $v1, $a0 in the delay slot
+        0x2062FFFCu,  // +0C addi  $v0, $v1, -4
+        0x03E00008u,  // +10 jr    $ra
+        0x00000000u,  // +14 nop
+    };
+    PSXRecomp::PS1Executable exe{};
+    exe.header.load_address = base;
+    exe.header.initial_pc = base;
+    exe.header.file_size = sizeof(words);
+    for (uint32_t w : words) append_word(exe.code_data, w);
+    PSXRecomp::CodeGenConfig config{};
+    config.emit_comments = true;
+    config.indent = "    ";
+    PSXRecomp::ControlFlowAnalyzer analyzer(exe);
+    PSXRecomp::CodeGenerator generator(exe, config);
+    std::vector<PSXRecomp::Function> funcs;
+    std::set<uint32_t> known;
+    const uint32_t spans[][2] = {{0x00u, 0x0Cu}, {0x0Cu, 0x18u}};
+    for (const auto& span : spans) {
+        PSXRecomp::Function f{};
+        f.start_addr = base + span[0];
+        f.end_addr = base + span[1];
+        f.size = span[1] - span[0];
+        f.name = "func_" + hex(f.start_addr);
+        funcs.push_back(f);
+        known.insert(f.start_addr);
+    }
+    generator.set_known_functions(known);
+    std::map<uint32_t, PSXRecomp::ControlFlowGraph> cfgs;
+    for (const auto& f : funcs) cfgs[f.start_addr] = analyzer.analyze_function(f);
+    std::map<std::string, std::string> body;
+    for (const auto& gf : generator.generate_all_functions(funcs, cfgs))
+        body[gf.function_name] = gf.full_code;
+    const auto has = [&](uint32_t off, const std::string& text) {
+        return body["func_" + hex(base + off)].find(text) != std::string::npos;
+    };
+    check(has(0x00, "uint32_t psx_ov_r = psx_ov_a + psx_ov_b;") &&
+              has(0x00, "cpu->cop0[14] = 0x" + hex(base) + "u;") &&
+              has(0x00, "& ~0x8000007Cu) | 0x00000030u;") && has(0x00, "cpu->gpr[2] = psx_ov_r;"),
+          "overflow: add does not raise Ov at its own PC: " + body["func_" + hex(base)]);
+    check(has(0x00, "uint32_t psx_ov_r = psx_ov_a - psx_ov_b;") &&
+              has(0x00, "cpu->cop0[14] = 0x" + hex(base + 0x04) + "u;") &&
+              has(0x00, "| 0x80000030u;"),
+          "overflow: a delay-slot sub must point EPC at the branch and set BD: " + body["func_" + hex(base)]);
+    check(has(0x0C, "uint32_t psx_ov_b = 0xFFFFFFFCu;") &&
+              has(0x0C, "cpu->cop0[14] = 0x" + hex(base + 0x0C) + "u;") &&
+              has(0x0C, "| 0x00000030u;"),
+          "overflow: addi does not raise Ov: " + body["func_" + hex(base + 0x0C)]);
+    for (uint32_t raw : {0x00641020u, 0x00641022u, 0x2062FFFCu}) {
+        const std::string c = PSXRecompV4::StrictTranslator::translate(
+            PSXRecomp::MipsDecoder::decode(raw, 0xBFC10A00u)).c_code;
+        check(c.find("cpu->cop0[14] = 0xBFC10A00u;") != std::string::npos &&
+                  c.find("| 0x00000030u;") != std::string::npos &&
+                  c.find("psx_arith_overflow") == std::string::npos,
+              "translator: 0x" + hex(raw) + " must raise Ov, not exit: " + c);
+    }
+}
+
 }  // namespace
 
 int main() {
@@ -896,6 +962,7 @@ int main() {
     check_strict_unsigned_sums();
     check_reserved_primary_opcodes();
     check_delay_slot_control_transfer();
+    check_overflow_trapping_alu();
     if (failures != 0) {
         std::fprintf(stderr, "emitter_runtime_pc_test: %d failure(s)\n", failures);
         return 1;

@@ -1862,17 +1862,21 @@ static int exec_one_fetched_inner(CPUState *cpu, uint32_t pc, uint32_t insn,
             psx_muldiv_set(cpu, 37u);   /* DIVU completion deadline (fixed) */
 #endif
             return 0;
-        case 0x20: /* ADD - overflow traps are delegated if they occur. */
+        case 0x20: /* ADD: signed overflow raises Ov (ExcCode 0Ch) and leaves rd unwritten */
         case 0x21: { /* ADDU rd, rs, rt */
             uint32_t a = cpu->gpr[rs], b = cpu->gpr[rt];
+            if (fnt == 0x20 && ((a ^ (a + b)) & (b ^ (a + b))) >> 31)
+                return interp_exception(cpu, 12, cpu->cop0[8], pc);
             cpu->gpr[rd] = a + b;
             psx_pgxp_alu(cpu, insn, cpu->gpr[rd], a, b);
             cpu->gpr[0] = 0;
             return 0;
         }
-        case 0x22: /* SUB - overflow traps are delegated if they occur. */
+        case 0x22: /* SUB: signed overflow raises Ov (ExcCode 0Ch) and leaves rd unwritten */
         case 0x23: { /* SUBU */
             uint32_t a = cpu->gpr[rs], b = cpu->gpr[rt];
+            if (fnt == 0x22 && ((a ^ b) & (a ^ (a - b))) >> 31)
+                return interp_exception(cpu, 12, cpu->cop0[8], pc);
             if (rs == 0 && psx_ws_is_cull_negsub_site(pc))
                 cpu->gpr[rd] = 0u - b - (uint32_t)psx_ws_x_margin();
             else
@@ -2086,10 +2090,14 @@ static int exec_one_fetched_inner(CPUState *cpu, uint32_t pc, uint32_t insn,
         cpu->pc = taken ? (pc + 4 + (simm << 2)) : (pc + 8);
         return 1;
     }
-    case 0x08: /* ADDI rt, rs, simm — same as ADDIU, sans overflow trap (we don't model traps here) */
+    case 0x08: /* ADDI rt, rs, simm: signed overflow raises Ov (ExcCode 0Ch), rt unwritten */
     {
         uint32_t widened = 0;
         uint32_t a = cpu->gpr[rs];
+        /* Widescreen bias sites replace the instruction in the code generator too: no probe. */
+        if (!psx_ws_is_cull_bias_site(pc) && !psx_ws_is_cull_bias_lower_site(pc) &&
+            ((a ^ (a + (uint32_t)simm)) & ((uint32_t)simm ^ (a + (uint32_t)simm))) >> 31)
+            return interp_exception(cpu, 12, cpu->cop0[8], pc);
         if (psx_ws_angle_site(pc, insn, &widened))
             cpu->gpr[rt] = widened;
         else

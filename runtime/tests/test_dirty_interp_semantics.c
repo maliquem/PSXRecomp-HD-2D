@@ -258,7 +258,7 @@ static void ov_case(const char *name, uint32_t insn, uint32_t a, uint32_t b) {
     s_cpu.gpr[A1] = b;
     s_cpu.gpr[V0] = 0x12345678u;
     const int rv = step(CODE, insn);
-    KNOWN(name, "CPU-5", exc_taken(rv, EXC_OV, CODE, 0u) && s_cpu.gpr[V0] == 0x12345678u);
+    CHECK(name, exc_taken(rv, EXC_OV, CODE, 0u) && s_cpu.gpr[V0] == 0x12345678u);
 }
 static void no_ov_case(const char *name, uint32_t insn, uint32_t a, uint32_t b,
                        uint32_t want) {
