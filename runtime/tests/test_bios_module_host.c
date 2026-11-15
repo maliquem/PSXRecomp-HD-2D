@@ -17,6 +17,7 @@
  */
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "cpu_state.h"
@@ -69,6 +70,9 @@ const PsxBiosBackend *const psx_bios_builtin_registry[] = { &s_builtin };
 const uint32_t psx_bios_builtin_registry_count = 1u;
 
 static int s_fail;
+
+/* psx_bios_backend.c halts when a dispatch has no BIOS; not exercised here. */
+void psx_fatal_halt(const char *reason) { (void)reason; abort(); }
 #define CHECK(cond, ...) do { if (!(cond)) { s_fail++; printf("FAIL %s:%d: ", __FILE__, __LINE__); printf(__VA_ARGS__); printf("\n"); } } while (0)
 
 #ifndef FAKE_GOOD

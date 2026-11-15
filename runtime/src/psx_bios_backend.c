@@ -18,6 +18,7 @@
 
 #include "bios_hle.h"
 #include "cpu_state.h"
+#include "crash_trace.h"
 #include "psx_bios_backend.h"
 
 /* ── State published to the rest of the runtime ─────────────────────────── */
@@ -101,13 +102,16 @@ __attribute__((constructor)) static void psx_bios_registry_ctor(void) { registry
 
 void psx_dispatch(CPUState *cpu, uint32_t addr)
 {
-    if (!psx_bios_active || !psx_bios_active->dispatch) return;
+    /* No BIOS selected: the game's call would otherwise return as if it ran. */
+    if (!psx_bios_active || !psx_bios_active->dispatch)
+        psx_fatal_halt("psx_dispatch: no active BIOS");
     psx_bios_active->dispatch(cpu, addr);
 }
 
 void psx_dispatch_call(CPUState *cpu, uint32_t addr, uint32_t return_addr)
 {
-    if (!psx_bios_active || !psx_bios_active->dispatch_call) return;
+    if (!psx_bios_active || !psx_bios_active->dispatch_call)
+        psx_fatal_halt("psx_dispatch_call: no active BIOS");
     psx_bios_active->dispatch_call(cpu, addr, return_addr);
 }
 
