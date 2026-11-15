@@ -19,6 +19,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdatomic.h>
 
 #ifdef _WIN32
 #include <winsock2.h>
@@ -60,7 +61,7 @@ static uint64_t g_icount  = 0;          /* retirement events (cosim_instr calls)
  * racy — two processes noticed the flag at different wall-times and parked at different
  * cycles (a HARNESS nondeterminism, not a guest one). Parking at fixed checkpoint
  * boundaries makes both processes stop at identical cycles by construction. */
-static volatile int64_t  g_run_budget = 0;  /* checkpoints the guest may cross before parking */
+static _Atomic int64_t   g_run_budget = 0;  /* checkpoints the guest may cross before parking; atomic: TCP += and guest -- */
 static volatile int      g_parked     = 0;
 static volatile int      g_go_token   = 0;  /* bump to wake a parked guest to re-check budget */
 
