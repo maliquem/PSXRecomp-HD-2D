@@ -344,8 +344,20 @@ WsScanResult scan_widescreen(const PS1Executable& exe,
                   if (a.confidence != b.confidence) return a.confidence > b.confidence;
                   return a.pc < b.pc;
               });
-    if (static_cast<int>(out.candidates.size()) > opts.max_candidates)
-        out.candidates.resize(opts.max_candidates);
+    if (opts.max_candidates >= 0 &&
+        out.candidates.size() > static_cast<size_t>(opts.max_candidates)) {
+        // Keep the partner of any kept bias/range site so a pair is never split.
+        std::set<uint32_t> kept;
+        for (int i = 0; i < opts.max_candidates; ++i) kept.insert(out.candidates[i].pc);
+        size_t n = static_cast<size_t>(opts.max_candidates);
+        for (size_t i = n; i < out.candidates.size(); ++i) {
+            const auto& c = out.candidates[i];
+            if (c.partner_pc && kept.count(c.partner_pc)) {
+                std::swap(out.candidates[n++], out.candidates[i]);
+            }
+        }
+        out.candidates.resize(n);
+    }
     std::sort(out.extent_funcs.begin(), out.extent_funcs.end());
     return out;
 }
