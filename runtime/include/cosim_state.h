@@ -35,15 +35,14 @@ typedef struct {
 
 /* Compute the full canonical state hash of the LIVE machine (debug_cpu_ptr + globals).
  * Fills `sub` (may be NULL) and returns the folded top hash. Cheap per call: RAM/VRAM
- * use incremental page hashes maintained by cosim_note_ram_write/cosim_note_vram_write;
- * everything else is small. */
+ * use incremental page hashes maintained by cosim_note_ram_write; everything else is
+ * small. */
 uint64_t cosim_state_hash(CosimSubHashes *sub);
 
 /* Incremental page-hash maintenance. Call from the RAM/VRAM write chokepoints in the
  * cosim build: mark the touched page dirty (cheap); the page hash is recomputed lazily
- * inside cosim_state_hash(). phys is the byte offset into RAM (0..2MB) / VRAM (0..1MB). */
+ * inside cosim_state_hash(). phys is the byte offset into RAM (0..2MB). */
 void cosim_note_ram_write(uint32_t phys, uint32_t nbytes);
-void cosim_note_vram_write(uint32_t byte_off, uint32_t nbytes);
 
 /* Reset all incremental state (call once at machine init / after a full state load). */
 void cosim_state_reset(void);

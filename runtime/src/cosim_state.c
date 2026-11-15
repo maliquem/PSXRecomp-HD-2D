@@ -58,20 +58,11 @@ extern void gr_vram_transfer_out(int x, int y, int w, int h, uint16_t *dst);
 #define PAGE       4096u
 #define RAM_PAGES_CAP (PSX_MAIN_RAM_BACKING_BYTES / PAGE)
 #define RAM_PAGES  (RAM_SIZE / PAGE)
-#define VRAM_W 1024
-#define VRAM_H 512
-#define VRAM_SIZE ((uint32_t)(VRAM_W * VRAM_H * 2))   /* 1 MB */
-#define VRAM_PAGES (VRAM_SIZE / PAGE)     /* 256 */
 
 /* ---- incremental RAM page hashes ---- */
 static uint64_t s_ram_page_h[RAM_PAGES_CAP];
 static uint8_t  s_ram_page_dirty[RAM_PAGES_CAP];
 static int      s_ram_all_dirty = 1;
-
-/* ---- VRAM: full-recompute when dirty (draws are periodic, not per-block) ---- */
-static uint64_t s_vram_h;
-static int      s_vram_dirty = 1;
-static uint16_t s_vram_buf[VRAM_W * VRAM_H];
 
 /* ---- reusable device-blob scratch ---- */
 static uint8_t *s_blob;
@@ -85,7 +76,6 @@ void cosim_state_reset(void) {
     memset(s_ram_page_h, 0, sizeof s_ram_page_h);
     memset(s_ram_page_dirty, 0, sizeof s_ram_page_dirty);
     s_ram_all_dirty = 1;
-    s_vram_dirty = 1; s_vram_h = 0;
     s_inj_ram_phys = -1; s_inj_reg = -1;
 }
 
@@ -94,9 +84,6 @@ void cosim_note_ram_write(uint32_t phys, uint32_t nbytes) {
     uint32_t last = phys + (nbytes ? nbytes - 1 : 0);
     if (last >= RAM_SIZE) last = RAM_SIZE - 1;
     for (uint32_t p = phys / PAGE; p <= last / PAGE; p++) s_ram_page_dirty[p] = 1;
-}
-void cosim_note_vram_write(uint32_t byte_off, uint32_t nbytes) {
-    (void)byte_off; (void)nbytes; s_vram_dirty = 1;
 }
 void cosim_inject_ram(uint32_t phys, uint8_t xor_val) { s_inj_ram_phys = (int32_t)phys; s_inj_ram_xor = xor_val; }
 void cosim_inject_reg(int reg_index, uint32_t xor_val) { s_inj_reg = reg_index; s_inj_reg_xor = xor_val; }
@@ -185,8 +172,8 @@ uint64_t cosim_state_hash(CosimSubHashes *sub) {
     /* VRAM: EXCLUDED in v1. The guest state machine reads RAM + device registers to
      * make the FMV/handoff decision, never VRAM, so a VRAM divergence is downstream of
      * (not causal for) the first control-flow split — and a 1MB readback per cycle-
-     * checkpoint would be prohibitively slow. Add incrementally (cosim_note_vram_write
-     * page hashes) only if a gate shows a divergence that first surfaces in VRAM. */
+     * checkpoint would be prohibitively slow. Add incremental VRAM page hashes only if a
+     * gate shows a divergence that first surfaces in VRAM. */
     s.vram = 0;
 
     /* interrupt controller: guest-visible i_stat/i_mask + genuine timing statics */
