@@ -4168,43 +4168,44 @@ The PS1 GPU emulation: GP0 and GP1 command handling, software rasterising, VRAM 
 - `gpu_draw_skip_counts` (L9459) — Counts draw skips for the diagnostic output.
 - `gpu_draw_skip_pgxp_frames` (L9464) — Counts PGXP frames skipped by the turbo.
 - `gp0_execute_command` (L9466) — Executes one GP0 command word, dispatching by its opcode.
-- `gp0_dispatch_command` (L9534) — Dispatches a GP0 command to its handler.
-- `gpu_get_gp0_count` (L9741) — Total number of GP0 writes since init.
-- `gpu_get_gp0_stats` (L9743) — uint64_t gpu_get_gp0_count(void); /* Total GP0 writes since init
-- `gpu_get_draw_area` (L9748) — Returns the drawing area rectangle.
-- `gpu_vram_peek` (L9757) — One VRAM pixel as the GPU has it.
-- `gpu_vram_drawn_check` (L9773) — TCP vram_drawn_check: the proof of the cells above.
-- `psx_mod_vram_write` (L9792) — psx_mod_vram_write: a title's own pixels, as an unmasked CPU->VRAM copy, in the guest's VRAM and the renderer's (as shadow_blob_key_put does).
-- `gpu_write_gp0_body` (L9804) — Body of a GP0 write, handling the command and data words.
-- `gpu_write_gp0` (L10001) — Wall-time sampler bracket (phase_profile): tag GP0 command processing — rasterization / batching / VRAM transfer work on the emu thread — as its own phase so it is separable from the guest code that i
-- `gp1_reset` (L10012) — GP1 reset command handler (0x00): resets the GPU.
-- `gp1_reset_command_buffer` (L10019) — GP1 reset-command-buffer handler (0x01).
-- `gp1_ack_irq1` (L10028) — GP1 acknowledge-IRQ handler (0x02).
-- `gp1_display_enable` (L10033) — GP1 display enable handler (0x03).
-- `gp1_dma_direction` (L10047) — GP1 DMA direction handler (0x04).
-- `gpu_display_flips` (L10055) — Display starts that moved (GP1(05h) to another place): the game's own frames of a double-buffered picture, for the FPS readout.
-- `gp1_display_area_start` (L10057) — GP1 display area start handler (0x05).
-- `gp1_h_display_range` (L10083) — GP1 horizontal display range handler (0x06).
-- `gp1_v_display_range` (L10091) — GP1 vertical display range handler (0x07).
-- `gp1_display_mode` (L10110) — GP1 display mode handler (0x08).
-- `gp1_get_info` (L10139) — GP1 get-info handler (0x10): returns the requested GPU info.
-- `gpu_write_gp1` (L10172) — Writes a GP1 control word and dispatches it by its command number.
-- `gpu_snap_emit` (L10245) — GPU snap fields are scalars / u32 arrays — emit as LE u32/i32 (no struct pad).
-- `gpu_snap_parse` (L10282) — Reads GPU snapshot fields from a buffer.
-- `gpu_snapshot_bytes` (L10323) — Byte size of the GPU snapshot.
-- `gpu_snapshot_write` (L10328) — Writes the GPU snapshot into a buffer.
-- `gpu_cosim_snapshot_bytes` (L10333) — Byte size of the co-simulation snapshot.
-- `gpu_cosim_snapshot_write` (L10334) — Writes the co-simulation snapshot into a buffer.
-- `gpu_cosim_dump` (L10335) — Debug: dumps the co-simulation state.
-- `gpu_snapshot_validate` (L10376) — Pass-1 check for boot_state's two-pass load: refuses a GP0 state the parser would accept but gpu_write_gp0 would index gp0_cmd_buf out of range with.
-- `gpu_snapshot_read` (L10391) — Restores the GPU state from a snapshot buffer.
-- `gpu_pass_provenance_transfer` (L10469) — One transfer list keeps save and restore symmetric.
-- `gpu_pass_scene_transfer` (L10514) — Scene transfer list for a render pass checkpoint.
-- `gpu_pass_checkpoint_save` (L10546) — Render-pass GPU register checkpoint (render_pass.c).
-- `gpu_pass_checkpoint_restore` (L10563) — Restores the GPU registers from a render-pass checkpoint.
-- `gpu_pass_state_hash` (L10589) — FNV-1a over the checkpointed register set (PSX_RENDER_PASS_VERIFY).
-- `gpu_get_vram_ptr` (L10602) — Pointer to the VRAM buffer.
-- `gpu_get_vram_bytes` (L10603) — Size of the VRAM buffer in bytes.
+- `gp0_irq_request` (L9534) — GP0(1Fh): sets the GPUSTAT bit 24 flag and raises I_STAT bit 1 (IRQ_GPU).
+- `gp0_dispatch_command` (L9540) — Dispatches a GP0 command to its handler.
+- `gpu_get_gp0_count` (L9751) — Total number of GP0 writes since init.
+- `gpu_get_gp0_stats` (L9753) — uint64_t gpu_get_gp0_count(void); /* Total GP0 writes since init
+- `gpu_get_draw_area` (L9758) — Returns the drawing area rectangle.
+- `gpu_vram_peek` (L9767) — One VRAM pixel as the GPU has it.
+- `gpu_vram_drawn_check` (L9783) — TCP vram_drawn_check: the proof of the cells above.
+- `psx_mod_vram_write` (L9802) — psx_mod_vram_write: a title's own pixels, as an unmasked CPU->VRAM copy, in the guest's VRAM and the renderer's (as shadow_blob_key_put does).
+- `gpu_write_gp0_body` (L9814) — Body of a GP0 write, handling the command and data words.
+- `gpu_write_gp0` (L10011) — Wall-time sampler bracket (phase_profile): tag GP0 command processing — rasterization / batching / VRAM transfer work on the emu thread — as its own phase so it is separable from the guest code that i
+- `gp1_reset` (L10022) — GP1 reset command handler (0x00): resets the GPU.
+- `gp1_reset_command_buffer` (L10029) — GP1 reset-command-buffer handler (0x01).
+- `gp1_ack_irq1` (L10038) — GP1 acknowledge-IRQ handler (0x02).
+- `gp1_display_enable` (L10043) — GP1 display enable handler (0x03).
+- `gp1_dma_direction` (L10057) — GP1 DMA direction handler (0x04).
+- `gpu_display_flips` (L10065) — Display starts that moved (GP1(05h) to another place): the game's own frames of a double-buffered picture, for the FPS readout.
+- `gp1_display_area_start` (L10067) — GP1 display area start handler (0x05).
+- `gp1_h_display_range` (L10093) — GP1 horizontal display range handler (0x06).
+- `gp1_v_display_range` (L10101) — GP1 vertical display range handler (0x07).
+- `gp1_display_mode` (L10120) — GP1 display mode handler (0x08).
+- `gp1_get_info` (L10149) — GP1 get-info handler (0x10): returns the requested GPU info.
+- `gpu_write_gp1` (L10182) — Writes a GP1 control word and dispatches it by its command number.
+- `gpu_snap_emit` (L10255) — GPU snap fields are scalars / u32 arrays — emit as LE u32/i32 (no struct pad).
+- `gpu_snap_parse` (L10292) — Reads GPU snapshot fields from a buffer.
+- `gpu_snapshot_bytes` (L10333) — Byte size of the GPU snapshot.
+- `gpu_snapshot_write` (L10338) — Writes the GPU snapshot into a buffer.
+- `gpu_cosim_snapshot_bytes` (L10343) — Byte size of the co-simulation snapshot.
+- `gpu_cosim_snapshot_write` (L10344) — Writes the co-simulation snapshot into a buffer.
+- `gpu_cosim_dump` (L10345) — Debug: dumps the co-simulation state.
+- `gpu_snapshot_validate` (L10386) — Pass-1 check for boot_state's two-pass load: refuses a GP0 state the parser would accept but gpu_write_gp0 would index gp0_cmd_buf out of range with.
+- `gpu_snapshot_read` (L10401) — Restores the GPU state from a snapshot buffer.
+- `gpu_pass_provenance_transfer` (L10479) — One transfer list keeps save and restore symmetric.
+- `gpu_pass_scene_transfer` (L10524) — Scene transfer list for a render pass checkpoint.
+- `gpu_pass_checkpoint_save` (L10556) — Render-pass GPU register checkpoint (render_pass.c).
+- `gpu_pass_checkpoint_restore` (L10573) — Restores the GPU registers from a render-pass checkpoint.
+- `gpu_pass_state_hash` (L10599) — FNV-1a over the checkpointed register set (PSX_RENDER_PASS_VERIFY).
+- `gpu_get_vram_ptr` (L10612) — Pointer to the VRAM buffer.
+- `gpu_get_vram_bytes` (L10613) — Size of the VRAM buffer in bytes.
 
 ### runtime/src/gpu_edge.inc
 
@@ -7259,18 +7260,18 @@ Computes the state digests netplay compares between peers to detect desync, spli
 - `netplay_cdrom_digest` (L60) — CRC of the CD-ROM controller snapshot.
 - `netplay_av_digest` (L78) — CRC of the GPU registers, the full VRAM and the MDEC data, for the audio-video side of the state.
 - `netplay_core_digest_parts` (L111) — Fills out with the CRCs of the core parts (CPU, clock, timers, RAM, DMA) that make up the core digest.
-- `netplay_core_digest` (L205) — Core state digest: the core CRC of the CPU, clock, timers, RAM and DMA state.
-- `netplay_spu_regs_digest` (L212) — CRC of the SPU registers only, through the snapshot module.
-- `spu_dig_regs_only` (L217) — Reads PSX_RB_SPU_DIG_REGS_ONLY once; 1 means the SPU digest skips SPU RAM.
-- `netplay_spu_digest` (L233) — uint32_t netplay_av_digest(void); /* GPU + VRAM SPU regs+RAM and MDEC — in snaps but not core/av; pin zlib skew with matched core/av was this.
-- `netplay_mdec_digest` (L250) — CRC of the MDEC decoder snapshot.
-- `netplay_aux_digest` (L255) — CRC over the SPU and MDEC digests combined.
-- `netplay_spad_digest` (L265) — CRC of the 1 KiB scratchpad; 0 when the scratchpad pointer is unavailable.
-- `netplay_dma_digest` (L274) — uint32_t netplay_aux_digest(void); /* crc(spu, mdec) uint32_t netplay_spad_digest(void); /* 1 KiB scratchpad
-- `netplay_sio_digest` (L279) — CRC of the SIO controller and memory-card state, folded through the FSM pace field only.
-- `netplay_sio_digest_parts` (L305) — Fills out with per-part CRCs of the SIO state so an audit can see which part differs.
-- `netplay_baseline_ext_digest` (L345) — Baseline dig_c: crc(aux, cd, spad, dma, sio).
-- `netplay_master_digest` (L361) — Master state digest: folds the core and CD-ROM digests as raw words into one CRC for comparison; 0 when cpu is null.
+- `netplay_core_digest` (L210) — Core state digest: the core CRC of the CPU, clock, timers, RAM and DMA state.
+- `netplay_spu_regs_digest` (L217) — CRC of the SPU registers only, through the snapshot module.
+- `spu_dig_regs_only` (L222) — Reads PSX_RB_SPU_DIG_REGS_ONLY once; 1 means the SPU digest skips SPU RAM.
+- `netplay_spu_digest` (L238) — uint32_t netplay_av_digest(void); /* GPU + VRAM SPU regs+RAM and MDEC — in snaps but not core/av; pin zlib skew with matched core/av was this.
+- `netplay_mdec_digest` (L255) — CRC of the MDEC decoder snapshot.
+- `netplay_aux_digest` (L260) — CRC over the SPU and MDEC digests combined.
+- `netplay_spad_digest` (L270) — CRC of the 1 KiB scratchpad; 0 when the scratchpad pointer is unavailable.
+- `netplay_dma_digest` (L279) — uint32_t netplay_aux_digest(void); /* crc(spu, mdec) uint32_t netplay_spad_digest(void); /* 1 KiB scratchpad
+- `netplay_sio_digest` (L284) — CRC of the SIO controller and memory-card state, folded through the FSM pace field only.
+- `netplay_sio_digest_parts` (L310) — Fills out with per-part CRCs of the SIO state so an audit can see which part differs.
+- `netplay_baseline_ext_digest` (L350) — Baseline dig_c: crc(aux, cd, spad, dma, sio).
+- `netplay_master_digest` (L366) — Master state digest: folds the core and CD-ROM digests as raw words into one CRC for comparison; 0 when cpu is null.
 
 ### runtime/src/overlay_abi_verdict.c
 
