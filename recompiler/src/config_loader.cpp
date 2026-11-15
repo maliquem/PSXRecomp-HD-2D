@@ -94,9 +94,9 @@ uint32_t overlay_codegen_config_hash(const GameConfig& c) {
     if (!c.ws_cull_screen_x_guarded.empty()) {
         auto pairs = c.ws_cull_screen_x_guarded;
         std::sort(pairs.begin(), pairs.end());
-        std::vector<uint32_t> flat;
-        for (const auto& [addr, word] : pairs) { flat.push_back(addr); flat.push_back(word); }
-        h.words("cull_screen_x_guarded", flat);
+        h.tag("cull_screen_x_guarded");
+        h.u32((uint32_t)pairs.size());
+        for (const auto& [addr, word] : pairs) { h.u32(addr); h.u32(word); }
     }
     h.words("cull_slti", c.ws_cull_slti_sites);
     h.words("cull_slti_lower", c.ws_cull_slti_lower_sites);
