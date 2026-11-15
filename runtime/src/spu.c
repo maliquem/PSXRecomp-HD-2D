@@ -503,7 +503,7 @@ static void decode_block(SpuVoice *v) {
          * spu.cpp:386 + read path 1302): drivers read it back to save
          * loop points. */
         int v_idx = (int)(v - voices);
-        if (v_idx >= 0 && v_idx < SPU_VOICE_COUNT)
+        if (v_idx >= 0 && v_idx < SPU_VOICE_COUNT && !v->sample_bank)
             spu_regs[(uint32_t)v_idx * 8u + 7u] = (uint16_t)(addr >> 3);
     }
     v->flags = flags;
