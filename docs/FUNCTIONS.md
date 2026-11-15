@@ -180,9 +180,9 @@ Static recompiler core that turns MIPS instructions and functions into generated
 - `CodeGenerator::translate_slt` (L330) — Translates SLT into C that sets rd to 1 when rs is less than rt as signed values, otherwise 0.
 - `CodeGenerator::translate_sltu` (L343) — Translates SLTU into C that sets rd to 1 when rs is less than rt as unsigned values, otherwise 0.
 - `CodeGenerator::translate_addu` (L356) — Translates ADDU into C that adds rs and rt into rd, ignoring overflow.
-- `CodeGenerator::translate_add` (L376) — Translates ADD into C by reusing the ADDU translation, since overflow traps are not emitted.
+- `CodeGenerator::translate_add` (L376) — No caller since CPU-5: ADD is emitted with its overflow trap in translate_instruction_core; this still maps to the ADDU text.
 - `CodeGenerator::translate_subu` (L381) — Translates SUBU into C that subtracts rt from rs into rd, ignoring overflow.
-- `CodeGenerator::translate_sub` (L393) — Translates SUB into C by reusing the SUBU translation, since overflow traps are not emitted.
+- `CodeGenerator::translate_sub` (L393) — No caller since CPU-5: SUB is emitted with its overflow trap in translate_instruction_core; this still maps to the SUBU text.
 - `CodeGenerator::translate_lb` (L398) — Translates LB into C that loads a sign-extended byte from memory into rt.
 - `CodeGenerator::translate_lbu` (L413) — Translates LBU into C that loads a zero-extended byte from memory into rt.
 - `CodeGenerator::translate_lh` (L428) — Translates LH into C that loads a sign-extended halfword from memory into rt.
@@ -223,19 +223,19 @@ Static recompiler core that turns MIPS instructions and functions into generated
 - `ram_fast_rewrite` (L1059) — [recompiler] ram_fast_path (docs/PERFORMANCE_MODES.md): the plain-RAM entries (psx_store_* in memory.c, psx_cyc_load_byte_fast in psx_cyc.h) in place of the CPUState store pointers and the out-of-line
 - `CodeGenerator::translate_instruction` (L1073) — Translates one instruction, adding the draw-distance clamp prefix and any mod hook call before its core translation.
 - `CodeGenerator::translate_instruction_core` (L1088) — Translates one instruction's opcode into C statements, dispatching on the opcode and funct fields.
-- `CodeGenerator::translate_basic_block` (L2165) — Emits the C code for one basic block, including its label, cycle charges and each of its instructions.
-- `CodeGenerator::func_has_screen_extent_cull` (L3277) — True when a function has both a width and a height compare against the widescreen sets, the signature of a screen-extent cull.
-- `CodeGenerator::detect_cull_bltz_sites` (L3303) — Finds the left-edge bltz branch addresses of a screen-extent cull and records them for the function.
-- `CodeGenerator::detect_backdrop_windows` (L3328) — Detects backdrop window sites in a function and records them, when automatic backdrop preload is enabled.
-- `CodeGenerator::generate_function` (L3354) — Generates the C function for one recompiled function from its blocks and fallthrough target.
-- `CodeGenerator::scan_jr_tables` (L3649) — Scans the blocks of a function for jr jump tables and adds their target addresses to the output edge map.
-- `CodeGenerator::generate_alias_group` (L3686) — Generates C functions for a group of alias entries that share the same code.
-- `CodeGenerator::generate_all_functions` (L3911) — Generates C code for every function in the list using its control flow graph, returning all generated functions.
-- `CodeGenerator::emit_runtime_externs` (L4049) — Writes extern declarations for the runtime helpers the generated C needs, with debug tool externs guarded by a macro.
-- `CodeGenerator::emit_unaligned_helpers` (L4119) — Writes the helper functions for unaligned loads and stores, using the block or full timing helper for LWL and LWR.
-- `CodeGenerator::build_shared_decls_header` (L4204) — Builds the shared declarations header used by split full.c shards, listing the generated functions and extra declarations.
-- `CodeGenerator::generate_file` (L4224) — Generates the complete C source file for all functions, including runtime externs, helpers and function bodies.
-- `CodeGenerator::generate_ranges_manifest` (L4480) — Generates a text manifest listing the address ranges of the generated functions.
+- `CodeGenerator::translate_basic_block` (L2186) — Emits the C code for one basic block, including its label, cycle charges and each of its instructions.
+- `CodeGenerator::func_has_screen_extent_cull` (L3299) — True when a function has both a width and a height compare against the widescreen sets, the signature of a screen-extent cull.
+- `CodeGenerator::detect_cull_bltz_sites` (L3325) — Finds the left-edge bltz branch addresses of a screen-extent cull and records them for the function.
+- `CodeGenerator::detect_backdrop_windows` (L3350) — Detects backdrop window sites in a function and records them, when automatic backdrop preload is enabled.
+- `CodeGenerator::generate_function` (L3376) — Generates the C function for one recompiled function from its blocks and fallthrough target.
+- `CodeGenerator::scan_jr_tables` (L3671) — Scans the blocks of a function for jr jump tables and adds their target addresses to the output edge map.
+- `CodeGenerator::generate_alias_group` (L3708) — Generates C functions for a group of alias entries that share the same code.
+- `CodeGenerator::generate_all_functions` (L3933) — Generates C code for every function in the list using its control flow graph, returning all generated functions.
+- `CodeGenerator::emit_runtime_externs` (L4071) — Writes extern declarations for the runtime helpers the generated C needs, with debug tool externs guarded by a macro.
+- `CodeGenerator::emit_unaligned_helpers` (L4141) — Writes the helper functions for unaligned loads and stores, using the block or full timing helper for LWL and LWR.
+- `CodeGenerator::build_shared_decls_header` (L4226) — Builds the shared declarations header used by split full.c shards, listing the generated functions and extra declarations.
+- `CodeGenerator::generate_file` (L4246) — Generates the complete C source file for all functions, including runtime externs, helpers and function bodies.
+- `CodeGenerator::generate_ranges_manifest` (L4503) — Generates a text manifest listing the address ranges of the generated functions.
 
 ### recompiler/src/config_loader.cpp
 
@@ -372,7 +372,7 @@ Discovers PS1 functions by walking code from known entries, classifying control 
 - `remap_relocated_j_target` (L72) — Relocated code (Shell, Kernel Part 2) runs at RAM addresses, not ROM addresses.
 - `FunctionDiscovery::classify_control_flow` (L76) — Classifies one instruction's control flow kind and target address, such as a branch, jump, call or return.
 - `FunctionDiscovery::walk_function` (L162) — Walks one function's code from its entry, following branches and calls, and returns the function's extent and findings.
-- `FunctionDiscovery::discover` (L692) — Discovers functions across the whole ROM image, starting from known entries, and returns every function found.
+- `FunctionDiscovery::discover` (L705) — Discovers functions across the whole ROM image, starting from known entries, and returns every function found.
 
 ### recompiler/src/game_dispatch_emitter.cpp
 
@@ -551,9 +551,10 @@ Strict MIPS-to-C translator that turns each decoded instruction into a C stateme
 
 - `emit_gpr_write` (L38) — Emit a register-write that respects $zero being hardwired to 0.
 - `gpr_name` (L45) — Returns the MIPS register name for a register number, such as $a0.
-- `unsupported` (L55) — Builds a failed translate result for an instruction that cannot be translated, recording the reason.
-- `StrictTranslator::translate` (L66) — Translates one decoded instruction at its own address.
-- `StrictTranslator::translate_impl` (L101) — Translates one decoded instruction at the given pc, producing its C statement and result.
+- `overflow_exception` (L57) — Ov exception (ExcCode 0Ch), same inline raise as the game emitter.
+- `unsupported` (L66) — Builds a failed translate result for an instruction that cannot be translated, recording the reason.
+- `StrictTranslator::translate` (L77) — Translates one decoded instruction at its own address.
+- `StrictTranslator::translate_impl` (L112) — Translates one decoded instruction at the given pc, producing its C statement and result.
 
 ### recompiler/src/widescreen_scan.cpp
 
@@ -2912,104 +2913,105 @@ Small MIPS interpreter that runs code written into RAM after boot, one basic blo
 - `exec_pc_table_record` (L269) — Record every PC the interpreter executes (not just block entries) so overlay_capture can report execution-verified seeds for the region.
 - `dirty_ram_interp_is_active` (L294) — Returns 1 while the interpreter is active for the current dispatch, otherwise 0.
 - `psx_exec_phase` (L311) — Returns the current execution phase code, used by the wall-time sampler.
-- `dirty_ram_ld_delay_flush` (L349) — Retire a deferred load writeback.
-- `dirty_ram_ld_delay_discard` (L357) — Drop a deferred load-delay writeback WITHOUT applying it.
-- `dirty_ram_ld_delay_save` (L364) — Copies the pending delayed load (register, value, age, armed flag) into the given structure so it can be restored later.
-- `dirty_ram_ld_delay_restore` (L372) — Restores a pending delayed load from a structure saved earlier.
-- `dirty_ram_irq_ambient_resync_after_restore` (L380) — Re-anchor host-only dirty IRQ pump ambient (entry-poll stride + 4096-insn gap) after snap restore.
-- `callret_armed` (L442) — Returns 1 when the call-resolution watch range is set, otherwise 0.
-- `callret_begin` (L468) — Records the start of a call in the call-resolution ring when its PC is in the watched range; returns the entry index or an invalid marker.
-- `callret_end` (L486) — Completes the call-resolution record at the given index with its path code and the CPU state after the call.
-- `interp_refused_game_text` (L528) — Game text that dispatch refuses because its live bytes differ from the boot EXE.
-- `span_forced` (L544) — Returns 1 when a physical address lies inside the forced span range.
-- `op_field` (L553) — MIPS instruction field decoders.
-- `rs_field` (L554) — Returns the rs register field (bits 21 to 25) of a MIPS instruction word.
-- `rt_field` (L555) — Returns the rt register field (bits 16 to 20) of a MIPS instruction word.
-- `rd_field` (L556) — Returns the rd register field (bits 11 to 15) of a MIPS instruction word.
-- `shamt_field` (L557) — Returns the shift amount field (bits 6 to 10) of a MIPS instruction word.
-- `funct_field` (L558) — Returns the 6-bit function field (bits 0 to 5) of a MIPS instruction word.
-- `imm16_field` (L559) — Returns the unsigned 16-bit immediate field of a MIPS instruction word.
-- `simm16_field` (L560) — Returns the 16-bit immediate field sign-extended to 32 bits.
-- `target26` (L561) — Returns the 26-bit jump target field of a MIPS instruction word.
-- `fetch_word` (L567) — Read a 32-bit instruction word from main RAM at the given physical addr.
-- `sxy_fold_word` (L581) — Word reader for the [[widescreen.cull.sxy]] whole-fold check: the fold words around an interpreted PC are in main RAM like the PC itself.
-- `ws_cull_site` (L601) — Classifies a PC as a widescreen cull site, using a small cache keyed on the PC and its instruction word.
-- `ws_cull_bltz_site` (L632) — Widescreen LEFT-edge funnel-bltz classification (auto_screen_x, signed min/max + center±halfwidth idioms — ws_cull_detect.h).
-- `ws_branch_keep` (L659) — Explicit [widescreen.cull] branch_keep_sites: the reject branch is forced not-taken only while a widened view is configured, exactly like the native emit (code_generator.cpp keep_branch_if_wide).
-- `ws_clip_edge_load` (L667) — Explicit [widescreen.cull] clip_edge_x_load_sites (lh/lhu/lw): the loaded screen-X clip bound moves out by the live margin when it equals a screen edge (gpu.c psx_ws_clip_edge_x).
-- `ws_backdrop_site_kind` (L680) — Widescreen far-backdrop column-PRELOAD site classification for the interpreter ([widescreen.cull] auto_backdrop).
-- `dirty_ram_log_instruction` (L710) — Records one interpreted instruction in the instruction log when its PC is in the recorded range, and freezes the log when the watched target is reached.
-- `dirty_ram_log_marker` (L776) — Marker entries delimit NATIVE candidate executions in the insn ring (native code emits no per-insn entries; markers keep the two runs' timelines alignable).
-- `lwl_merge` (L791) — LWL/LWR are merge-only here; the timed aligned-word read is done by the caller via psx_cyc_load_word (Beetle reads the aligned word; GPR_DEP rs only, arms LDWhich=rt).
-- `lwr_merge` (L800) — Merges the aligned memory word with the register value for an LWR (load word right) at the given byte offset.
-- `interp_swl` (L809) — Interprets SWL (store word left): writes the upper bytes of a value into the aligned word in memory.
-- `interp_swr` (L821) — Interprets SWR (store word right): writes the lower bytes of a value into the aligned word in memory.
-- `abort_unsupported` (L853) — Records an unsupported instruction (its PC, word and reason) as an abort and returns 1 so the caller stops.
-- `phys_is_overlay_flow_region` (L878) — A dirty page that should run as a locally-chained overlay: anything ABOVE the kernel window.
-- `is_local_dirty_target` (L882) — Returns 1 when a jump target lies in an overlay flow region and its RAM page is dirty, so it should be interpreted locally.
-- `dirty_ram_word_looks_decodable` (L900) — A dirty-RAM target only deserves interpretation if its first word decodes as a plausible MIPS instruction.
-- `dirty_ram_same_pc` (L943) — Returns 1 when two PCs refer to the same physical address, ignoring the segment bits.
-- `dirty_ram_pump_boundary` (L947) — Runs the interrupt check at a block boundary and records the safe resume PC; returns 1 when control was transferred.
-- `dirty_ram_finish_call_return` (L973) — Finishes a call by moving the PC to the return address and running the boundary check; returns 1 if control was transferred, else sets the next PC.
-- `dispatch_nonlocal_call` (L985) — Sends a call to a target outside the interpreted block through the compiled dispatcher and returns the next PC through an output parameter.
-- `psx_mixed_owner_enabled` (L1027) — ── Mixed interp<->compiled dispatch owner (host-stack recursion fix) ────── The dirty interpreter nests psx_dispatch_game_compiled when an interpreted block transfers into compiled code.
-- `interp_host_stack_used` (L1035) — #include <intrin.h> /* __readgsqword — fiber TEB StackBase
-- `psx_mixed_stack_watermark` (L1045) — Returns the host stack limit in bytes at which nesting of compiled calls stops, from PSX_MIXED_STACK_KB (default 700 KB, minimum 64 KB).
-- `xprobe_env_init` (L1125) — Reads the flight-recorder limits from environment variables, once.
-- `dirty_ram_xprobe_arm` (L1132) — Sets the flight-recorder trip limits (frame, stack KB, warmup) and re-arms the trip.
-- `xprobe_flush_frame` (L1137) — Stores the current frame's flight-recorder summary (crossings, depth, stack, cycles) into the summary ring.
-- `xprobe_watch_parse` (L1171) — Parses a comma or space separated list of watched physical addresses into the watch table.
-- `g_xprobe_watch` (L1189) — Env seeding is lazy so it works no matter which subsystem touches the ring first, and costs one branch after the first call.
-- `dirty_ram_xprobe_watch_set` (L1205) — Control plane for the 'xprobe_watch' TCP command.
-- `dirty_ram_xprobe_watch_get` (L1211) — Returns the watched address at an index through phys_out; returns 1 when the index is valid, otherwise 0.
-- `dirty_ram_xprobe_watch_count` (L1218) — Returns how many addresses are in the flight-recorder watch list.
-- `dirty_ram_xprobe_call_note` (L1225) — Watched-target call note for NON-interp call sites (overlay shard call-outs via dispatch_call).
-- `xprobe_event` (L1230) — Records one control-flow crossing in the flight recorder, flushing the previous frame's summary when the frame changes.
-- `dirty_ram_xprobe_json` (L1270) — Emit the flight-recorder rings as JSON (called by crash_trace).
-- `interp_enter_compiled` (L1366) — Hands a jump target to compiled code when its game text is native-ok and the host stack is not too deep; returns 0 so the interpreter runs it instead.
-- `exec_one` (L1396) — Fetches the instruction at a PC and executes it, returning the next PC through an output parameter.
-- `exec_delay_slot` (L1401) — Forward: helper for delay-slot execution on jumps/branches.
-- `exec_one_fetched` (L1436) — Executes one already-fetched instruction, first retiring any pending delayed load writeback.
-- `exec_one_fetched_inner` (L1537) — Decodes and executes one fetched MIPS instruction, updating registers, memory and the next PC.
-- `dirty_ram_dispatch` (L2507) — Public entry point. Caller (psx_dispatch) has translated 'addr' to a KSEG-stripped form already in some cases, so accept any address and mask.
-- `dirty_ram_span_get` (L2621) — The open span (0,0 = none), for landings that longjmp past its exit.
-- `dirty_ram_span_set` (L2626) — Sets the physical address range that the span-forced check tests against.
-- `dirty_ram_span_last_failure` (L2633) — Copies the reason and details of the last failed span run into the given structure.
-- `dirty_ram_run_span` (L2637) — Runs guest code from a start PC to a stop PC through the interpreter, up to a maximum instruction count; returns 1 on success and records a failure otherwise.
-- `precise_irq_deliverable` (L2694) — Is a hardware interrupt deliverable to the guest at this exact instruction boundary?
-- `precise_pc_dispatchable` (L2720) — Is 'pc' a point the TOP-LEVEL dispatcher can re-enter?
-- `psx_run_precise` (L2740) — Run the guest per-instruction from cpu->pc through the interpreter, taking any deliverable interrupt at the EXACT instruction boundary, until a safe resume point.
-- `psx_precise_slice_init_from_env` (L2901) — Reads PSX_PRECISE_SLICE from the environment to turn precise per-instruction slicing on or off.
-- `psx_slice_block_impl` (L2912) — Block-leader slice guard impl.
-- `dirty_ram_dispatch_inner` (L2949) — Dispatches a PC in dirty RAM: classifies its page and interprets the basic block there.
-- `ls_set_window` (L3729) — Arm the comparator over a guest-frame window [lo,hi].
-- `ls_set_record_only` (L3730) — Diagnostic: record blocks but skip the inline replay (to test whether the inline replay, not recording, is what perturbs the run).
-- `ls_func_set_window` (L3731) — Arms the dispatch-segment lockstep comparator over a frame window.
-- `ls_func_set_record_only` (L3732) — Turns record-only mode on or off for the dispatch-segment lockstep comparator.
-- `ls_note_exception_entry` (L3734) — Called at real IRQ exception entry.
-- `ls_shadow_record_begin` (L3739) — Side-effect-free whole-call trace used by the overlay differential gate.
-- `ls_shadow_record_end` (L3756) — Ends a shadow recording: returns 1 when it can be replayed, and reports the operation count and whether an exception was seen.
-- `ls_shadow_record_unreplayable` (L3765) — A recorded effect the replay cannot reproduce fails the record closed (the comparison is skipped, as for a device touch).
-- `ls_shadow_replay_begin` (L3769) — Starts replaying a recorded shadow trace; returns 0 when another owner or a replay is already active.
-- `ls_shadow_replay_end` (L3784) — Ends a shadow replay and reports whether it completed, plus any mismatch details; returns 0 when this is not the replay owner.
-- `ls_shadow_abort` (L3803) — Cancels any shadow record or replay and restores the normal memory-operation mode.
-- `ls_suppress_begin` (L3811) — Suppress lockstep memory recording while runtime/debug observers read guest RAM for diagnostics.
-- `ls_suppress_end` (L3815) — Ends one suppression of lockstep memory recording.
-- `ls_read_hook` (L3819) — Memory chokepoint hooks, called from the psx_read_ and psx_write_ funcs.
-- `ls_write_hook` (L3840) — Memory write hook for lockstep: during replay it checks the write against the trace, otherwise it records the write.
-- `ls_latch` (L3864) — Stores the first divergence found by the lockstep comparator; later divergences are ignored.
-- `ls_replay_and_compare` (L3874) — Re-interpret the just-recorded block from the entry snapshot, comparing the interp result to native (cpu == post-block native state).
-- `ls_same_phys` (L3934) — Returns 1 when two addresses are the same physical address, ignoring the segment bits.
-- `lsf_copy_div_trace` (L3938) — Copies up to 48 trace entries around a divergence into the dispatch-segment comparator record.
-- `lsf_latch` (L3946) — Stores the first divergence of the dispatch-segment comparator with its kind, frame, entry and details; later ones are ignored.
-- `lsf_compare_regs` (L3965) — Compares the replayed and native CPU states (PC and general registers) and records the first mismatch.
-- `lsf_replay_and_compare` (L3987) — Replays one dispatch segment through the interpreter from its entry and compares the result with the native state.
-- `ls_func_enter` (L4076) — Dispatch-segment comparator: wraps one clean psx_dispatch_game_compiled() invocation and replays the same callable through exec_one until it reaches the same returned cpu->pc.
-- `ls_func_exit` (L4102) — Ends a dispatch-segment comparison at the segment exit, comparing the result or skipping it on a conflict.
-- `ls_leader_armed` (L4139) — Whether ls_at_leader can act (debug_server.c: the block observer's gate).
-- `ls_at_leader` (L4141) — Per-basic-block-leader entry, called from debug_server_cyc_observe.
-- `ls_get_diverge_json` (L4189) — Drain the first-divergence record as JSON into buf.
-- `ls_get_func_json` (L4210) — Writes the dispatch-segment divergence record as JSON into a buffer and returns its length.
+- `dirty_ram_ld_delay_flush` (L351) — Retire a deferred load writeback.
+- `dirty_ram_ld_delay_discard` (L359) — Drop a deferred load-delay writeback WITHOUT applying it.
+- `dirty_ram_ld_delay_save` (L366) — Copies the pending delayed load (register, value, age, armed flag) into the given structure so it can be restored later.
+- `dirty_ram_ld_delay_restore` (L374) — Restores a pending delayed load from a structure saved earlier.
+- `dirty_ram_irq_ambient_resync_after_restore` (L382) — Re-anchor host-only dirty IRQ pump ambient (entry-poll stride + 4096-insn gap) after snap restore.
+- `callret_armed` (L444) — Returns 1 when the call-resolution watch range is set, otherwise 0.
+- `callret_begin` (L470) — Records the start of a call in the call-resolution ring when its PC is in the watched range; returns the entry index or an invalid marker.
+- `callret_end` (L488) — Completes the call-resolution record at the given index with its path code and the CPU state after the call.
+- `interp_refused_game_text` (L530) — Game text that dispatch refuses because its live bytes differ from the boot EXE.
+- `span_forced` (L546) — Returns 1 when a physical address lies inside the forced span range.
+- `op_field` (L555) — MIPS instruction field decoders.
+- `rs_field` (L556) — Returns the rs register field (bits 21 to 25) of a MIPS instruction word.
+- `rt_field` (L557) — Returns the rt register field (bits 16 to 20) of a MIPS instruction word.
+- `rd_field` (L558) — Returns the rd register field (bits 11 to 15) of a MIPS instruction word.
+- `shamt_field` (L559) — Returns the shift amount field (bits 6 to 10) of a MIPS instruction word.
+- `funct_field` (L560) — Returns the 6-bit function field (bits 0 to 5) of a MIPS instruction word.
+- `imm16_field` (L561) — Returns the unsigned 16-bit immediate field of a MIPS instruction word.
+- `simm16_field` (L562) — Returns the 16-bit immediate field sign-extended to 32 bits.
+- `target26` (L563) — Returns the 26-bit jump target field of a MIPS instruction word.
+- `fetch_word` (L569) — Read a 32-bit instruction word from main RAM at the given physical addr.
+- `sxy_fold_word` (L583) — Word reader for the [[widescreen.cull.sxy]] whole-fold check: the fold words around an interpreted PC are in main RAM like the PC itself.
+- `ws_cull_site` (L603) — Classifies a PC as a widescreen cull site, using a small cache keyed on the PC and its instruction word.
+- `ws_cull_bltz_site` (L634) — Widescreen LEFT-edge funnel-bltz classification (auto_screen_x, signed min/max + center±halfwidth idioms — ws_cull_detect.h).
+- `ws_branch_keep` (L661) — Explicit [widescreen.cull] branch_keep_sites: the reject branch is forced not-taken only while a widened view is configured, exactly like the native emit (code_generator.cpp keep_branch_if_wide).
+- `ws_clip_edge_load` (L669) — Explicit [widescreen.cull] clip_edge_x_load_sites (lh/lhu/lw): the loaded screen-X clip bound moves out by the live margin when it equals a screen edge (gpu.c psx_ws_clip_edge_x).
+- `ws_backdrop_site_kind` (L682) — Widescreen far-backdrop column-PRELOAD site classification for the interpreter ([widescreen.cull] auto_backdrop).
+- `dirty_ram_log_instruction` (L712) — Records one interpreted instruction in the instruction log when its PC is in the recorded range, and freezes the log when the watched target is reached.
+- `dirty_ram_log_marker` (L778) — Marker entries delimit NATIVE candidate executions in the insn ring (native code emits no per-insn entries; markers keep the two runs' timelines alignable).
+- `lwl_merge` (L793) — LWL/LWR are merge-only here; the timed aligned-word read is done by the caller via psx_cyc_load_word (Beetle reads the aligned word; GPR_DEP rs only, arms LDWhich=rt).
+- `lwr_merge` (L802) — Merges the aligned memory word with the register value for an LWR (load word right) at the given byte offset.
+- `interp_swl` (L811) — Interprets SWL (store word left): writes the upper bytes of a value into the aligned word in memory.
+- `interp_swr` (L823) — Interprets SWR (store word right): writes the lower bytes of a value into the aligned word in memory.
+- `abort_unsupported` (L855) — Records an unsupported instruction (its PC, word and reason) as an abort and returns 1 so the caller stops.
+- `phys_is_overlay_flow_region` (L880) — A dirty page that should run as a locally-chained overlay: anything ABOVE the kernel window.
+- `is_local_dirty_target` (L884) — Returns 1 when a jump target lies in an overlay flow region and its RAM page is dirty, so it should be interpreted locally.
+- `dirty_ram_word_looks_decodable` (L902) — A dirty-RAM target only deserves interpretation if its first word decodes as a plausible MIPS instruction.
+- `dirty_ram_same_pc` (L945) — Returns 1 when two PCs refer to the same physical address, ignoring the segment bits.
+- `dirty_ram_pump_boundary` (L949) — Runs the interrupt check at a block boundary and records the safe resume PC; returns 1 when control was transferred.
+- `dirty_ram_finish_call_return` (L975) — Finishes a call by moving the PC to the return address and running the boundary check; returns 1 if control was transferred, else sets the next PC.
+- `dispatch_nonlocal_call` (L987) — Sends a call to a target outside the interpreted block through the compiled dispatcher and returns the next PC through an output parameter.
+- `psx_mixed_owner_enabled` (L1029) — ── Mixed interp<->compiled dispatch owner (host-stack recursion fix) ────── The dirty interpreter nests psx_dispatch_game_compiled when an interpreted block transfers into compiled code.
+- `interp_host_stack_used` (L1037) — #include <intrin.h> /* __readgsqword — fiber TEB StackBase
+- `psx_mixed_stack_watermark` (L1047) — Returns the host stack limit in bytes at which nesting of compiled calls stops, from PSX_MIXED_STACK_KB (default 700 KB, minimum 64 KB).
+- `xprobe_env_init` (L1127) — Reads the flight-recorder limits from environment variables, once.
+- `dirty_ram_xprobe_arm` (L1134) — Sets the flight-recorder trip limits (frame, stack KB, warmup) and re-arms the trip.
+- `xprobe_flush_frame` (L1139) — Stores the current frame's flight-recorder summary (crossings, depth, stack, cycles) into the summary ring.
+- `xprobe_watch_parse` (L1173) — Parses a comma or space separated list of watched physical addresses into the watch table.
+- `g_xprobe_watch` (L1191) — Env seeding is lazy so it works no matter which subsystem touches the ring first, and costs one branch after the first call.
+- `dirty_ram_xprobe_watch_set` (L1207) — Control plane for the 'xprobe_watch' TCP command.
+- `dirty_ram_xprobe_watch_get` (L1213) — Returns the watched address at an index through phys_out; returns 1 when the index is valid, otherwise 0.
+- `dirty_ram_xprobe_watch_count` (L1220) — Returns how many addresses are in the flight-recorder watch list.
+- `dirty_ram_xprobe_call_note` (L1227) — Watched-target call note for NON-interp call sites (overlay shard call-outs via dispatch_call).
+- `xprobe_event` (L1232) — Records one control-flow crossing in the flight recorder, flushing the previous frame's summary when the frame changes.
+- `dirty_ram_xprobe_json` (L1272) — Emit the flight-recorder rings as JSON (called by crash_trace).
+- `interp_enter_compiled` (L1368) — Hands a jump target to compiled code when its game text is native-ok and the host stack is not too deep; returns 0 so the interpreter runs it instead.
+- `exec_one` (L1399) — Fetches the instruction at a PC and executes it, returning the next PC through an output parameter.
+- `interp_reserved_primary` (L1405) — psx-spx "Illegal Opcodes": N/A primary opcodes raise RI; LWC0/SWC0 raise CpU.
+- `exec_delay_slot` (L1412) — Forward: helper for delay-slot execution on jumps/branches.
+- `exec_one_fetched` (L1452) — Executes one already-fetched instruction, first retiring any pending delayed load writeback.
+- `exec_one_fetched_inner` (L1555) — Decodes and executes one fetched MIPS instruction, updating registers, memory and the next PC.
+- `dirty_ram_dispatch` (L2541) — Public entry point. Caller (psx_dispatch) has translated 'addr' to a KSEG-stripped form already in some cases, so accept any address and mask.
+- `dirty_ram_span_get` (L2655) — The open span (0,0 = none), for landings that longjmp past its exit.
+- `dirty_ram_span_set` (L2660) — Sets the physical address range that the span-forced check tests against.
+- `dirty_ram_span_last_failure` (L2667) — Copies the reason and details of the last failed span run into the given structure.
+- `dirty_ram_run_span` (L2671) — Runs guest code from a start PC to a stop PC through the interpreter, up to a maximum instruction count; returns 1 on success and records a failure otherwise.
+- `precise_irq_deliverable` (L2728) — Is a hardware interrupt deliverable to the guest at this exact instruction boundary?
+- `precise_pc_dispatchable` (L2754) — Is 'pc' a point the TOP-LEVEL dispatcher can re-enter?
+- `psx_run_precise` (L2774) — Run the guest per-instruction from cpu->pc through the interpreter, taking any deliverable interrupt at the EXACT instruction boundary, until a safe resume point.
+- `psx_precise_slice_init_from_env` (L2935) — Reads PSX_PRECISE_SLICE from the environment to turn precise per-instruction slicing on or off.
+- `psx_slice_block_impl` (L2946) — Block-leader slice guard impl.
+- `dirty_ram_dispatch_inner` (L2983) — Dispatches a PC in dirty RAM: classifies its page and interprets the basic block there.
+- `ls_set_window` (L3764) — Arm the comparator over a guest-frame window [lo,hi].
+- `ls_set_record_only` (L3765) — Diagnostic: record blocks but skip the inline replay (to test whether the inline replay, not recording, is what perturbs the run).
+- `ls_func_set_window` (L3766) — Arms the dispatch-segment lockstep comparator over a frame window.
+- `ls_func_set_record_only` (L3767) — Turns record-only mode on or off for the dispatch-segment lockstep comparator.
+- `ls_note_exception_entry` (L3769) — Called at real IRQ exception entry.
+- `ls_shadow_record_begin` (L3774) — Side-effect-free whole-call trace used by the overlay differential gate.
+- `ls_shadow_record_end` (L3791) — Ends a shadow recording: returns 1 when it can be replayed, and reports the operation count and whether an exception was seen.
+- `ls_shadow_record_unreplayable` (L3800) — A recorded effect the replay cannot reproduce fails the record closed (the comparison is skipped, as for a device touch).
+- `ls_shadow_replay_begin` (L3804) — Starts replaying a recorded shadow trace; returns 0 when another owner or a replay is already active.
+- `ls_shadow_replay_end` (L3819) — Ends a shadow replay and reports whether it completed, plus any mismatch details; returns 0 when this is not the replay owner.
+- `ls_shadow_abort` (L3838) — Cancels any shadow record or replay and restores the normal memory-operation mode.
+- `ls_suppress_begin` (L3846) — Suppress lockstep memory recording while runtime/debug observers read guest RAM for diagnostics.
+- `ls_suppress_end` (L3850) — Ends one suppression of lockstep memory recording.
+- `ls_read_hook` (L3854) — Memory chokepoint hooks, called from the psx_read_ and psx_write_ funcs.
+- `ls_write_hook` (L3875) — Memory write hook for lockstep: during replay it checks the write against the trace, otherwise it records the write.
+- `ls_latch` (L3899) — Stores the first divergence found by the lockstep comparator; later divergences are ignored.
+- `ls_replay_and_compare` (L3909) — Re-interpret the just-recorded block from the entry snapshot, comparing the interp result to native (cpu == post-block native state).
+- `ls_same_phys` (L3969) — Returns 1 when two addresses are the same physical address, ignoring the segment bits.
+- `lsf_copy_div_trace` (L3973) — Copies up to 48 trace entries around a divergence into the dispatch-segment comparator record.
+- `lsf_latch` (L3981) — Stores the first divergence of the dispatch-segment comparator with its kind, frame, entry and details; later ones are ignored.
+- `lsf_compare_regs` (L4000) — Compares the replayed and native CPU states (PC and general registers) and records the first mismatch.
+- `lsf_replay_and_compare` (L4022) — Replays one dispatch segment through the interpreter from its entry and compares the result with the native state.
+- `ls_func_enter` (L4111) — Dispatch-segment comparator: wraps one clean psx_dispatch_game_compiled() invocation and replays the same callable through exec_one until it reaches the same returned cpu->pc.
+- `ls_func_exit` (L4137) — Ends a dispatch-segment comparison at the segment exit, comparing the result or skipping it on a conflict.
+- `ls_leader_armed` (L4174) — Whether ls_at_leader can act (debug_server.c: the block observer's gate).
+- `ls_at_leader` (L4176) — Per-basic-block-leader entry, called from debug_server_cyc_observe.
+- `ls_get_diverge_json` (L4224) — Drain the first-divergence record as JSON into buf.
+- `ls_get_func_json` (L4245) — Writes the dispatch-segment divergence record as JSON into a buffer and returns its length.
 
 ### runtime/src/disasm_shim.cpp
 
