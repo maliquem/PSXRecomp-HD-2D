@@ -2845,7 +2845,19 @@ std::string CodeGenerator::translate_basic_block(
                             if (cycle_per_insn || blk_mode) emit_pre_icache(delay_slot_addr, config_.indent);
                             if (cycle_per_insn) emit_pre_timing(delay_slot_addr, delay_instr, config_.indent);
                             {
-                                const std::string ds_body = translate_instruction(delay_slot_addr, delay_instr);
+                                // A transfer in the slot is undefined on the R3000A and rejected by the
+                                // interpreter (exec_delay_slot): fail loud where it runs, not at regen.
+                                const uint32_t ds_op = delay_instr >> 26;
+                                const bool ds_transfer = ControlFlowAnalyzer::is_control_flow(delay_instr) &&
+                                    !(ds_op >= 0x14u && ds_op <= 0x17u) &&
+                                    !(ds_op == 0u && (delay_instr & 0x3Fu) == 0x09u);  // jalr: translate_instruction links it
+                                const std::string ds_body = ds_transfer
+                                    ? config_.indent + fmt::format(
+                                          "{{ /* {} in delay slot: unsupported */ "
+                                          "psx_unknown_dispatch(cpu, 0x{:08X}u, 0x{:08X}u); return; }}",
+                                          ds_op == 0u ? "jr" : "branch/jump",
+                                          runtime_pc(addr), addr & 0x1FFFFFFFu)
+                                    : translate_instruction(delay_slot_addr, delay_instr);
                                 cyc_fold_check(delay_slot_addr, ds_body);
                                 if (blk_mode) {
                                     blk_acc += blk_base[delay_slot_addr];
@@ -4006,6 +4018,8 @@ std::vector<GeneratedFunction> CodeGenerator::generate_all_functions(
             while ((pos = gen_func.body.find("TODO: SPECIAL", pos)) != std::string::npos) { todo++; pos += 13; }
             pos = 0;  // reserved words were TODO words before GEN-3; keep the data cut unchanged
             while ((pos = gen_func.body.find("reserved opcode=0x", pos)) != std::string::npos) { todo++; pos += 18; }
+            pos = 0;  // delay-slot branches/jumps were TODO words too; jr/jalr were not
+            while ((pos = gen_func.body.find("branch/jump in delay slot", pos)) != std::string::npos) { todo++; pos += 25; }
             uint32_t instrs = func.size / 4u;
             if (instrs > 0 && todo * 2u >= instrs) {   // >= 50% untranslatable => data
                 GeneratedFunction data_stub;

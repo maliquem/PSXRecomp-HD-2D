@@ -812,6 +812,66 @@ void check_reserved_primary_opcodes() {
               body["func_" + hex(base + 0x30)]);
 }
 
+void check_delay_slot_control_transfer() {
+    set_env("PSX_CPS", "1");
+    const uint32_t base = KSEG0 | kPhys;
+    const uint32_t j_far = 0x08000000u | (((base + 0x100u) >> 2) & 0x03FFFFFFu);
+    const uint32_t words[] = {
+        0x10000002u,  // +00 beq   $zero, $zero, +0C
+        j_far,        // +04 j in the delay slot
+        0x00000000u,  // +08 nop
+        0x03E00008u,  // +0C jr    $ra
+        0x00000000u,  // +10 nop
+        0x03E00008u,  // +14 jr    $ra
+        0x03E00008u,  // +18 jr    $ra in the delay slot
+        0x00000000u,  // +1C nop
+        0x1000FFFFu,  // +20 beq   $zero, $zero, +20
+        j_far,        // +24 j in the delay slot: 50% of the function, data stub as before
+    };
+    PSXRecomp::PS1Executable exe{};
+    exe.header.load_address = base;
+    exe.header.initial_pc = base;
+    exe.header.file_size = sizeof(words);
+    for (uint32_t w : words) append_word(exe.code_data, w);
+    PSXRecomp::CodeGenConfig config{};
+    config.emit_comments = true;
+    config.indent = "    ";
+    PSXRecomp::ControlFlowAnalyzer analyzer(exe);
+    PSXRecomp::CodeGenerator generator(exe, config);
+    std::vector<PSXRecomp::Function> funcs;
+    std::set<uint32_t> known;
+    const uint32_t spans[][2] = {{0x00u, 0x14u}, {0x14u, 0x20u}, {0x20u, 0x28u}};
+    for (const auto& span : spans) {
+        PSXRecomp::Function f{};
+        f.start_addr = base + span[0];
+        f.end_addr = base + span[1];
+        f.size = span[1] - span[0];
+        f.name = "func_" + hex(f.start_addr);
+        funcs.push_back(f);
+        known.insert(f.start_addr);
+    }
+    generator.set_known_functions(known);
+    std::map<uint32_t, PSXRecomp::ControlFlowGraph> cfgs;
+    for (const auto& f : funcs) cfgs[f.start_addr] = analyzer.analyze_function(f);
+    std::map<std::string, std::string> body;
+    for (const auto& gf : generator.generate_all_functions(funcs, cfgs))
+        body[gf.function_name] = gf.full_code;
+    const auto has = [&](uint32_t off, const std::string& text) {
+        return body["func_" + hex(base + off)].find(text) != std::string::npos;
+    };
+    check(has(0x00, "branch/jump in delay slot: unsupported */ psx_unknown_dispatch(cpu, 0x" +
+                        hex(base) + "u, 0x" + hex(kPhys) + "u); return; }") &&
+              !has(0x00, "TODO: opcode=0x02"),
+          "delay slot: a j in a branch delay slot must fail at the branch: " + body["func_" + hex(base)]);
+    check(has(0x14, "jr in delay slot: unsupported */ psx_unknown_dispatch(cpu, 0x" +
+                        hex(base + 0x14) + "u,") &&
+              !has(0x14, "return;  /* jr $ra */"),
+          "delay slot: a jr in a jr delay slot must fail at the jump: " + body["func_" + hex(base + 0x14)]);
+    check(has(0x20, "psx_unknown_dispatch(cpu, 0x" + hex(base + 0x20) + "u,") &&
+              !has(0x20, "in delay slot"),
+          "delay slot: the data cut no longer counts a delay-slot j as untranslatable:" + body["func_" + hex(base + 0x20)]);
+}
+
 }  // namespace
 
 int main() {
@@ -835,6 +895,7 @@ int main() {
     check_strict_swl_swr();
     check_strict_unsigned_sums();
     check_reserved_primary_opcodes();
+    check_delay_slot_control_transfer();
     if (failures != 0) {
         std::fprintf(stderr, "emitter_runtime_pc_test: %d failure(s)\n", failures);
         return 1;
