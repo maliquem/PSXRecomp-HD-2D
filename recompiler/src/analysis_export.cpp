@@ -1,6 +1,7 @@
 // analysis_export.cpp — artifact writers for the static analysis database.
 
 #include "analysis_export.h"
+#include "write_if_changed.h"
 
 #include <algorithm>
 #include <fstream>
@@ -278,8 +279,9 @@ bool write_symbols_toml(const AnalysisDb& db, const std::filesystem::path& path,
         return true;
     }
 
-    std::ofstream f;
-    if (!open_out(path, f, error)) return false;
+    // Build the whole file in memory, then replace it atomically (temp + rename);
+    // a cut or full disk must not leave a truncated symbols.toml.
+    std::ostringstream f;
     if (original.empty()) {
         f << "# " << db.image_name << " — progressive symbol map\n";
         f << "# Discover → label here → manipulate via PSX_FN_* (sync_symbols.py).\n";
@@ -291,6 +293,12 @@ bool write_symbols_toml(const AnalysisDb& db, const std::filesystem::path& path,
     f << "\n# --- appended by `psxrecomp-analyze --emit-symbols` ("
       << confidence_name(min_conf) << " or better) ---\n";
     f << added_text;
+    try {
+        write_file_if_changed(path, f.str());
+    } catch (const std::exception& e) {
+        error = e.what();
+        return false;
+    }
     fmt::print("  symbols.toml: {} existing entries kept, {} appended\n",
                existing.size(), added);
     return true;
