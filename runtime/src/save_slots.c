@@ -509,12 +509,13 @@ int psx_save_slots_mount(int card, int slot, const char *as_name) {
         char path[sizeof(s_dir) + 32];
         size_t len = 0;
         uint8_t *mcs;
-        int rc;
+        int rc, used;
         lock();
         slot_path(path, sizeof(path), slot, "mcs");
-        mcs = s_slots[slot - 1].info.used ? read_all(path, &len) : NULL;
+        used = s_slots[slot - 1].info.used;
+        mcs = used ? read_all(path, &len) : NULL;
         unlock();
-        if (s_slots[slot - 1].info.used) {
+        if (used) {
             if (!mcs) return -4;
             rc = place_file(img, mcs, len, as_name && as_name[0] ? as_name : NULL);
             free(mcs);
@@ -527,8 +528,10 @@ int psx_save_slots_mount(int card, int slot, const char *as_name) {
         (void)memcard_unmount_image(card, s_rest);
         return -3;
     }
+    lock();
     s_mount_card = card;
     s_mount_slot = slot;
+    unlock();
     s_rest_changed = 0;
     return 0;
 }
@@ -617,13 +620,21 @@ int psx_save_slots_unmount(void) {
     if (memcard_unmount_image(card, s_rest) != 0) return -1;
     if (s_rest_changed) (void)memcard_import_raw(card, s_rest);
     (void)sio_memcard_reinsert(card);
+    lock();
     s_mount_card = -1;
     s_mount_slot = -1;
+    unlock();
     s_rest_changed = 0;
     return 0;
 }
 
-int psx_save_slots_mounted(void) { return s_mount_card >= 0 ? s_mount_slot : -1; }
+int psx_save_slots_mounted(void) {
+    int r;
+    lock();
+    r = s_mount_card >= 0 ? s_mount_slot : -1;
+    unlock();
+    return r;
+}
 
 int psx_save_slots_rename(int slot, const char *name) {
     PSXSaveSlotInfo info;
@@ -641,11 +652,15 @@ int psx_save_slots_rename(int slot, const char *name) {
 
 int psx_save_slots_delete(int slot) {
     char a[sizeof(s_dir) + 32], b[sizeof(s_dir) + 32];
+    int used;
     if (!slot_ok(slot)) return -1;
     slot_path(a, sizeof(a), slot, "mcs");
     slot_path(b, sizeof(b), slot, "info");
+    lock();
+    used = s_slots[slot - 1].info.used;
+    unlock();
     /* The save first: an orphan details file is harmless and ignored. */
-    if (remove(a) != 0 && s_slots[slot - 1].info.used) return -3;
+    if (remove(a) != 0 && used) return -3;
     (void)remove(b);
     lock();
     memset(&s_slots[slot - 1], 0, sizeof(SlotCache));
@@ -709,7 +724,7 @@ int psx_save_slots_import_card(const char *mcd_path, const char *prefix) {
         cache_from_mcs(&c, mcs, mlen);
         free(mcs);
         c.info.saved_time = (int64_t)time(NULL);
-        if (write_info(slot, &c.info) != 0) continue;
+        if (write_info(slot, &c.info) != 0) { (void)remove(path); continue; }  /* no .mcs without .info */
         lock();
         s_slots[slot - 1] = c;
         unlock();
