@@ -276,6 +276,9 @@ typedef struct RenderPassCheckpoint {
 static uint8_t *s_ram_copy;          /* s_ram_copy_cap bytes */
 static uint32_t s_ram_copy_cap;
 static uint8_t *s_dma_copy;
+static uint32_t s_dma_copy_cap;
+/* Set when a restore could not put the DMA state back: later passes are refused. */
+static int s_dma_restore_failed;
 static RenderPassCheckpoint s_ck;
 static PsxCycleFreeze s_freeze;
 static jmp_buf s_abort_jmp;
@@ -554,15 +557,18 @@ static int checkpoint_save(const CPUState *cpu) {
      * (render_pass_store_to), so every byte one can reach is in here. */
     uint32_t ram_bytes = memory_get_ram_bytes();
     s_checkpoint_failure = NULL;
+    if (s_dma_restore_failed) { s_checkpoint_failure = "checkpoint_dma_restore"; return 0; }
+    if (s_dma_copy_cap < dma_len) {
+        uint8_t *p = (uint8_t *)realloc(s_dma_copy, dma_len);
+        if (!p) { s_checkpoint_failure = "checkpoint_dma"; return 0; }
+        s_dma_copy = p;
+        s_dma_copy_cap = dma_len;
+    }
     if (s_ram_copy_cap < ram_bytes) {
         uint8_t *p = (uint8_t *)realloc(s_ram_copy, ram_bytes);
         if (!p) { s_checkpoint_failure = "checkpoint_ram"; return 0; }
         s_ram_copy = p;
         s_ram_copy_cap = ram_bytes;
-    }
-    if (!s_dma_copy) {
-        s_dma_copy = (uint8_t *)malloc(dma_len);
-        if (!s_dma_copy) { s_checkpoint_failure = "checkpoint_dma"; return 0; }
     }
     if (!gpu_pass_checkpoint_save()) {
         s_checkpoint_failure = "checkpoint_gpu";
@@ -594,7 +600,8 @@ static int checkpoint_save(const CPUState *cpu) {
 
 static void checkpoint_restore(CPUState *cpu) {
     gpu_pass_checkpoint_restore();
-    (void)dma_snapshot_read(s_dma_copy, s_ck.dma_len);
+    /* Keep the pass's DMA state if it cannot be put back: refuse passes from now on. */
+    if (!dma_snapshot_read(s_dma_copy, s_ck.dma_len)) s_dma_restore_failed = 1;
     timers_set_snapshot(s_ck.t_counter, s_ck.t_mode, s_ck.t_target,
                         s_ck.t_irq, s_ck.t_frac);
     interrupts_set_cycles_since_vblank(s_ck.csv);
