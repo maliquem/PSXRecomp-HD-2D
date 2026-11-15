@@ -1014,6 +1014,19 @@ if(BUILD_TESTING)
         PSX_GTE_REGISTER_TEST=1
         PSX_ENABLE_BLOCK_CYCLES=1)
     add_test(NAME gte_register_access_test COMMAND gte_register_access_test)
+    # GTE-6: psx-spx reference vectors; the one GTE-2 divergence is reported as KNOWN.
+    add_executable(gte_reference_vectors_test
+        tests/test_gte_reference_vectors.cpp
+        src/gte.cpp
+        src/pgxp.cpp
+        src/psx_ram_geometry.c
+    )
+    target_include_directories(gte_reference_vectors_test PRIVATE include)
+    target_compile_definitions(gte_reference_vectors_test PRIVATE
+        PSX_NO_DEBUG_TOOLS=1
+        PSX_GTE_REGISTER_TEST=1
+        PSX_ENABLE_BLOCK_CYCLES=1)
+    add_test(NAME gte_reference_vectors_test COMMAND gte_reference_vectors_test)
     # Same ABI/result corpus for the native operation entry and the reference.
     add_executable(gte_hle_contract_test
         tests/test_gte_register_access.cpp src/gte.cpp src/pgxp.cpp src/psx_ram_geometry.c)
