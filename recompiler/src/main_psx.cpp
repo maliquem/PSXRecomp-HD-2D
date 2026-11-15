@@ -366,16 +366,14 @@ static int psxrecomp_game_main(int argc, char** argv) {
         vsync_horizon_extra_sites = cfg.vsync_event_horizon_extra_sites;
         // [persist_options] init-store hook sites live in a dedicated
         // game_options.toml next to game.toml (the game's own native OPTION
-        // settings, kept separate from game.toml/settings.toml). Best-effort:
-        // a missing/bad file just means no persistence hooks this build.
-        try {
+        // settings, kept separate from game.toml/settings.toml). A missing
+        // file is empty; an invalid one aborts (main turns the throw into exit 1).
+        {
             std::filesystem::path go_path =
                 std::filesystem::path(config_path).parent_path() / "game_options.toml";
             const auto goc = PSXRecompV4::load_game_options(go_path);
             for (const auto& o : goc.options)
                 if (o.init_store_pc) persist_init_sites.insert(o.init_store_pc);
-        } catch (const std::exception& e) {
-            fmt::print(stderr, "  game_options.toml ignored: {}\n", e.what());
         }
         fmt::print("config:         {}\n", config_path.string());
         fmt::print("  exe         = {}\n", exe_path.string());
