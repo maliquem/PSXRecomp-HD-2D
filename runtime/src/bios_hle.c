@@ -2,7 +2,7 @@
  *
  * See bios_hle.h for the design (LLE default + oracle, per-game opt-in,
  * unimplemented services fall through to the recompiled BIOS, boot shell-skip,
- * always-on observability ring).
+ * observability ring, recorded only while the hook is installed).
  *
  * v1 service coverage — the B0 event family, ground-truthed instruction by
  * instruction against the SCPH1001 kernel (ROM 0xBFC11644..0xBFC11A84, kernel
@@ -87,7 +87,7 @@ static int s_shell_skipped   = 0;   /* boot skip already fired */
  * delivery gives the callback, reused here so the dispatch return contract
  * matches. 0 = unknown for this BIOS: callback delivery stays LLE. */
 
-/* ── always-on ring ──────────────────────────────────────────────────────── */
+/* ── observability ring (records only while the hook is installed) ──────── */
 
 static PsxHleCallEntry s_ring[PSX_HLE_RING_CAP];
 static uint64_t        s_ring_seq = 0;
