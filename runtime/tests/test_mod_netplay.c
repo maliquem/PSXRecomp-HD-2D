@@ -39,6 +39,11 @@ EMPTY_SNAPSHOT(dma)
 EMPTY_SNAPSHOT(sio)
 void sio_snapshot_section_ends(uint32_t out[5]) { memset(out, 0, 5 * sizeof(*out)); }
 
+/* Stub of the guest-visible GTE read: LZCR (31) is derived, SXYP (15) mirrors SXY2 (14). */
+uint32_t gte_read_data(CPUState* c, uint8_t r) {
+    return r == 31 ? 32u : r == 15 ? c->gte_data[14] : c->gte_data[r];
+}
+
 static uint32_t gameplay_state;
 static unsigned digest_calls;
 static uint32_t gameplay_digest(void) { ++digest_calls; return gameplay_state; }
@@ -61,6 +66,13 @@ int main(int argc, char** argv) {
     cpu.pc = 0x80010000;
     netplay_core_digest_parts(&cpu, &baseline);
     assert(baseline.mod == 0);
+    {   /* backing-only GTE difference (loaded vs live peer) must not change the digest */
+        NetplayCoreParts alt;
+        cpu.gte_data[31] = 32; cpu.gte_data[15] = 0;
+        netplay_core_digest_parts(&cpu, &alt);
+        assert(alt.cpu == baseline.cpu);
+        cpu.gte_data[31] = 0;
+    }
     assert(psx_mod_netplay_rollback_supported());
     assert(!psx_mod_netplay_requires_texture_banks());
     assert(psx_mod_netplay_renderer_allowed(0) && psx_mod_netplay_renderer_allowed(1) &&

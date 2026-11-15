@@ -139,7 +139,12 @@ void netplay_core_digest_parts(const CPUState* cpu, NetplayCoreParts* out)
     crc_cpu = crc32_update(crc_cpu, (const uint8_t*)&cpu->cop0[12], sizeof(uint32_t));
     crc_cpu = crc32_update(crc_cpu, (const uint8_t*)&cpu->cop0[13], sizeof(uint32_t));
     crc_cpu = crc32_update(crc_cpu, (const uint8_t*)&cpu->cop0[14], sizeof(uint32_t));
-    crc_cpu = crc32_update(crc_cpu, (const uint8_t*)cpu->gte_data, sizeof(cpu->gte_data));
+    {
+        /* Hash what the guest reads, not the backing: LZCR/SXYP/IRGB backing bits differ between a loaded and a live peer. */
+        uint32_t gte_vis[32];
+        for (i = 0; i < 32; i++) gte_vis[i] = gte_read_data((CPUState*)cpu, (uint8_t)i);
+        crc_cpu = crc32_update(crc_cpu, (const uint8_t*)gte_vis, sizeof(gte_vis));
+    }
     crc_cpu = crc32_update(crc_cpu, (const uint8_t*)cpu->gte_ctrl, sizeof(cpu->gte_ctrl));
 
     {
