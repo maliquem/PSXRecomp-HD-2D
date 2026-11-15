@@ -1639,13 +1639,13 @@ struct GameConfig {
     //   raised to match the bigger buffer. Together they cure the dense-stage overflow.
     uint32_t ws_bg2d_bufbase_site = 0;
     uint32_t ws_bg2d_cap_site     = 0;
-    // Tile-ring layout used by the once-per-frame freshness refill. Defaults
-    // describe MMX6; sibling engines such as MMX5 override the shifted RAM
-    // addresses and smaller ring width in game.toml.
-    uint32_t ws_bg2d_layer_base       = 0x800971F8u;
-    uint32_t ws_bg2d_ring_base        = 0x800A21B8u;
-    uint32_t ws_bg2d_map_size_addr    = 0x800CD338u;
-    uint32_t ws_bg2d_layer_stride_addr = 0x8008EC10u;
+    // Tile-ring layout used by the once-per-frame freshness refill. The four
+    // RAM addresses have no default: a [widescreen.bg2d] block with sites must
+    // declare them (the loader errors otherwise).
+    uint32_t ws_bg2d_layer_base       = 0;
+    uint32_t ws_bg2d_ring_base        = 0;
+    uint32_t ws_bg2d_map_size_addr    = 0;
+    uint32_t ws_bg2d_layer_stride_addr = 0;
     uint32_t ws_bg2d_ring_cols        = 64;
     uint32_t ws_bg2d_layer_count      = 3;
     uint32_t ws_bg2d_layer_struct_stride = 0x54;

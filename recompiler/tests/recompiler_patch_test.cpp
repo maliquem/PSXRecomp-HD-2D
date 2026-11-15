@@ -1262,6 +1262,21 @@ void mod_instruction_codegen_test(const fs::path& root) {
           "unconfigured code emits no instruction callbacks");
 }
 
+void bg2d_address_default_test(const fs::path& root) {
+    const auto none = PSXRecompV4::load_game_config(write_config(root, "bg2d-none", ""));
+    check(none.ws_bg2d_layer_base == 0 && none.ws_bg2d_ring_base == 0 &&
+          none.ws_bg2d_map_size_addr == 0 && none.ws_bg2d_layer_stride_addr == 0,
+          "bg2d RAM addresses default to 0, not another game's");
+    const std::string sites = "\n[widescreen.bg2d]\ncount_site = \"0x80010000\"\n";
+    const std::string addrs = "layer_base = \"0x80090000\"\nring_base = \"0x800A0000\"\n"
+        "map_size_addr = \"0x800C0000\"\nlayer_stride_addr = \"0x80080000\"\n";
+    const auto full = PSXRecompV4::load_game_config(write_config(root, "bg2d-full", sites + addrs));
+    check(full.ws_bg2d_layer_base == 0x80090000u && full.ws_bg2d_layer_stride_addr == 0x80080000u,
+          "declared bg2d addresses load");
+    check_throws([&] { (void)PSXRecompV4::load_game_config(write_config(root, "bg2d-missing", sites)); },
+                 "widescreen.bg2d.layer_base is required", "bg2d sites without addresses are rejected");
+}
+
 void local_viewport_tests(const fs::path& root) {
     const std::string prefix = "\n[netplay]\nlocal_viewport=\"vertical_split\"\nlocal_viewport_renderer=\"projection\"\n";
     const auto cfg = PSXRecompV4::load_game_config(write_config(root,"unsplit",prefix +
@@ -1439,6 +1454,7 @@ int main() {
         unknown_key_test(root);
         config_range_test(root);
         local_viewport_tests(root);
+        bg2d_address_default_test(root);
         cfg_fallthrough_reachability_test();
     } catch (const std::exception& e) {
         fmt::print(stderr, "FAIL  unexpected exception: {}\n", e.what());

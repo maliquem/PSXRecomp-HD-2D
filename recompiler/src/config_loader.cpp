@@ -3200,8 +3200,8 @@ GameConfig load_game_config(const fs::path& config_path_in) {
     uint32_t ws_bg2d_count_site = 0, ws_bg2d_startcol_site = 0, ws_bg2d_startx_site = 0;
     uint32_t ws_bg2d_stream_left_site = 0, ws_bg2d_stream_right_site = 0;
     uint32_t ws_bg2d_bufbase_site = 0, ws_bg2d_cap_site = 0;
-    uint32_t ws_bg2d_layer_base = 0x800971F8u, ws_bg2d_ring_base = 0x800A21B8u;
-    uint32_t ws_bg2d_map_size_addr = 0x800CD338u, ws_bg2d_layer_stride_addr = 0x8008EC10u;
+    uint32_t ws_bg2d_layer_base = 0, ws_bg2d_ring_base = 0;
+    uint32_t ws_bg2d_map_size_addr = 0, ws_bg2d_layer_stride_addr = 0;
     uint32_t ws_bg2d_ring_cols = 64, ws_bg2d_layer_count = 3;
     uint32_t ws_bg2d_layer_struct_stride = 0x54;
     uint32_t ws_bg2d_init_func = 0;
@@ -3223,14 +3223,10 @@ GameConfig load_game_config(const fs::path& config_path_in) {
             ws_bg2d_stream_right_site = load1("stream_right_site");
             ws_bg2d_bufbase_site = load1("bufbase_site");
             ws_bg2d_cap_site     = load1("cap_site");
-            if (bg.contains("layer_base"))
-                ws_bg2d_layer_base = load1("layer_base");
-            if (bg.contains("ring_base"))
-                ws_bg2d_ring_base = load1("ring_base");
-            if (bg.contains("map_size_addr"))
-                ws_bg2d_map_size_addr = load1("map_size_addr");
-            if (bg.contains("layer_stride_addr"))
-                ws_bg2d_layer_stride_addr = load1("layer_stride_addr");
+            ws_bg2d_layer_base = load1("layer_base");
+            ws_bg2d_ring_base = load1("ring_base");
+            ws_bg2d_map_size_addr = load1("map_size_addr");
+            ws_bg2d_layer_stride_addr = load1("layer_stride_addr");
             auto load_positive = [&](const char* key, uint32_t current) -> uint32_t {
                 if (!bg.contains(key)) return current;
                 const int64_t value = toml::find<int64_t>(bg, key);
@@ -3248,6 +3244,19 @@ GameConfig load_game_config(const fs::path& config_path_in) {
                 throw std::runtime_error(
                     "widescreen.bg2d.ring_cols must be a power of two");
             ws_bg2d_init_func    = load1("init_func");
+            // The tile-ring addresses are per-game RAM: no title may inherit another's.
+            const bool bg2d_on = ws_bg2d_count_site || ws_bg2d_startcol_site ||
+                ws_bg2d_startx_site || ws_bg2d_stream_left_site ||
+                ws_bg2d_stream_right_site || ws_bg2d_bufbase_site ||
+                ws_bg2d_cap_site || ws_bg2d_init_func;
+            const std::pair<const char*, uint32_t> addrs[] = {
+                {"layer_base", ws_bg2d_layer_base}, {"ring_base", ws_bg2d_ring_base},
+                {"map_size_addr", ws_bg2d_map_size_addr},
+                {"layer_stride_addr", ws_bg2d_layer_stride_addr}};
+            for (const auto& [key, value] : addrs)
+                if (bg2d_on && value == 0)
+                    throw std::runtime_error(fmt::format(
+                        "widescreen.bg2d.{} is required when [widescreen.bg2d] has sites", key));
         }
     }
 
