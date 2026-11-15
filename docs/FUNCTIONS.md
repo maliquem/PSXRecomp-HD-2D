@@ -73,19 +73,19 @@ Builds the static analysis database for a PS1 executable, covering functions, ca
 
 Writes analysis results to disk as JSON, TOML, TSV, disassembly and Ghidra script files, and prints reports and diffs.
 
-- `json_escape` (L17) — Escapes a string so it can sit inside a JSON string literal.
-- `q` (L37) — Returns the string escaped and wrapped in double quotes, as a JSON string value.
-- `open_out` (L39) — Creates the parent folder if needed and opens the file for binary writing, setting error when that fails.
-- `saved_regs_str` (L52) — Turns a saved-register bit mask into MIPS register names joined by bars, such as s0|s1|ra.
-- `tag_string` (L68) — Builds the pipe-separated tag list for a function, such as bios, leaf, gte, mmio or orphan.
-- `write_json_bundle` (L89) — ---------------------------------------------------------------------------
-- `write_symbols_toml` (L230) — ---------------------------------------------------------------------------
-- `write_symbol_addrs` (L300) — ---------------------------------------------------------------------------
-- `write_ghidra_script` (L317) — ---------------------------------------------------------------------------
-- `write_tsv` (L367) — ---------------------------------------------------------------------------
-- `write_disasm` (L387) — ---------------------------------------------------------------------------
-- `print_report` (L433) — ---------------------------------------------------------------------------
-- `print_diff` (L505) — ---------------------------------------------------------------------------
+- `json_escape` (L18) — Escapes a string so it can sit inside a JSON string literal.
+- `q` (L38) — Returns the string escaped and wrapped in double quotes, as a JSON string value.
+- `open_out` (L40) — Creates the parent folder if needed and opens the file for binary writing, setting error when that fails.
+- `saved_regs_str` (L53) — Turns a saved-register bit mask into MIPS register names joined by bars, such as s0|s1|ra.
+- `tag_string` (L69) — Builds the pipe-separated tag list for a function, such as bios, leaf, gte, mmio or orphan.
+- `write_json_bundle` (L90) — ---------------------------------------------------------------------------
+- `write_symbols_toml` (L231) — ---------------------------------------------------------------------------
+- `write_symbol_addrs` (L308) — ---------------------------------------------------------------------------
+- `write_ghidra_script` (L325) — ---------------------------------------------------------------------------
+- `write_tsv` (L375) — ---------------------------------------------------------------------------
+- `write_disasm` (L395) — ---------------------------------------------------------------------------
+- `print_report` (L441) — ---------------------------------------------------------------------------
+- `print_diff` (L513) — ---------------------------------------------------------------------------
 
 ### recompiler/src/annotations.cpp
 
@@ -248,27 +248,27 @@ Loads and validates the BIOS, game, options and user settings TOML files, and wr
 - `pad_mode_to_string` (L305) — Returns the settings name for a pad mode; it never returns hybrid, which is a runtime-only request and not a saved preference.
 - `toml_number` (L317) — Parse a hex string ("0x...") to uint32_t.
 - `parse_hex` (L322) — Parses a hex string into a 32-bit value, throwing an error that names the field when the text is not valid hex.
-- `parse_sxy_cull_site` (L339) — One [[widescreen.cull.sxy]] entry.
-- `parse_aspect_ratio` (L440) — Parse a display aspect "W:H" string (e.g.
-- `validate_project_relative` (L470) — Reject a config path that is not confined to the project directory.
-- `parse_runtime_block` (L500) — Parse the optional [runtime] block.
-- `find_project_root` (L1462) — Locate the project root by walking upward from 'config_path' until a directory containing '.gitignore', '.git', or 'CMakeLists.txt' is found.
-- `draw_distance_clamp_reads` (L1483) — True when 'instr' is an ALU instruction (I-type or SPECIAL R-type, not a load, store, branch or jump) that reads GPR 'reg'.
-- `parse_draw_distance_clamps` (L1503) — [[draw_distance.clamp]] (docs/config_schema.md "Draw-distance clamps").
-- `quality_key_player_editable` (L1563) — True when a quality setting key may be changed by the player.
-- `quality_key_supported` (L1568) — [quality.<name>] -- a named graphics preset (docs/QUALITY_PRESETS.md).
-- `parse_quality_presets` (L1574) — Parses the quality presets of a game config into a list, checking each key against the supported set.
-- `derive_out_stem` (L1627) — Derives an output name stem from a ROM file name by removing its extension, matched without regard to case.
-- `load_bios_config` (L1644) — Load a BIOS config TOML.
-- `load_game_config` (L1917) — Load a game config TOML.
-- `load_game_options` (L3282) — Load game_options.toml ([[option]] array of {name, addr, size}).
-- `valid_user_audio_freq` (L3319) — True when an audio frequency is one of the allowed user values: 32040, 32000, 44100 or 48000.
-- `load_user_settings` (L3323) — Load settings.toml. Returns an all-defaults (all has_*=false) struct if the file is missing or unreadable.
-- `relative_to_folder` (L3782) — Returns a path relative to a folder when the path is absolute, or the path unchanged when it is not.
-- `toml_escape` (L3796) — A basic TOML string must not carry a raw quote, backslash or control char.
-- `write_text_atomic` (L3812) — Write to a sibling temp file then rename, so a crash never leaves a cut file.
-- `save_user_settings` (L3827) — Write settings.toml deterministically.
-- `upsert_game_toml_controller_bool` (L4071) — Sets a boolean key in the controller section of a game TOML file, adding or updating it, and returns whether the write succeeded.
+- `parse_sxy_cull_site` (L350) — One [[widescreen.cull.sxy]] entry.
+- `parse_aspect_ratio` (L451) — Parse a display aspect "W:H" string (e.g.
+- `validate_project_relative` (L481) — Reject a config path that is not confined to the project directory.
+- `parse_runtime_block` (L511) — Parse the optional [runtime] block.
+- `find_project_root` (L1473) — Locate the project root by walking upward from 'config_path' until a directory containing '.gitignore', '.git', or 'CMakeLists.txt' is found.
+- `draw_distance_clamp_reads` (L1494) — True when 'instr' is an ALU instruction (I-type or SPECIAL R-type, not a load, store, branch or jump) that reads GPR 'reg'.
+- `parse_draw_distance_clamps` (L1514) — [[draw_distance.clamp]] (docs/config_schema.md "Draw-distance clamps").
+- `quality_key_player_editable` (L1574) — True when a quality setting key may be changed by the player.
+- `quality_key_supported` (L1579) — [quality.<name>] -- a named graphics preset (docs/QUALITY_PRESETS.md).
+- `parse_quality_presets` (L1585) — Parses the quality presets of a game config into a list, checking each key against the supported set.
+- `derive_out_stem` (L1638) — Derives an output name stem from a ROM file name by removing its extension, matched without regard to case.
+- `load_bios_config` (L1655) — Load a BIOS config TOML.
+- `load_game_config` (L1928) — Load a game config TOML.
+- `load_game_options` (L3293) — Load game_options.toml ([[option]] array of {name, addr, size}).
+- `valid_user_audio_freq` (L3330) — True when an audio frequency is one of the allowed user values: 32040, 32000, 44100 or 48000.
+- `load_user_settings` (L3334) — Load settings.toml. Returns an all-defaults (all has_*=false) struct if the file is missing or unreadable.
+- `relative_to_folder` (L3793) — Returns a path relative to a folder when the path is absolute, or the path unchanged when it is not.
+- `toml_escape` (L3807) — A basic TOML string must not carry a raw quote, backslash or control char.
+- `write_text_atomic` (L3823) — Write to a sibling temp file then rename, so a crash never leaves a cut file.
+- `save_user_settings` (L3838) — Write settings.toml deterministically.
+- `upsert_game_toml_controller_bool` (L4082) — Sets a boolean key in the controller section of a game TOML file, adding or updating it, and returns whether the write succeeded.
 
 ### recompiler/src/config_loader.h
 
@@ -394,11 +394,12 @@ Rewrites generated C so frequently used MIPS registers become local variables, c
 
 Command-line entry point for the psxrecomp-analyze tool, which discovers functions in a PS1 executable and writes analysis reports.
 
-- `usage` (L37) — Prints the command-line help for psxrecomp-analyze.
-- `parse_addr` (L78) — Parses an address string, accepting a hex prefix, into a 32-bit value; false when the text is not valid.
-- `load_seed_file` (L92) — Reads seed addresses from a file into a list, returning false and setting the error when the file cannot be read.
-- `parse_confidence` (L148) — Maps a confidence name such as verified, high, medium or low to its enum value.
-- `main` (L157) — Entry point of psxrecomp-analyze; parses the arguments, runs the analysis and returns the exit code.
+- `usage` (L39) — Prints the command-line help for psxrecomp-analyze.
+- `parse_addr` (L80) — Parses an address string, accepting a hex prefix, into a 32-bit value; false when the text is not valid.
+- `parse_int` (L94) — Parses a whole string as a decimal int; false on junk or out of range.
+- `load_seed_file` (L106) — Reads seed addresses from a file into a list, returning false and setting the error when the file cannot be read.
+- `parse_confidence` (L171) — Maps verified, high, medium or low to its enum value; false on any other word.
+- `main` (L182) — Entry point of psxrecomp-analyze; parses the arguments, runs the analysis and returns the exit code.
 
 ### recompiler/src/main_bios.cpp
 
@@ -424,8 +425,8 @@ Command-line entry point for psxrecomp-bios, which builds a BIOS boot slice and 
 - `run_boot_slice` (L704) — Runs the boot slice step: walks the BIOS, writes the slice C file and manifest, and returns an exit code.
 - `split_segment_variant_seeds` (L776) — A runtime PC inside a relocated copy window, in another segment than the window runs in, asks for a segment variant of the code at those ROM bytes (docs/SEGMENT_AWARE_CODE.md §5.4; SCPH-1001's kernel
 - `run_emit_full` (L811) — Runs the full emit step, writing the generated C for the BIOS from the seeds, and returns an exit code.
-- `run_discover` (L934) — Runs the discovery step over the BIOS, writing the function manifests and logs, and returns an exit code.
-- `main` (L1000) — Entry point of psxrecomp-bios; reads the arguments, runs the selected step and returns the exit code.
+- `run_discover` (L935) — Runs the discovery step over the BIOS, writing the function manifests and logs, and returns an exit code.
+- `main` (L1001) — Entry point of psxrecomp-bios; reads the arguments, runs the selected step and returns the exit code.
 
 ### recompiler/src/main_cli.cpp
 
@@ -453,20 +454,21 @@ Command-line front end for psxrecomp, which builds a project from a disc image a
 
 Entry point of a generated PS1 game, which loads its config, materializes alias groups and starts the recompiled code.
 
-- `materialize_alias_groups` (L51) — Materialize alias entries as overlapping functions, grouped by host.
-- `main` (L99) — Configuration and generation errors are reported by throwing: a malformed game.toml (a bad hex address, an out-of-range value, a wrong TOML type), or an input the emitter must refuse (an overlay whose
-- `psxrecomp_game_main` (L109) — Runs the generated game from its command-line arguments, printing usage when the config option is missing.
+- `materialize_alias_groups` (L52) — Materialize alias entries as overlapping functions, grouped by host.
+- `main` (L100) — Configuration and generation errors are reported by throwing: a malformed game.toml (a bad hex address, an out-of-range value, a wrong TOML type), or an input the emitter must refuse (an overlay whose
+- `psxrecomp_game_main` (L110) — Runs the generated game from its command-line arguments, printing usage when the config option is missing.
 
 ### recompiler/src/main_toml.cpp
 
 Command-line tool that takes a PS1 executable and scans its code for call and return targets to help build a starter config.
 
-- `print_usage` (L27) — Prints the usage text for the tool to stderr.
-- `name_from_exe` (L45) — Derive a game name from the EXE filename (fallback when --name not given).
-- `id_from_exe` (L66) — Try to extract a Sony game ID from the EXE filename (e.g.
-- `find_jal_targets` (L93) — Scan the EXE code for JAL instructions and return the set of unique targets.
-- `find_after_return` (L116) — Scan the EXE code for addresses that immediately follow a 'jr $ra' instruction (including its delay slot).
-- `main` (L138) — Parses the arguments, loads the PS1 executable and scans its code for call and return targets.
+- `toml_string` (L22) — Same escaping as main_cli.cpp: backslash becomes '/', quote is escaped.
+- `print_usage` (L38) — Prints the usage text for the tool to stderr.
+- `name_from_exe` (L56) — Derive a game name from the EXE filename (fallback when --name not given).
+- `id_from_exe` (L77) — Try to extract a Sony game ID from the EXE filename (e.g.
+- `find_jal_targets` (L104) — Scan the EXE code for JAL instructions and return the set of unique targets.
+- `find_after_return` (L127) — Scan the EXE code for addresses that immediately follow a 'jr $ra' instruction (including its delay slot).
+- `main` (L149) — Parses the arguments, loads the PS1 executable and scans its code for call and return targets.
 
 ### recompiler/src/mips_decoder.cpp
 
@@ -6605,72 +6607,70 @@ Main memory map: RAM and scratchpad, address translation, MMIO register dispatch
 - `memory_get_sr` (L1391) — Returns the CPU status register through the stored pointer, or 0 when none is set.
 - `memory_get_bios_checksum` (L1394) — Returns the checksum of the loaded BIOS image.
 - `memory_init` (L1398) — static uint32_t psx_mem_gate_flags(void); /* below, with psx_store_fast_ptr extern int g_psx_store_page_audit; /* below, with psx_store_page_kind
-- `mmio_fatal` (L1448) — Halts the emulator on a bad MMIO access, writing the reason to psx_crash.txt.
-- `mmio_unimplemented` (L1458) — Halts on an access to an MMIO register that is not implemented, recording it in psx_crash.txt.
-- `unmapped_fatal` (L1469) — Does nothing for an unmapped address: the BIOS probes these on purpose, so it is treated as open bus.
-- `mmio_read32_impl` (L1479) — Performs a 32-bit MMIO read, selecting the register by address region: memory control, SIO, RAM size and the other devices.
-- `mmio_hist` (L1535) — Counts an MMIO access in a histogram bucket by register region, separately for reads and writes.
-- `mmio_read32` (L1548) — 32-bit MMIO read: syncs devices, applies render-pass read rules, and returns the register value.
-- `mmio_write32` (L1557) — 32-bit MMIO write: records the histogram, syncs devices, traces the write and routes the value to its register.
-- `mmio_read16_impl` (L1625) — 16-bit MMIO read, including the halfword lanes of the 32-bit memory control registers.
-- `mmio_read16` (L1673) — 16-bit MMIO read: syncs devices, applies render-pass read rules, and returns the register value.
-- `mmio_write16` (L1682) — 16-bit MMIO write: records the histogram, syncs devices and routes the value to its register.
-- `mmio_read8_impl` (L1750) — 8-bit MMIO read by register region, taking the byte lane of the 32-bit registers.
-- `mmio_read8` (L1795) — 8-bit MMIO read: syncs devices, applies render-pass read rules, and returns the byte.
-- `mmio_write8` (L1804) — 8-bit MMIO write; memory control registers get a read-modify-write of the byte lane.
-- `psx_read_word` (L1900) — data-shard capture feed (data_shards.c): record guest reads/writes while a capture window is armed.
-- `psx_read_word_raw` (L1921) — Physical address of a CPU/DMA main-RAM access.
-- `pgxp_untracked_store` (L2024) — DMA and host stores have no instruction hook to carry or reset a PGXP shadow.
-- `cpu_store_isolated` (L2029) — Returns 1 when a CPU store should only touch the cache: cache isolation is on and no DMA or host store is running.
-- `isc_store` (L2034) — Handles a store made while the cache is isolated: updates the instruction cache and the data cache, not RAM.
-- `render_pass_mmio_write` (L2054) — Writes an MMIO register at the given width (4, 2 or 1 bytes) during a render pass.
-- `rp_mod_journal` (L2076) — Saves the original contents of each arena page a write touches, once per page, so a render pass can roll it back; returns 0 if journaling failed.
-- `render_pass_mod_store` (L2100) — 1 when the store landed in a mod arena (journaled and written).
-- `render_pass_mod_arenas_rollback` (L2121) — Restores every journaled arena page to its saved contents and clears the journal.
-- `render_pass_mod_arenas_hash` (L2132) — FNV-1a over the used part of both arenas (PSX_RENDER_PASS_VERIFY).
-- `render_pass_store` (L2140) — Routes a store during a render pass: mod arena writes are journaled, and everything else goes through the render pass policy to RAM or scratchpad.
-- `psx_write_word` (L2164) — Guest 32-bit store entry point: flushes pending cycles, takes the fast path when possible, and otherwise handles render-pass, lockstep and recording cases.
-- `psx_write_word_raw` (L2180) — Performs a 32-bit store to RAM, scratchpad or a device, after updating the store counters and last-store tracking.
-- `psx_read_half` (L2336) — Guest 16-bit load: records it for recording or lockstep when active, then reads the value.
-- `psx_read_half_raw` (L2347) — Reads 16 bits from RAM or a device at the address, ignoring KSEG2 accesses.
-- `psx_write_half` (L2384) — Guest 16-bit store entry point, with the same fast path and special cases as the word store.
-- `psx_write_half_raw` (L2400) — Performs a 16-bit store to RAM or a device, honouring cache isolation and KSEG2.
-- `psx_read_byte` (L2467) — Guest 8-bit load entry point, with the same recording and lockstep checks as the other loads.
-- `psx_read_byte_raw` (L2478) — Reads one byte from RAM or a device at the address, ignoring KSEG2 accesses.
-- `psx_load_charge_cycles` (L2538) — Charges the cycles of a load to the emulated clock, through the CPU charge when the fast cycle path is not active.
-- `psx_mmio_read_wait` (L2562) — Beetle MemRW device-region READ wait (libretro.cpp:859-1131), the device-dependent part of a load's access cost (added to the timestamp before the +completion).
-- `psx_cyc_readmem` (L2578) — Beetle ReadMemory data-access timing (cpu.cpp:369-448), after §1/deps/DO_LDS.
-- `psx_load_delay_enabled` (L2614) — Resolve PSX_LOAD_DELAY once (shared with inlined psx_cyc.h helpers).
-- `psx_cyc_load_timing` (L2628) — The interlock half of a load (§1+deps+(cancel)+DO_LDS+ReadMemory).
-- `psx_cyc_main_ram_fast_addr` (L2658) — Returns 1 and the physical address when an access is a plain main RAM hit with no tracing active; 0 otherwise.
-- `psx_cyc_load_word_slow` (L2680) — Slow paths for the inlined helpers in psx_cyc.h (MMIO / lockstep / shards).
-- `psx_cyc_load_half_slow` (L2684) — Slow path for a timed 16-bit load: charges the load timing, then reads the halfword.
-- `psx_cyc_load_word_timing_only` (L2688) — Charges the timing of a 32-bit load without reading the value.
-- `psx_cyc_load_byte` (L2692) — Timed 8-bit load for generated code: charges the load timing, then returns the byte from RAM or the full read.
-- `psx_cyc_lwc2_read_slow` (L2704) — LWC2 (GTE load): §1/DO_LDS done by psx_cyc_step(cpu,0); the GTE deadline stall by psx_gte_stall — both emitted before this call.
-- `psx_guest_read_word` (L2724) — Deprecated uncharged passthroughs (the +4 flat wait-state model is gone; load timing now lives in psx_cyc_load_*).
-- `psx_guest_read_half` (L2725) — Untimed 16-bit read for guest code, with no load timing charged.
-- `psx_guest_read_byte` (L2726) — Untimed 8-bit read for guest code, with no load timing charged.
-- `psx_cyc_load_word_host` (L2732) — The overlay DLLs' timed loads (overlay_loader.c callbacks): the same entries the main program inlines (psx_cyc.h), main RAM and scratchpad on the short path, everything else on the slow one.
-- `psx_cyc_load_half_host` (L2735) — Timed 16-bit load for overlay DLLs, the same as the main program's inline load.
-- `psx_cyc_load_byte_host` (L2738) — Timed 8-bit load for overlay DLLs, using the fast byte-load path.
-- `psx_cyc_lwc2_read_host` (L2741) — Timed GTE load for overlay DLLs: reads a word for LWC2 with its timing.
-- `psx_blk_load_slow` (L2747) — [recompiler] cpu_timing = "block": a load outside main RAM and the scratchpad (psx_cyc.h psx_blk_load_*): its access cost, then the read.
-- `psx_write_byte` (L2757) — Guest 8-bit store entry point, with the same fast path and special cases as the word store.
-- `psx_host_write_word` (L2776) — Host stores: the same paths as a guest store, but never cache-isolated (cpu_store_isolated).
-- `psx_host_write_half` (L2782) — Host 16-bit store: works like a guest store, but is never cache-isolated.
-- `psx_host_write_byte` (L2788) — Host 8-bit store: works like a guest store, but is never cache-isolated.
-- `psx_write_byte_raw` (L2795) — Performs an 8-bit store to RAM or a device, honouring cache isolation and KSEG2.
-- `psx_mem_gate_value` (L2880) — psx_mem_gate.h (g_psx_mem_gate lives in psx_cycles.c): raised by every writer that sets one of the stores' global gates; lowered here once all are clear.
-- `__attribute__` (L2893) — The gate was raised: lower it if every flag is clear (1: the short path may go on).
-- `psx_mem_gate_flags` (L2900) — Returns the combined store gate flags that decide whether the fast store path may be used.
-- `psx_store_pages_forget_all` (L2905) — Clears every cached store-page classification so each page is recomputed on its next store.
-- `psx_store_page_kind` (L2910) — 1: every aligned store to the page is a plain store here; 2: one is when its text line is already marked (text_line_mark would do nothing); 0: neither (kernel window, executed code, watched overlay pa
-- `psx_store_pages_audit` (L2921) — Debug check: aborts if a cached page classification no longer matches the current state.
-- `psx_store_fast_ptr` (L2938) — Where a plain store may go directly: main RAM (above the kernel window, on a page no code watcher acts on) or the scratchpad, which the full path writes with nothing else to do (no mod aperture reache
-- `psx_store_try_word` (L2974) — Tries a 32-bit store through the fast path; returns 1 when it wrote the value, 0 to fall back to the full path.
-- `psx_store_try_half` (L2986) — Tries a 16-bit store through the fast path; returns 1 when handled, 0 to fall back.
-- `psx_store_try_byte` (L2995) — Tries an 8-bit store through the fast path; returns 1 when handled, 0 to fall back.
+- `unmapped_fatal` (L1448) — Does nothing for an unmapped address: the BIOS probes these on purpose, so it is treated as open bus.
+- `mmio_read32_impl` (L1458) — Performs a 32-bit MMIO read, selecting the register by address region: memory control, SIO, RAM size and the other devices.
+- `mmio_hist` (L1514) — Counts an MMIO access in a histogram bucket by register region, separately for reads and writes.
+- `mmio_read32` (L1527) — 32-bit MMIO read: syncs devices, applies render-pass read rules, and returns the register value.
+- `mmio_write32` (L1536) — 32-bit MMIO write: records the histogram, syncs devices, traces the write and routes the value to its register.
+- `mmio_read16_impl` (L1604) — 16-bit MMIO read, including the halfword lanes of the 32-bit memory control registers.
+- `mmio_read16` (L1652) — 16-bit MMIO read: syncs devices, applies render-pass read rules, and returns the register value.
+- `mmio_write16` (L1661) — 16-bit MMIO write: records the histogram, syncs devices and routes the value to its register.
+- `mmio_read8_impl` (L1729) — 8-bit MMIO read by register region, taking the byte lane of the 32-bit registers.
+- `mmio_read8` (L1774) — 8-bit MMIO read: syncs devices, applies render-pass read rules, and returns the byte.
+- `mmio_write8` (L1783) — 8-bit MMIO write; memory control registers get a read-modify-write of the byte lane.
+- `psx_read_word` (L1879) — data-shard capture feed (data_shards.c): record guest reads/writes while a capture window is armed.
+- `psx_read_word_raw` (L1900) — Physical address of a CPU/DMA main-RAM access.
+- `pgxp_untracked_store` (L2003) — DMA and host stores have no instruction hook to carry or reset a PGXP shadow.
+- `cpu_store_isolated` (L2008) — Returns 1 when a CPU store should only touch the cache: cache isolation is on and no DMA or host store is running.
+- `isc_store` (L2013) — Handles a store made while the cache is isolated: updates the instruction cache and the data cache, not RAM.
+- `render_pass_mmio_write` (L2033) — Writes an MMIO register at the given width (4, 2 or 1 bytes) during a render pass.
+- `rp_mod_journal` (L2055) — Saves the original contents of each arena page a write touches, once per page, so a render pass can roll it back; returns 0 if journaling failed.
+- `render_pass_mod_store` (L2079) — 1 when the store landed in a mod arena (journaled and written).
+- `render_pass_mod_arenas_rollback` (L2100) — Restores every journaled arena page to its saved contents and clears the journal.
+- `render_pass_mod_arenas_hash` (L2111) — FNV-1a over the used part of both arenas (PSX_RENDER_PASS_VERIFY).
+- `render_pass_store` (L2119) — Routes a store during a render pass: mod arena writes are journaled, and everything else goes through the render pass policy to RAM or scratchpad.
+- `psx_write_word` (L2143) — Guest 32-bit store entry point: flushes pending cycles, takes the fast path when possible, and otherwise handles render-pass, lockstep and recording cases.
+- `psx_write_word_raw` (L2159) — Performs a 32-bit store to RAM, scratchpad or a device, after updating the store counters and last-store tracking.
+- `psx_read_half` (L2315) — Guest 16-bit load: records it for recording or lockstep when active, then reads the value.
+- `psx_read_half_raw` (L2326) — Reads 16 bits from RAM or a device at the address, ignoring KSEG2 accesses.
+- `psx_write_half` (L2363) — Guest 16-bit store entry point, with the same fast path and special cases as the word store.
+- `psx_write_half_raw` (L2379) — Performs a 16-bit store to RAM or a device, honouring cache isolation and KSEG2.
+- `psx_read_byte` (L2446) — Guest 8-bit load entry point, with the same recording and lockstep checks as the other loads.
+- `psx_read_byte_raw` (L2457) — Reads one byte from RAM or a device at the address, ignoring KSEG2 accesses.
+- `psx_load_charge_cycles` (L2517) — Charges the cycles of a load to the emulated clock, through the CPU charge when the fast cycle path is not active.
+- `psx_mmio_read_wait` (L2541) — Beetle MemRW device-region READ wait (libretro.cpp:859-1131), the device-dependent part of a load's access cost (added to the timestamp before the +completion).
+- `psx_cyc_readmem` (L2557) — Beetle ReadMemory data-access timing (cpu.cpp:369-448), after §1/deps/DO_LDS.
+- `psx_load_delay_enabled` (L2593) — Resolve PSX_LOAD_DELAY once (shared with inlined psx_cyc.h helpers).
+- `psx_cyc_load_timing` (L2607) — The interlock half of a load (§1+deps+(cancel)+DO_LDS+ReadMemory).
+- `psx_cyc_main_ram_fast_addr` (L2637) — Returns 1 and the physical address when an access is a plain main RAM hit with no tracing active; 0 otherwise.
+- `psx_cyc_load_word_slow` (L2659) — Slow paths for the inlined helpers in psx_cyc.h (MMIO / lockstep / shards).
+- `psx_cyc_load_half_slow` (L2663) — Slow path for a timed 16-bit load: charges the load timing, then reads the halfword.
+- `psx_cyc_load_word_timing_only` (L2667) — Charges the timing of a 32-bit load without reading the value.
+- `psx_cyc_load_byte` (L2671) — Timed 8-bit load for generated code: charges the load timing, then returns the byte from RAM or the full read.
+- `psx_cyc_lwc2_read_slow` (L2683) — LWC2 (GTE load): §1/DO_LDS done by psx_cyc_step(cpu,0); the GTE deadline stall by psx_gte_stall — both emitted before this call.
+- `psx_guest_read_word` (L2703) — Deprecated uncharged passthroughs (the +4 flat wait-state model is gone; load timing now lives in psx_cyc_load_*).
+- `psx_guest_read_half` (L2704) — Untimed 16-bit read for guest code, with no load timing charged.
+- `psx_guest_read_byte` (L2705) — Untimed 8-bit read for guest code, with no load timing charged.
+- `psx_cyc_load_word_host` (L2711) — The overlay DLLs' timed loads (overlay_loader.c callbacks): the same entries the main program inlines (psx_cyc.h), main RAM and scratchpad on the short path, everything else on the slow one.
+- `psx_cyc_load_half_host` (L2714) — Timed 16-bit load for overlay DLLs, the same as the main program's inline load.
+- `psx_cyc_load_byte_host` (L2717) — Timed 8-bit load for overlay DLLs, using the fast byte-load path.
+- `psx_cyc_lwc2_read_host` (L2720) — Timed GTE load for overlay DLLs: reads a word for LWC2 with its timing.
+- `psx_blk_load_slow` (L2726) — [recompiler] cpu_timing = "block": a load outside main RAM and the scratchpad (psx_cyc.h psx_blk_load_*): its access cost, then the read.
+- `psx_write_byte` (L2736) — Guest 8-bit store entry point, with the same fast path and special cases as the word store.
+- `psx_host_write_word` (L2755) — Host stores: the same paths as a guest store, but never cache-isolated (cpu_store_isolated).
+- `psx_host_write_half` (L2761) — Host 16-bit store: works like a guest store, but is never cache-isolated.
+- `psx_host_write_byte` (L2767) — Host 8-bit store: works like a guest store, but is never cache-isolated.
+- `psx_write_byte_raw` (L2774) — Performs an 8-bit store to RAM or a device, honouring cache isolation and KSEG2.
+- `psx_mem_gate_value` (L2859) — psx_mem_gate.h (g_psx_mem_gate lives in psx_cycles.c): raised by every writer that sets one of the stores' global gates; lowered here once all are clear.
+- `__attribute__` (L2872) — The gate was raised: lower it if every flag is clear (1: the short path may go on).
+- `psx_mem_gate_flags` (L2879) — Returns the combined store gate flags that decide whether the fast store path may be used.
+- `psx_store_pages_forget_all` (L2884) — Clears every cached store-page classification so each page is recomputed on its next store.
+- `psx_store_page_kind` (L2889) — 1: every aligned store to the page is a plain store here; 2: one is when its text line is already marked (text_line_mark would do nothing); 0: neither (kernel window, executed code, watched overlay pa
+- `psx_store_pages_audit` (L2900) — Debug check: aborts if a cached page classification no longer matches the current state.
+- `psx_store_fast_ptr` (L2917) — Where a plain store may go directly: main RAM (above the kernel window, on a page no code watcher acts on) or the scratchpad, which the full path writes with nothing else to do (no mod aperture reache
+- `psx_store_try_word` (L2953) — Tries a 32-bit store through the fast path; returns 1 when it wrote the value, 0 to fall back to the full path.
+- `psx_store_try_half` (L2965) — Tries a 16-bit store through the fast path; returns 1 when handled, 0 to fall back.
+- `psx_store_try_byte` (L2974) — Tries an 8-bit store through the fast path; returns 1 when handled, 0 to fall back.
 
 ### runtime/src/mod_builtin_bezel.c
 
@@ -7337,7 +7337,6 @@ Writes overlay capture manifests and snapshots to disk (atomically, with history
 - `overlay_autocapture_tick` (L1401) — Per-vblank check of auto-capture pressure: samples it, latches the gates and fires a capture when pressure stays high.
 - `overlay_capture_wait_pending` (L1510) — Join any background snapshot writer before process shutdown.
 - `overlay_autocapture_shutdown` (L1539) — Join any in-flight atomic writer before the final shutdown snapshot.
-- `overlay_capture_get_region_crc` (L1557) — CRC of the bytes in a RAM region, read from a copy of the region.
 
 ### runtime/src/overlay_loader.c
 
@@ -7461,80 +7460,80 @@ Loads native overlay code (compiled DLL shards of the game's own functions) on d
 - `load_bios_resident_shards` (L3055) — Loads every complete BIOS-resident shard that is not loaded yet.
 - `overlay_loader_callbacks` (L3077) — The host callback table, for a consumer that loads overlay-style modules before (or without) overlay_loader_init: the BIOS module host activates a player's retail backend during BIOS selection, ahead
 - `overlay_loader_init` (L3082) — Sets up the overlay loader for a cache folder, game id and config hash, resetting the page index and scanning the cache.
-- `overlay_loader_check_cache` (L3220) — Does nothing at load time: DLL loading is deferred to the first dispatch miss.
-- `already_checked` (L3235) — 1 when this region has already been checked against the cache.
-- `mark_checked` (L3240) — Remembers that a region has been checked against the cache.
-- `overlay_loader_clear_lazy_miss` (L3244) — Drop the negative lazy-lookup memo (host-only).
-- `overlay_loader_resync_validation_after_restore` (L3250) — After RAM restore: bust overlay candidate gen fast-path + static-match cache so native vs interp is re-decided against restored bytes.
-- `overlay_loader_rescan` (L3270) — Re-scan the cache dir for DLLs compiled after init (step 2.8 autocompile) and clear the checked-regions memo so the next dispatch into a window region reconsiders the cache.
-- `native_rank_allows` (L3295) — 1 when this candidate is within the native rank limit; gives it a rank on first use and logs it.
-- `dll_already_loaded` (L3315) — 1 when a DLL with this path is already loaded.
-- `cache_entry_already_loaded` (L3326) — A lazy manifest chain may have hundreds of functions from the same DLL.
-- `overlay_library_close` (L3335) — Closes an overlay library handle with FreeLibrary or dlclose; ignores NULL.
-- `load_one_dll` (L3346) — Consumes prepared on every path.
-- `load_one_dll_prepared` (L3449) — Publishes a prepared library by passing it to the normal single-DLL loader.
-- `published_root_canonical` (L3456) — Resolves the cache root to its canonical path once; returns 0 while it cannot be resolved, so the publish is refused.
-- `published_path_valid` (L3473) — Validates dll_path and writes its CANONICAL form into canon; every later consumer (LoadLibrary, .ranges derivation, loaded-path tracking) uses the canonical string, never the raw pipe text.
-- `overlay_loader_prepare_published` (L3496) — Checks a published DLL path and loads it into a prepared image that can be committed later; NULL when the path is invalid.
-- `overlay_loader_commit_published` (L3537) — Commits a prepared image into the loader when loads are allowed, otherwise discards it; returns 1 when committed.
-- `overlay_loader_discard_prepared` (L3558) — Closes and frees a prepared image that will not be committed.
-- `lazy_man_contains` (L3565) — 1 when a lazy manifest's entries or code ranges cover this physical address in the same segment.
-- `lazy_man_crc` (L3576) — 1 and *crc = CRC of the manifest's live bytes, 0 when it has none.
-- `lazy_man_gensum` (L3580) — Generation sum over the code ranges of a lazy manifest.
-- `lazy_man_matches` (L3584) — 1 when the live bytes of a lazy manifest still match its CRC; records the result as valid or invalid.
-- `lazy_bundle_matches` (L3606) — A CPS DLL can directly own internal tail targets, so one matching entry does not prove the rest of that captured snapshot is current.
-- `lazy_candidate_preferred` (L3628) — Same-tier artifacts that both pass the live-byte gate compute the same thing, but their block edges differ (where a page cut or another capture's branch targets end a block), so under cpu_timing = "bl
-- `lazy_choose_complete_or_fallback` (L3640) — Prefer GCC over TCC even when the TCC option happens to be a broader bundle.
-- `overlay_image_warm_seed_boot_text` (L3654) — A streamed variant is not byte-coherent until immediately before its first call, too late to hide Windows' first image-map cost.
-- `lazy_is_loadable` (L3668) — 1 when a lazy manifest entry can be loaded now for this region and segment.
-- `lazy_better_bundle` (L3685) — Chooses between two lazy bundles by manifest index order only, never by size or timestamp.
-- `lazy_load_selected` (L3695) — Loads the cache entry of a selected lazy manifest, unless it has failed, is suppressed or is already loaded.
-- `try_load_region` (L3717) — Load the cached shard of 'seg' (§5.7) that serves phys.
-- `lazy_has_exact_entry` (L3818) — O(1)-bucket discriminator between a real manifested function entry and an interior CPS continuation.
-- `range_candidate_matches` (L3842) — CPS (§25): find a non-blacklisted candidate whose code range CONTAINS phys — i.e.
-- `range_candidate_preferred` (L3895) — 1 when candidate should replace current: a higher tier wins, and among equal tiers the newer candidate wins.
-- `overlay_find_by_range` (L3902) — Finds the candidate whose code range holds this physical address in the given segment; -1 when none or the loader is off.
-- `overlay_loader_dispatch` (L3945) — Called from dirty_ram_dispatch before the interpreter.
-- `overlay_loader_dispatch_seg` (L3979) — A shard's body bakes the PCs of the segment it was compiled for: the $ra a jal/jalr writes, its jump and exception-resume PCs, its I-cache fetch tags and store-PC stamps (docs/SEGMENT_AWARE_CODE.md §5
-- `overlay_loader_active_write_check` (L4334) — ---- Self-modification of an actively-executing entry (§8.5) ------------ Lazy re-hash on the NEXT dispatch is too late if a native function modifies its own code and continues executing the modified
-- `overlay_loader_get_counters` (L4361) — Reports the loader counters: loads, invalidations, native and interpreted dispatches, and details of the last write.
-- `overlay_loader_get_load_timing` (L4382) — Reports the total, maximum and last DLL load times, in microseconds.
-- `overlay_loader_take_hot_native` (L4389) — Opt-in PSX_RUNTIME_PERF_DIAG sampler: returns and clears the hottest native owner since the preceding call.
-- `overlay_loader_get_reload_debug` (L4414) — Reload diagnostics. Repurposed for the per-entry model: r0_valid -> candidates currently VALID r0_writes...
-- `overlay_loader_registered_count` (L4430) — Returns number of functions currently registered in the dynamic table.
-- `overlay_loader_gen_fastpath` (L4435) — Dispatches that ran native via the unchanged-page-generation fast path, i.e.
-- `overlay_loader_range_link_count` (L4436) — Number of range index links in use.
-- `overlay_loader_range_index_overflow` (L4437) — 1 when the range index ran out of space.
-- `overlay_loader_lazy_manifest_count` (L4438) — Number of lazy manifest entries indexed.
-- `overlay_loader_lazy_manifest_overflow` (L4439) — 1 when the lazy manifest table overflowed.
-- `overlay_loader_candidate_overflow` (L4440) — Number of candidates refused because the candidate table was full.
-- `overlay_loader_pair_aliases` (L4441) — Number of shard pairs that aliased an already loaded pair.
-- `overlay_loader_segment_alias_interp` (L4442) — KUSEG/KSEG1 (and unmapped-segment) dispatches the loader left to the interpreter: no shard compiled for their segment is cached or valid yet (docs/SEGMENT_AWARE_CODE.md §5.7).
-- `overlay_loader_segment_native` (L4443) — KUSEG/KSEG1 dispatches run natively by a shard compiled for their segment.
-- `overlay_loader_is_candidate` (L4470) — 1 when the physical address is a known exact function entry and the loader is active.
-- `overlay_fp_enabled` (L4475) — 1 when the fingerprint log is on, set by the PSX_OVERLAY_FP_LOG variable.
-- `overlay_loader_get_shadow_summary` (L4527) — Reports the shadow-diff call and divergence counts and the first divergent PC.
-- `overlay_loader_set_diff_mode` (L4535) — Turns shadow diff mode on or off.
-- `run_shadow_diff_legacy` (L4537) — Older shadow diff: runs the interpreter and the native candidate on the same state and compares the results.
-- `shadow_cpu_diff` (L4729) — Compares two CPU states field by field; returns the kind of the first difference, with its index and both values.
-- `run_shadow_diff` (L4772) — Authoritative interpreter RECORD + side-effect-free native REPLAY.
-- `shadow_escape_cleanup` (L4951) — A nonlocal scheduler bail during the speculative native replay pass (see overlay_loader_shadow_native_thread_switch_bail) means the interpreter pass — authoritative and already complete by the time th
-- `shadow_escape_flush_cycles` (L4982) — Commits pending cycles and clears the cycle-flush hook after a host unwind skipped a candidate's epilogue.
-- `overlay_loader_shadow_escape_fixup` (L5002) — Called by deferred_exception_longjmp() (interrupts.c) before it unwinds.
-- `overlay_loader_shadow_scheduler_escape_fixup` (L5012) — The deterministic HLE scheduler uses a different jmp_buf and therefore has no exception-setjmp epoch.
-- `overlay_loader_dump_shadow_detail` (L5017) — Writes the captured shadow-diff detail (address and registers) as JSON into out; returns the length.
-- `overlay_loader_dump_shadow` (L5038) — Writes the shadow-diff summary and its records as JSON into out; returns the length.
-- `overlay_regs_crc` (L5077) — Fingerprint over the general registers (r1..r31) + hi/lo.
-- `overlay_regs_snap` (L5086) — Snapshot r0..r31 + hi/lo into a 34-word buffer (entry-state capture).
-- `regs34_crc` (L5093) — CRC over words 1..33 (r0 excluded — always 0), matching overlay_regs_crc.
-- `overlay_fp_log` (L5099) — Records one fingerprint entry (address, cycle, registers, native or interpreted) in the ring.
-- `overlay_loader_call_native` (L5122) — Execute 'addr' natively if a validated overlay candidate exists, keeping the §5-E fingerprint record (same as the dirty_ram_dispatch chokepoint).
-- `overlay_loader_write_fp_file` (L5154) — Write the whole fingerprint log to a file (no TCP size limit).
-- `overlay_loader_dump_native_ring` (L5185) — Dump the native-call ring (most-recent first) + the in-progress entry.
-- `overlay_loader_dump_candidates` (L5211) — Diagnostic: dump every candidate with its stored vs live hash and generation state, so reload behaviour can be inspected directly (Rule 3 — visibility via the debug server, not logs).
-- `overlay_loader_dump_candidates_at` (L5234) — Focused form for live miss diagnosis.
-- `overlay_loader_dump_lazy_at` (L5261) — Focused view of manifest-only candidates that have not been loaded yet.
-- `overlay_loader_get_status` (L5311) — Reports the loader status: active flag, registered count, regions checked, cache folder, game id and last CRC.
+- `overlay_loader_check_cache` (L3155) — Does nothing at load time: DLL loading is deferred to the first dispatch miss.
+- `already_checked` (L3170) — 1 when this region has already been checked against the cache.
+- `mark_checked` (L3175) — Remembers that a region has been checked against the cache.
+- `overlay_loader_clear_lazy_miss` (L3179) — Drop the negative lazy-lookup memo (host-only).
+- `overlay_loader_resync_validation_after_restore` (L3185) — After RAM restore: bust overlay candidate gen fast-path + static-match cache so native vs interp is re-decided against restored bytes.
+- `overlay_loader_rescan` (L3205) — Re-scan the cache dir for DLLs compiled after init (step 2.8 autocompile) and clear the checked-regions memo so the next dispatch into a window region reconsiders the cache.
+- `native_rank_allows` (L3230) — 1 when this candidate is within the native rank limit; gives it a rank on first use and logs it.
+- `dll_already_loaded` (L3250) — 1 when a DLL with this path is already loaded.
+- `cache_entry_already_loaded` (L3261) — A lazy manifest chain may have hundreds of functions from the same DLL.
+- `overlay_library_close` (L3270) — Closes an overlay library handle with FreeLibrary or dlclose; ignores NULL.
+- `load_one_dll` (L3281) — Consumes prepared on every path.
+- `load_one_dll_prepared` (L3384) — Publishes a prepared library by passing it to the normal single-DLL loader.
+- `published_root_canonical` (L3391) — Resolves the cache root to its canonical path once; returns 0 while it cannot be resolved, so the publish is refused.
+- `published_path_valid` (L3408) — Validates dll_path and writes its CANONICAL form into canon; every later consumer (LoadLibrary, .ranges derivation, loaded-path tracking) uses the canonical string, never the raw pipe text.
+- `overlay_loader_prepare_published` (L3431) — Checks a published DLL path and loads it into a prepared image that can be committed later; NULL when the path is invalid.
+- `overlay_loader_commit_published` (L3472) — Commits a prepared image into the loader when loads are allowed, otherwise discards it; returns 1 when committed.
+- `overlay_loader_discard_prepared` (L3493) — Closes and frees a prepared image that will not be committed.
+- `lazy_man_contains` (L3500) — 1 when a lazy manifest's entries or code ranges cover this physical address in the same segment.
+- `lazy_man_crc` (L3511) — 1 and *crc = CRC of the manifest's live bytes, 0 when it has none.
+- `lazy_man_gensum` (L3515) — Generation sum over the code ranges of a lazy manifest.
+- `lazy_man_matches` (L3519) — 1 when the live bytes of a lazy manifest still match its CRC; records the result as valid or invalid.
+- `lazy_bundle_matches` (L3541) — A CPS DLL can directly own internal tail targets, so one matching entry does not prove the rest of that captured snapshot is current.
+- `lazy_candidate_preferred` (L3563) — Same-tier artifacts that both pass the live-byte gate compute the same thing, but their block edges differ (where a page cut or another capture's branch targets end a block), so under cpu_timing = "bl
+- `lazy_choose_complete_or_fallback` (L3575) — Prefer GCC over TCC even when the TCC option happens to be a broader bundle.
+- `overlay_image_warm_seed_boot_text` (L3589) — A streamed variant is not byte-coherent until immediately before its first call, too late to hide Windows' first image-map cost.
+- `lazy_is_loadable` (L3603) — 1 when a lazy manifest entry can be loaded now for this region and segment.
+- `lazy_better_bundle` (L3620) — Chooses between two lazy bundles by manifest index order only, never by size or timestamp.
+- `lazy_load_selected` (L3630) — Loads the cache entry of a selected lazy manifest, unless it has failed, is suppressed or is already loaded.
+- `try_load_region` (L3652) — Load the cached shard of 'seg' (§5.7) that serves phys.
+- `lazy_has_exact_entry` (L3753) — O(1)-bucket discriminator between a real manifested function entry and an interior CPS continuation.
+- `range_candidate_matches` (L3777) — CPS (§25): find a non-blacklisted candidate whose code range CONTAINS phys — i.e.
+- `range_candidate_preferred` (L3830) — 1 when candidate should replace current: a higher tier wins, and among equal tiers the newer candidate wins.
+- `overlay_find_by_range` (L3837) — Finds the candidate whose code range holds this physical address in the given segment; -1 when none or the loader is off.
+- `overlay_loader_dispatch` (L3880) — Called from dirty_ram_dispatch before the interpreter.
+- `overlay_loader_dispatch_seg` (L3914) — A shard's body bakes the PCs of the segment it was compiled for: the $ra a jal/jalr writes, its jump and exception-resume PCs, its I-cache fetch tags and store-PC stamps (docs/SEGMENT_AWARE_CODE.md §5
+- `overlay_loader_active_write_check` (L4269) — ---- Self-modification of an actively-executing entry (§8.5) ------------ Lazy re-hash on the NEXT dispatch is too late if a native function modifies its own code and continues executing the modified
+- `overlay_loader_get_counters` (L4296) — Reports the loader counters: loads, invalidations, native and interpreted dispatches, and details of the last write.
+- `overlay_loader_get_load_timing` (L4317) — Reports the total, maximum and last DLL load times, in microseconds.
+- `overlay_loader_take_hot_native` (L4324) — Opt-in PSX_RUNTIME_PERF_DIAG sampler: returns and clears the hottest native owner since the preceding call.
+- `overlay_loader_get_reload_debug` (L4349) — Reload diagnostics. Repurposed for the per-entry model: r0_valid -> candidates currently VALID r0_writes...
+- `overlay_loader_registered_count` (L4365) — Returns number of functions currently registered in the dynamic table.
+- `overlay_loader_gen_fastpath` (L4370) — Dispatches that ran native via the unchanged-page-generation fast path, i.e.
+- `overlay_loader_range_link_count` (L4371) — Number of range index links in use.
+- `overlay_loader_range_index_overflow` (L4372) — 1 when the range index ran out of space.
+- `overlay_loader_lazy_manifest_count` (L4373) — Number of lazy manifest entries indexed.
+- `overlay_loader_lazy_manifest_overflow` (L4374) — 1 when the lazy manifest table overflowed.
+- `overlay_loader_candidate_overflow` (L4375) — Number of candidates refused because the candidate table was full.
+- `overlay_loader_pair_aliases` (L4376) — Number of shard pairs that aliased an already loaded pair.
+- `overlay_loader_segment_alias_interp` (L4377) — KUSEG/KSEG1 (and unmapped-segment) dispatches the loader left to the interpreter: no shard compiled for their segment is cached or valid yet (docs/SEGMENT_AWARE_CODE.md §5.7).
+- `overlay_loader_segment_native` (L4378) — KUSEG/KSEG1 dispatches run natively by a shard compiled for their segment.
+- `overlay_loader_is_candidate` (L4405) — 1 when the physical address is a known exact function entry and the loader is active.
+- `overlay_fp_enabled` (L4410) — 1 when the fingerprint log is on, set by the PSX_OVERLAY_FP_LOG variable.
+- `overlay_loader_get_shadow_summary` (L4462) — Reports the shadow-diff call and divergence counts and the first divergent PC.
+- `overlay_loader_set_diff_mode` (L4470) — Turns shadow diff mode on or off.
+- `run_shadow_diff_legacy` (L4472) — Older shadow diff: runs the interpreter and the native candidate on the same state and compares the results.
+- `shadow_cpu_diff` (L4664) — Compares two CPU states field by field; returns the kind of the first difference, with its index and both values.
+- `run_shadow_diff` (L4707) — Authoritative interpreter RECORD + side-effect-free native REPLAY.
+- `shadow_escape_cleanup` (L4886) — A nonlocal scheduler bail during the speculative native replay pass (see overlay_loader_shadow_native_thread_switch_bail) means the interpreter pass — authoritative and already complete by the time th
+- `shadow_escape_flush_cycles` (L4917) — Commits pending cycles and clears the cycle-flush hook after a host unwind skipped a candidate's epilogue.
+- `overlay_loader_shadow_escape_fixup` (L4937) — Called by deferred_exception_longjmp() (interrupts.c) before it unwinds.
+- `overlay_loader_shadow_scheduler_escape_fixup` (L4947) — The deterministic HLE scheduler uses a different jmp_buf and therefore has no exception-setjmp epoch.
+- `overlay_loader_dump_shadow_detail` (L4952) — Writes the captured shadow-diff detail (address and registers) as JSON into out; returns the length.
+- `overlay_loader_dump_shadow` (L4973) — Writes the shadow-diff summary and its records as JSON into out; returns the length.
+- `overlay_regs_crc` (L5012) — Fingerprint over the general registers (r1..r31) + hi/lo.
+- `overlay_regs_snap` (L5021) — Snapshot r0..r31 + hi/lo into a 34-word buffer (entry-state capture).
+- `regs34_crc` (L5028) — CRC over words 1..33 (r0 excluded — always 0), matching overlay_regs_crc.
+- `overlay_fp_log` (L5034) — Records one fingerprint entry (address, cycle, registers, native or interpreted) in the ring.
+- `overlay_loader_call_native` (L5057) — Execute 'addr' natively if a validated overlay candidate exists, keeping the §5-E fingerprint record (same as the dirty_ram_dispatch chokepoint).
+- `overlay_loader_write_fp_file` (L5089) — Write the whole fingerprint log to a file (no TCP size limit).
+- `overlay_loader_dump_native_ring` (L5120) — Dump the native-call ring (most-recent first) + the in-progress entry.
+- `overlay_loader_dump_candidates` (L5146) — Diagnostic: dump every candidate with its stored vs live hash and generation state, so reload behaviour can be inspected directly (Rule 3 — visibility via the debug server, not logs).
+- `overlay_loader_dump_candidates_at` (L5169) — Focused form for live miss diagnosis.
+- `overlay_loader_dump_lazy_at` (L5196) — Focused view of manifest-only candidates that have not been loaded yet.
+- `overlay_loader_get_status` (L5246) — Reports the loader status: active flag, registered count, regions checked, cache folder, game id and last CRC.
 
 ### runtime/src/overlay_path_canon.c
 
@@ -9369,56 +9368,56 @@ User save states: stages save and load requests, writes and reads slot files and
 - `savestate_mono_ms` (L40) — Monotonic clock in milliseconds, used for load timing.
 - `savestate_load_trace_enabled` (L83) — 1 when PSX_NETPLAY_LOAD_TRACE is set to 1; the answer is cached.
 - `savestate_load_trace` (L93) — Prints one netplay load-trace line for a stage when tracing is on.
-- `savestate_resolve_resume_pc` (L126) — Mid-FMV / present-edge IRQ fast paths often pass resume_pc=0 (cpu->pc is parked).
-- `savestate_resume_pc_ok` (L153) — 1 when a PC is word-aligned, dispatchable and not an exception or reset vector.
-- `ensure_dir` (L161) — Create each path component (mkdir -p).
-- `clear_load_blob` (L195) — Frees the staged load blob and clears its length.
-- `savestate_title_blocked` (L201) — 1 when the running title blocks save states.
-- `savestate_set_title_blocked` (L202) — Session-only trusted-title policy.
-- `savestate_title_load_blocked` (L213) — 1 when the running title blocks loads only.
-- `savestate_set_title_load_blocked` (L214) — Same policy for loads only (saving stays available), e.g.
-- `title_save_request_blocked` (L222) — Refuses a save or load under a title block, telling the frontend why; returns 1 when refused.
-- `pst_peek_bios_checksum` (L239) — Peek .pst header bios_checksum (BOOT_STATE wire: magic, version, checksum).
-- `is_legacy_pst_name` (L264) — 1 when a file name has the legacy state_ hex-and-slot form.
-- `path_exists` (L282) — 1 when the path exists.
-- `migrate_legacy_pst_by_bios` (L293) — One-shot: move loose <root>/state_*_slot*.pst into openbios/ or scph1001/ by header bios_checksum.
-- `savestate_set_disc_scope` (L407) — Scope savestates to one disc of a multi-image set.
-- `note_unscoped_legacy_states` (L420) — Count state_*.pst sitting directly in the BIOS directory once per-disc scoping is active.
-- `savestate_configure` (L455) — Sets the save folder and the BIOS and entry identity, creating the folder as needed.
-- `savestate_dir` (L493) — Current slot directory (empty if not configured).
-- `savestate_root_dir` (L497) — Memcard/save root remembered from the last bios-scoped configure (empty until a non-empty bios_token was passed).
-- `savestate_bios_token` (L501) — Last bios_token / openbios_wordsum from a bios-scoped configure (token empty when never scoped; used to restore after netplay sandbox).
-- `savestate_openbios_wordsum` (L505) — Returns the OpenBIOS word checksum from the last configure.
-- `savestate_get_integrity` (L509) — Integrity key last passed to savestate_configure (for sandbox rebind).
-- `savestate_slot_path` (L514) — Build the on-disk path for slot [0..SAVESTATE_SLOTS-1].
-- `savestate_thumb_path` (L525) — Builds the thumbnail file path for a slot; returns 0 when unconfigured or out of range.
-- `savestate_hd_path` (L536) — HD texture-pack residency sidecar (gpu_hd_textures.h): host metadata next to the slot, never part of the .pst, so states stay renderer-independent.
-- `savestate_write_hd_residency` (L544) — Writes the slot's HD texture residency sidecar, or removes it when there is none to save.
-- `savestate_read_hd_residency` (L554) — Reads the slot's HD texture residency sidecar and restores it, when the file is present.
-- `savestate_slot_exists` (L572) — 1 if the slot file exists and is non-empty.
-- `savestate_slot_mtime` (L585) — Slot file modified time, seconds since the Unix epoch.
-- `savestate_capture_thumb` (L606) — Per-slot screenshot thumbnails captured after a successful save.
-- `savestate_read_thumb` (L643) — Reads a slot's thumbnail into out_argb; returns 1 when the size matches and the file is valid.
-- `savestate_slot_compatible` (L669) — 1 if the slot .pst header matches this build's integrity key (BIOS/entry/ codegen).
-- `savestate_read_slot` (L691) — Read/write a slot file (malloc'd buffer for read).
-- `savestate_write_slot` (L720) — Writes a slot's .pst file from the data bytes; returns 1 on success.
-- `netplay_user_blocked` (L742) — User APIs during netplay: guests cannot initiate; host must use psx_netplay_request_* so peers hash-probe and sync over STATE_*.
-- `request_save_inner` (L753) — Stages a save of the slot after checking title blocks and configuration.
-- `request_load_inner` (L773) — Stages a load of the slot after checking title blocks and configuration.
-- `savestate_request_save` (L792) — Stage a save/load of slot [0..SAVESTATE_SLOTS-1].
-- `savestate_request_load` (L797) — Stages a load of a slot; refused for guests during netplay.
-- `savestate_request_save_protocol` (L802) — Netplay follow-host sync only.
-- `savestate_request_load_protocol` (L807) — Netplay follow-host sync: clears any staged blob, then stages a load of the slot.
-- `savestate_request_load_blob_protocol` (L813) — Netplay LOAD transfer: stage an in-memory .pst (no disk write).
-- `savestate_pending` (L838) — 1 while a staged save/load has not yet been consumed by savestate_poll.
-- `savestate_status_json` (L842) — Machine-readable lifecycle receipt for deterministic debug harnesses.
-- `savestate_status_get` (L853) — Copies the save state generation, pending flag, and last result and slot into the out parameters.
-- `savestate_take_load_completed` (L861) — 1 once after a successful load restore (before scheduler longjmp).
-- `savestate_take_load_failed` (L867) — 1 once after a staged load failed in savestate_poll (missing/mismatched).
-- `savestate_take_save_failed` (L873) — 1 once after a staged save failed in savestate_poll (no safe resume PC, I/O error, etc.).
-- `savestate_last_save_pc` (L879) — Resume PC stamped into the last successful slot save (0 if none / failed).
-- `savestate_sync_pending` (L885) — The fast-poll flag mirrors "a save or load is still staged"; recomputed after every change so a request staged from a callback is never lost.
-- `savestate_poll` (L889) — Called every block from psx_check_interrupts (in_exception == 0).
+- `savestate_resolve_resume_pc` (L128) — Mid-FMV / present-edge IRQ fast paths often pass resume_pc=0 (cpu->pc is parked).
+- `savestate_resume_pc_ok` (L155) — 1 when a PC is word-aligned, dispatchable and not an exception or reset vector.
+- `ensure_dir` (L163) — Create each path component (mkdir -p).
+- `clear_load_blob` (L197) — Frees the staged load blob and clears its length.
+- `savestate_title_blocked` (L203) — 1 when the running title blocks save states.
+- `savestate_set_title_blocked` (L204) — Session-only trusted-title policy.
+- `savestate_title_load_blocked` (L215) — 1 when the running title blocks loads only.
+- `savestate_set_title_load_blocked` (L216) — Same policy for loads only (saving stays available), e.g.
+- `title_save_request_blocked` (L224) — Refuses a save or load under a title block, telling the frontend why; returns 1 when refused.
+- `pst_peek_bios_checksum` (L241) — Peek .pst header bios_checksum (BOOT_STATE wire: magic, version, checksum).
+- `is_legacy_pst_name` (L266) — 1 when a file name has the legacy state_ hex-and-slot form.
+- `path_exists` (L284) — 1 when the path exists.
+- `migrate_legacy_pst_by_bios` (L295) — One-shot: move loose <root>/state_*_slot*.pst into openbios/ or scph1001/ by header bios_checksum.
+- `savestate_set_disc_scope` (L409) — Scope savestates to one disc of a multi-image set.
+- `note_unscoped_legacy_states` (L422) — Count state_*.pst sitting directly in the BIOS directory once per-disc scoping is active.
+- `savestate_configure` (L457) — Sets the save folder and the BIOS and entry identity, creating the folder as needed.
+- `savestate_dir` (L495) — Current slot directory (empty if not configured).
+- `savestate_root_dir` (L499) — Memcard/save root remembered from the last bios-scoped configure (empty until a non-empty bios_token was passed).
+- `savestate_bios_token` (L503) — Last bios_token / openbios_wordsum from a bios-scoped configure (token empty when never scoped; used to restore after netplay sandbox).
+- `savestate_openbios_wordsum` (L507) — Returns the OpenBIOS word checksum from the last configure.
+- `savestate_get_integrity` (L511) — Integrity key last passed to savestate_configure (for sandbox rebind).
+- `savestate_slot_path` (L516) — Build the on-disk path for slot [0..SAVESTATE_SLOTS-1].
+- `savestate_thumb_path` (L527) — Builds the thumbnail file path for a slot; returns 0 when unconfigured or out of range.
+- `savestate_hd_path` (L538) — HD texture-pack residency sidecar (gpu_hd_textures.h): host metadata next to the slot, never part of the .pst, so states stay renderer-independent.
+- `savestate_write_hd_residency` (L546) — Writes the slot's HD texture residency sidecar, or removes it when there is none to save.
+- `savestate_read_hd_residency` (L556) — Reads the slot's HD texture residency sidecar and restores it, when the file is present.
+- `savestate_slot_exists` (L574) — 1 if the slot file exists and is non-empty.
+- `savestate_slot_mtime` (L587) — Slot file modified time, seconds since the Unix epoch.
+- `savestate_capture_thumb` (L608) — Per-slot screenshot thumbnails captured after a successful save.
+- `savestate_read_thumb` (L645) — Reads a slot's thumbnail into out_argb; returns 1 when the size matches and the file is valid.
+- `savestate_slot_compatible` (L671) — 1 if the slot .pst header matches this build's integrity key (BIOS/entry/ codegen).
+- `savestate_read_slot` (L693) — Read/write a slot file (malloc'd buffer for read).
+- `savestate_write_slot` (L722) — Writes a slot's .pst file from the data bytes; returns 1 on success.
+- `netplay_user_blocked` (L744) — User APIs during netplay: guests cannot initiate; host must use psx_netplay_request_* so peers hash-probe and sync over STATE_*.
+- `request_save_inner` (L755) — Stages a save of the slot after checking title blocks and configuration.
+- `request_load_inner` (L775) — Stages a load of the slot after checking title blocks and configuration.
+- `savestate_request_save` (L794) — Stage a save/load of slot [0..SAVESTATE_SLOTS-1].
+- `savestate_request_load` (L799) — Stages a load of a slot; refused for guests during netplay.
+- `savestate_request_save_protocol` (L804) — Netplay follow-host sync only.
+- `savestate_request_load_protocol` (L809) — Netplay follow-host sync: clears any staged blob, then stages a load of the slot.
+- `savestate_request_load_blob_protocol` (L815) — Netplay LOAD transfer: stage an in-memory .pst (no disk write).
+- `savestate_pending` (L840) — 1 while a staged save/load has not yet been consumed by savestate_poll.
+- `savestate_status_json` (L844) — Machine-readable lifecycle receipt for deterministic debug harnesses.
+- `savestate_status_get` (L855) — Copies the save state generation, pending flag, and last result and slot into the out parameters.
+- `savestate_take_load_completed` (L863) — 1 once after a successful load restore (before scheduler longjmp).
+- `savestate_take_load_failed` (L869) — 1 once after a staged load failed in savestate_poll (missing/mismatched).
+- `savestate_take_save_failed` (L875) — 1 once after a staged save failed in savestate_poll (no safe resume PC, I/O error, etc.).
+- `savestate_last_save_pc` (L881) — Resume PC stamped into the last successful slot save (0 if none / failed).
+- `savestate_sync_pending` (L887) — The fast-poll flag mirrors "a save or load is still staged"; recomputed after every change so a request staged from a callback is never lost.
+- `savestate_poll` (L891) — Called every block from psx_check_interrupts (in_exception == 0).
 
 ### runtime/src/sgl/sgl_gl.c
 
