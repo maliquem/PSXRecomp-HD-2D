@@ -5086,68 +5086,69 @@ Software rasterizer: draws PS1 primitives (triangles, rectangles, lines, texture
 - `sw_rect_uv_limits` (L455) — Computes the sampled UV bounds of a textured rectangle from its corner UVs.
 - `sw_renderer_init` (L463) — Initialize software renderer
 - `sw_renderer_rebind_vram` (L483) — Point the rasterizer at another VRAM array without touching any draw state (the OpenGL render thread switches its upload source this way).
-- `sw_renderer_set_scale` (L491) — Internal-resolution supersampling (SSAA).
-- `sw_renderer_scale` (L517) — Returns the current internal resolution scale factor of the software renderer.
-- `sw_set_faithful_authority` (L526) — Faithful authority (netplay): while this rasterizer writes the guest's authoritative VRAM -- the netplay dual-raster SW@1x mirror or the netplay software GPU -- it draws exactly what hardware draws.
-- `sw_faithful_authority` (L535) — Returns 1 when this rasterizer is the netplay authority that must draw exactly like hardware.
-- `sw_set_precise_triangle` (L537) — Stores sub-pixel vertex positions for the next triangle, used when precise triangle drawing is enabled.
-- `sw_set_perspective_triangle` (L547) — Enables perspective-correct UV weights for the next triangle from three Q values, unless faithful authority is on.
-- `sw_perspective_triangle_count` (L559) — Returns how many triangles have been drawn with perspective-correct UV weights.
-- `precise_scaled` (L563) — Returns a vertex coordinate at the given scale from its sub-pixel value, or the fallback integer when none is set.
-- `precise_wide_x` (L571) — Returns a vertex x coordinate in native-wide space from its sub-pixel value, offset by dx, or the fallback.
-- `precise_consumed` (L578) — Clears the sub-pixel and perspective overrides so they apply to exactly one triangle.
-- `sw_set_texture_filter` (L583) — Texture filtering. 0 = nearest (native PSX look, default), 1 = bilinear (smooths textures/2D backgrounds; blends in RGB after the CLUT lookup, transparency-aware).
-- `sw_texture_filter` (L587) — Returns the current texture filter mode (0 nearest, 1 bilinear).
-- `sw_set_semi_transparency` (L593) — Draw state — must be set by gpu.c before each primitive
-- `sw_set_mask_bits` (L598) — Stores the set-mask and check-mask bits used by the next primitives.
-- `sw_set_texture_window` (L603) — Decodes the raw GP0 texture window value into mask and offset values for X and Y.
-- `sw_set_color_modulation` (L610) — Stores the vertex color modulation factors for the next textured primitive, converted from 8-bit to the PS1 scale.
-- `sw_set_draw_area` (L625) — Set draw area and draw offset
-- `sw_get_draw_area` (L632) — Returns the current draw area clip corners through the four output pointers.
-- `sw_set_draw_offset` (L638) — Stores the draw offset applied to the coordinates of the next primitives.
-- `hr_fill_block` (L647) — Fills a native-sized block of the supersampled mirror with one color, scaled to the current scale factor.
-- `sw_fill_rect` (L662) — Drawing primitives — called from gpu.c command processing
-- `sw_copy_rect` (L684) — Copies a VRAM rectangle to another place in VRAM, handling overlap and mirroring the copy into the high-res mirror.
-- `raster_flat_triangle` (L751) — Rasterizes a flat-colored triangle into the target, sorting vertices by Y first.
-- `sw_draw_flat_triangle` (L779) — Draws a flat-colored triangle into native VRAM and mirrors it to the high-res and wide surfaces.
-- `raster_gouraud_triangle` (L807) — Rasterizes a triangle with per-vertex colors into the target by interpolating across scanlines.
-- `sw_draw_gouraud_triangle` (L899) — Draws a triangle with per-vertex colors into native VRAM and mirrors it to the high-res and wide surfaces.
-- `raster_textured_triangle` (L928) — Rasterizes a textured triangle into the target, sampling UVs with CLUT and texpage state.
-- `sw_draw_textured_triangle` (L1039) — Draws a textured triangle with CLUT and texpage into native VRAM and mirrors it to the other surfaces.
-- `color24_to_mod` (L1083) — Converts a 24-bit vertex color into the 5-bit per-channel modulation factors used for textures.
-- `sw_draw_shaded_textured_triangle` (L1224) — Draws a textured triangle with per-vertex colors, modulating the texel by the interpolated colors.
-- `raster_flat_rect` (L1282) — Fills a rectangle of the target with one color, row by row.
-- `sw_draw_flat_rect` (L1297) — Fills a flat rectangle in native VRAM and mirrors it into the high-res and wide surfaces.
-- `raster_textured_rect` (L1337) — Draws a textured rectangle into the target with UV stepping from its top-left corner.
-- `sw_draw_textured_rect` (L1366) — Draws a textured rectangle into native VRAM with CLUT and texpage, mirroring the result to the other surfaces.
-- `sw_wide_emit_tile` (L1405) — ---- MMX6 native-wide reveal-column tile (host-side, WIDE SURFACE ONLY) -------- Rasterize ONE 16x16 textured tile into the active wide surface for a given vertical band, leaving canonical VRAM AND th
-- `raster_textured_rect_scaled` (L1424) — Draws a textured rectangle that stretches its texture from u0,v0 to u1,v1 across the target area.
-- `sw_draw_textured_rect_scaled` (L1458) — Draws a stretched textured rectangle into native VRAM and mirrors the result to the other surfaces.
-- `hr_put_block_opaque` (L1493) — Writes an opaque native pixel as a scale-by-scale block into the high-resolution mirror.
-- `wide_put_block_opaque` (L1504) — Mirror a 1px line pixel into the active wide surface (s*s block, x-translated).
-- `sw_draw_line` (L1514) — Draws a one-pixel flat line between two points into native VRAM and mirrors it to the other surfaces.
-- `sw_draw_shaded_line` (L1535) — Draws a one-pixel line whose color interpolates from c0 to c1 into native VRAM and mirrors it.
-- `sw_vram_write` (L1575) — VRAM transfer (CPU->VRAM, VRAM->CPU)
-- `sw_vram_read` (L1591) — Reads one 15-bit pixel from canonical VRAM at x,y.
-- `hr_rebuild_from_vram` (L1602) — Rebuild the supersampled mirror from canonical VRAM after a bulk replace.
-- `sw_vram_transfer_in` (L1638) — Copies a CPU block of pixels into VRAM and updates the high-res mirror; a full-VRAM copy triggers one full rebuild.
-- `sw_vram_transfer_out` (L1686) — Copies a block of VRAM pixels out to a CPU buffer, with a fast path for the whole VRAM.
-- `rgb555_to_argb` (L1719) — Converts a 15-bit PS1 pixel to a 32-bit ARGB value with the top bits expanded to 8 bits per channel.
-- `sw_render_display` (L1730) — Renders the displayed VRAM rectangle into a 32-bit output buffer at native resolution; returns the pixel count.
-- `sw_render_display_hires` (L1748) — Renders the displayed area from the high-res mirror when scale is above 1, else falls back to native rendering.
-- `wide_free_all` (L1780) — Frees every native-wide surface and resets their base addresses.
-- `wide_surf_for` (L1788) — Returns the native-wide surface for base_x, allocating a free slot when none exists yet; NULL when wide mode is off.
-- `sw_wide_set_view` (L1816) — Enable native-wide with a wide width + centering offset (native px), or disable (wide_w <= 0).
-- `sw_wide_configure` (L1826) — Native-wide compositor (see gpu_sw_renderer.c).
-- `sw_wide_set_target` (L1834) — Select the wide surface to mirror into for the back buffer at base_x.
-- `sw_wide_disable_target` (L1840) — Stop mirroring (offscreen draws that don't target a framebuffer).
-- `sw_wide_clear` (L1844) — Mirror a framebuffer clear: fill the full wide width over [y, y+h) of the surface for base_x, so the revealed margins are clean (not stale).
-- `sw_wide_clear_margins` (L1861) — Clear only the synthetic columns outside the centred canonical framebuffer.
-- `wide_surf_existing` (L1881) — An existing wide surface for base_x (never allocates: a source that was not drawn yet has nothing to copy).
-- `sw_wide_feedback_rect` (L1891) — Band texels count as bit 15 set: the band columns' own bit 15 is not authoritative (margin fills write 0), and a framebuffer trail keeps the centre at bit 15 once it blends, so the bands blend exactly
-- `sw_render_wide_display` (L1923) — Present source: convert the wide surface for the displayed buffer (base_x) to ARGB.
-- `sw_wide_width` (L1945) — Returns the current native-wide width in native pixels.
-- `sw_wide_dump_full` (L1952) — Diagnostic: dump the ENTIRE active wide surface for base_x (full g_wide_w*scale × VRAM_HEIGHT*scale — BOTH double-buffer y-bands, all margins) to ARGB.
+- `hr_scratch_get` (L496) — Returns the reusable hi-res scratch buffer grown to at least n pixels, or NULL when it cannot grow.
+- `sw_renderer_set_scale` (L506) — Internal-resolution supersampling (SSAA).
+- `sw_renderer_scale` (L533) — Returns the current internal resolution scale factor of the software renderer.
+- `sw_set_faithful_authority` (L542) — Faithful authority (netplay): while this rasterizer writes the guest's authoritative VRAM -- the netplay dual-raster SW@1x mirror or the netplay software GPU -- it draws exactly what hardware draws.
+- `sw_faithful_authority` (L551) — Returns 1 when this rasterizer is the netplay authority that must draw exactly like hardware.
+- `sw_set_precise_triangle` (L553) — Stores sub-pixel vertex positions for the next triangle, used when precise triangle drawing is enabled.
+- `sw_set_perspective_triangle` (L563) — Enables perspective-correct UV weights for the next triangle from three Q values, unless faithful authority is on.
+- `sw_perspective_triangle_count` (L575) — Returns how many triangles have been drawn with perspective-correct UV weights.
+- `precise_scaled` (L579) — Returns a vertex coordinate at the given scale from its sub-pixel value, or the fallback integer when none is set.
+- `precise_wide_x` (L587) — Returns a vertex x coordinate in native-wide space from its sub-pixel value, offset by dx, or the fallback.
+- `precise_consumed` (L594) — Clears the sub-pixel and perspective overrides so they apply to exactly one triangle.
+- `sw_set_texture_filter` (L599) — Texture filtering. 0 = nearest (native PSX look, default), 1 = bilinear (smooths textures/2D backgrounds; blends in RGB after the CLUT lookup, transparency-aware).
+- `sw_texture_filter` (L603) — Returns the current texture filter mode (0 nearest, 1 bilinear).
+- `sw_set_semi_transparency` (L609) — Draw state — must be set by gpu.c before each primitive
+- `sw_set_mask_bits` (L614) — Stores the set-mask and check-mask bits used by the next primitives.
+- `sw_set_texture_window` (L619) — Decodes the raw GP0 texture window value into mask and offset values for X and Y.
+- `sw_set_color_modulation` (L626) — Stores the vertex color modulation factors for the next textured primitive, converted from 8-bit to the PS1 scale.
+- `sw_set_draw_area` (L641) — Set draw area and draw offset
+- `sw_get_draw_area` (L648) — Returns the current draw area clip corners through the four output pointers.
+- `sw_set_draw_offset` (L654) — Stores the draw offset applied to the coordinates of the next primitives.
+- `hr_fill_block` (L663) — Fills a native-sized block of the supersampled mirror with one color, scaled to the current scale factor.
+- `sw_fill_rect` (L678) — Drawing primitives — called from gpu.c command processing
+- `sw_copy_rect` (L700) — Copies a VRAM rectangle to another place in VRAM, handling overlap and mirroring the copy into the high-res mirror.
+- `raster_flat_triangle` (L765) — Rasterizes a flat-colored triangle into the target, sorting vertices by Y first.
+- `sw_draw_flat_triangle` (L793) — Draws a flat-colored triangle into native VRAM and mirrors it to the high-res and wide surfaces.
+- `raster_gouraud_triangle` (L821) — Rasterizes a triangle with per-vertex colors into the target by interpolating across scanlines.
+- `sw_draw_gouraud_triangle` (L913) — Draws a triangle with per-vertex colors into native VRAM and mirrors it to the high-res and wide surfaces.
+- `raster_textured_triangle` (L942) — Rasterizes a textured triangle into the target, sampling UVs with CLUT and texpage state.
+- `sw_draw_textured_triangle` (L1053) — Draws a textured triangle with CLUT and texpage into native VRAM and mirrors it to the other surfaces.
+- `color24_to_mod` (L1097) — Converts a 24-bit vertex color into the 5-bit per-channel modulation factors used for textures.
+- `sw_draw_shaded_textured_triangle` (L1238) — Draws a textured triangle with per-vertex colors, modulating the texel by the interpolated colors.
+- `raster_flat_rect` (L1296) — Fills a rectangle of the target with one color, row by row.
+- `sw_draw_flat_rect` (L1311) — Fills a flat rectangle in native VRAM and mirrors it into the high-res and wide surfaces.
+- `raster_textured_rect` (L1351) — Draws a textured rectangle into the target with UV stepping from its top-left corner.
+- `sw_draw_textured_rect` (L1380) — Draws a textured rectangle into native VRAM with CLUT and texpage, mirroring the result to the other surfaces.
+- `sw_wide_emit_tile` (L1419) — ---- MMX6 native-wide reveal-column tile (host-side, WIDE SURFACE ONLY) -------- Rasterize ONE 16x16 textured tile into the active wide surface for a given vertical band, leaving canonical VRAM AND th
+- `raster_textured_rect_scaled` (L1438) — Draws a textured rectangle that stretches its texture from u0,v0 to u1,v1 across the target area.
+- `sw_draw_textured_rect_scaled` (L1472) — Draws a stretched textured rectangle into native VRAM and mirrors the result to the other surfaces.
+- `hr_put_block_opaque` (L1507) — Writes an opaque native pixel as a scale-by-scale block into the high-resolution mirror.
+- `wide_put_block_opaque` (L1518) — Mirror a 1px line pixel into the active wide surface (s*s block, x-translated).
+- `sw_draw_line` (L1528) — Draws a one-pixel flat line between two points into native VRAM and mirrors it to the other surfaces.
+- `sw_draw_shaded_line` (L1549) — Draws a one-pixel line whose color interpolates from c0 to c1 into native VRAM and mirrors it.
+- `sw_vram_write` (L1589) — VRAM transfer (CPU->VRAM, VRAM->CPU)
+- `sw_vram_read` (L1605) — Reads one 15-bit pixel from canonical VRAM at x,y.
+- `hr_rebuild_from_vram` (L1616) — Rebuild the supersampled mirror from canonical VRAM after a bulk replace.
+- `sw_vram_transfer_in` (L1651) — Copies a CPU block of pixels into VRAM and updates the high-res mirror; a full-VRAM copy triggers one full rebuild.
+- `sw_vram_transfer_out` (L1699) — Copies a block of VRAM pixels out to a CPU buffer, with a fast path for the whole VRAM.
+- `rgb555_to_argb` (L1732) — Converts a 15-bit PS1 pixel to a 32-bit ARGB value with the top bits expanded to 8 bits per channel.
+- `sw_render_display` (L1743) — Renders the displayed VRAM rectangle into a 32-bit output buffer at native resolution; returns the pixel count.
+- `sw_render_display_hires` (L1761) — Renders the displayed area from the high-res mirror when scale is above 1, else falls back to native rendering.
+- `wide_free_all` (L1793) — Frees every native-wide surface and resets their base addresses.
+- `wide_surf_for` (L1801) — Returns the native-wide surface for base_x, allocating a free slot when none exists yet; NULL when wide mode is off.
+- `sw_wide_set_view` (L1829) — Enable native-wide with a wide width + centering offset (native px), or disable (wide_w <= 0).
+- `sw_wide_configure` (L1839) — Native-wide compositor (see gpu_sw_renderer.c).
+- `sw_wide_set_target` (L1847) — Select the wide surface to mirror into for the back buffer at base_x.
+- `sw_wide_disable_target` (L1853) — Stop mirroring (offscreen draws that don't target a framebuffer).
+- `sw_wide_clear` (L1857) — Mirror a framebuffer clear: fill the full wide width over [y, y+h) of the surface for base_x, so the revealed margins are clean (not stale).
+- `sw_wide_clear_margins` (L1874) — Clear only the synthetic columns outside the centred canonical framebuffer.
+- `wide_surf_existing` (L1894) — An existing wide surface for base_x (never allocates: a source that was not drawn yet has nothing to copy).
+- `sw_wide_feedback_rect` (L1904) — Band texels count as bit 15 set: the band columns' own bit 15 is not authoritative (margin fills write 0), and a framebuffer trail keeps the centre at bit 15 once it blends, so the bands blend exactly
+- `sw_render_wide_display` (L1936) — Present source: convert the wide surface for the displayed buffer (base_x) to ARGB.
+- `sw_wide_width` (L1958) — Returns the current native-wide width in native pixels.
+- `sw_wide_dump_full` (L1965) — Diagnostic: dump the ENTIRE active wide surface for base_x (full g_wide_w*scale × VRAM_HEIGHT*scale — BOTH double-buffer y-bands, all margins) to ARGB.
 
 ### runtime/src/gpu_timeline.c
 
@@ -6486,44 +6487,44 @@ Core MDEC math: dequantisation, inverse DCT, block decode and YCbCr to RGB colou
 
 Memory card emulation: keeps the card images in RAM, saves them to files on a background writer thread, and formats, imports and exports card data.
 
-- `wlock` (L72) — Takes the writer lock that guards the pending card writes.
-- `wunlock` (L73) — Releases the writer lock.
-- `wsignal` (L74) — Wakes every thread waiting on the given condition variable.
-- `wwait` (L76) — 0 when woken, -1 on timeout.
-- `wsleep` (L79) — Sleeps the calling thread for the given number of milliseconds.
-- `writer_loop` (L99) — Background thread loop: waits for a card with a pending write, then writes its image to disk.
-- `writer_main` (L131) — Thread entry point that runs writer_loop.
-- `writer_start_locked` (L137) — Called with s_wlock held.
-- `writer_enqueue` (L157) — Hand the card's current image to the writer.
-- `memcard_write_failing` (L172) — 1 while the card's background write keeps failing (disk full, no write access): the game already said "saved", so the host tells the player.
-- `memcard_flush_wait` (L174) — Wait until every queued card write is on disk.
-- `frame_checksum` (L193) — XOR checksum of bytes 0x00-0x7E, stored at 0x7F.
-- `memcard_format` (L202) — Format a 128KB card image to match a real PS1 blank card.
-- `memcard_ensure_dir` (L244) — mkdir -p: create each path component (guest sandbox is <memcard>/netplay).
-- `card_unlock` (L284) — Releases this process's lock on card i.
-- `card_lock_busy` (L287) — Takes <card>.lock for this process; 1 only when another process holds it.
-- `memcard_init_slots` (L317) — Initialize memcard subsystem with per-slot paths + enable flags.
-- `memcard_init` (L367) — Initialize memcard subsystem.
-- `memcard_format_file` (L372) — Write a freshly formatted (blank) 128KB card image to 'path', creating or overwriting it.
-- `memcard_summary_path` (L382) — Parse 'path' into 'out'.
-- `memcard_read_sector` (L421) — Read/write 128-byte sectors
-- `memcard_write_sector` (L430) — Writes one 128-byte sector into the card's RAM image and marks the card dirty; returns 0, or -1 for a bad card or sector.
-- `memcard_flush` (L440) — Flush pending writes to disk.
-- `memcard_flush_all` (L452) — Flushes every card, then waits up to 10 seconds for queued writes to reach the disk.
-- `memcard_is_present` (L459) — Check if card is present
-- `memcard_debug_info` (L464) — Reports a card's file path, first two bytes, presence and dirty flag; returns -1 for a bad card index.
-- `memcard_debug_read_buffer` (L476) — Copies up to len bytes of a present card's image, from offset, into dst; returns the number of bytes copied.
-- `memcard_export_raw` (L488) — Export / import a full 128KB card image (present cards only for export).
-- `memcard_import_raw` (L495) — Replaces a card's image with a 128KB raw copy and writes it to its file; returns -1 if the card has no path.
-- `memcard_rebind_dir` (L505) — Redirect on-disk paths for both slots (e.g.
-- `memcard_rebind_paths` (L522) — Restore explicit per-slot filepaths (from a prior snapshot).
-- `memcard_rebind_path` (L532) — Rebind ONE slot's on-disk path without touching RAM.
-- `memcard_reload_bound` (L557) — Reload in-memory images from the currently bound filepaths (0 = ok).
-- `memcard_dir` (L585) — Directory given to memcard_init/memcard_init_slots ("" when none).
-- `memcard_format_image` (L589) — Fill dst (MEMCARD_SIZE bytes) with a blank formatted card.
-- `memcard_mount_image` (L595) — Put a RAM-only image in a present slot (save slots): the slot's file is flushed first and then left alone; writes stay in RAM until unmount.
-- `memcard_unmount_image` (L606) — Leave the RAM-only image and put 'restore' back as the slot's contents (normally the image the slot held before the mount).
-- `memcard_image_mounted` (L615) — 1 while a RAM-only image is mounted in the slot.
+- `wlock` (L74) — Takes the writer lock that guards the pending card writes.
+- `wunlock` (L75) — Releases the writer lock.
+- `wsignal` (L76) — Wakes every thread waiting on the given condition variable.
+- `wwait` (L78) — 0 when woken, -1 on timeout.
+- `wsleep` (L81) — Sleeps the calling thread for the given number of milliseconds.
+- `writer_loop` (L101) — Background thread loop: waits for a card with a pending write, then writes its image to disk.
+- `writer_main` (L134) — Thread entry point that runs writer_loop.
+- `writer_start_locked` (L140) — Called with s_wlock held.
+- `writer_enqueue` (L160) — Hand the card's current image to the writer.
+- `memcard_write_failing` (L180) — 1 while the card's background write keeps failing (disk full, no write access): the game already said "saved", so the host tells the player.
+- `memcard_flush_wait` (L182) — Wait until every queued card write is on disk.
+- `frame_checksum` (L201) — XOR checksum of bytes 0x00-0x7E, stored at 0x7F.
+- `memcard_format` (L210) — Format a 128KB card image to match a real PS1 blank card.
+- `memcard_ensure_dir` (L252) — mkdir -p: create each path component (guest sandbox is <memcard>/netplay).
+- `card_unlock` (L292) — Releases this process's lock on card i.
+- `card_lock_busy` (L295) — Takes <card>.lock for this process; 1 only when another process holds it.
+- `memcard_init_slots` (L325) — Initialize memcard subsystem with per-slot paths + enable flags.
+- `memcard_init` (L378) — Initialize memcard subsystem.
+- `memcard_format_file` (L383) — Write a freshly formatted (blank) 128KB card image to 'path', creating or overwriting it.
+- `memcard_summary_path` (L393) — Parse 'path' into 'out'.
+- `memcard_read_sector` (L432) — Read/write 128-byte sectors
+- `memcard_write_sector` (L441) — Writes one 128-byte sector into the card's RAM image and marks the card dirty; returns 0, or -1 for a bad card or sector.
+- `memcard_flush` (L455) — Flush pending writes to disk.
+- `memcard_flush_all` (L467) — Flushes every card, then waits up to 10 seconds for queued writes to reach the disk.
+- `memcard_is_present` (L474) — Check if card is present
+- `memcard_debug_info` (L479) — Reports a card's file path, first two bytes, presence and dirty flag; returns -1 for a bad card index.
+- `memcard_debug_read_buffer` (L491) — Copies up to len bytes of a present card's image, from offset, into dst; returns the number of bytes copied.
+- `memcard_export_raw` (L503) — Export / import a full 128KB card image (present cards only for export).
+- `memcard_import_raw` (L510) — Replaces a card's image with a 128KB raw copy and writes it to its file; returns -1 if the card has no path.
+- `memcard_rebind_dir` (L523) — Redirect on-disk paths for both slots (e.g.
+- `memcard_rebind_paths` (L540) — Restore explicit per-slot filepaths (from a prior snapshot).
+- `memcard_rebind_path` (L550) — Rebind ONE slot's on-disk path without touching RAM.
+- `memcard_reload_bound` (L575) — Reload in-memory images from the currently bound filepaths (0 = ok).
+- `memcard_dir` (L606) — Directory given to memcard_init/memcard_init_slots ("" when none).
+- `memcard_format_image` (L610) — Fill dst (MEMCARD_SIZE bytes) with a blank formatted card.
+- `memcard_mount_image` (L616) — Put a RAM-only image in a present slot (save slots): the slot's file is flushed first and then left alone; writes stay in RAM until unmount.
+- `memcard_unmount_image` (L630) — Leave the RAM-only image and put 'restore' back as the slot's contents (normally the image the slot held before the mount).
+- `memcard_image_mounted` (L642) — 1 while a RAM-only image is mounted in the slot.
 
 ### runtime/src/memory.c
 
@@ -9263,16 +9264,18 @@ Projection history for render passes: captures the GTE camera and projections pe
 - `same_vertices` (L49) — 1 when two projections have the same caller, command and vertices.
 - `distance` (L53) — Squared distance between two matrices, combining translation and rotation.
 - `same_matrix` (L60) — 1 when two matrices hold identical rotation and translation values.
-- `psx_projection_reset_session` (L80) — Invalidates every projection history when a new timeline starts, such as after a load.
-- `psx_projection_create` (L87) — Capture the final model/view transforms that the game actually projects.
-- `psx_projection_invalidate` (L98) — Forgets a history's captured projections and stops it if it is the active one.
-- `psx_projection_destroy` (L104) — Invalidates a history, unlinks it from the list and frees it.
-- `psx_projection_capture_begin` (L111) — Starts capturing a history for this frame, moving the previous frame's projections aside.
-- `psx_projection_capture_end` (L117) — Ends the capture, recording the count and indexing the projections for matching.
-- `psx_projection_replay_begin` (L161) — Starts replaying a history inside a render pass at blend alpha, using the captured frame.
-- `psx_projection_replay_end` (L170) — Ends the replay of a history.
-- `psx_projection_stats` (L175) — Copies a history's statistics into out.
-- `psx_projection_command` (L178) — GTE bridge: before RTPS/RTPT imports its registers.
+- `build_index` (L77) — Rebuilds the sorted (key, position) index of a projection list, reusing its capacity.
+- `index_range` (L84) — Returns the run of index entries for one key, positions ascending (empty when the key is absent).
+- `psx_projection_reset_session` (L94) — Invalidates every projection history when a new timeline starts, such as after a load.
+- `psx_projection_create` (L101) — Capture the final model/view transforms that the game actually projects.
+- `psx_projection_invalidate` (L112) — Forgets a history's captured projections and stops it if it is the active one.
+- `psx_projection_destroy` (L118) — Invalidates a history, unlinks it from the list and frees it.
+- `psx_projection_capture_begin` (L125) — Starts capturing a history for this frame, moving the previous frame's projections aside.
+- `psx_projection_capture_end` (L131) — Ends the capture, recording the count and indexing the projections for matching.
+- `psx_projection_replay_begin` (L175) — Starts replaying a history inside a render pass at blend alpha, using the captured frame.
+- `psx_projection_replay_end` (L184) — Ends the replay of a history.
+- `psx_projection_stats` (L189) — Copies a history's statistics into out.
+- `psx_projection_command` (L192) — GTE bridge: before RTPS/RTPT imports its registers.
 
 ### runtime/src/render_thread.c
 
