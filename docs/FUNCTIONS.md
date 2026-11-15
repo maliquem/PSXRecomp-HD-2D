@@ -242,33 +242,34 @@ Static recompiler core that turns MIPS instructions and functions into generated
 
 Loads and validates the BIOS, game, options and user settings TOML files, and writes the user settings back to disk.
 
-- `overlay_codegen_config_hash` (L61) — Hash exactly the per-game settings that can change generated overlay code.
-- `pad_mode_from_string` (L274) — Pad mode <-> string. Accepts "hybrid"/"analog"/"digital" (case-insensitive); returns 'fallback' for anything unrecognised so a typo never silently flips the pad type.
-- `pad_mode_from_settings_string` (L295) — Settings-file variant: a user's settings.toml may still carry a persisted "hybrid" from before the mode was removed from the selector.
-- `pad_mode_to_string` (L305) — Returns the settings name for a pad mode; it never returns hybrid, which is a runtime-only request and not a saved preference.
-- `toml_number` (L317) — Parse a hex string ("0x...") to uint32_t.
-- `parse_hex` (L322) — Parses a hex string into a 32-bit value, throwing an error that names the field when the text is not valid hex.
-- `parse_sxy_cull_site` (L350) — One [[widescreen.cull.sxy]] entry.
-- `parse_aspect_ratio` (L451) — Parse a display aspect "W:H" string (e.g.
-- `validate_project_relative` (L481) — Reject a config path that is not confined to the project directory.
-- `parse_runtime_block` (L511) — Parse the optional [runtime] block.
-- `find_project_root` (L1473) — Locate the project root by walking upward from 'config_path' until a directory containing '.gitignore', '.git', or 'CMakeLists.txt' is found.
-- `draw_distance_clamp_reads` (L1494) — True when 'instr' is an ALU instruction (I-type or SPECIAL R-type, not a load, store, branch or jump) that reads GPR 'reg'.
-- `parse_draw_distance_clamps` (L1514) — [[draw_distance.clamp]] (docs/config_schema.md "Draw-distance clamps").
-- `quality_key_player_editable` (L1574) — True when a quality setting key may be changed by the player.
-- `quality_key_supported` (L1579) — [quality.<name>] -- a named graphics preset (docs/QUALITY_PRESETS.md).
-- `parse_quality_presets` (L1585) — Parses the quality presets of a game config into a list, checking each key against the supported set.
-- `derive_out_stem` (L1638) — Derives an output name stem from a ROM file name by removing its extension, matched without regard to case.
-- `load_bios_config` (L1655) — Load a BIOS config TOML.
-- `load_game_config` (L1928) — Load a game config TOML.
-- `load_game_options` (L3293) — Load game_options.toml ([[option]] array of {name, addr, size}).
-- `valid_user_audio_freq` (L3330) — True when an audio frequency is one of the allowed user values: 32040, 32000, 44100 or 48000.
-- `load_user_settings` (L3334) — Load settings.toml. Returns an all-defaults (all has_*=false) struct if the file is missing or unreadable.
-- `relative_to_folder` (L3793) — Returns a path relative to a folder when the path is absolute, or the path unchanged when it is not.
-- `toml_escape` (L3807) — A basic TOML string must not carry a raw quote, backslash or control char.
-- `write_text_atomic` (L3823) — Write to a sibling temp file then rename, so a crash never leaves a cut file.
-- `save_user_settings` (L3838) — Write settings.toml deterministically.
-- `upsert_game_toml_controller_bool` (L4082) — Sets a boolean key in the controller section of a game TOML file, adding or updating it, and returns whether the write succeeded.
+- `overlay_codegen_config_hash` (L62) — Hash exactly the per-game settings that can change generated overlay code.
+- `pad_mode_from_string` (L275) — Pad mode <-> string. Accepts "hybrid"/"analog"/"digital" (case-insensitive); returns 'fallback' for anything unrecognised so a typo never silently flips the pad type.
+- `pad_mode_from_settings_string` (L296) — Settings-file variant: a user's settings.toml may still carry a persisted "hybrid" from before the mode was removed from the selector.
+- `pad_mode_to_string` (L306) — Returns the settings name for a pad mode; it never returns hybrid, which is a runtime-only request and not a saved preference.
+- `toml_number` (L318) — Parse a hex string ("0x...") to uint32_t.
+- `parse_hex` (L323) — Parses a hex string into a 32-bit value, throwing an error that names the field when the text is not valid hex.
+- `parse_sxy_cull_site` (L351) — One [[widescreen.cull.sxy]] entry.
+- `parse_aspect_ratio` (L452) — Parse a display aspect "W:H" string (e.g.
+- `validate_project_relative` (L482) — Reject a config path that is not confined to the project directory.
+- `reject_unknown_keys` (L510) — A key outside a closed list is a typo: the option would silently keep its default.
+- `parse_runtime_block` (L525) — Parse the optional [runtime] block.
+- `find_project_root` (L1528) — Locate the project root by walking upward from 'config_path' until a directory containing '.gitignore', '.git', or 'CMakeLists.txt' is found.
+- `draw_distance_clamp_reads` (L1549) — True when 'instr' is an ALU instruction (I-type or SPECIAL R-type, not a load, store, branch or jump) that reads GPR 'reg'.
+- `parse_draw_distance_clamps` (L1569) — [[draw_distance.clamp]] (docs/config_schema.md "Draw-distance clamps").
+- `quality_key_player_editable` (L1629) — True when a quality setting key may be changed by the player.
+- `quality_key_supported` (L1634) — [quality.<name>] -- a named graphics preset (docs/QUALITY_PRESETS.md).
+- `parse_quality_presets` (L1640) — Parses the quality presets of a game config into a list, checking each key against the supported set.
+- `derive_out_stem` (L1693) — Derives an output name stem from a ROM file name by removing its extension, matched without regard to case.
+- `load_bios_config` (L1710) — Load a BIOS config TOML.
+- `load_game_config` (L1997) — Load a game config TOML.
+- `load_game_options` (L3386) — Load game_options.toml ([[option]] array of {name, addr, size}).
+- `valid_user_audio_freq` (L3423) — True when an audio frequency is one of the allowed user values: 32040, 32000, 44100 or 48000.
+- `load_user_settings` (L3427) — Load settings.toml. Returns an all-defaults (all has_*=false) struct if the file is missing or unreadable.
+- `relative_to_folder` (L3886) — Returns a path relative to a folder when the path is absolute, or the path unchanged when it is not.
+- `toml_escape` (L3900) — A basic TOML string must not carry a raw quote, backslash or control char.
+- `write_text_atomic` (L3916) — Write to a sibling temp file then rename, so a crash never leaves a cut file.
+- `save_user_settings` (L3931) — Write settings.toml deterministically.
+- `upsert_game_toml_controller_bool` (L4175) — Sets a boolean key in the controller section of a game TOML file, adding or updating it, and returns whether the write succeeded.
 
 ### recompiler/src/config_loader.h
 
@@ -2099,57 +2100,57 @@ PS1 CD-ROM controller: register interface, command handling, sector reads, CD-DA
 - `pause_complete_delay_cycles` (L2072) — Pause (0x09) completion latency — Beetle PS_CDC::Command_Pause.
 - `exec_command` (L2084) — Runs one CD-ROM controller command, setting its response and timing; the core of the command dispatcher.
 - `process_pending` (L2564) — Completes a pending command response once its due cycle has passed.
-- `warm_route_consumer_blocked` (L2684) — Route-only HLE producer/consumer handshake.
-- `authentic_sector_period` (L2725) — Returns the sector period at the real drive speed, halved in double-speed mode.
-- `accelerated_read_active` (L2730) — Returns 1 when reads run faster than the real drive speed, not during XA or filter modes.
-- `accelerated_consumer_blocked` (L2735) — Returns 1 when an accelerated read must wait for the CPU to take the last sector or interrupt.
-- `process_read_stream` (L2742) — Advances the data read stream by the elapsed cycles, delivering sectors when due and waiting for the CPU when it is behind.
-- `present_pending_dataready` (L2827) — Present a pended data-ready INT1 the moment the guest fully acks the previous INT (Beetle CheckAIP: async results present as soon as the IRQ register clears).
-- `cdrom_init` (L2843) — Starts the CD-ROM controller: clears its FIFOs and buffers, then mounts the disc image from the cue path.
-- `cdrom_has_disc` (L2937) — Did cdrom_init() actually mount an image?
-- `cdrom_read` (L2941) — MMIO read/write (0x1F801800-0x1F801803)
-- `cdrom_write` (L2991) — Handles a CPU write to the CD-ROM registers, tracing it and dispatching by register and index.
-- `cdrom_cycles_to_irq` (L3080) — Cycle-budgeted precise event slicing: guest CPU cycles until the CD-ROM raises a DELIVERABLE IRQ (bit2 unmasked in i_mask).
-- `cdrom_advance` (L3112) — Advance CD-ROM state machine by guest CPU cycles.
-- `cdrom_tick` (L3135) — Legacy frame-paced entry point for interpreter/oracle builds.
-- `cdrom_dma_read` (L3139) — DMA channel 3 interface
-- `cdrom_dma_ready` (L3151) — Returns 1 when DMA can take data now, first loading any announced sector into the FIFO.
-- `cdrom_dma_sector_word_count` (L3160) — Returns the word count for a CD DMA transfer, using one sector's size when the count is zero.
-- `cdrom_debug_snapshot` (L3173) — Copies the controller's registers and state into a debug struct.
-- `cdrom_debug_get_trace` (L3228) — Returns the register trace ring and its total count.
-- `cdrom_debug_clear_trace` (L3233) — Clears the register trace ring.
-- `cdrom_debug_get_command_history` (L3238) — Returns the command history ring and its total count.
-- `cdrom_debug_clear_command_history` (L3243) — Clears the command history ring.
-- `cdrom_debug_get_sector_history` (L3248) — Returns the sector history ring and its total count.
-- `cdrom_debug_clear_sector_history` (L3253) — Clears the sector history ring.
-- `cdrom_debug_copy_last_sector` (L3258) — Copies part of the last sector read into a buffer and fills in its debug state.
-- `cdrom_load_in_progress` (L3287) — Load-in-progress predicate for turbo-through-loads (step 4).
-- `cdrom_data_read_active` (L3298) — Physical non-XA data-read command state, without the logical load gap bridge used by cdrom_load_in_progress().
-- `cdrom_apply_savestate_delay_caps` (L3311) — Limits long pending and interrupt delays after a savestate load so the game does not stall.
-- `cdrom_accelerate_after_savestate` (L3336) — After savestate restore: clamp long CD second-response / read-start delays and arm a short boost window so post-load ReadTOC/seek/Init waits do not freeze the picture for ~1s+.
-- `cdrom_savestate_boost_vblank` (L3347) — Call once per host vblank while the boost window is armed.
-- `cdrom_savestate_cd_wait_active` (L3353) — Non-zero while boost is armed AND a CD wait is outstanding (pending second response or non-XA read).
-- `cdrom_savestate_boost_vblanks_remaining` (L3360) — Remaining boost vblanks (0 when idle).
-- `cdrom_snap_emit` (L3374) — Writes the CD-ROM controller state into a snapshot writer, in the legacy or extended layout.
-- `cdrom_snap_parse` (L3452) — Reads the CD-ROM controller state from a snapshot reader, in the legacy or extended layout.
-- `cdrom_snapshot_level_bytes` (L3546) — Returns the wire size of the snapshot layout at a given level (0 = legacy, CDROM_SNAP_LEVEL_CURRENT = newest).
-- `cdrom_snapshot_level` (L3553) — Maps a snapshot block length to its layout level; -1 when no level has that size.
-- `cdrom_snapshot_legacy_bytes` (L3559) — Returns the size of the legacy snapshot layout.
-- `cdrom_snapshot_fifos_ok` (L3565) — The parameter and response FIFO cursors index param_fifo / response_fifo; every layout starts with the legacy prefix, so this applies to all of them.
-- `cdrom_snapshot_validate` (L3575) — Checks that a snapshot block has a length matching the legacy or current layout.
-- `cdrom_snapshot_disc_matches` (L3621) — 0 when the state was taken on another disc of this game's roster than the one mounted now: its LBAs, TOC and file table belong to that other disc.
-- `cdrom_snapshot_bytes` (L3628) — boot_state / netplay digest — full controller FSM (sector FIFOs included).
-- `cdrom_snapshot_write` (L3631) — Writes the current CD-ROM snapshot block into a buffer.
-- `cdrom_snapshot_read` (L3637) — Reads a CD-ROM snapshot block, checking its length first; returns 1 on success.
-- `begin_tray_open_cycle` (L3663) — Open the tray: stop every transfer in flight, hide the media, and arm the timed close.
-- `debug_force_cd_reinsert` (L3679) — Simulates a disc swap by opening the tray, which hides the media until the timed close. — Notify the guest that the mounted disc was reinserted.
-- `cdrom_disc_roster_set` (L3683) — Sets the list of disc image paths the player can switch between, and which one is selected.
-- `cdrom_disc_roster_count` (L3703) — Returns how many discs are in the roster.
-- `cdrom_mounted_sector_count` (L3705) — TOC of the image currently mounted; 0 when the drive is empty.
-- `cdrom_mounted_track_count` (L3709) — Returns the number of tracks in the mounted image, 0 when the drive is empty.
-- `cdrom_disc_selected` (L3713) — Returns the 1-based number of the selected disc.
-- `cdrom_disc_roster_path` (L3715) — Returns the path of a disc in the roster by 1-based index, or NULL if out of range.
-- `cdrom_disc_select` (L3731) — Change the mounted image mid-session, the way a player changes a disc.
+- `warm_route_consumer_blocked` (L2669) — Route-only HLE producer/consumer handshake.
+- `authentic_sector_period` (L2710) — Returns the sector period at the real drive speed, halved in double-speed mode.
+- `accelerated_read_active` (L2715) — Returns 1 when reads run faster than the real drive speed, not during XA or filter modes.
+- `accelerated_consumer_blocked` (L2720) — Returns 1 when an accelerated read must wait for the CPU to take the last sector or interrupt.
+- `process_read_stream` (L2727) — Advances the data read stream by the elapsed cycles, delivering sectors when due and waiting for the CPU when it is behind.
+- `present_pending_dataready` (L2812) — Present a pended data-ready INT1 the moment the guest fully acks the previous INT (Beetle CheckAIP: async results present as soon as the IRQ register clears).
+- `cdrom_init` (L2828) — Starts the CD-ROM controller: clears its FIFOs and buffers, then mounts the disc image from the cue path.
+- `cdrom_has_disc` (L2922) — Did cdrom_init() actually mount an image?
+- `cdrom_read` (L2926) — MMIO read/write (0x1F801800-0x1F801803)
+- `cdrom_write` (L2976) — Handles a CPU write to the CD-ROM registers, tracing it and dispatching by register and index.
+- `cdrom_cycles_to_irq` (L3065) — Cycle-budgeted precise event slicing: guest CPU cycles until the CD-ROM raises a DELIVERABLE IRQ (bit2 unmasked in i_mask).
+- `cdrom_advance` (L3097) — Advance CD-ROM state machine by guest CPU cycles.
+- `cdrom_tick` (L3120) — Legacy frame-paced entry point for interpreter/oracle builds.
+- `cdrom_dma_read` (L3124) — DMA channel 3 interface
+- `cdrom_dma_ready` (L3136) — Returns 1 when DMA can take data now, first loading any announced sector into the FIFO.
+- `cdrom_dma_sector_word_count` (L3145) — Returns the word count for a CD DMA transfer, using one sector's size when the count is zero.
+- `cdrom_debug_snapshot` (L3158) — Copies the controller's registers and state into a debug struct.
+- `cdrom_debug_get_trace` (L3213) — Returns the register trace ring and its total count.
+- `cdrom_debug_clear_trace` (L3218) — Clears the register trace ring.
+- `cdrom_debug_get_command_history` (L3223) — Returns the command history ring and its total count.
+- `cdrom_debug_clear_command_history` (L3228) — Clears the command history ring.
+- `cdrom_debug_get_sector_history` (L3233) — Returns the sector history ring and its total count.
+- `cdrom_debug_clear_sector_history` (L3238) — Clears the sector history ring.
+- `cdrom_debug_copy_last_sector` (L3243) — Copies part of the last sector read into a buffer and fills in its debug state.
+- `cdrom_load_in_progress` (L3272) — Load-in-progress predicate for turbo-through-loads (step 4).
+- `cdrom_data_read_active` (L3283) — Physical non-XA data-read command state, without the logical load gap bridge used by cdrom_load_in_progress().
+- `cdrom_apply_savestate_delay_caps` (L3296) — Limits long pending and interrupt delays after a savestate load so the game does not stall.
+- `cdrom_accelerate_after_savestate` (L3321) — After savestate restore: clamp long CD second-response / read-start delays and arm a short boost window so post-load ReadTOC/seek/Init waits do not freeze the picture for ~1s+.
+- `cdrom_savestate_boost_vblank` (L3332) — Call once per host vblank while the boost window is armed.
+- `cdrom_savestate_cd_wait_active` (L3338) — Non-zero while boost is armed AND a CD wait is outstanding (pending second response or non-XA read).
+- `cdrom_savestate_boost_vblanks_remaining` (L3345) — Remaining boost vblanks (0 when idle).
+- `cdrom_snap_emit` (L3359) — Writes the CD-ROM controller state into a snapshot writer, in the legacy or extended layout.
+- `cdrom_snap_parse` (L3437) — Reads the CD-ROM controller state from a snapshot reader, in the legacy or extended layout.
+- `cdrom_snapshot_level_bytes` (L3531) — Returns the wire size of the snapshot layout at a given level (0 = legacy, CDROM_SNAP_LEVEL_CURRENT = newest).
+- `cdrom_snapshot_level` (L3538) — Maps a snapshot block length to its layout level; -1 when no level has that size.
+- `cdrom_snapshot_legacy_bytes` (L3544) — Returns the size of the legacy snapshot layout.
+- `cdrom_snapshot_fifos_ok` (L3550) — The parameter and response FIFO cursors index param_fifo / response_fifo; every layout starts with the legacy prefix, so this applies to all of them.
+- `cdrom_snapshot_validate` (L3560) — Checks that a snapshot block has a length matching the legacy or current layout.
+- `cdrom_snapshot_disc_matches` (L3606) — 0 when the state was taken on another disc of this game's roster than the one mounted now: its LBAs, TOC and file table belong to that other disc.
+- `cdrom_snapshot_bytes` (L3613) — boot_state / netplay digest — full controller FSM (sector FIFOs included).
+- `cdrom_snapshot_write` (L3616) — Writes the current CD-ROM snapshot block into a buffer.
+- `cdrom_snapshot_read` (L3622) — Reads a CD-ROM snapshot block, checking its length first; returns 1 on success.
+- `begin_tray_open_cycle` (L3648) — Open the tray: stop every transfer in flight, hide the media, and arm the timed close.
+- `debug_force_cd_reinsert` (L3664) — Simulates a disc swap by opening the tray, which hides the media until the timed close. — Notify the guest that the mounted disc was reinserted.
+- `cdrom_disc_roster_set` (L3668) — Sets the list of disc image paths the player can switch between, and which one is selected.
+- `cdrom_disc_roster_count` (L3688) — Returns how many discs are in the roster.
+- `cdrom_mounted_sector_count` (L3690) — TOC of the image currently mounted; 0 when the drive is empty.
+- `cdrom_mounted_track_count` (L3694) — Returns the number of tracks in the mounted image, 0 when the drive is empty.
+- `cdrom_disc_selected` (L3698) — Returns the 1-based number of the selected disc.
+- `cdrom_disc_roster_path` (L3700) — Returns the path of a disc in the roster by 1-based index, or NULL if out of range.
+- `cdrom_disc_select` (L3716) — Change the mounted image mid-session, the way a player changes a disc.
 
 ### runtime/src/cdrom_irq.h
 
@@ -6081,330 +6082,330 @@ Entry point and main loop of the recompiled PS1 runtime: starts the host, presen
 - `ensure_sdl_present_texture` (L3110) — Creates or grows the SDL texture used for software presentation to at least the given width and height; does nothing when it already fits.
 - `ensure_sw_sdl_present` (L3134) — Create SDL_Renderer + streaming texture for software present.
 - `psx_frontend_netplay_force_sw_gpu` (L3189) — Rollback/delay netplay: guest VRAM must be CPU-authoritative.
-- `audio_legacy_mode` (L3336) — Observability + A/B. PSXRECOMP_AUDIO_LEGACY=1 keeps the historical push model (SDL_QueueAudio, no bridge) so the underrun baseline can be measured against the bridge from a single build; default (unse
-- `sdl_drc_callback` (L3353) — SDL audio callback: fills the output stream from the audio ring buffer, or writes silence while the buffer is not ready.
-- `find_upward` (L3363) — Walks up from a start folder until it finds a folder that holds the marker file; returns that folder or an empty path.
-- `exe_dir_from_argv` (L3386) — The directory the running executable lives in — the SINGLE anchor for every runtime file (game.toml, disc, BIOS, settings.toml, caches, memcards, sidecar .cfg).
-- `resolve_existing_runtime_path` (L3419) — Resolves a path given on the command line to an existing runtime file; empty when no such file is found.
-- `sidecar_cfg_path` (L3439) — Path of a sidecar config file: disc.cfg lives in the player's folder, the others next to the exe.
-- `anchor_on_exe_dir` (L3450) — Relative paths in settings.toml and the bios.cfg / disc.cfg sidecars are relative to the game folder.
-- `read_cached_path` (L3456) — Reads a saved path from a sidecar config file; returns an empty path when the file is missing.
-- `user_dir_from_argv` (L3474) — userdir.cfg next to the exe (one line, like disc.cfg; relative = from the exe folder) names the player's folder: settings.toml, config.ini, input.ini, keybinds.ini, disc.cfg and the default memcard_di
-- `psx_user_dir` (L3485) — The player's folder named by userdir.cfg next to the exe (settings, keys, cards); "" when it is the exe folder.
-- `write_cached_path` (L3487) — Writes a path into a sidecar config file, relative to the game folder when it lies inside it.
-- `frontend_unattended` (L3498) — Nobody is at the screen: never block on a modal dialog or a file picker.
-- `launcher_warning` (L3500) — Prints a warning to stderr and, when someone is at the screen, also shows it in a message box.
-- `launcher_info` (L3509) — Prints an info message to stderr and shows it in a message box unless the run is unattended.
-- `pick_runtime_file` (L3518) — Asks the player to pick a file in a dialog; never opens a dialog in headless runs, where it returns false.
-- `expected_serial_for_disc` (L3601) — The serial THIS image is expected to carry: the set's per-disc value when the game declared one, the game's own id otherwise.
-- `uppercase_ascii` (L3608) — Returns a copy of the string with its ASCII letters in upper case.
-- `region_label_from_serial` (L3619) — Region display label for the launcher, derived from the game-id serial prefix (e.g.
-- `read_at` (L3630) — Reads len bytes at a file offset into out; returns false when the seek or the read fails.
-- `validate_disc_image` (L3645) — Checks a disc image against the game ID through the shared disc-identity module; the result says whether it opened and matched.
-- `validate_disc_for_launch` (L3669) — True when the disc image opens and matches the game ID, so it may be launched; otherwise false.
-- `normalize_disc_path_for_launch` (L3689) — Returns the path the disc resolver mounts, so a usable cue keeps its track map.
-- `resolve_persisted_disc_path` (L3694) — Resolves a disc path saved in the settings against the exe folder and normalizes it for launch; empty when the path is empty.
-- `roster_index_for_disc` (L3718) — Which image of a MULTI-DISC set to mount, given the roster this build was made from (game.toml [game] discs), the player's persisted [disc] selected index, and the [disc] path the launcher last wrote.
-- `resolve_selected_disc` (L3728) — Picks the disc to mount from a multi-disc roster and the player's selection; for a single disc it returns the saved path.
-- `bios_backend_for_file` (L3751) — Identity-match a file against a linked backend.
-- `bios_module_supported_here` (L3780) — True when a BIOS module supports the exe folder.
-- `bios_accepted_images` (L3785) — Returns a text list of the BIOS image names accepted by the linked BIOS backends, for messages.
-- `validate_bios_for_launch` (L3808) — Identity-gate a player-chosen BIOS and activate its backend on success.
-- `resolve_bios_for_runtime` (L3863) — Resolve which BIOS image file to load, and activate its backend.
-- `resolve_disc_for_runtime` (L3961) — Works out which disc to mount at startup from the config, the override argument and the game ID; returns the chosen path.
-- `resolve_bios_path` (L4016) — Resolves the BIOS file path from the requested argument, looking in the exe folder; empty when none is found.
-- `retail_bios_file_ok` (L4061) — First-run / setup discovery of a retail BIOS the player already dumped next to the game (docs/BIOS_SELECTION.md).
-- `discover_retail_bios_near` (L4087) — Looks next to the game for a retail BIOS dump under a known file name; returns its path or an empty path.
-- `resolve_match_session_bios_path` (L4121) — Match-only BIOS from lobby 'session_bios'.
-- `default_memcard_dir` (L4165) — Fallback memcard directory used when no game config (or its [runtime] block) specifies one: the executable's directory (authoritative, never cwd — see exe_dir_from_argv), so saves always live next to
-- `apply_netplay_local_viewport_aspect` (L4185) — Applies the netplay local viewport aspect when netplay is on and the viewport mode asks for it.
-- `host_refresh_matches_guest_cadence` (L4220) — Host-only: lockstep already couples peers.
-- `refresh_host_display_cadence` (L4227) — Re-reads the host display refresh rate and updates the frame cadence; the force flags make it log or probe again.
-- `guest_video_standard_hz` (L4303) — Frame rate of the guest's video standard: 50 Hz for PAL, otherwise the NTSC rate from the frame period.
-- `sync_guest_cadence_to_video_standard` (L4307) — Updates the guest frame period when the video standard changes between PAL and NTSC.
-- `host_driver_vsync_unreliable` (L4335) — Reports whether the display driver's vsync cannot be trusted: always 0 on Windows, a platform check elsewhere.
-- `present_vsync_owns_cadence` (L4365) — True when vsync sets the frame cadence: vsync is on and not turned off by netplay or by the driver check.
-- `psx_present_vsync_owns_cadence` (L4381) — C accessor for the renderers (frame_pacing.h).
-- `present_effective_swap_interval` (L4385) — The swap interval to present with: 0 when netplay forces vsync off, otherwise a value from the vsync and interpolation settings.
-- `present_should_wall_pace` (L4397) — True when the outer frame pacer should wait; it stays off when frame interpolation already splits the frame interval.
-- `apply_present_cadence` (L4422) — Applies the present swap interval to the GL context or the SDL window.
-- `psx_video_set_vsync` (L4437) — Live display controls for trusted title plugins (an in-game options page).
-- `psx_video_set_smooth_motion` (L4448) — Smooth motion from a mod's menu, live: frame generation needs the render thread, which otherwise starts only at the first VBlank of a session; asked here, it starts at the next VBlank (render_thread_v
-- `psx_video_hold_smooth_motion` (L4464) — Smooth motion for a while, nothing saved: a title whose own 60 fps falls back to 30 in some scenes holds it on there, so the picture keeps 60.
-- `psx_video_get_vsync` (L4476) — Returns 1 when vsync is on, else 0.
-- `psx_video_set_window_size` (L4477) — Resizes the game window to w by h when it is windowed and at least 320 by 240; otherwise does nothing.
-- `psx_video_get_window_size` (L4483) — Writes the game window's width and height into w and h; zero when there is no window.
-- `psx_video_set_fps_overlay` (L4489) — Turns the frame-rate overlay on or off, toggling telemetry only when its state changes.
-- `psx_video_get_fps_overlay` (L4492) — Returns 1 when the frame-rate overlay is on, else 0.
-- `log_present_cadence` (L4494) — Logs which of vsync or the frame pacer owns the present cadence, for diagnostics.
-- `netplay_host_present_uncap` (L4533) — Turns vsync off for the netplay host's presentation and reapplies the cadence.
-- `netplay_host_present_restore` (L4538) — Restores vsync for the netplay host's presentation after the uncap, when it had been turned off.
-- `netplay_soft_exit` (L4548) — Ends a netplay session after a disconnect and tells the player why: a boot-digest mismatch or the other player leaving.
-- `netplay_hostport_addr` (L4576) — "address:port" as the netplay library reads it: the port follows the last colon and must be a number up to 65535, an empty address means every address of this computer, and a name is looked up (IPv4).
-- `netplay_bind_probe` (L4625) — Why a LAN netplay start failed.
-- `netplay_start_failure` (L4698) — A netplay start failed: print what failed and return the sentence for the player.
-- `shutdown_runtime` (L4726) — Shuts the runtime down in order, starting with the local mouse, then the background workers and devices.
-- `teardown_game_session_keep_lobby` (L4753) — Tear down the game window/GL/audio after a lobby soft-return.
-- `sdl_audio_gain_ramp` (L4806) — Linear gain ramp g0 -> g1 across a block of interleaved stereo frames.
-- `turbo_audio_mode` (L4826) — Turbo audio mode from PSX_TURBO_AUDIO: 0 drops the excess audio, 1 compresses it in time, 2 uses the music classifier; read once.
-- `psx_mod_set_turbo_audio` (L4834) — The manual fast-forward's sound: 0 as it was (the audio bridge drops the excess in blocks: a click at every seam), 1 compressed in time (audio_turbo.h: the pitch kept, no seams, at any speed), 2 that
-- `psx_mod_set_music_voice_classifier` (L4837) — Mode 2's classifier: the title's music voices right now (bit v = SPU voice v), called at each key-on in the guest's own SPU access (read RAM only).
-- `psx_mod_music_changed` (L4840) — Tells the audio module that the title's music has changed.
-- `sdl_audio_pump` (L4842) — Advances the SPU by the guest's cycles and queues its samples for the audio device; discard_output drops them instead.
-- `psx_audio_out_stats` (L5021) — Audio gating across turbo-loads transitions.
-- `runtime_perf_parse_window` (L5099) — Parses a start and end frame window from text for the runtime perf diagnostic; returns false when the text is not valid.
-- `runtime_perf_init` (L5114) — Reads PSX_RUNTIME_PERF_DIAG once to decide whether the runtime perf diagnostic is on.
-- `runtime_perf_snapshot` (L5157) — Captures the current counter, frame number and the other timing counters into one snapshot.
-- `runtime_perf_ticks_ms` (L5184) — Converts performance counter ticks to milliseconds.
-- `runtime_perf_bench_tick` (L5188) — Advances the benchmark window of the runtime perf diagnostic: starts it at the configured frame and reports when it ends.
-- `runtime_perf_frame_begin` (L5234) — Start of a frame for the runtime perf diagnostic: initializes it and records the frame start time when it is enabled.
-- `runtime_perf_frame_end` (L5246) — End of a frame for the runtime perf diagnostic: records when the frame exited.
-- `runtime_perf_section_begin` (L5256) — Returns the counter at the start of a timed section, or 0 when the diagnostic is off.
-- `runtime_perf_section_end` (L5260) — Adds the time since start to a section's total; does nothing when start is 0.
-- `frame_report_tick` (L5280) — Frame-rate readout available in EVERY product, release included.
-- `runtime_perf_diag_tick` (L5336) — Each tick, prints the runtime perf line with frame timing and the audio underrun and overflow counts.
-- `spu_output_suppressed` (L5450) — spu.c output gate: samples rendered during rollback resimulation (already heard once) and during the FMV-skip mute advance the SPU but are not queued for the host.
-- `sdl_audio_pump_midframe` (L5456) — Invoked from the guest-derived VBlank edge (interrupts.c).
-- `sdl_audio_update` (L5477) — Each audio pass: tags the audio events with the frame counter and runs the audio path, honoring the hard-mute and turbo sink settings.
-- `controller_map_for` (L5633) — Returns the button map for a player: the map saved for that controller's GUID when there is one, else the shared default map.
-- `trim_copy` (L5641) — Returns a copy of the string without its leading and trailing white space.
-- `resolve_overlay_capture_path` (L5653) — Resolve the durable additive overlay-capture store.
-- `lower_copy` (L5724) — Returns a lower-case copy of the string.
-- `parse_bool_value` (L5730) — Reads a true or false word (1, yes, on, true and their opposites); returns the fallback for anything else.
-- `parse_controller_source` (L5737) — Parses one controller source name from input.ini into a source; none, disabled or empty gives no source.
-- `parse_source_list` (L5838) — Splits a comma-separated list of controller source names into a list of sources.
-- `apply_sources_to_map` (L5851) — Sets the sources of one named PSX input in a controller map from its source list text.
-- `set_default_controller_mapping_into` (L5861) — Fills a controller map with the default mapping, keeping the D-pad and sticks separate.
-- `set_default_controller_mapping` (L5891) — Resets the shared controller map to the defaults and clears the per-controller maps.
-- `default_input_ini_text` (L5896) — Returns the text of a default input.ini file: comments and the default mapping lines.
-- `load_input_config` (L5939) — Loads the controller mapping from input.ini in the player's folder, starting from the default mapping.
-- `controller_source_name` (L6027) — ---- psx_input_config.h: the controller map for a title's controls menu ----
-- `controller_sources_text` (L6041) — Writes a list of controller sources as the comma-separated text used in input.ini.
-- `controller_map_entry` (L6051) — Finds the map entry for an input.ini name; returns NULL when there is none.
-- `psx_input_map_get` (L6057) — The sources of one PSX input of the controller map as input.ini writes them ("a", "leftshoulder,rightx-", "" = none).
-- `psx_input_map_set` (L6064) — Replace them, in the global map and every per-controller one.
-- `psx_input_map_save` (L6076) — input.ini rewritten line by line: a mapping key's value replaced by the current map, missing [mapping] keys added at the end of that section, every other line (comments, [controller], unknown keys) ke
-- `player_ffb_backend` (L6148) — Returns the force-feedback backend of one player's haptic device.
-- `jogcon_ffb_neutral_all` (L6153) — Pause / disconnect / session end: the wheel goes neutral now.
-- `psx_jogcon_ffb_set_player_enabled` (L6164) — The player's EXPERIMENTAL wheel force-feedback setting, live: takes effect on the next VBlank; turning it off makes every wheel neutral now.
-- `psx_jogcon_ffb_player_enabled` (L6172) — Returns 1 when the experimental wheel force feedback is on, else 0.
-- `close_player_haptic` (L6174) — Sets one player's wheel to neutral and closes its force-feedback device.
-- `close_player` (L6181) — Closes one player's controller and its haptic device, and stops its rumble.
-- `close_controller` (L6197) — Closes the controller of every player slot.
-- `device_claimed_by_other` (L6202) — True when another player slot already uses the same controller device.
-- `open_player` (L6214) — Open the SDL controller whose GUID matches p.guid.
-- `update_jogcon_ffb` (L6287) — Forward the emulated DualShock's two motors to the SDL controller assigned to the same PSX port.
-- `update_controller_rumble` (L6316) — Each frame, sends the rumble strength to each player's controller; PSX_RUMBLE_TRACE turns on a trace.
-- `pad_mode_boot_analog` (L6374) — The pad type a mode reports before any input has been sampled (boot / hotplug).
-- `pad_type_boot` (L6378) — The pad type shown at boot for a player: a JogCon wheel, a DualShock when analog, else a digital pad.
-- `pad_type_boot_for_slot` (L6385) — Boot/hotplug type for slot s: a registered title pad transform names the type it presents before its first frame; otherwise the device/mode type.
-- `effective_player_mode` (L6393) — Keyboard mappings can drive both DualShock sticks.
-- `effective_player_mode_for_sio` (L6399) — Pad mode for the SIO seat this sample will drive.
-- `assert_sio_pad_profile` (L6409) — Assert one slot's real SIO profile (connection, config capability) from its device/mode/policy and return the pad mode to present at boot.
-- `refresh_player_devices` (L6432) — Open/close SDL handles so they match g_players, and (re)assert each slot's PSX connection + pad type.
-- `set_player_device` (L6464) — Parse a [controller] device string into a player slot: "none" -> no pad; "keyboard" -> keyboard map; otherwise an SDL GUID.
-- `controller_source_pressed_h` (L6488) — Stick→button (Digital D-Pad fold): per-axis deadzone.
-- `pad_from_keyboard` (L6514) — Keyboard -> PSX button word for 'player' (1 or 2), via the configurable keybinds.ini map (psx_keybinds).
-- `source_is_stick_axis` (L6529) — A left/right ANALOG-STICK axis source (LEFTX/LEFTY/RIGHTX/RIGHTY), as opposed to a trigger axis (L2/R2) or a button.
-- `controller_pad_buttons` (L6541) — Build the active-low PSX button word from a controller's input.ini map.
-- `axes_to_pad_pair` (L6588) — Radial deadzone: process a stick's X and Y together so the dead region is a small CIRCLE, not a per-axis square.
-- `pad_buttons_for` (L6597) — Buttons for a player's selected device (0xFFFF = none pressed).
-- `pad_sticks_for` (L6624) — Analog stick bytes (lx,ly,rx,ry) for a player; centred if no live source.
-- `controller_stick_active` (L6700) — Controller-policy facts exposed to trusted game-owned plugins.
-- `controller_mapped_dpad_active` (L6709) — True when the controller's mapped D-pad or stick is pressed beyond the deadzone.
-- `pad_sources_for` (L6738) — Works out which inputs drive one player's pad: the controller device and the keyboard bindings.
-- `controller_policy_stick_active` (L6764) — True when the controller policy sees the player's analog stick as active.
-- `controller_policy_dpad_active` (L6781) — True when the controller policy sees the player's D-pad as active.
-- `controller_policy_resolve_mode` (L6810) — Picks the pad mode a mod controller policy presents for a player, from the configured mode and the live input.
-- `controller_policy_resolve_override_mode` (L6847) — Picks the pad mode for a player under a mod override, from the buttons and the live stick and D-pad state.
-- `dev_any_input_enabled` (L6902) — Sample each player's live device state into the matching SIO pad slot.
-- `dev_all_controllers_buttons` (L6919) — Merge (active-low AND) the button words of every connected game controller.
-- `dev_any_controller_sticks` (L6944) — Fold the first live (non-neutral) left/right stick from ANY connected controller into st[] (lx,ly,rx,ry).
-- `savestate_input_guard_arm` (L6964) — Starts the save state input guard: resets the local mouse and blocks input for a short time after a save or load.
-- `any_controller_button_down` (L6971) — True when any connected game controller has a button pressed.
-- `savestate_resume_inputs_held` (L6987) — True when a key or controller button used to confirm the save state menu is still held.
-- `input_block_service` (L7001) — Once per frame, before shortcuts and pads are read: a block that ended lasts until no key or button is held.
-- `memcard_write_note` (L7009) — While the card's write to disk keeps failing, a note every 20 s.
-- `savestate_input_guard_active` (L7018) — True while the save state input guard blocks input after a save or load.
-- `restore_input_override_profile` (L7048) — Ends a debug input override for one slot and restores that slot's normal pad type and connection.
-- `apply_input_override_to_sio` (L7054) — Applies a debug input override word to the SIO pad when debug overrides are set.
-- `psx_mod_read_local_pad_sticks` (L7130) — Local host sticks for presentation-only mods (mod_plugins.h).
-- `host_pad_layer` (L7178) — Capture one SIO slot's PHYSICAL host pad into a netplay/local blob.
-- `host_layer_sdl_held` (L7207) — Converts a PSX button word into the SDL buttons it stands for, for the host layer.
-- `host_layer_release_claimed` (L7214) — Adds back the PSX bits of host buttons that a shortcut has claimed, so claimed buttons read as released.
-- `capture_host_layer_pad` (L7223) — Stage 1 for P1 while the host layer is armed: buttons less any claimed shortcut button; DualShock with the layer's sticks unless P1 is digital (host_view, the transform's host pad: the sticks in eithe
-- `capture_pad_slot_view` (L7246) — host_view: the port's host pad before presentation, for a title pad transform (PadExtHooks.host_pad): real sticks and buttons without the digital stick->D-pad fold, whatever the configured mode; type
-- `capture_pad_slot` (L7362) — Captures one port's pad into a netplay pad blob; the guarded flag is passed through to the view capture.
-- `capture_pad_slot_exclusive` (L7370) — Netplay-only capture: assigned PlayerInput for this slot only.
-- `apply_pad_slot_to_sio` (L7424) — Writes a captured netplay pad into its SIO port and records it for the self-check.
-- `netplay_sdl_start_held` (L7432) — Raw SDL Start face-button (ignores remaps) — pad-trace only.
-- `capture_local_human_pad` (L7448) — Local human pad for delay-sync: sample the host PlayerInput selected for this peer (see --net-input-player / auto), then recomp-net maps that blob onto local_slot (lobby seat → sim P1/P2/…).
-- `capture_override_pad` (L7518) — Build a netplay pad blob from a debug-server override without writing SIO.
-- `netplay_timing_on` (L7583) — True when PSX_NETPLAY_TIMING turns netplay timing diagnostics on; read once.
-- `netplay_note_present` (L7594) — During netplay, records the time since the previous present, for the present gap statistics.
-- `netplay_local_viewport_slot` (L7608) — The seat whose local viewport is shown in netplay, or -1 when the local viewport is off or the frame is not split.
-- `crop_present_to_netplay_local_viewport` (L7617) — Crops a presented frame in place to the netplay local viewport of this player's seat.
-- `netplay_game_local_view` (L7641) — Title-requested local view (psx_netplay_present_local_view): a seat rectangle of the display this peer presents alone, at 4:3.
-- `crop_present_to_game_local_view` (L7650) — Crop a staged ARGB frame (pitch src_w) to the scaled local-view rectangle in place; the result has pitch w * scale.
-- `netplay_present_gap_stats` (L7661) — Reports the 95th percentile and the largest gap between recent netplay presents.
-- `netplay_transform_local_pad` (L7688) — Netplay input transform ([[plugin]] netplay = "input"): this player's own title pad transform runs on its local pad before staging, so the transformed pad (buttons, sticks, presented type, NeGcon I/II
-- `netplay_admit_stall_ms` (L7740) — Admit-stall watchdog budget: PSX_NET_ADMIT_STALL_MS (default 20 s, at least 2 s).
-- `netplay_barrier_admit` (L7750) — Waits at the netplay admit barrier before the first frame; a queued quit event is drained first so it cannot end the session at once.
-- `pad_ext_guard_active` (L8028) — Main-thread implementation of the PadExtHooks seams (see pad_external_input.h for the resolution order and precedence rule).
-- `pad_ext_capture_local` (L8029) — Hook adapter: captures a port's local pad into a netplay pad blob.
-- `pad_ext_source_sample` (L8032) — Hook adapter: samples the mod controller source of a port.
-- `pad_ext_source_release` (L8035) — Hook adapter: when a source is detached, delivers one neutral frame for the port and returns it to its real SIO state.
-- `pad_ext_source_resolve` (L8046) — Hook adapter: builds the pad frame for a port from its mod source, keeping the latch bytes when the serial connection is gone.
-- `pad_ext_mouse_reset` (L8094) — Hook adapter: resets the local mouse policy.
-- `pad_ext_host_extras` (L8097) — Host extras of port s for the title transform: the assigned gamepad and its analog triggers (SDL 0..32767 -> 0..255, unthresholded).
-- `pad_ext_host_pad` (L8126) — (1) Host pad of port s before presentation, for the transform frame.
-- `pad_ext_pad_transform` (L8134) — Hook adapter: runs a mod's pad transform on one port's frame.
-- `pad_ext_mouse_fold` (L8139) — Hook adapter: folds the local mouse state into one port's pad.
-- `pad_ext_main_hooks` (L8143) — Builds the table of pad hook functions that the pad external input module calls.
-- `apply_input_override_port2` (L8161) — TCP port-2 injection (set_input/press "port":2): a digital pad plugged into port 2 for as long as a test drives it, so headless runs can reach and play two-player modes.
-- `sample_pad_into_sio` (L8189) — Samples the players' pads into the SIO ports each frame; a self-check fighter or an override can take over port 1.
-- `env_pad_hold_apply` (L8236) — Measurement aid, release builds included: PSX_HOLD_PADS="p1[,p2]" holds those raw pad words (active low, e.g.
-- `sample_headless_pad_into_sio` (L8255) — Headless version of the pad sampling: uses the self-check mash or an override instead of real controllers.
-- `netplay_hold_last_present_tick` (L8310) — §33/§35/§47: re-present last Live frame on a wall-clock cadence while guest sim is frozen (short resim) or TipHold invent-cap stall (admit spin).
-- `netplay_replay_catchup_should_live_present` (L8352) — §47/§51/§63 Layer 4: long Replay catch-up — wall-clock gate for a real VRAM present.
-- `host_stack_used` (L8398) — #include <intrin.h> /* __readgsqword — fiber TEB StackBase
-- `stack_profile_sample` (L8417) — Records one sample of the emulator's host stack use for the stack profile.
-- `stack_profile_json` (L8431) — JSON dump of the profile (callable from C: crash report + TCP command).
-- `present_ring_total` (L8457) — Returns how many presents have been recorded in the present ring.
-- `present_ring_get` (L8458) — Copies the present record with sequence number seq out of the ring; returns 0 when it is too old or not recorded yet.
-- `present_ring_commit` (L8467) — Commit this present's classification.
-- `load_transition_total` (L8498) — Returns how many load transitions have been recorded.
-- `load_transition_get` (L8501) — Copies the load transition record with sequence number seq into out; returns 0 when it is no longer in the ring.
-- `load_transition_note` (L8508) — Records a load transition whenever the read, load or turbo state changes.
-- `depth24_cutover_tick` (L8536) — Tick depth24 cutover state once per present.
-- `depth24_stage_scanout` (L8568) — Depth24 FMV: CRTC width stays full (e.g.
-- `normalize_hotkey_pad_binding` (L8611) — Keeps a hotkey pad binding when it is a valid button or combination; otherwise returns the fallback.
-- `p1_host_button_down` (L8632) — P1 host controller state for shortcut polling: the debug host layer while armed, else P1's assigned SDL gamepad.
-- `p1_host_axis_value` (L8649) — Returns one analog axis value of player 1's host pad, for shortcut polling.
-- `p1_host_present` (L8668) — True when player 1 has a host pad, from the debug host layer or an assigned controller.
-- `direct_shortcut_active` (L8677) — Whether the title's direct allowance for 'shortcut' is in force.
-- `hotkey_shortcut_down` (L8688) — Whether host shortcut 'shortcut' (PSX_ASSIST_BIND_*) bound to 'binding' is held.
-- `direct_shortcut_claim_update` (L8701) — Per frame, before P1 is sampled: the SDL buttons claimed by allowed direct shortcuts leave the guest pad (claimed, and through release once claimed while held).
-- `hotkey_pad_binding_slot` (L8720) — Returns the stored pad binding slot of a host shortcut, or NULL for an unknown shortcut.
-- `title_pad_default` (L8732) — A shortcut's pad binding before the player picks one: the title's direct button, else its Select combination unless the title turned those off.
-- `apply_title_direct_shortcut` (L8747) — game.toml [controller] direct_shortcut(_button): that shortcut's default becomes the one-button combination (saved settings still win) and the launcher captures it as one button.
-- `savestate_menu_sync_overlay` (L8783) — Gives the save state menu the window size, so its canvas follows the window's aspect.
-- `savestate_menu_close` (L8790) — Closes the save state menu and shows a short notice that it is closed.
-- `savestate_menu_toggle` (L8796) — Opens or closes the save state menu; the local mouse is reset, and nothing happens while rewind is open.
-- `savestate_menu_move` (L8815) — Moves the selected save state slot by delta, wrapping around the 12 slots.
-- `savestate_submit_slot` (L8824) — Saves to or loads from a slot when save states are on; returns 0 when they are off or the slot cannot be used.
-- `savestate_menu_submit` (L8857) — Runs the chosen save or load for the selected slot and closes the menu when that succeeds.
-- `savestate_menu_slot_from_key` (L8864) — Maps a number key (1 to 9, then 0) to a save state slot index; returns -1 for any other key.
-- `savestate_menu_handle_key` (L8876) — Handles a key press in the save state menu: moves the selection, picks a slot, or closes the menu. Repeated keys are ignored.
-- `savestate_menu_poll_nav` (L8906) — Each frame, reads the controller and keyboard to move, save, load or cancel in the save state menu, repeating held directions.
-- `rewind_toggle_buttons_down` (L8972) — True while the rewind shortcut's controller buttons are held.
-- `rewind_poll_toggle_buttons` (L8976) — Each frame, opens the rewind view when its controller shortcut is newly pressed and rewind is not already open.
-- `savestate_menu_poll_toggle_buttons` (L8986) — Each frame, opens the save state menu when its controller shortcut is newly pressed, unless rewind is open.
-- `fast_forward_toggle_flip` (L9000) — Switches manual fast-forward on or off and shows a notice; it stays off while the title blocks fast-forward.
-- `fast_forward_toggle_poll_buttons` (L9020) — Each frame, flips fast-forward when its controller shortcut is newly pressed.
-- `rewind_poll_nav` (L9028) — Each frame, reads the arrow keys to move through the rewind view.
-- `rewind_pause_present` (L9076) — Presents the frame shown in the rewind view while the game stays paused.
-- `rewind_host_pause_loop` (L9100) — Freeze guest in vblank present while the rewind filmstrip is open.
-- `host_pause_event` (L9165) — Host pause (host_overlay.h, P1).
-- `host_pause_loop` (L9169) — Freezes the game in the host pause menu: presents the paused picture and reads input until the player resumes.
-- `psx_debug_push_host_key` (L9214) — Debug: inject a host key / gamepad button as an SDL event, so scripted runs can drive host UI (the overlay) through the real event path.
-- `psx_debug_push_host_mouse_ex` (L9237) — Debug: inject mouse input at (x, y) in window points: a move there, then a wheel step (wheel != 0) or, by action, a click (0), press (1), release (2) or nothing more (3) of 'button' (SDL_BUTTON_LEFT/M
-- `psx_debug_push_host_mouse` (L9265) — Debug entry point: injects a mouse move to x, y and a wheel step of the given size; returns the result of the extended call.
-- `host_pause_refuse_netplay` (L9269) — Returns 1 when the host pause must be refused because netplay is running, else 0.
-- `savestate_menu_host_pause_loop` (L9272) — Freeze guest in vblank present while the save-state slot menu is open.
-- `title_page_close` (L9346) — Closes the title's page and clears its input and redraw hooks.
-- `psx_mod_open_title_page` (L9357) — Opens a title page over the game when no save state menu, rewind or netplay is active; returns 0 when it cannot open.
-- `psx_mod_title_page_open` (L9372) — Returns 1 while a title page is open, else 0.
-- `psx_mod_title_page_run_game` (L9373) — Called right before psx_mod_open_title_page: that page opens over the running game instead of pausing it.
-- `psx_bug_report_close_page` (L9375) — The bug report's form closed outside the page's input (debug server).
-- `psx_mod_title_page_redraw` (L9376) — Redraws the title page's canvas now.
-- `psx_mod_set_title_hud` (L9377) — A title's HUD over the running game (e.g.
-- `psx_mod_title_hud_redraw` (L9378) — Redraws the title's HUD canvas now.
-- `psx_mod_set_title_toast` (L9379) — A title's notices (toasts) over everything: the same kind of canvas, drawn after every effect and over the save state menu, a page and the HUD too (blended over them), so a notice shows whatever is op
-- `psx_mod_title_toast_redraw` (L9380) — Redraws the title's notice canvas now.
-- `psx_mod_set_osd_handler` (L9381) — Sets the handler that receives the host's on-screen notices for the title.
-- `psx_mod_set_title_canvas_scale` (L9382) — The title canvases (save state menu renderer, page, HUD, notices) at 'scale' x their size: 240 x scale lines, as wide as the window's aspect gives (320..1024 x scale columns).
-- `psx_mod_title_canvas_scale` (L9383) — Returns the current scale of the title canvases.
-- `psx_mod_set_perf_handler` (L9384) — Sets the handler that receives the performance figures; with telemetry on, the status text is cleared so the next figures go to the new owner.
-- `psx_mod_set_volume_handler` (L9389) — Sets the handler the host calls for the volume control.
-- `psx_mod_host_pad_kind` (L9390) — Returns the kind of host pad (Xbox, PlayStation or generic); the PSX_PAD_KIND variable can override it.
-- `psx_mod_request_screenshot` (L9428) — Save the next presented picture (with the OSD, a page or HUD, as shown) as a PNG at path; 0 when the backend cannot read it back (Vulkan, headless).
-- `psx_mod_set_pointer_image` (L9429) — A title's mouse pointer (OpenGL): 'argb' (straight alpha, at most 64 x 64, copied) is drawn last at every swap -- over every effect, the OSD, the save state menu, pages, HUD and notices -- each of its
-- `psx_mod_set_pointer` (L9432) — Shows or hides the title's mouse pointer and places it at x and y.
-- `psx_mod_set_pointer_scale` (L9435) — The pointer's size: each image pixel is 'scale' game pixels (1, the default, one; 0.5 half as big; whole screen pixels per image pixel once that is 1 or more).
-- `psx_mod_window_to_display` (L9438) — Window coordinates (as SDL's mouse events give them) to the display pixels of the last game picture presented (0..display width x 0..height; a native-wide picture's margins fall below 0 and past the w
-- `psx_mod_savestate_menu_command` (L9441) — Runs a command (op) on the open save state menu for a slot, such as closing it; returns 0 when the menu is not open.
-- `psx_mod_savestate_menu_set_buttons` (L9455) — The controller's buttons in the save state menu, as SDL gamepad buttons: for a title whose confirm is not the south button, or whose player moved it.
-- `psx_mod_savestate_menu_selected` (L9460) — The save state menu's selected slot while it is open, else -1.
-- `title_page_buttons` (L9465) — P1's controller as PSX_MOD_PAGE_* bits (the debug host layer too).
-- `title_page_running_service` (L9490) — One frame of a page over the running game: the host's buttons, with the pause loop's held-at-opening and repeat rules.
-- `title_page_service` (L9514) — Each frame, runs the open title page: over the running game, or through the host pause loop while the game is paused.
-- `title_page_host_pause_loop` (L9520) — Holds the game paused while a title page is open, reading the host controller for page navigation.
-- `headless_present_image_ring_capture` (L9624) — Headless has no present surface, but automated A/B runs still need the frame-indexed record of what a windowed build would show: the displayed band of the native-wide surface on a wide game frame, oth
-- `host_player_input_event` (L9697) — Handles a keyboard, mouse or controller event for player 1 and returns true when the event was used.
-- `disc_tray_toast` (L9715) — What the player sees after a lid cycle they (or the title) asked for.
-- `disc_request_poll` (L9737) — game.toml [[game.disc_requests]]: once per VBlank, on the emulation thread, put in the disc the title is asking for.
-- `drain_host_events` (L9744) — Handles every pending SDL event, dropping the ones a plugin's input block holds back.
-- `local_mouse_live` (L9923) — True when the local mouse may drive the game this frame, given the debug pad override word.
-- `sdl_vblank_present_body` (L9943) — Body of one VBlank present: finishes the frame's presentation and returns the netplay epilogue for the caller.
-- `render_thread_vblank` (L11300) — Render thread: start once, then close every frame (after its present, before pacing, so the render thread draws while the guest waits).
-- `dynres_requested` (L11346) — The dynamic resolution setting in force: the environment value when set, else the saved setting.
-- `dynres_min_value` (L11350) — The lowest dynamic resolution scale in force: the environment value when set, else the saved minimum.
-- `dynres_setup` (L11357) — After GL context init: the ceiling is what the backend allocated, the floor the configured minimum as a scale (never above the ceiling).
-- `psx_input_pad_shortcut_get` (L11403) — ---- psx_input_config.h: controller shortcut bindings ([hotkeys] *_pad) ----
-- `psx_input_pad_shortcut_set` (L11408) — Sets the controller binding of a host shortcut; returns 0 for an unknown shortcut or an invalid binding.
-- `psx_input_pad_shortcuts_save` (L11415) — Write the four bindings to settings.toml [hotkeys].
-- `psx_input_host_keys_save` (L11427) — static std::string g_host_keymap_path; /* the config.ini [KeyMap] came from
-- `psx_input_host_pad_button` (L11432) — ---- psx_input_config.h: host actions for a title's own shortcuts ---------
-- `psx_input_host_action` (L11436) — Runs a host action for a title's own shortcut, such as opening the save state menu; returns 0 when refused.
-- `psx_input_savestate_submit` (L11450) — Save to / load from user slot 0..SAVESTATE_SLOTS-1 as the save state menu does: refused (with an OSD note) where the menu would refuse; the result comes later through the usual notification.
-- `psx_input_set_player_savestates` (L11455) — The player's save states on (1, the default) or off (0), e.g.
-- `psx_input_player_savestates` (L11460) — Returns 1 when player save states are on, else 0.
-- `psx_video_current` (L11462) — Fills the video settings struct with the current fullscreen, scale and filter settings.
-- `psx_video_apply_live` (L11482) — Runtime side (main.cpp).
-- `debug_toggles_on` (L11576) — True when debug toggle keys are on: from the PSX_DEBUG_TOGGLES variable, else the saved setting.
-- `dbg_texfilter_name` (L11582) — Returns the name of a texture filter number, for debug output.
-- `debug_toggle_summary` (L11585) — Writes a one-line summary of the debug toggles and the current scale, dynamic resolution and widescreen state into buf.
-- `debug_toggle_key` (L11603) — Applies the debug toggle bound to a key and writes a short message into out; returns nonzero when the key was a toggle.
-- `psx_debug_toggle_key` (L11693) — Debug server: simulate a toggle key ({"cmd":"debug_key","key":"1"}).
-- `dynres_apply_level` (L11708) — Sets the dynamic resolution to a level, changing the renderer scale only when the level differs from the current one.
-- `dynres_tick_rt` (L11730) — Render-thread mode: one sample per guest VBlank from what the render thread measured since the last one (its frames' costs arrive a few frames late) and the time the emulation thread spent blocked on
-- `dynres_tick` (L11812) — One guest VBlank, after its present.
-- `psx_dynres_summary` (L11949) — Debug server (dynres, dynres_force, video_info).
-- `psx_dynres_force` (L11958) — Forces the dynamic resolution to a scale for debugging; returns the level set, or -1 when dynamic resolution is off.
-- `psx_dynres_status_json` (L11966) — Writes the dynamic resolution status as JSON into out, from the render-thread or control state.
-- `sdl_vblank_present` (L12046) — Presents one VBlank: marks the performance meter's VBlank boundary, then runs the VBlank epilogue as its own section.
-- `sdl_vblank_present_` (L12054) — Runs the body of a VBlank present: syncs the guest cadence, presents the frame, and sets the turbo draw-skip state for the next frame.
-- `netplay_expect_for_disc` (L12103) — The netplay mount policy for ONE image.
-- `gcs_gate_read_ram` (L18004) — Reads a span of guest RAM at phys for the gate check; returns 0 when RAM is not available.
-- `mh_quality_live_rows` (L18058) — std::string g_ovl_q_summary, g_ovl_q_reason; /* fixed at menu setup
-- `mh_refresh_snapshot` (L18076) — Refreshes the overlay menu's snapshot of the current video settings and netplay state.
-- `mh_netplay_active` (L18095) — Returns 1 when netplay is active as the overlay menu last saw it, else 0.
-- `ovl_open` (L18106) — True when the overlay menu is open.
-- `mh_set_paused` (L18108) — Asks for the game to pause or resume from the overlay menu; pausing is refused during netplay and then returns 0.
-- `mh_video_get` (L18113) — Copies the current video settings, as the overlay menu sees them, into out.
-- `mh_restart_bits` (L18118) — Works out which restart groups a video settings change touches, returned as bits.
-- `mh_video_apply` (L18136) — Applies a video settings change from the overlay menu and returns the restart bits it needs.
-- `mh_mod_set` (L18151) — The provider never touches the mod catalogue itself (it may run on the GL thread): every change is posted here, recorded in the catalogue and saved to mods/state.toml on the main thread, and handed to
-- `mh_reload_bindings` (L18158) — Asks the main thread to reload the key bindings after an overlay menu change.
-- `mh_request_exit` (L18159) — Asks the program to exit from the overlay menu, quitting or relaunching; an unknown value means quit.
-- `mh_disc_count` (L18173) — Returns how many discs the disc tray can switch between.
-- `mh_disc_mounted` (L18174) — Returns the number of the disc currently in the tray.
-- `mh_disc_path` (L18175) — Returns the file path of disc number n in the set.
-- `disc_cycle_now` (L18176) — Switches the tray to disc n from the overlay menu and returns the tray result code.
-- `mh_disc_insert` (L18188) — Requests that disc n be inserted; returns -1 for a bad number, 3 during netplay, otherwise the request result.
-- `ovl_video_from` (L18199) — Builds the video settings to apply from the launcher settings, keeping the fields the menu does not show.
-- `mh_launcher_settings_get` (L18215) — Fills the launcher settings with the current video settings.
-- `mh_launcher_settings_apply` (L18252) — Applies the launcher's settings as a video change and returns the restart bits it needs.
-- `mh_quality_redetect` (L18263) — Returns the graphics quality preset detected for this machine.
-- `mh_launcher_game_info` (L18265) — Fills the launcher's game info for this title, including its profile and quality settings.
-- `ovl_sink` (L18320) — Passes an overlay input event to the overlay's event handler; returns 0 when no overlay is loaded.
-- `ovl_draw` (L18321) — Asks the overlay to draw itself at the window size w by h.
-- `recomp_overlay_setup` (L18332) — Sets up the overlay menu on the main thread once per GL context: the preset strings and the display its preset rows use.
-- `psx_debug_menu_host_json` (L18379) — Debug server: menu host state (provider, open, pause, capture, snapshot).
-- `recomp_overlay_detach` (L18398) — Before the GL context goes away (session teardown), with it current: the draw hook is removed first (it waits for an in-flight draw), then the provider frees its GL objects.
-- `host_pause_service` (L18410) — Each frame, while the host pause is on, refreshes the menu snapshot and sets the UI capture state.
-- `main` (L18563) — Program entry point: sets up the runtime from the command line, runs the emulation loop and returns the exit code.
+- `audio_legacy_mode` (L3337) — Observability + A/B. PSXRECOMP_AUDIO_LEGACY=1 keeps the historical push model (SDL_QueueAudio, no bridge) so the underrun baseline can be measured against the bridge from a single build; default (unse
+- `sdl_drc_callback` (L3354) — SDL audio callback: fills the output stream from the audio ring buffer, or writes silence while the buffer is not ready.
+- `find_upward` (L3364) — Walks up from a start folder until it finds a folder that holds the marker file; returns that folder or an empty path.
+- `exe_dir_from_argv` (L3387) — The directory the running executable lives in — the SINGLE anchor for every runtime file (game.toml, disc, BIOS, settings.toml, caches, memcards, sidecar .cfg).
+- `resolve_existing_runtime_path` (L3420) — Resolves a path given on the command line to an existing runtime file; empty when no such file is found.
+- `sidecar_cfg_path` (L3440) — Path of a sidecar config file: disc.cfg lives in the player's folder, the others next to the exe.
+- `anchor_on_exe_dir` (L3451) — Relative paths in settings.toml and the bios.cfg / disc.cfg sidecars are relative to the game folder.
+- `read_cached_path` (L3457) — Reads a saved path from a sidecar config file; returns an empty path when the file is missing.
+- `user_dir_from_argv` (L3475) — userdir.cfg next to the exe (one line, like disc.cfg; relative = from the exe folder) names the player's folder: settings.toml, config.ini, input.ini, keybinds.ini, disc.cfg and the default memcard_di
+- `psx_user_dir` (L3486) — The player's folder named by userdir.cfg next to the exe (settings, keys, cards); "" when it is the exe folder.
+- `write_cached_path` (L3488) — Writes a path into a sidecar config file, relative to the game folder when it lies inside it.
+- `frontend_unattended` (L3499) — Nobody is at the screen: never block on a modal dialog or a file picker.
+- `launcher_warning` (L3501) — Prints a warning to stderr and, when someone is at the screen, also shows it in a message box.
+- `launcher_info` (L3510) — Prints an info message to stderr and shows it in a message box unless the run is unattended.
+- `pick_runtime_file` (L3519) — Asks the player to pick a file in a dialog; never opens a dialog in headless runs, where it returns false.
+- `expected_serial_for_disc` (L3602) — The serial THIS image is expected to carry: the set's per-disc value when the game declared one, the game's own id otherwise.
+- `uppercase_ascii` (L3609) — Returns a copy of the string with its ASCII letters in upper case.
+- `region_label_from_serial` (L3620) — Region display label for the launcher, derived from the game-id serial prefix (e.g.
+- `read_at` (L3631) — Reads len bytes at a file offset into out; returns false when the seek or the read fails.
+- `validate_disc_image` (L3646) — Checks a disc image against the game ID through the shared disc-identity module; the result says whether it opened and matched.
+- `validate_disc_for_launch` (L3670) — True when the disc image opens and matches the game ID, so it may be launched; otherwise false.
+- `normalize_disc_path_for_launch` (L3690) — Returns the path the disc resolver mounts, so a usable cue keeps its track map.
+- `resolve_persisted_disc_path` (L3695) — Resolves a disc path saved in the settings against the exe folder and normalizes it for launch; empty when the path is empty.
+- `roster_index_for_disc` (L3719) — Which image of a MULTI-DISC set to mount, given the roster this build was made from (game.toml [game] discs), the player's persisted [disc] selected index, and the [disc] path the launcher last wrote.
+- `resolve_selected_disc` (L3729) — Picks the disc to mount from a multi-disc roster and the player's selection; for a single disc it returns the saved path.
+- `bios_backend_for_file` (L3752) — Identity-match a file against a linked backend.
+- `bios_module_supported_here` (L3781) — True when a BIOS module supports the exe folder.
+- `bios_accepted_images` (L3786) — Returns a text list of the BIOS image names accepted by the linked BIOS backends, for messages.
+- `validate_bios_for_launch` (L3809) — Identity-gate a player-chosen BIOS and activate its backend on success.
+- `resolve_bios_for_runtime` (L3864) — Resolve which BIOS image file to load, and activate its backend.
+- `resolve_disc_for_runtime` (L3962) — Works out which disc to mount at startup from the config, the override argument and the game ID; returns the chosen path.
+- `resolve_bios_path` (L4017) — Resolves the BIOS file path from the requested argument, looking in the exe folder; empty when none is found.
+- `retail_bios_file_ok` (L4062) — First-run / setup discovery of a retail BIOS the player already dumped next to the game (docs/BIOS_SELECTION.md).
+- `discover_retail_bios_near` (L4088) — Looks next to the game for a retail BIOS dump under a known file name; returns its path or an empty path.
+- `resolve_match_session_bios_path` (L4122) — Match-only BIOS from lobby 'session_bios'.
+- `default_memcard_dir` (L4166) — Fallback memcard directory used when no game config (or its [runtime] block) specifies one: the executable's directory (authoritative, never cwd — see exe_dir_from_argv), so saves always live next to
+- `apply_netplay_local_viewport_aspect` (L4186) — Applies the netplay local viewport aspect when netplay is on and the viewport mode asks for it.
+- `host_refresh_matches_guest_cadence` (L4221) — Host-only: lockstep already couples peers.
+- `refresh_host_display_cadence` (L4228) — Re-reads the host display refresh rate and updates the frame cadence; the force flags make it log or probe again.
+- `guest_video_standard_hz` (L4304) — Frame rate of the guest's video standard: 50 Hz for PAL, otherwise the NTSC rate from the frame period.
+- `sync_guest_cadence_to_video_standard` (L4308) — Updates the guest frame period when the video standard changes between PAL and NTSC.
+- `host_driver_vsync_unreliable` (L4336) — Reports whether the display driver's vsync cannot be trusted: always 0 on Windows, a platform check elsewhere.
+- `present_vsync_owns_cadence` (L4366) — True when vsync sets the frame cadence: vsync is on and not turned off by netplay or by the driver check.
+- `psx_present_vsync_owns_cadence` (L4382) — C accessor for the renderers (frame_pacing.h).
+- `present_effective_swap_interval` (L4386) — The swap interval to present with: 0 when netplay forces vsync off, otherwise a value from the vsync and interpolation settings.
+- `present_should_wall_pace` (L4398) — True when the outer frame pacer should wait; it stays off when frame interpolation already splits the frame interval.
+- `apply_present_cadence` (L4423) — Applies the present swap interval to the GL context or the SDL window.
+- `psx_video_set_vsync` (L4438) — Live display controls for trusted title plugins (an in-game options page).
+- `psx_video_set_smooth_motion` (L4449) — Smooth motion from a mod's menu, live: frame generation needs the render thread, which otherwise starts only at the first VBlank of a session; asked here, it starts at the next VBlank (render_thread_v
+- `psx_video_hold_smooth_motion` (L4465) — Smooth motion for a while, nothing saved: a title whose own 60 fps falls back to 30 in some scenes holds it on there, so the picture keeps 60.
+- `psx_video_get_vsync` (L4477) — Returns 1 when vsync is on, else 0.
+- `psx_video_set_window_size` (L4478) — Resizes the game window to w by h when it is windowed and at least 320 by 240; otherwise does nothing.
+- `psx_video_get_window_size` (L4484) — Writes the game window's width and height into w and h; zero when there is no window.
+- `psx_video_set_fps_overlay` (L4490) — Turns the frame-rate overlay on or off, toggling telemetry only when its state changes.
+- `psx_video_get_fps_overlay` (L4493) — Returns 1 when the frame-rate overlay is on, else 0.
+- `log_present_cadence` (L4495) — Logs which of vsync or the frame pacer owns the present cadence, for diagnostics.
+- `netplay_host_present_uncap` (L4534) — Turns vsync off for the netplay host's presentation and reapplies the cadence.
+- `netplay_host_present_restore` (L4539) — Restores vsync for the netplay host's presentation after the uncap, when it had been turned off.
+- `netplay_soft_exit` (L4549) — Ends a netplay session after a disconnect and tells the player why: a boot-digest mismatch or the other player leaving.
+- `netplay_hostport_addr` (L4577) — "address:port" as the netplay library reads it: the port follows the last colon and must be a number up to 65535, an empty address means every address of this computer, and a name is looked up (IPv4).
+- `netplay_bind_probe` (L4626) — Why a LAN netplay start failed.
+- `netplay_start_failure` (L4699) — A netplay start failed: print what failed and return the sentence for the player.
+- `shutdown_runtime` (L4727) — Shuts the runtime down in order, starting with the local mouse, then the background workers and devices.
+- `teardown_game_session_keep_lobby` (L4754) — Tear down the game window/GL/audio after a lobby soft-return.
+- `sdl_audio_gain_ramp` (L4807) — Linear gain ramp g0 -> g1 across a block of interleaved stereo frames.
+- `turbo_audio_mode` (L4827) — Turbo audio mode from PSX_TURBO_AUDIO: 0 drops the excess audio, 1 compresses it in time, 2 uses the music classifier; read once.
+- `psx_mod_set_turbo_audio` (L4835) — The manual fast-forward's sound: 0 as it was (the audio bridge drops the excess in blocks: a click at every seam), 1 compressed in time (audio_turbo.h: the pitch kept, no seams, at any speed), 2 that
+- `psx_mod_set_music_voice_classifier` (L4838) — Mode 2's classifier: the title's music voices right now (bit v = SPU voice v), called at each key-on in the guest's own SPU access (read RAM only).
+- `psx_mod_music_changed` (L4841) — Tells the audio module that the title's music has changed.
+- `sdl_audio_pump` (L4843) — Advances the SPU by the guest's cycles and queues its samples for the audio device; discard_output drops them instead.
+- `psx_audio_out_stats` (L5024) — Audio gating across turbo-loads transitions.
+- `runtime_perf_parse_window` (L5104) — Parses a start and end frame window from text for the runtime perf diagnostic; returns false when the text is not valid.
+- `runtime_perf_init` (L5119) — Reads PSX_RUNTIME_PERF_DIAG once to decide whether the runtime perf diagnostic is on.
+- `runtime_perf_snapshot` (L5162) — Captures the current counter, frame number and the other timing counters into one snapshot.
+- `runtime_perf_ticks_ms` (L5189) — Converts performance counter ticks to milliseconds.
+- `runtime_perf_bench_tick` (L5193) — Advances the benchmark window of the runtime perf diagnostic: starts it at the configured frame and reports when it ends.
+- `runtime_perf_frame_begin` (L5239) — Start of a frame for the runtime perf diagnostic: initializes it and records the frame start time when it is enabled.
+- `runtime_perf_frame_end` (L5251) — End of a frame for the runtime perf diagnostic: records when the frame exited.
+- `runtime_perf_section_begin` (L5261) — Returns the counter at the start of a timed section, or 0 when the diagnostic is off.
+- `runtime_perf_section_end` (L5265) — Adds the time since start to a section's total; does nothing when start is 0.
+- `frame_report_tick` (L5285) — Frame-rate readout available in EVERY product, release included.
+- `runtime_perf_diag_tick` (L5341) — Each tick, prints the runtime perf line with frame timing and the audio underrun and overflow counts.
+- `spu_output_suppressed` (L5455) — spu.c output gate: samples rendered during rollback resimulation (already heard once) and during the FMV-skip mute advance the SPU but are not queued for the host.
+- `sdl_audio_pump_midframe` (L5461) — Invoked from the guest-derived VBlank edge (interrupts.c).
+- `sdl_audio_update` (L5482) — Each audio pass: tags the audio events with the frame counter and runs the audio path, honoring the hard-mute and turbo sink settings.
+- `controller_map_for` (L5638) — Returns the button map for a player: the map saved for that controller's GUID when there is one, else the shared default map.
+- `trim_copy` (L5646) — Returns a copy of the string without its leading and trailing white space.
+- `resolve_overlay_capture_path` (L5658) — Resolve the durable additive overlay-capture store.
+- `lower_copy` (L5729) — Returns a lower-case copy of the string.
+- `parse_bool_value` (L5735) — Reads a true or false word (1, yes, on, true and their opposites); returns the fallback for anything else.
+- `parse_controller_source` (L5742) — Parses one controller source name from input.ini into a source; none, disabled or empty gives no source.
+- `parse_source_list` (L5843) — Splits a comma-separated list of controller source names into a list of sources.
+- `apply_sources_to_map` (L5856) — Sets the sources of one named PSX input in a controller map from its source list text.
+- `set_default_controller_mapping_into` (L5866) — Fills a controller map with the default mapping, keeping the D-pad and sticks separate.
+- `set_default_controller_mapping` (L5896) — Resets the shared controller map to the defaults and clears the per-controller maps.
+- `default_input_ini_text` (L5901) — Returns the text of a default input.ini file: comments and the default mapping lines.
+- `load_input_config` (L5944) — Loads the controller mapping from input.ini in the player's folder, starting from the default mapping.
+- `controller_source_name` (L6032) — ---- psx_input_config.h: the controller map for a title's controls menu ----
+- `controller_sources_text` (L6046) — Writes a list of controller sources as the comma-separated text used in input.ini.
+- `controller_map_entry` (L6056) — Finds the map entry for an input.ini name; returns NULL when there is none.
+- `psx_input_map_get` (L6062) — The sources of one PSX input of the controller map as input.ini writes them ("a", "leftshoulder,rightx-", "" = none).
+- `psx_input_map_set` (L6069) — Replace them, in the global map and every per-controller one.
+- `psx_input_map_save` (L6081) — input.ini rewritten line by line: a mapping key's value replaced by the current map, missing [mapping] keys added at the end of that section, every other line (comments, [controller], unknown keys) ke
+- `player_ffb_backend` (L6153) — Returns the force-feedback backend of one player's haptic device.
+- `jogcon_ffb_neutral_all` (L6158) — Pause / disconnect / session end: the wheel goes neutral now.
+- `psx_jogcon_ffb_set_player_enabled` (L6169) — The player's EXPERIMENTAL wheel force-feedback setting, live: takes effect on the next VBlank; turning it off makes every wheel neutral now.
+- `psx_jogcon_ffb_player_enabled` (L6177) — Returns 1 when the experimental wheel force feedback is on, else 0.
+- `close_player_haptic` (L6179) — Sets one player's wheel to neutral and closes its force-feedback device.
+- `close_player` (L6186) — Closes one player's controller and its haptic device, and stops its rumble.
+- `close_controller` (L6202) — Closes the controller of every player slot.
+- `device_claimed_by_other` (L6207) — True when another player slot already uses the same controller device.
+- `open_player` (L6219) — Open the SDL controller whose GUID matches p.guid.
+- `update_jogcon_ffb` (L6292) — Forward the emulated DualShock's two motors to the SDL controller assigned to the same PSX port.
+- `update_controller_rumble` (L6321) — Each frame, sends the rumble strength to each player's controller; PSX_RUMBLE_TRACE turns on a trace.
+- `pad_mode_boot_analog` (L6379) — The pad type a mode reports before any input has been sampled (boot / hotplug).
+- `pad_type_boot` (L6383) — The pad type shown at boot for a player: a JogCon wheel, a DualShock when analog, else a digital pad.
+- `pad_type_boot_for_slot` (L6390) — Boot/hotplug type for slot s: a registered title pad transform names the type it presents before its first frame; otherwise the device/mode type.
+- `effective_player_mode` (L6398) — Keyboard mappings can drive both DualShock sticks.
+- `effective_player_mode_for_sio` (L6404) — Pad mode for the SIO seat this sample will drive.
+- `assert_sio_pad_profile` (L6414) — Assert one slot's real SIO profile (connection, config capability) from its device/mode/policy and return the pad mode to present at boot.
+- `refresh_player_devices` (L6437) — Open/close SDL handles so they match g_players, and (re)assert each slot's PSX connection + pad type.
+- `set_player_device` (L6469) — Parse a [controller] device string into a player slot: "none" -> no pad; "keyboard" -> keyboard map; otherwise an SDL GUID.
+- `controller_source_pressed_h` (L6493) — Stick→button (Digital D-Pad fold): per-axis deadzone.
+- `pad_from_keyboard` (L6519) — Keyboard -> PSX button word for 'player' (1 or 2), via the configurable keybinds.ini map (psx_keybinds).
+- `source_is_stick_axis` (L6534) — A left/right ANALOG-STICK axis source (LEFTX/LEFTY/RIGHTX/RIGHTY), as opposed to a trigger axis (L2/R2) or a button.
+- `controller_pad_buttons` (L6546) — Build the active-low PSX button word from a controller's input.ini map.
+- `axes_to_pad_pair` (L6593) — Radial deadzone: process a stick's X and Y together so the dead region is a small CIRCLE, not a per-axis square.
+- `pad_buttons_for` (L6602) — Buttons for a player's selected device (0xFFFF = none pressed).
+- `pad_sticks_for` (L6629) — Analog stick bytes (lx,ly,rx,ry) for a player; centred if no live source.
+- `controller_stick_active` (L6705) — Controller-policy facts exposed to trusted game-owned plugins.
+- `controller_mapped_dpad_active` (L6714) — True when the controller's mapped D-pad or stick is pressed beyond the deadzone.
+- `pad_sources_for` (L6743) — Works out which inputs drive one player's pad: the controller device and the keyboard bindings.
+- `controller_policy_stick_active` (L6769) — True when the controller policy sees the player's analog stick as active.
+- `controller_policy_dpad_active` (L6786) — True when the controller policy sees the player's D-pad as active.
+- `controller_policy_resolve_mode` (L6815) — Picks the pad mode a mod controller policy presents for a player, from the configured mode and the live input.
+- `controller_policy_resolve_override_mode` (L6852) — Picks the pad mode for a player under a mod override, from the buttons and the live stick and D-pad state.
+- `dev_any_input_enabled` (L6907) — Sample each player's live device state into the matching SIO pad slot.
+- `dev_all_controllers_buttons` (L6924) — Merge (active-low AND) the button words of every connected game controller.
+- `dev_any_controller_sticks` (L6949) — Fold the first live (non-neutral) left/right stick from ANY connected controller into st[] (lx,ly,rx,ry).
+- `savestate_input_guard_arm` (L6969) — Starts the save state input guard: resets the local mouse and blocks input for a short time after a save or load.
+- `any_controller_button_down` (L6976) — True when any connected game controller has a button pressed.
+- `savestate_resume_inputs_held` (L6992) — True when a key or controller button used to confirm the save state menu is still held.
+- `input_block_service` (L7006) — Once per frame, before shortcuts and pads are read: a block that ended lasts until no key or button is held.
+- `memcard_write_note` (L7014) — While the card's write to disk keeps failing, a note every 20 s.
+- `savestate_input_guard_active` (L7023) — True while the save state input guard blocks input after a save or load.
+- `restore_input_override_profile` (L7053) — Ends a debug input override for one slot and restores that slot's normal pad type and connection.
+- `apply_input_override_to_sio` (L7059) — Applies a debug input override word to the SIO pad when debug overrides are set.
+- `psx_mod_read_local_pad_sticks` (L7135) — Local host sticks for presentation-only mods (mod_plugins.h).
+- `host_pad_layer` (L7183) — Capture one SIO slot's PHYSICAL host pad into a netplay/local blob.
+- `host_layer_sdl_held` (L7212) — Converts a PSX button word into the SDL buttons it stands for, for the host layer.
+- `host_layer_release_claimed` (L7219) — Adds back the PSX bits of host buttons that a shortcut has claimed, so claimed buttons read as released.
+- `capture_host_layer_pad` (L7228) — Stage 1 for P1 while the host layer is armed: buttons less any claimed shortcut button; DualShock with the layer's sticks unless P1 is digital (host_view, the transform's host pad: the sticks in eithe
+- `capture_pad_slot_view` (L7251) — host_view: the port's host pad before presentation, for a title pad transform (PadExtHooks.host_pad): real sticks and buttons without the digital stick->D-pad fold, whatever the configured mode; type
+- `capture_pad_slot` (L7367) — Captures one port's pad into a netplay pad blob; the guarded flag is passed through to the view capture.
+- `capture_pad_slot_exclusive` (L7375) — Netplay-only capture: assigned PlayerInput for this slot only.
+- `apply_pad_slot_to_sio` (L7429) — Writes a captured netplay pad into its SIO port and records it for the self-check.
+- `netplay_sdl_start_held` (L7437) — Raw SDL Start face-button (ignores remaps) — pad-trace only.
+- `capture_local_human_pad` (L7453) — Local human pad for delay-sync: sample the host PlayerInput selected for this peer (see --net-input-player / auto), then recomp-net maps that blob onto local_slot (lobby seat → sim P1/P2/…).
+- `capture_override_pad` (L7523) — Build a netplay pad blob from a debug-server override without writing SIO.
+- `netplay_timing_on` (L7588) — True when PSX_NETPLAY_TIMING turns netplay timing diagnostics on; read once.
+- `netplay_note_present` (L7599) — During netplay, records the time since the previous present, for the present gap statistics.
+- `netplay_local_viewport_slot` (L7613) — The seat whose local viewport is shown in netplay, or -1 when the local viewport is off or the frame is not split.
+- `crop_present_to_netplay_local_viewport` (L7622) — Crops a presented frame in place to the netplay local viewport of this player's seat.
+- `netplay_game_local_view` (L7646) — Title-requested local view (psx_netplay_present_local_view): a seat rectangle of the display this peer presents alone, at 4:3.
+- `crop_present_to_game_local_view` (L7655) — Crop a staged ARGB frame (pitch src_w) to the scaled local-view rectangle in place; the result has pitch w * scale.
+- `netplay_present_gap_stats` (L7666) — Reports the 95th percentile and the largest gap between recent netplay presents.
+- `netplay_transform_local_pad` (L7693) — Netplay input transform ([[plugin]] netplay = "input"): this player's own title pad transform runs on its local pad before staging, so the transformed pad (buttons, sticks, presented type, NeGcon I/II
+- `netplay_admit_stall_ms` (L7745) — Admit-stall watchdog budget: PSX_NET_ADMIT_STALL_MS (default 20 s, at least 2 s).
+- `netplay_barrier_admit` (L7755) — Waits at the netplay admit barrier before the first frame; a queued quit event is drained first so it cannot end the session at once.
+- `pad_ext_guard_active` (L8033) — Main-thread implementation of the PadExtHooks seams (see pad_external_input.h for the resolution order and precedence rule).
+- `pad_ext_capture_local` (L8034) — Hook adapter: captures a port's local pad into a netplay pad blob.
+- `pad_ext_source_sample` (L8037) — Hook adapter: samples the mod controller source of a port.
+- `pad_ext_source_release` (L8040) — Hook adapter: when a source is detached, delivers one neutral frame for the port and returns it to its real SIO state.
+- `pad_ext_source_resolve` (L8051) — Hook adapter: builds the pad frame for a port from its mod source, keeping the latch bytes when the serial connection is gone.
+- `pad_ext_mouse_reset` (L8099) — Hook adapter: resets the local mouse policy.
+- `pad_ext_host_extras` (L8102) — Host extras of port s for the title transform: the assigned gamepad and its analog triggers (SDL 0..32767 -> 0..255, unthresholded).
+- `pad_ext_host_pad` (L8131) — (1) Host pad of port s before presentation, for the transform frame.
+- `pad_ext_pad_transform` (L8139) — Hook adapter: runs a mod's pad transform on one port's frame.
+- `pad_ext_mouse_fold` (L8144) — Hook adapter: folds the local mouse state into one port's pad.
+- `pad_ext_main_hooks` (L8148) — Builds the table of pad hook functions that the pad external input module calls.
+- `apply_input_override_port2` (L8166) — TCP port-2 injection (set_input/press "port":2): a digital pad plugged into port 2 for as long as a test drives it, so headless runs can reach and play two-player modes.
+- `sample_pad_into_sio` (L8194) — Samples the players' pads into the SIO ports each frame; a self-check fighter or an override can take over port 1.
+- `env_pad_hold_apply` (L8241) — Measurement aid, release builds included: PSX_HOLD_PADS="p1[,p2]" holds those raw pad words (active low, e.g.
+- `sample_headless_pad_into_sio` (L8260) — Headless version of the pad sampling: uses the self-check mash or an override instead of real controllers.
+- `netplay_hold_last_present_tick` (L8315) — §33/§35/§47: re-present last Live frame on a wall-clock cadence while guest sim is frozen (short resim) or TipHold invent-cap stall (admit spin).
+- `netplay_replay_catchup_should_live_present` (L8357) — §47/§51/§63 Layer 4: long Replay catch-up — wall-clock gate for a real VRAM present.
+- `host_stack_used` (L8403) — #include <intrin.h> /* __readgsqword — fiber TEB StackBase
+- `stack_profile_sample` (L8422) — Records one sample of the emulator's host stack use for the stack profile.
+- `stack_profile_json` (L8436) — JSON dump of the profile (callable from C: crash report + TCP command).
+- `present_ring_total` (L8462) — Returns how many presents have been recorded in the present ring.
+- `present_ring_get` (L8463) — Copies the present record with sequence number seq out of the ring; returns 0 when it is too old or not recorded yet.
+- `present_ring_commit` (L8472) — Commit this present's classification.
+- `load_transition_total` (L8503) — Returns how many load transitions have been recorded.
+- `load_transition_get` (L8506) — Copies the load transition record with sequence number seq into out; returns 0 when it is no longer in the ring.
+- `load_transition_note` (L8513) — Records a load transition whenever the read, load or turbo state changes.
+- `depth24_cutover_tick` (L8541) — Tick depth24 cutover state once per present.
+- `depth24_stage_scanout` (L8573) — Depth24 FMV: CRTC width stays full (e.g.
+- `normalize_hotkey_pad_binding` (L8616) — Keeps a hotkey pad binding when it is a valid button or combination; otherwise returns the fallback.
+- `p1_host_button_down` (L8637) — P1 host controller state for shortcut polling: the debug host layer while armed, else P1's assigned SDL gamepad.
+- `p1_host_axis_value` (L8654) — Returns one analog axis value of player 1's host pad, for shortcut polling.
+- `p1_host_present` (L8673) — True when player 1 has a host pad, from the debug host layer or an assigned controller.
+- `direct_shortcut_active` (L8682) — Whether the title's direct allowance for 'shortcut' is in force.
+- `hotkey_shortcut_down` (L8693) — Whether host shortcut 'shortcut' (PSX_ASSIST_BIND_*) bound to 'binding' is held.
+- `direct_shortcut_claim_update` (L8706) — Per frame, before P1 is sampled: the SDL buttons claimed by allowed direct shortcuts leave the guest pad (claimed, and through release once claimed while held).
+- `hotkey_pad_binding_slot` (L8725) — Returns the stored pad binding slot of a host shortcut, or NULL for an unknown shortcut.
+- `title_pad_default` (L8737) — A shortcut's pad binding before the player picks one: the title's direct button, else its Select combination unless the title turned those off.
+- `apply_title_direct_shortcut` (L8752) — game.toml [controller] direct_shortcut(_button): that shortcut's default becomes the one-button combination (saved settings still win) and the launcher captures it as one button.
+- `savestate_menu_sync_overlay` (L8788) — Gives the save state menu the window size, so its canvas follows the window's aspect.
+- `savestate_menu_close` (L8795) — Closes the save state menu and shows a short notice that it is closed.
+- `savestate_menu_toggle` (L8801) — Opens or closes the save state menu; the local mouse is reset, and nothing happens while rewind is open.
+- `savestate_menu_move` (L8820) — Moves the selected save state slot by delta, wrapping around the 12 slots.
+- `savestate_submit_slot` (L8829) — Saves to or loads from a slot when save states are on; returns 0 when they are off or the slot cannot be used.
+- `savestate_menu_submit` (L8862) — Runs the chosen save or load for the selected slot and closes the menu when that succeeds.
+- `savestate_menu_slot_from_key` (L8869) — Maps a number key (1 to 9, then 0) to a save state slot index; returns -1 for any other key.
+- `savestate_menu_handle_key` (L8881) — Handles a key press in the save state menu: moves the selection, picks a slot, or closes the menu. Repeated keys are ignored.
+- `savestate_menu_poll_nav` (L8911) — Each frame, reads the controller and keyboard to move, save, load or cancel in the save state menu, repeating held directions.
+- `rewind_toggle_buttons_down` (L8977) — True while the rewind shortcut's controller buttons are held.
+- `rewind_poll_toggle_buttons` (L8981) — Each frame, opens the rewind view when its controller shortcut is newly pressed and rewind is not already open.
+- `savestate_menu_poll_toggle_buttons` (L8991) — Each frame, opens the save state menu when its controller shortcut is newly pressed, unless rewind is open.
+- `fast_forward_toggle_flip` (L9005) — Switches manual fast-forward on or off and shows a notice; it stays off while the title blocks fast-forward.
+- `fast_forward_toggle_poll_buttons` (L9025) — Each frame, flips fast-forward when its controller shortcut is newly pressed.
+- `rewind_poll_nav` (L9033) — Each frame, reads the arrow keys to move through the rewind view.
+- `rewind_pause_present` (L9081) — Presents the frame shown in the rewind view while the game stays paused.
+- `rewind_host_pause_loop` (L9105) — Freeze guest in vblank present while the rewind filmstrip is open.
+- `host_pause_event` (L9170) — Host pause (host_overlay.h, P1).
+- `host_pause_loop` (L9174) — Freezes the game in the host pause menu: presents the paused picture and reads input until the player resumes.
+- `psx_debug_push_host_key` (L9219) — Debug: inject a host key / gamepad button as an SDL event, so scripted runs can drive host UI (the overlay) through the real event path.
+- `psx_debug_push_host_mouse_ex` (L9242) — Debug: inject mouse input at (x, y) in window points: a move there, then a wheel step (wheel != 0) or, by action, a click (0), press (1), release (2) or nothing more (3) of 'button' (SDL_BUTTON_LEFT/M
+- `psx_debug_push_host_mouse` (L9270) — Debug entry point: injects a mouse move to x, y and a wheel step of the given size; returns the result of the extended call.
+- `host_pause_refuse_netplay` (L9274) — Returns 1 when the host pause must be refused because netplay is running, else 0.
+- `savestate_menu_host_pause_loop` (L9277) — Freeze guest in vblank present while the save-state slot menu is open.
+- `title_page_close` (L9351) — Closes the title's page and clears its input and redraw hooks.
+- `psx_mod_open_title_page` (L9362) — Opens a title page over the game when no save state menu, rewind or netplay is active; returns 0 when it cannot open.
+- `psx_mod_title_page_open` (L9377) — Returns 1 while a title page is open, else 0.
+- `psx_mod_title_page_run_game` (L9378) — Called right before psx_mod_open_title_page: that page opens over the running game instead of pausing it.
+- `psx_bug_report_close_page` (L9380) — The bug report's form closed outside the page's input (debug server).
+- `psx_mod_title_page_redraw` (L9381) — Redraws the title page's canvas now.
+- `psx_mod_set_title_hud` (L9382) — A title's HUD over the running game (e.g.
+- `psx_mod_title_hud_redraw` (L9383) — Redraws the title's HUD canvas now.
+- `psx_mod_set_title_toast` (L9384) — A title's notices (toasts) over everything: the same kind of canvas, drawn after every effect and over the save state menu, a page and the HUD too (blended over them), so a notice shows whatever is op
+- `psx_mod_title_toast_redraw` (L9385) — Redraws the title's notice canvas now.
+- `psx_mod_set_osd_handler` (L9386) — Sets the handler that receives the host's on-screen notices for the title.
+- `psx_mod_set_title_canvas_scale` (L9387) — The title canvases (save state menu renderer, page, HUD, notices) at 'scale' x their size: 240 x scale lines, as wide as the window's aspect gives (320..1024 x scale columns).
+- `psx_mod_title_canvas_scale` (L9388) — Returns the current scale of the title canvases.
+- `psx_mod_set_perf_handler` (L9389) — Sets the handler that receives the performance figures; with telemetry on, the status text is cleared so the next figures go to the new owner.
+- `psx_mod_set_volume_handler` (L9394) — Sets the handler the host calls for the volume control.
+- `psx_mod_host_pad_kind` (L9395) — Returns the kind of host pad (Xbox, PlayStation or generic); the PSX_PAD_KIND variable can override it.
+- `psx_mod_request_screenshot` (L9433) — Save the next presented picture (with the OSD, a page or HUD, as shown) as a PNG at path; 0 when the backend cannot read it back (Vulkan, headless).
+- `psx_mod_set_pointer_image` (L9434) — A title's mouse pointer (OpenGL): 'argb' (straight alpha, at most 64 x 64, copied) is drawn last at every swap -- over every effect, the OSD, the save state menu, pages, HUD and notices -- each of its
+- `psx_mod_set_pointer` (L9437) — Shows or hides the title's mouse pointer and places it at x and y.
+- `psx_mod_set_pointer_scale` (L9440) — The pointer's size: each image pixel is 'scale' game pixels (1, the default, one; 0.5 half as big; whole screen pixels per image pixel once that is 1 or more).
+- `psx_mod_window_to_display` (L9443) — Window coordinates (as SDL's mouse events give them) to the display pixels of the last game picture presented (0..display width x 0..height; a native-wide picture's margins fall below 0 and past the w
+- `psx_mod_savestate_menu_command` (L9446) — Runs a command (op) on the open save state menu for a slot, such as closing it; returns 0 when the menu is not open.
+- `psx_mod_savestate_menu_set_buttons` (L9460) — The controller's buttons in the save state menu, as SDL gamepad buttons: for a title whose confirm is not the south button, or whose player moved it.
+- `psx_mod_savestate_menu_selected` (L9465) — The save state menu's selected slot while it is open, else -1.
+- `title_page_buttons` (L9470) — P1's controller as PSX_MOD_PAGE_* bits (the debug host layer too).
+- `title_page_running_service` (L9495) — One frame of a page over the running game: the host's buttons, with the pause loop's held-at-opening and repeat rules.
+- `title_page_service` (L9519) — Each frame, runs the open title page: over the running game, or through the host pause loop while the game is paused.
+- `title_page_host_pause_loop` (L9525) — Holds the game paused while a title page is open, reading the host controller for page navigation.
+- `headless_present_image_ring_capture` (L9629) — Headless has no present surface, but automated A/B runs still need the frame-indexed record of what a windowed build would show: the displayed band of the native-wide surface on a wide game frame, oth
+- `host_player_input_event` (L9702) — Handles a keyboard, mouse or controller event for player 1 and returns true when the event was used.
+- `disc_tray_toast` (L9720) — What the player sees after a lid cycle they (or the title) asked for.
+- `disc_request_poll` (L9742) — game.toml [[game.disc_requests]]: once per VBlank, on the emulation thread, put in the disc the title is asking for.
+- `drain_host_events` (L9749) — Handles every pending SDL event, dropping the ones a plugin's input block holds back.
+- `local_mouse_live` (L9928) — True when the local mouse may drive the game this frame, given the debug pad override word.
+- `sdl_vblank_present_body` (L9948) — Body of one VBlank present: finishes the frame's presentation and returns the netplay epilogue for the caller.
+- `render_thread_vblank` (L11305) — Render thread: start once, then close every frame (after its present, before pacing, so the render thread draws while the guest waits).
+- `dynres_requested` (L11351) — The dynamic resolution setting in force: the environment value when set, else the saved setting.
+- `dynres_min_value` (L11355) — The lowest dynamic resolution scale in force: the environment value when set, else the saved minimum.
+- `dynres_setup` (L11362) — After GL context init: the ceiling is what the backend allocated, the floor the configured minimum as a scale (never above the ceiling).
+- `psx_input_pad_shortcut_get` (L11408) — ---- psx_input_config.h: controller shortcut bindings ([hotkeys] *_pad) ----
+- `psx_input_pad_shortcut_set` (L11413) — Sets the controller binding of a host shortcut; returns 0 for an unknown shortcut or an invalid binding.
+- `psx_input_pad_shortcuts_save` (L11420) — Write the four bindings to settings.toml [hotkeys].
+- `psx_input_host_keys_save` (L11432) — static std::string g_host_keymap_path; /* the config.ini [KeyMap] came from
+- `psx_input_host_pad_button` (L11437) — ---- psx_input_config.h: host actions for a title's own shortcuts ---------
+- `psx_input_host_action` (L11441) — Runs a host action for a title's own shortcut, such as opening the save state menu; returns 0 when refused.
+- `psx_input_savestate_submit` (L11455) — Save to / load from user slot 0..SAVESTATE_SLOTS-1 as the save state menu does: refused (with an OSD note) where the menu would refuse; the result comes later through the usual notification.
+- `psx_input_set_player_savestates` (L11460) — The player's save states on (1, the default) or off (0), e.g.
+- `psx_input_player_savestates` (L11465) — Returns 1 when player save states are on, else 0.
+- `psx_video_current` (L11467) — Fills the video settings struct with the current fullscreen, scale and filter settings.
+- `psx_video_apply_live` (L11487) — Runtime side (main.cpp).
+- `debug_toggles_on` (L11581) — True when debug toggle keys are on: from the PSX_DEBUG_TOGGLES variable, else the saved setting.
+- `dbg_texfilter_name` (L11587) — Returns the name of a texture filter number, for debug output.
+- `debug_toggle_summary` (L11590) — Writes a one-line summary of the debug toggles and the current scale, dynamic resolution and widescreen state into buf.
+- `debug_toggle_key` (L11608) — Applies the debug toggle bound to a key and writes a short message into out; returns nonzero when the key was a toggle.
+- `psx_debug_toggle_key` (L11698) — Debug server: simulate a toggle key ({"cmd":"debug_key","key":"1"}).
+- `dynres_apply_level` (L11713) — Sets the dynamic resolution to a level, changing the renderer scale only when the level differs from the current one.
+- `dynres_tick_rt` (L11735) — Render-thread mode: one sample per guest VBlank from what the render thread measured since the last one (its frames' costs arrive a few frames late) and the time the emulation thread spent blocked on
+- `dynres_tick` (L11817) — One guest VBlank, after its present.
+- `psx_dynres_summary` (L11954) — Debug server (dynres, dynres_force, video_info).
+- `psx_dynres_force` (L11963) — Forces the dynamic resolution to a scale for debugging; returns the level set, or -1 when dynamic resolution is off.
+- `psx_dynres_status_json` (L11971) — Writes the dynamic resolution status as JSON into out, from the render-thread or control state.
+- `sdl_vblank_present` (L12051) — Presents one VBlank: marks the performance meter's VBlank boundary, then runs the VBlank epilogue as its own section.
+- `sdl_vblank_present_` (L12059) — Runs the body of a VBlank present: syncs the guest cadence, presents the frame, and sets the turbo draw-skip state for the next frame.
+- `netplay_expect_for_disc` (L12108) — The netplay mount policy for ONE image.
+- `gcs_gate_read_ram` (L18009) — Reads a span of guest RAM at phys for the gate check; returns 0 when RAM is not available.
+- `mh_quality_live_rows` (L18063) — std::string g_ovl_q_summary, g_ovl_q_reason; /* fixed at menu setup
+- `mh_refresh_snapshot` (L18081) — Refreshes the overlay menu's snapshot of the current video settings and netplay state.
+- `mh_netplay_active` (L18100) — Returns 1 when netplay is active as the overlay menu last saw it, else 0.
+- `ovl_open` (L18111) — True when the overlay menu is open.
+- `mh_set_paused` (L18113) — Asks for the game to pause or resume from the overlay menu; pausing is refused during netplay and then returns 0.
+- `mh_video_get` (L18118) — Copies the current video settings, as the overlay menu sees them, into out.
+- `mh_restart_bits` (L18123) — Works out which restart groups a video settings change touches, returned as bits.
+- `mh_video_apply` (L18141) — Applies a video settings change from the overlay menu and returns the restart bits it needs.
+- `mh_mod_set` (L18156) — The provider never touches the mod catalogue itself (it may run on the GL thread): every change is posted here, recorded in the catalogue and saved to mods/state.toml on the main thread, and handed to
+- `mh_reload_bindings` (L18163) — Asks the main thread to reload the key bindings after an overlay menu change.
+- `mh_request_exit` (L18164) — Asks the program to exit from the overlay menu, quitting or relaunching; an unknown value means quit.
+- `mh_disc_count` (L18178) — Returns how many discs the disc tray can switch between.
+- `mh_disc_mounted` (L18179) — Returns the number of the disc currently in the tray.
+- `mh_disc_path` (L18180) — Returns the file path of disc number n in the set.
+- `disc_cycle_now` (L18181) — Switches the tray to disc n from the overlay menu and returns the tray result code.
+- `mh_disc_insert` (L18193) — Requests that disc n be inserted; returns -1 for a bad number, 3 during netplay, otherwise the request result.
+- `ovl_video_from` (L18204) — Builds the video settings to apply from the launcher settings, keeping the fields the menu does not show.
+- `mh_launcher_settings_get` (L18220) — Fills the launcher settings with the current video settings.
+- `mh_launcher_settings_apply` (L18257) — Applies the launcher's settings as a video change and returns the restart bits it needs.
+- `mh_quality_redetect` (L18268) — Returns the graphics quality preset detected for this machine.
+- `mh_launcher_game_info` (L18270) — Fills the launcher's game info for this title, including its profile and quality settings.
+- `ovl_sink` (L18325) — Passes an overlay input event to the overlay's event handler; returns 0 when no overlay is loaded.
+- `ovl_draw` (L18326) — Asks the overlay to draw itself at the window size w by h.
+- `recomp_overlay_setup` (L18337) — Sets up the overlay menu on the main thread once per GL context: the preset strings and the display its preset rows use.
+- `psx_debug_menu_host_json` (L18384) — Debug server: menu host state (provider, open, pause, capture, snapshot).
+- `recomp_overlay_detach` (L18403) — Before the GL context goes away (session teardown), with it current: the draw hook is removed first (it waits for an in-flight draw), then the provider frees its GL objects.
+- `host_pause_service` (L18415) — Each frame, while the host pause is on, refreshes the menu snapshot and sets the UI capture state.
+- `main` (L18568) — Program entry point: sets up the runtime from the command line, runs the emulation loop and returns the exit code.
 
 ### runtime/src/mdec.c
 
@@ -6639,38 +6640,38 @@ Main memory map: RAM and scratchpad, address translation, MMIO register dispatch
 - `psx_read_byte_raw` (L2457) — Reads one byte from RAM or a device at the address, ignoring KSEG2 accesses.
 - `psx_load_charge_cycles` (L2517) — Charges the cycles of a load to the emulated clock, through the CPU charge when the fast cycle path is not active.
 - `psx_mmio_read_wait` (L2541) — Beetle MemRW device-region READ wait (libretro.cpp:859-1131), the device-dependent part of a load's access cost (added to the timestamp before the +completion).
-- `psx_cyc_readmem` (L2557) — Beetle ReadMemory data-access timing (cpu.cpp:369-448), after §1/deps/DO_LDS.
-- `psx_load_delay_enabled` (L2593) — Resolve PSX_LOAD_DELAY once (shared with inlined psx_cyc.h helpers).
-- `psx_cyc_load_timing` (L2607) — The interlock half of a load (§1+deps+(cancel)+DO_LDS+ReadMemory).
-- `psx_cyc_main_ram_fast_addr` (L2637) — Returns 1 and the physical address when an access is a plain main RAM hit with no tracing active; 0 otherwise.
-- `psx_cyc_load_word_slow` (L2659) — Slow paths for the inlined helpers in psx_cyc.h (MMIO / lockstep / shards).
-- `psx_cyc_load_half_slow` (L2663) — Slow path for a timed 16-bit load: charges the load timing, then reads the halfword.
-- `psx_cyc_load_word_timing_only` (L2667) — Charges the timing of a 32-bit load without reading the value.
-- `psx_cyc_load_byte` (L2671) — Timed 8-bit load for generated code: charges the load timing, then returns the byte from RAM or the full read.
-- `psx_cyc_lwc2_read_slow` (L2683) — LWC2 (GTE load): §1/DO_LDS done by psx_cyc_step(cpu,0); the GTE deadline stall by psx_gte_stall — both emitted before this call.
-- `psx_guest_read_word` (L2703) — Deprecated uncharged passthroughs (the +4 flat wait-state model is gone; load timing now lives in psx_cyc_load_*).
-- `psx_guest_read_half` (L2704) — Untimed 16-bit read for guest code, with no load timing charged.
-- `psx_guest_read_byte` (L2705) — Untimed 8-bit read for guest code, with no load timing charged.
-- `psx_cyc_load_word_host` (L2711) — The overlay DLLs' timed loads (overlay_loader.c callbacks): the same entries the main program inlines (psx_cyc.h), main RAM and scratchpad on the short path, everything else on the slow one.
-- `psx_cyc_load_half_host` (L2714) — Timed 16-bit load for overlay DLLs, the same as the main program's inline load.
-- `psx_cyc_load_byte_host` (L2717) — Timed 8-bit load for overlay DLLs, using the fast byte-load path.
-- `psx_cyc_lwc2_read_host` (L2720) — Timed GTE load for overlay DLLs: reads a word for LWC2 with its timing.
-- `psx_blk_load_slow` (L2726) — [recompiler] cpu_timing = "block": a load outside main RAM and the scratchpad (psx_cyc.h psx_blk_load_*): its access cost, then the read.
-- `psx_write_byte` (L2736) — Guest 8-bit store entry point, with the same fast path and special cases as the word store.
-- `psx_host_write_word` (L2755) — Host stores: the same paths as a guest store, but never cache-isolated (cpu_store_isolated).
-- `psx_host_write_half` (L2761) — Host 16-bit store: works like a guest store, but is never cache-isolated.
-- `psx_host_write_byte` (L2767) — Host 8-bit store: works like a guest store, but is never cache-isolated.
-- `psx_write_byte_raw` (L2774) — Performs an 8-bit store to RAM or a device, honouring cache isolation and KSEG2.
-- `psx_mem_gate_value` (L2859) — psx_mem_gate.h (g_psx_mem_gate lives in psx_cycles.c): raised by every writer that sets one of the stores' global gates; lowered here once all are clear.
-- `__attribute__` (L2872) — The gate was raised: lower it if every flag is clear (1: the short path may go on).
-- `psx_mem_gate_flags` (L2879) — Returns the combined store gate flags that decide whether the fast store path may be used.
-- `psx_store_pages_forget_all` (L2884) — Clears every cached store-page classification so each page is recomputed on its next store.
-- `psx_store_page_kind` (L2889) — 1: every aligned store to the page is a plain store here; 2: one is when its text line is already marked (text_line_mark would do nothing); 0: neither (kernel window, executed code, watched overlay pa
-- `psx_store_pages_audit` (L2900) — Debug check: aborts if a cached page classification no longer matches the current state.
-- `psx_store_fast_ptr` (L2917) — Where a plain store may go directly: main RAM (above the kernel window, on a page no code watcher acts on) or the scratchpad, which the full path writes with nothing else to do (no mod aperture reache
-- `psx_store_try_word` (L2953) — Tries a 32-bit store through the fast path; returns 1 when it wrote the value, 0 to fall back to the full path.
-- `psx_store_try_half` (L2965) — Tries a 16-bit store through the fast path; returns 1 when handled, 0 to fall back.
-- `psx_store_try_byte` (L2974) — Tries an 8-bit store through the fast path; returns 1 when handled, 0 to fall back.
+- `psx_cyc_readmem` (L2548) — Beetle ReadMemory data-access timing (cpu.cpp:369-448), after §1/deps/DO_LDS.
+- `psx_load_delay_enabled` (L2571) — Resolve PSX_LOAD_DELAY once (shared with inlined psx_cyc.h helpers).
+- `psx_cyc_load_timing` (L2585) — The interlock half of a load (§1+deps+(cancel)+DO_LDS+ReadMemory).
+- `psx_cyc_main_ram_fast_addr` (L2615) — Returns 1 and the physical address when an access is a plain main RAM hit with no tracing active; 0 otherwise.
+- `psx_cyc_load_word_slow` (L2637) — Slow paths for the inlined helpers in psx_cyc.h (MMIO / lockstep / shards).
+- `psx_cyc_load_half_slow` (L2641) — Slow path for a timed 16-bit load: charges the load timing, then reads the halfword.
+- `psx_cyc_load_word_timing_only` (L2645) — Charges the timing of a 32-bit load without reading the value.
+- `psx_cyc_load_byte` (L2649) — Timed 8-bit load for generated code: charges the load timing, then returns the byte from RAM or the full read.
+- `psx_cyc_lwc2_read_slow` (L2661) — LWC2 (GTE load): §1/DO_LDS done by psx_cyc_step(cpu,0); the GTE deadline stall by psx_gte_stall — both emitted before this call.
+- `psx_guest_read_word` (L2681) — Deprecated uncharged passthroughs (the +4 flat wait-state model is gone; load timing now lives in psx_cyc_load_*).
+- `psx_guest_read_half` (L2682) — Untimed 16-bit read for guest code, with no load timing charged.
+- `psx_guest_read_byte` (L2683) — Untimed 8-bit read for guest code, with no load timing charged.
+- `psx_cyc_load_word_host` (L2689) — The overlay DLLs' timed loads (overlay_loader.c callbacks): the same entries the main program inlines (psx_cyc.h), main RAM and scratchpad on the short path, everything else on the slow one.
+- `psx_cyc_load_half_host` (L2692) — Timed 16-bit load for overlay DLLs, the same as the main program's inline load.
+- `psx_cyc_load_byte_host` (L2695) — Timed 8-bit load for overlay DLLs, using the fast byte-load path.
+- `psx_cyc_lwc2_read_host` (L2698) — Timed GTE load for overlay DLLs: reads a word for LWC2 with its timing.
+- `psx_blk_load_slow` (L2704) — [recompiler] cpu_timing = "block": a load outside main RAM and the scratchpad (psx_cyc.h psx_blk_load_*): its access cost, then the read.
+- `psx_write_byte` (L2714) — Guest 8-bit store entry point, with the same fast path and special cases as the word store.
+- `psx_host_write_word` (L2733) — Host stores: the same paths as a guest store, but never cache-isolated (cpu_store_isolated).
+- `psx_host_write_half` (L2739) — Host 16-bit store: works like a guest store, but is never cache-isolated.
+- `psx_host_write_byte` (L2745) — Host 8-bit store: works like a guest store, but is never cache-isolated.
+- `psx_write_byte_raw` (L2752) — Performs an 8-bit store to RAM or a device, honouring cache isolation and KSEG2.
+- `psx_mem_gate_value` (L2837) — psx_mem_gate.h (g_psx_mem_gate lives in psx_cycles.c): raised by every writer that sets one of the stores' global gates; lowered here once all are clear.
+- `__attribute__` (L2850) — The gate was raised: lower it if every flag is clear (1: the short path may go on).
+- `psx_mem_gate_flags` (L2857) — Returns the combined store gate flags that decide whether the fast store path may be used.
+- `psx_store_pages_forget_all` (L2862) — Clears every cached store-page classification so each page is recomputed on its next store.
+- `psx_store_page_kind` (L2867) — 1: every aligned store to the page is a plain store here; 2: one is when its text line is already marked (text_line_mark would do nothing); 0: neither (kernel window, executed code, watched overlay pa
+- `psx_store_pages_audit` (L2878) — Debug check: aborts if a cached page classification no longer matches the current state.
+- `psx_store_fast_ptr` (L2895) — Where a plain store may go directly: main RAM (above the kernel window, on a page no code watcher acts on) or the scratchpad, which the full path writes with nothing else to do (no mod aperture reache
+- `psx_store_try_word` (L2931) — Tries a 32-bit store through the fast path; returns 1 when it wrote the value, 0 to fall back to the full path.
+- `psx_store_try_half` (L2943) — Tries a 16-bit store through the fast path; returns 1 when handled, 0 to fall back.
+- `psx_store_try_byte` (L2952) — Tries an 8-bit store through the fast path; returns 1 when handled, 0 to fall back.
 
 ### runtime/src/mod_builtin_bezel.c
 
@@ -7512,28 +7513,27 @@ Loads native overlay code (compiled DLL shards of the game's own functions) on d
 - `overlay_loader_segment_native` (L4378) — KUSEG/KSEG1 dispatches run natively by a shard compiled for their segment.
 - `overlay_loader_is_candidate` (L4405) — 1 when the physical address is a known exact function entry and the loader is active.
 - `overlay_fp_enabled` (L4410) — 1 when the fingerprint log is on, set by the PSX_OVERLAY_FP_LOG variable.
-- `overlay_loader_get_shadow_summary` (L4462) — Reports the shadow-diff call and divergence counts and the first divergent PC.
-- `overlay_loader_set_diff_mode` (L4470) — Turns shadow diff mode on or off.
-- `run_shadow_diff_legacy` (L4472) — Older shadow diff: runs the interpreter and the native candidate on the same state and compares the results.
-- `shadow_cpu_diff` (L4664) — Compares two CPU states field by field; returns the kind of the first difference, with its index and both values.
-- `run_shadow_diff` (L4707) — Authoritative interpreter RECORD + side-effect-free native REPLAY.
-- `shadow_escape_cleanup` (L4886) — A nonlocal scheduler bail during the speculative native replay pass (see overlay_loader_shadow_native_thread_switch_bail) means the interpreter pass — authoritative and already complete by the time th
-- `shadow_escape_flush_cycles` (L4917) — Commits pending cycles and clears the cycle-flush hook after a host unwind skipped a candidate's epilogue.
-- `overlay_loader_shadow_escape_fixup` (L4937) — Called by deferred_exception_longjmp() (interrupts.c) before it unwinds.
-- `overlay_loader_shadow_scheduler_escape_fixup` (L4947) — The deterministic HLE scheduler uses a different jmp_buf and therefore has no exception-setjmp epoch.
-- `overlay_loader_dump_shadow_detail` (L4952) — Writes the captured shadow-diff detail (address and registers) as JSON into out; returns the length.
-- `overlay_loader_dump_shadow` (L4973) — Writes the shadow-diff summary and its records as JSON into out; returns the length.
-- `overlay_regs_crc` (L5012) — Fingerprint over the general registers (r1..r31) + hi/lo.
-- `overlay_regs_snap` (L5021) — Snapshot r0..r31 + hi/lo into a 34-word buffer (entry-state capture).
-- `regs34_crc` (L5028) — CRC over words 1..33 (r0 excluded — always 0), matching overlay_regs_crc.
-- `overlay_fp_log` (L5034) — Records one fingerprint entry (address, cycle, registers, native or interpreted) in the ring.
-- `overlay_loader_call_native` (L5057) — Execute 'addr' natively if a validated overlay candidate exists, keeping the §5-E fingerprint record (same as the dirty_ram_dispatch chokepoint).
-- `overlay_loader_write_fp_file` (L5089) — Write the whole fingerprint log to a file (no TCP size limit).
-- `overlay_loader_dump_native_ring` (L5120) — Dump the native-call ring (most-recent first) + the in-progress entry.
-- `overlay_loader_dump_candidates` (L5146) — Diagnostic: dump every candidate with its stored vs live hash and generation state, so reload behaviour can be inspected directly (Rule 3 — visibility via the debug server, not logs).
-- `overlay_loader_dump_candidates_at` (L5169) — Focused form for live miss diagnosis.
-- `overlay_loader_dump_lazy_at` (L5196) — Focused view of manifest-only candidates that have not been loaded yet.
-- `overlay_loader_get_status` (L5246) — Reports the loader status: active flag, registered count, regions checked, cache folder, game id and last CRC.
+- `overlay_loader_get_shadow_summary` (L4456) — Reports the shadow-diff call and divergence counts and the first divergent PC.
+- `overlay_loader_set_diff_mode` (L4464) — Turns shadow diff mode on or off.
+- `shadow_cpu_diff` (L4475) — Compares two CPU states field by field; returns the kind of the first difference, with its index and both values.
+- `run_shadow_diff` (L4518) — Authoritative interpreter RECORD + side-effect-free native REPLAY.
+- `shadow_escape_cleanup` (L4697) — A nonlocal scheduler bail during the speculative native replay pass (see overlay_loader_shadow_native_thread_switch_bail) means the interpreter pass — authoritative and already complete by the time th
+- `shadow_escape_flush_cycles` (L4728) — Commits pending cycles and clears the cycle-flush hook after a host unwind skipped a candidate's epilogue.
+- `overlay_loader_shadow_escape_fixup` (L4748) — Called by deferred_exception_longjmp() (interrupts.c) before it unwinds.
+- `overlay_loader_shadow_scheduler_escape_fixup` (L4758) — The deterministic HLE scheduler uses a different jmp_buf and therefore has no exception-setjmp epoch.
+- `overlay_loader_dump_shadow_detail` (L4763) — Writes the captured shadow-diff detail (address and registers) as JSON into out; returns the length.
+- `overlay_loader_dump_shadow` (L4784) — Writes the shadow-diff summary and its records as JSON into out; returns the length.
+- `overlay_regs_crc` (L4823) — Fingerprint over the general registers (r1..r31) + hi/lo.
+- `overlay_regs_snap` (L4832) — Snapshot r0..r31 + hi/lo into a 34-word buffer (entry-state capture).
+- `regs34_crc` (L4839) — CRC over words 1..33 (r0 excluded — always 0), matching overlay_regs_crc.
+- `overlay_fp_log` (L4845) — Records one fingerprint entry (address, cycle, registers, native or interpreted) in the ring.
+- `overlay_loader_call_native` (L4869) — Execute 'addr' natively if a validated overlay candidate exists, keeping the §5-E fingerprint record (same as the dirty_ram_dispatch chokepoint).
+- `overlay_loader_write_fp_file` (L4901) — Write the whole fingerprint log to a file (no TCP size limit).
+- `overlay_loader_dump_native_ring` (L4932) — Dump the native-call ring (most-recent first) + the in-progress entry.
+- `overlay_loader_dump_candidates` (L4958) — Diagnostic: dump every candidate with its stored vs live hash and generation state, so reload behaviour can be inspected directly (Rule 3 — visibility via the debug server, not logs).
+- `overlay_loader_dump_candidates_at` (L4981) — Focused form for live miss diagnosis.
+- `overlay_loader_dump_lazy_at` (L5008) — Focused view of manifest-only candidates that have not been loaded yet.
+- `overlay_loader_get_status` (L5058) — Reports the loader status: active flag, registered count, regions checked, cache folder, game id and last CRC.
 
 ### runtime/src/overlay_path_canon.c
 
@@ -9788,45 +9788,45 @@ Emulates the console serial port: the controller and memory card protocols, the 
 - `sio_peek_rx_data` (L2218) — Returns the received byte without side effects.
 - `sio_peek_ack_visible_reads` (L2219) — SIO_STAT reads left before a visible ACK clears (side-effect free).
 - `sio_write` (L2221) — Handles a guest write to a serial port register, advancing the timing first and the delayed IRQ after.
-- `sio_get_freeze_diag` (L2533) — Writes the pending interrupt and countdown, the status and control registers and card activity through the output pointers.
-- `sio_get_burst_stats` (L2580) — Copies the burst drain counters into a 10-entry array.
-- `sio_consume_ack_event` (L2616) — ---- Phase 1.0c-v2: cycle-paced sio_tick helpers (inert in 1.0c-v2) --- In 1.0c-v2, the TX path is still synchronous and nothing arms sio_shift_active or sio_pending_ack.
-- `sio_fire_ack_irq` (L2622) — Sets the ACK status bit and raises the serial interrupt for a card or pad ACK; the SPU interrupt bit is left alone.
-- `sio_handle_shift_complete` (L2677) — Runs when a byte finishes shifting: records the event, processes the byte and sets receive-ready in the status.
-- `sio_get_advance_called` (L2733) — Telemetry counters for sio_advance.
-- `sio_get_advance_with_work` (L2734) — Returns how many timing advance calls found work pending.
-- `sio_pace_walk` (L2738) — Consume every elapsed device deadline.
-- `sio_advance` (L2775) — Phase 1.0e-e1: peripheral-only cycle advance.
-- `sio_tick` (L2789) — Advance SIO timing by 'cycles' PSX cycles.
-- `sio_tick_quantum` (L2845) — Convenience: advance SIO by the dispatch-loop quantum.
-- `sio_get_pace_state` (L2852) — Telemetry accessor for pace_state TCP probe.
-- `sio_w_mcslot` (L2878) — Writes one memory card slot state into the snapshot stream; returns 0 when the write fails.
-- `sio_r_mcslot` (L2885) — Reads one memory card slot state from the snapshot stream; returns 0 when the data is short.
-- `sio_snap_emit_regs` (L2901) — Snapshot wire is emitted in four sections so netplay diags can CRC each independently (regs / pads / memcard / shift+irq FSM) — a single SIO digest could not say WHICH subsystem forked a resim.
-- `sio_snap_emit_pads` (L2907) — Writes the pad state to the snapshot stream: types, connection, buttons and the response buffer.
-- `sio_snap_emit_mc` (L2924) — Writes the memory card state of both slots and the active device to the snapshot stream.
-- `sio_snap_emit_fsm_pace` (L2937) — Load-bearing pacing state (guest-visible IRQ timing).
-- `sio_snap_emit_fsm_meta` (L2958) — Audit/diag metadata — must not drive netplay digests (byte_seq tracks the host-local sio_trace_seq counter, which is not itself a guest register).
-- `sio_snap_emit_rumble` (L2966) — DualShock rumble map/motors — appended after meta so pre-rumble snapshots remain loadable and netplay digests that stop at fsm_pace stay stable.
-- `sio_snap_emit_jogcon` (L2972) — Writes the JogCon steering and motor state to the snapshot stream.
-- `sio_snap_emit_pad_mode` (L2982) — 0x44 mode lock and the analog-capable device behind each port.
-- `sio_snap_emit_hold` (L2989) — writes the present-hold window (seq, progress cycle, armed flag) as the last SIO snapshot block.
-- `sio_snap_emit_mtap` (L2997) — writes the multitap block: address latch, per-port next/returned Slot-A/bulk/garbage modes, req flags, active logical pad and response bytes 8..33.
-- `sio_pad_mode_legacy_defaults` (L3009) — Sets the 0x44 lock and analog device state from the pad types, for loading older snapshots that lack them.
-- `sio_snap_emit_fsm` (L3018) — Writes the shift and interrupt state machine sections to the snapshot stream: pacing first, then metadata.
-- `sio_snap_emit` (L3022) — Writes the full serial port state to the snapshot stream in its fixed section order; returns 0 on failure.
-- `sio_snapshot_section_ends` (L3033) — Cumulative section end offsets in the snapshot wire: out[0]=regs, out[1]=pads, out[2]=memcard, out[3]=fsm_pace (netplay), out[4]=full including fsm metadata, rumble, JogCon and pad-mode state.
-- `sio_hold_legacy_defaults` (L3053) — disarms the present-hold window when a snapshot predates the hold block.
-- `sio_snap_parse_blocks` (L3059) — reads every snapshot block in order, stopping cleanly at the end of each older layout; reports whether the multitap block was present.
-- `sio_mtap_legacy_defaults` (L3210) — Pre-multitap snapshots: the active pad comes from the port, the latch restarts at Slot A, and a bulk response (only 8 of 34 bytes stored) is aborted rather than fed truncated.
-- `sio_snap_parse` (L3224) — reads the snapshot blocks, then applies the pre-multitap defaults when the multitap block is absent; returns 0 when the data is short.
-- `sio_snapshot_bytes` (L3231) — Returns the size in bytes of the serial port state snapshot.
-- `sio_snapshot_write` (L3238) — Writes the serial port state snapshot into the buffer p.
-- `sio_mc_cursor_ok` (L3248) — A saved card cursor must stay inside mc_data for every byte its state can still exchange: READ_DATA/WRITE_DATA touch mc_data[idx], WRITE_LSB_ECHO writes idx and hands idx+1 to WRITE_DATA.
-- `sio_snapshot_ranges_ok` (L3256) — Refuses a SIO snapshot whose pad/card states, selected slot, card cursors, active device or bus owner are out of range.
-- `sio_snapshot_tail_ok` (L3285) — range check for the trailing hold and multitap blocks when the accepted length includes them.
-- `sio_snapshot_validate` (L3308) — Non-mutating pre-check for boot_state's two-pass load: a section that passes cannot fail sio_snapshot_read (the parser only reads fixed-width fields, and both accepted lengths end exactly where one of
-- `sio_snapshot_read` (L3330) — Restores the serial port state from a snapshot buffer after validating it; returns 0 on failure.
+- `sio_get_freeze_diag` (L2468) — Writes the pending interrupt and countdown, the status and control registers and card activity through the output pointers.
+- `sio_get_burst_stats` (L2515) — Copies the burst drain counters into a 10-entry array.
+- `sio_consume_ack_event` (L2551) — ---- Phase 1.0c-v2: cycle-paced sio_tick helpers (inert in 1.0c-v2) --- In 1.0c-v2, the TX path is still synchronous and nothing arms sio_shift_active or sio_pending_ack.
+- `sio_fire_ack_irq` (L2557) — Sets the ACK status bit and raises the serial interrupt for a card or pad ACK; the SPU interrupt bit is left alone.
+- `sio_handle_shift_complete` (L2612) — Runs when a byte finishes shifting: records the event, processes the byte and sets receive-ready in the status.
+- `sio_get_advance_called` (L2668) — Telemetry counters for sio_advance.
+- `sio_get_advance_with_work` (L2669) — Returns how many timing advance calls found work pending.
+- `sio_pace_walk` (L2673) — Consume every elapsed device deadline.
+- `sio_advance` (L2710) — Phase 1.0e-e1: peripheral-only cycle advance.
+- `sio_tick` (L2724) — Advance SIO timing by 'cycles' PSX cycles.
+- `sio_tick_quantum` (L2780) — Convenience: advance SIO by the dispatch-loop quantum.
+- `sio_get_pace_state` (L2787) — Telemetry accessor for pace_state TCP probe.
+- `sio_w_mcslot` (L2813) — Writes one memory card slot state into the snapshot stream; returns 0 when the write fails.
+- `sio_r_mcslot` (L2820) — Reads one memory card slot state from the snapshot stream; returns 0 when the data is short.
+- `sio_snap_emit_regs` (L2836) — Snapshot wire is emitted in four sections so netplay diags can CRC each independently (regs / pads / memcard / shift+irq FSM) — a single SIO digest could not say WHICH subsystem forked a resim.
+- `sio_snap_emit_pads` (L2842) — Writes the pad state to the snapshot stream: types, connection, buttons and the response buffer.
+- `sio_snap_emit_mc` (L2859) — Writes the memory card state of both slots and the active device to the snapshot stream.
+- `sio_snap_emit_fsm_pace` (L2872) — Load-bearing pacing state (guest-visible IRQ timing).
+- `sio_snap_emit_fsm_meta` (L2893) — Audit/diag metadata — must not drive netplay digests (byte_seq tracks the host-local sio_trace_seq counter, which is not itself a guest register).
+- `sio_snap_emit_rumble` (L2901) — DualShock rumble map/motors — appended after meta so pre-rumble snapshots remain loadable and netplay digests that stop at fsm_pace stay stable.
+- `sio_snap_emit_jogcon` (L2907) — Writes the JogCon steering and motor state to the snapshot stream.
+- `sio_snap_emit_pad_mode` (L2917) — 0x44 mode lock and the analog-capable device behind each port.
+- `sio_snap_emit_hold` (L2924) — writes the present-hold window (seq, progress cycle, armed flag) as the last SIO snapshot block.
+- `sio_snap_emit_mtap` (L2932) — writes the multitap block: address latch, per-port next/returned Slot-A/bulk/garbage modes, req flags, active logical pad and response bytes 8..33.
+- `sio_pad_mode_legacy_defaults` (L2944) — Sets the 0x44 lock and analog device state from the pad types, for loading older snapshots that lack them.
+- `sio_snap_emit_fsm` (L2953) — Writes the shift and interrupt state machine sections to the snapshot stream: pacing first, then metadata.
+- `sio_snap_emit` (L2957) — Writes the full serial port state to the snapshot stream in its fixed section order; returns 0 on failure.
+- `sio_snapshot_section_ends` (L2968) — Cumulative section end offsets in the snapshot wire: out[0]=regs, out[1]=pads, out[2]=memcard, out[3]=fsm_pace (netplay), out[4]=full including fsm metadata, rumble, JogCon and pad-mode state.
+- `sio_hold_legacy_defaults` (L2988) — disarms the present-hold window when a snapshot predates the hold block.
+- `sio_snap_parse_blocks` (L2994) — reads every snapshot block in order, stopping cleanly at the end of each older layout; reports whether the multitap block was present.
+- `sio_mtap_legacy_defaults` (L3145) — Pre-multitap snapshots: the active pad comes from the port, the latch restarts at Slot A, and a bulk response (only 8 of 34 bytes stored) is aborted rather than fed truncated.
+- `sio_snap_parse` (L3159) — reads the snapshot blocks, then applies the pre-multitap defaults when the multitap block is absent; returns 0 when the data is short.
+- `sio_snapshot_bytes` (L3166) — Returns the size in bytes of the serial port state snapshot.
+- `sio_snapshot_write` (L3173) — Writes the serial port state snapshot into the buffer p.
+- `sio_mc_cursor_ok` (L3183) — A saved card cursor must stay inside mc_data for every byte its state can still exchange: READ_DATA/WRITE_DATA touch mc_data[idx], WRITE_LSB_ECHO writes idx and hands idx+1 to WRITE_DATA.
+- `sio_snapshot_ranges_ok` (L3191) — Refuses a SIO snapshot whose pad/card states, selected slot, card cursors, active device or bus owner are out of range.
+- `sio_snapshot_tail_ok` (L3220) — range check for the trailing hold and multitap blocks when the accepted length includes them.
+- `sio_snapshot_validate` (L3243) — Non-mutating pre-check for boot_state's two-pass load: a section that passes cannot fail sio_snapshot_read (the parser only reads fixed-width fields, and both accepted lengths end exactly where one of
+- `sio_snapshot_read` (L3265) — Restores the serial port state from a snapshot buffer after validating it; returns 0 on failure.
 
 ### runtime/src/spu.c
 
@@ -9885,40 +9885,40 @@ Models the PS1 Sound Processing Unit: its registers and DMA, the ADPCM voices wi
 - `spu_private_voice_active` (L1171) — Returns a bit mask of the active private voices, bit n for slot n.
 - `spu_init` (L1178) — Clears SPU RAM, frees the sample banks and resets voices, reverb and output state to power-on values.
 - `spu_render_block` (L1223) — Renders the given number of stereo frames of SPU output into the buffer, mixing voices, reverb and CD audio.
-- `spu_set_output_gate` (L1581) — Host gate: while it returns nonzero (rollback resimulation, FMV-skip mute) rendered samples advance SPU state but are not queued.
-- `spu_out_push` (L1583) — Appends stereo frames to the output queue; when the queue is full the oldest frame is dropped.
-- `spu_catch_up` (L1601) — Guest-clocked SPU: render every whole sample owed up to the current guest cycle (768 cycles per 44.1 kHz sample) into the output queue.
-- `spu_output_available` (L1628) — extern void (*spu_perf_observer)(int begin); /* perf_meter.c
-- `spu_output_pop` (L1630) — Copies up to max_frames queued stereo frames into the output buffer and returns how many were copied.
-- `spu_output_drop` (L1641) — Discards up to the given number of oldest frames from the output queue.
-- `spu_output_flush` (L1647) — void spu_output_drop(uint32_t frames); /* oldest first
-- `spu_output_overflow_drops` (L1648) — Returns how many output frames were dropped because the host fell behind.
-- `spu_debug_info` (L1650) — Fills an SpuDebugInfo struct with the control register, volumes and counters for the debug server.
-- `spu_read` (L1676) — MMIO read/write (0x1F801C00-0x1F801FFF)
-- `spu_write` (L1766) — Handles a guest write to an SPU register address, catching the render up before applying it.
-- `spu_dma_write` (L1874) — DMA channel 4 interface.
-- `spu_dma_read` (L1891) — DMA4 SPU->CPU direction: read one little-endian 32-bit word from SPU RAM at the transfer address, advance it by 4 and run the IRQ compare — the exact mirror of spu_dma_write.
-- `spu_dma_ready` (L1906) — Always returns 1; the SPU accepts DMA at once.
-- `spu_get_ram` (L1910) — Get pointer to SPU RAM for direct access (512KB)
-- `spu_get_voice_state` (L1914) — Copies the state of one voice into the output struct; zeroes it for an invalid index.
-- `spu_ram_peek` (L1939) — Debug peek into SPU RAM (spu_ram TCP command).
-- `spu_ctrl_read` (L1946) — SPUCNT (0x1F801DAA) alone.
-- `spu_get_global_state` (L1950) — Fills the output struct with the global SPU state: control, main volume and related registers.
-- `spu_event_total` (L1990) — Returns the total number of SPU events recorded so far.
-- `spu_event_get` (L1992) — Copies up to max_count of the most recent SPU events into the output array and returns how many were copied.
-- `spu_event_reset` (L2005) — uint32_t spu_event_get(SpuEvent* out, uint32_t max_count); /* most recent up to max_count
-- `spu_w_voice` (L2021) — Writes the state of one voice into the snapshot stream.
-- `spu_r_voice` (L2042) — Reads the state of one voice back from the snapshot stream.
-- `spu_snapshot_bytes_v1` (L2078) — + 4: guest-clock phase (cycles since the SPU's last whole sample).
-- `spu_snapshot_bytes` (L2081) — Returns the snapshot size: the v1 layout plus four bytes for the guest-clock phase.
-- `spu_snapshot_len_ok` (L2082) — Returns 1 when a snapshot length matches one of the accepted layouts.
-- `spu_voice_wire_ok` (L2094) — Saved voice values the mixer indexes with: the sample bank bindings, the decode cursor (at most one block ahead: voice_step decodes once and the Gaussian window holds 3 + 28 samples) and the 12-bit pi
-- `spu_snapshot_validate` (L2108) — Pass-1 check for boot_state's two-pass load: walks the snapshot without touching the SPU and refuses every value spu_snapshot_read would reject halfway or the SPU would later index out of range with.
-- `spu_snapshot_write` (L2133) — Catches the SPU up to the current cycle and writes its state snapshot into the buffer.
-- `spu_snapshot_read` (L2168) — Restores the SPU state from a snapshot buffer; returns 0 on a bad length or bad data.
-- `spu_get_ram_ptr` (L2222) — Returns a pointer to the 512 KB of SPU RAM.
-- `spu_get_ram_bytes` (L2223) — Returns the size in bytes of SPU RAM.
-- `spu_snapshot_part_digests` (L2225) — Computes checksums of the separate sections of the SPU snapshot and stores them in the output struct.
+- `spu_set_output_gate` (L1596) — Host gate: while it returns nonzero (rollback resimulation, FMV-skip mute) rendered samples advance SPU state but are not queued.
+- `spu_out_push` (L1598) — Appends stereo frames to the output queue; when the queue is full the oldest frame is dropped.
+- `spu_catch_up` (L1616) — Guest-clocked SPU: render every whole sample owed up to the current guest cycle (768 cycles per 44.1 kHz sample) into the output queue.
+- `spu_output_available` (L1643) — extern void (*spu_perf_observer)(int begin); /* perf_meter.c
+- `spu_output_pop` (L1645) — Copies up to max_frames queued stereo frames into the output buffer and returns how many were copied.
+- `spu_output_drop` (L1656) — Discards up to the given number of oldest frames from the output queue.
+- `spu_output_flush` (L1662) — void spu_output_drop(uint32_t frames); /* oldest first
+- `spu_output_overflow_drops` (L1663) — Returns how many output frames were dropped because the host fell behind.
+- `spu_debug_info` (L1665) — Fills an SpuDebugInfo struct with the control register, volumes and counters for the debug server.
+- `spu_read` (L1691) — MMIO read/write (0x1F801C00-0x1F801FFF)
+- `spu_write` (L1781) — Handles a guest write to an SPU register address, catching the render up before applying it.
+- `spu_dma_write` (L1889) — DMA channel 4 interface.
+- `spu_dma_read` (L1906) — DMA4 SPU->CPU direction: read one little-endian 32-bit word from SPU RAM at the transfer address, advance it by 4 and run the IRQ compare — the exact mirror of spu_dma_write.
+- `spu_dma_ready` (L1921) — Always returns 1; the SPU accepts DMA at once.
+- `spu_get_ram` (L1925) — Get pointer to SPU RAM for direct access (512KB)
+- `spu_get_voice_state` (L1929) — Copies the state of one voice into the output struct; zeroes it for an invalid index.
+- `spu_ram_peek` (L1954) — Debug peek into SPU RAM (spu_ram TCP command).
+- `spu_ctrl_read` (L1961) — SPUCNT (0x1F801DAA) alone.
+- `spu_get_global_state` (L1965) — Fills the output struct with the global SPU state: control, main volume and related registers.
+- `spu_event_total` (L2005) — Returns the total number of SPU events recorded so far.
+- `spu_event_get` (L2007) — Copies up to max_count of the most recent SPU events into the output array and returns how many were copied.
+- `spu_event_reset` (L2020) — uint32_t spu_event_get(SpuEvent* out, uint32_t max_count); /* most recent up to max_count
+- `spu_w_voice` (L2036) — Writes the state of one voice into the snapshot stream.
+- `spu_r_voice` (L2057) — Reads the state of one voice back from the snapshot stream.
+- `spu_snapshot_bytes_v1` (L2093) — + 4: guest-clock phase (cycles since the SPU's last whole sample).
+- `spu_snapshot_bytes` (L2096) — Returns the snapshot size: the v1 layout plus four bytes for the guest-clock phase.
+- `spu_snapshot_len_ok` (L2097) — Returns 1 when a snapshot length matches one of the accepted layouts.
+- `spu_voice_wire_ok` (L2109) — Saved voice values the mixer indexes with: the sample bank bindings, the decode cursor (at most one block ahead: voice_step decodes once and the Gaussian window holds 3 + 28 samples) and the 12-bit pi
+- `spu_snapshot_validate` (L2123) — Pass-1 check for boot_state's two-pass load: walks the snapshot without touching the SPU and refuses every value spu_snapshot_read would reject halfway or the SPU would later index out of range with.
+- `spu_snapshot_write` (L2148) — Catches the SPU up to the current cycle and writes its state snapshot into the buffer.
+- `spu_snapshot_read` (L2183) — Restores the SPU state from a snapshot buffer; returns 0 on a bad length or bad data.
+- `spu_get_ram_ptr` (L2237) — Returns a pointer to the 512 KB of SPU RAM.
+- `spu_get_ram_bytes` (L2238) — Returns the size in bytes of SPU RAM.
+- `spu_snapshot_part_digests` (L2240) — Computes checksums of the separate sections of the SPU snapshot and stores them in the output struct.
 
 ### runtime/src/spu_clone_music.c
 
