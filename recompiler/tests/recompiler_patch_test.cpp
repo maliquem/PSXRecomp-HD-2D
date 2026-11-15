@@ -1322,6 +1322,21 @@ void cfg_fallthrough_reachability_test() {
     check_tail(true, "independent alias entry");
 }
 
+// A mistyped key must fail loudly instead of leaving the default in force.
+void unknown_key_test(const fs::path& root) {
+    const auto known = write_config(root, "known-key", "ram_fast_path = true\n");
+    check(PSXRecompV4::load_game_config(known).ram_fast_path, "known [recompiler] key still loads");
+    const auto typo = write_config(root, "typo-recompiler", "ram_fastpath = true\n");
+    check_throws([&] { (void)PSXRecompV4::load_game_config(typo); },
+                 "unknown key 'ram_fastpath' in [recompiler]", "[recompiler] typo rejected");
+    const auto video = write_config(root, "typo-video", "\n[video]\nrenderr = \"opengl\"\n");
+    check_throws([&] { (void)PSXRecompV4::load_game_config(video); },
+                 "unknown key 'renderr' in [video]", "[video] typo rejected");
+    const auto cull = write_config(root, "typo-cull", "\n[widescreen.cull]\nbgez_sitez = []\n");
+    check_throws([&] { (void)PSXRecompV4::load_game_config(cull); },
+                 "unknown key 'bgez_sitez' in [widescreen.cull]", "[widescreen.cull] typo rejected");
+}
+
 } // namespace
 
 int main() {
@@ -1339,6 +1354,7 @@ int main() {
         cfg_codegen_load_delay_test();
         mod_function_completion_codegen_test();
         mod_instruction_codegen_test(root);
+        unknown_key_test(root);
         local_viewport_tests(root);
         cfg_fallthrough_reachability_test();
     } catch (const std::exception& e) {

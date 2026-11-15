@@ -7,6 +7,7 @@
 #include <cctype>
 #include <cstdio>
 #include <fstream>
+#include <initializer_list>
 #include <sstream>
 #include <set>
 #include <cstdint>
@@ -505,6 +506,19 @@ static void validate_project_relative(const std::string& value,
     }
 }
 
+// A key outside a closed list is a typo: the option would silently keep its default.
+static void reject_unknown_keys(const toml::value& table, const char* where,
+                                std::initializer_list<const char*> allowed) {
+    if (!table.is_table()) return;
+    for (const auto& kv : table.as_table()) {
+        bool known = false;
+        for (const char* a : allowed) known = known || kv.first == a;
+        if (!known)
+            throw std::runtime_error(
+                fmt::format("unknown key '{}' in {}", kv.first, where));
+    }
+}
+
 // Parse the optional [runtime] block. All fields optional; absent fields
 // leave has_* = false on the returned struct. Paths are resolved relative
 // to `root` (project root).
@@ -532,6 +546,16 @@ static RuntimeConfig parse_runtime_block(const toml::value& cfg, const fs::path&
     }
     if (cfg.contains("runtime")) {
         const toml::value& runtime = toml::find(cfg, "runtime");
+        reject_unknown_keys(runtime, "[runtime]",
+            {"bios_hle", "bios_hle_keep_intro", "controller", "debug_port", "disc_speed",
+            "fast_boot", "game_core", "hide_hidden_mod_features", "hle_scheduler", "idle_skip",
+            "idle_skip_area_sites", "idle_skip_audited_only", "idle_skip_store_counter_sites",
+            "idle_skip_store_counters", "instant_max_per_frame", "language", "mdec_dma_batch",
+            "memcard_dir", "offer_turbo_loads", "openbios", "overlay_autocompile_cmd",
+            "overlay_autocompile_cmd_tcc", "overlay_backend", "overlay_cache",
+            "overlay_capture_history", "overlay_capture_persist_dir", "overlay_native_block",
+            "overlay_precompile", "overlay_region_floor", "pgxp_idle_hold", "turbo_audio_sink",
+            "turbo_loads", "warm_cd_route", "warm_cd_routes", "window_title"});
         if (runtime.contains("language"))  // [runtime].language convenience alias
             rt.language = toml::find<std::string>(runtime, "language");
 
@@ -809,6 +833,9 @@ static RuntimeConfig parse_runtime_block(const toml::value& cfg, const fs::path&
     // guest_cycle_scale_gate below for the declarative RAM gate.
     if (cfg.contains("timing")) {
         const toml::value& tm = toml::find(cfg, "timing");
+        reject_unknown_keys(tm, "[timing]",
+            {"guest_cycle_scale", "guest_cycle_scale_batch", "guest_cycle_scale_gate",
+            "guest_cycle_scale_gated"});
         if (tm.contains("guest_cycle_scale")) {
             const long long n = toml::find<long long>(tm, "guest_cycle_scale");
             if (n < 1 || n > 64)
@@ -859,6 +886,24 @@ static RuntimeConfig parse_runtime_block(const toml::value& cfg, const fs::path&
     // RuntimeConfig so main.cpp consumes them alongside the other knobs.
     if (cfg.contains("video")) {
         const toml::value& video = toml::find(cfg, "video");
+        reject_unknown_keys(video, "[video]",
+            {"accurate_blending", "anisotropic_filtering", "antialiasing", "antialiasing_mode",
+            "aspect_ratio", "auto_skip_fmv", "bloom", "bloom_source", "bloom_threshold",
+            "crt_filter", "depth24_trailing_margin", "dithering", "dynamic_resolution",
+            "dynamic_resolution_min", "fmv_chroma_smoothing", "fmv_enhance", "fmv_filter",
+            "fmv_skip_end_total", "fmv_skip_movie_id", "fmv_skip_no_xa", "fmv_skip_no_xa_hold",
+            "fmv_skip_total_table", "frame_generation", "frame_generation_method",
+            "frame_interpolation", "frame_interpolation_fps", "fov_scale", "geometry_correction",
+            "internal_resolution", "low_latency_input", "offer_frame_interpolation",
+            "offer_skip_fmv", "offer_vulkan", "perspective_texturing", "pgxp_alu",
+            "pgxp_color_correction", "pgxp_cpu_mode", "pgxp_depth_buffer", "pgxp_depth_threshold",
+            "pgxp_depth_tolerance", "pgxp_mem", "pgxp_mod_only", "pgxp_position_fallback",
+            "pgxp_preserve_projection", "pgxp_seam", "pgxp_tolerance", "post_shader",
+            "present_thread", "render_thread", "renderer", "resolution_reference_lines",
+            "scanline_strength", "scanlines", "shadow", "sprite_texture_edges",
+            "sprite_texture_filtering", "supersample", "supersampling", "texture_edges",
+            "texture_filtering", "texture_lod", "texture_window_batching", "ui_texture_edges",
+            "ui_texture_filtering", "vsync", "window_width"});
         if (video.contains("supersampling")) {
             const auto n = toml::find<int64_t>(video, "supersampling");
             // 1..32: the runtime clamps per backend (software/Vulkan 4, OpenGL
@@ -974,6 +1019,10 @@ static RuntimeConfig parse_runtime_block(const toml::value& cfg, const fs::path&
         }
         if (video.contains("shadow")) {
             const auto& sh = toml::find(video, "shadow");
+            reject_unknown_keys(sh, "[video.shadow]",
+                {"baked_shadows_off", "camera", "hide_textures", "nocast_textures",
+                "noface_routines", "off_textures", "overdraw", "scene_keys", "sprite_anchors",
+                "sun_areas"});
             if (sh.contains("camera")) {
                 const auto c = toml::find<std::string>(sh, "camera");
                 if (c == "gte") rt.video_shadow_camera = 1;
@@ -1354,6 +1403,12 @@ static RuntimeConfig parse_runtime_block(const toml::value& cfg, const fs::path&
     // Optional [controller] block — game-declared input defaults.
     if (cfg.contains("controller")) {
         const toml::value& ct = toml::find(cfg, "controller");
+        reject_unknown_keys(ct, "[controller]",
+            {"anti_deadzone", "deadzone", "default_analog", "default_mode", "direct_shortcut",
+            "direct_shortcut_button", "experimental_jogcon_force_feedback",
+            "experimental_jogcon_force_feedback_invert", "legacy_pad_config", "lock_device",
+            "lock_mode", "multitap", "multitap_analog", "multitap_port", "p1_analog", "p1_device",
+            "p1_mode", "p2_analog", "p2_device", "p2_mode", "select_shortcuts"});
         // Legacy boolean form (true->analog, false->digital), read first so the
         // new string `*_mode` keys win when both are present.
         if (ct.contains("default_analog")) {
@@ -1685,6 +1740,9 @@ BiosConfig load_bios_config(const fs::path& config_path_in) {
             config_path.string()));
     }
 
+    reject_unknown_keys(cfg, "the profile top level",
+        {"game", "program", "recompiler", "runtime"});
+
     // [program] — bios.toml uses this; some legacy files use [game]
     const toml::value* prog_ptr = nullptr;
     if (cfg.contains("program")) {
@@ -1697,6 +1755,8 @@ BiosConfig load_bios_config(const fs::path& config_path_in) {
                         config_path.string()));
     }
     const toml::value& prog = *prog_ptr;
+    reject_unknown_keys(prog, "[program]",
+        {"entry_pc", "exe", "id", "image", "load_address", "name", "rom", "text_size"});
 
     const std::string name = toml::find<std::string>(prog, "name");
     const std::string id   = prog.contains("id")
@@ -1734,6 +1794,8 @@ BiosConfig load_bios_config(const fs::path& config_path_in) {
     bool image_redistributable = false;
     if (prog.contains("image")) {
         const toml::value& img = toml::find(prog, "image");
+        reject_unknown_keys(img, "[program.image]",
+            {"license", "redistributable", "sha256"});
         if (img.contains("sha256"))
             image_sha256 = toml::find<std::string>(img, "sha256");
         if (img.contains("redistributable"))
@@ -1746,6 +1808,9 @@ BiosConfig load_bios_config(const fs::path& config_path_in) {
             fmt::format("{}: missing [recompiler] block", config_path.string()));
     }
     const toml::value& recomp = toml::find(cfg, "recompiler");
+    reject_unknown_keys(recomp, "[recompiler]",
+        {"address_model", "bios_aliases", "bios_vectors", "install_slots", "out_dir", "out_stem",
+        "runtime_exports", "seeds", "strict"});
 
     if (!recomp.contains("seeds")) {
         throw std::runtime_error(
@@ -1815,6 +1880,8 @@ BiosConfig load_bios_config(const fs::path& config_path_in) {
     std::vector<BiosAddrCopy> address_copies;
     if (recomp.contains("address_model")) {
         const toml::value& am = toml::find(recomp, "address_model");
+        reject_unknown_keys(am, "[recompiler.address_model]",
+            {"copy", "normalize_mask"});
         if (am.contains("normalize_mask")) {
             const uint32_t mask = parse_hex(
                 toml::find<std::string>(am, "normalize_mask"),
@@ -1891,6 +1958,8 @@ BiosConfig load_bios_config(const fs::path& config_path_in) {
     uint32_t shell_entry_phys = 0, deliver_event_ret = 0;
     if (recomp.contains("runtime_exports")) {
         const toml::value& rx = toml::find(recomp, "runtime_exports");
+        reject_unknown_keys(rx, "[recompiler.runtime_exports]",
+            {"deliver_event_ret", "shell_entry_phys"});
         if (rx.contains("shell_entry_phys"))
             shell_entry_phys = parse_hex(
                 toml::find<std::string>(rx, "shell_entry_phys"),
@@ -1953,6 +2022,9 @@ GameConfig load_game_config(const fs::path& config_path_in) {
                         config_path.string()));
     }
     const toml::value& game = *prog_ptr;
+    reject_unknown_keys(game, "[game]",
+        {"disc", "disc_crc", "disc_requests", "disc_serials", "disc_sha1", "discs", "entry_pc",
+        "exe", "id", "load_address", "name", "players", "region", "rom", "stack_base", "text_size"});
 
     const std::string name = toml::find<std::string>(game, "name");
     const std::string id   = game.contains("id")
@@ -2225,6 +2297,11 @@ GameConfig load_game_config(const fs::path& config_path_in) {
             fmt::format("{}: missing [recompiler] block", config_path.string()));
     }
     const toml::value& recomp = toml::find(cfg, "recompiler");
+    reject_unknown_keys(recomp, "[recompiler]",
+        {"bios_config", "bios_thunks", "cpu_timing", "discovery", "gpr_locals",
+        "gpr_locals_flush_max", "hot_funcs", "lean", "lean_no_locals", "load_charge_batch",
+        "load_charge_batch_funcs", "mod_function_entry_funcs", "mod_instruction_sites", "out_dir",
+        "out_stem", "overlay_perf_modes", "patch", "ram_fast_path", "seeds", "strict"});
 
     if (!recomp.contains("seeds")) {
         throw std::runtime_error(
@@ -2463,6 +2540,14 @@ GameConfig load_game_config(const fs::path& config_path_in) {
     }
     if (cfg.contains("widescreen")) {
         const toml::value& ws = toml::find(cfg, "widescreen");
+        reject_unknown_keys(ws, "[widescreen]",
+            {"adaptive_view", "auto_ui_anchor", "auto_ui_size", "auto_ui_squash", "backdrop", "bg2d",
+            "clear_reveal", "cull", "dome", "full_2d", "gameplay_state_addr",
+            "gameplay_state_values", "gte_game_mode", "hud_sprt_squash", "native_wide",
+            "nw_backdrop", "nw_flat_backdrop", "nw_full_mirror", "nw_hud_corners",
+            "nw_left_hud_packet_hi", "nw_left_hud_packet_lo", "nw_phase_backdrop",
+            "nw_textured_edge_scale", "nw_textured_edges", "offer", "offer_ultrawide",
+            "precise_nclip", "signed_x_bound", "sprite_anchor_addr", "sprite_tag_funcs"});
         if (ws.contains("sprite_tag_funcs")) {
             const auto& arr = toml::find<std::vector<std::string>>(ws, "sprite_tag_funcs");
             for (const auto& a : arr)
@@ -2653,6 +2738,14 @@ GameConfig load_game_config(const fs::path& config_path_in) {
         const toml::value& ws = toml::find(cfg, "widescreen");
         if (ws.contains("cull")) {
             const toml::value& cull = toml::find(ws, "cull");
+            reject_unknown_keys(cull, "[widescreen.cull]",
+                {"activation_guard_pixels", "a1_sites", "angle", "aspect_cone", "auto_backdrop",
+                "auto_screen_x", "bgez_sites", "bias_lower_sites", "bias_sites", "bltz_sites",
+                "branch_keep_sites", "clip_edge_width", "clip_edge_x_load_sites", "depth_sites",
+                "guard_pixels", "keep", "masked_reject", "nclip_exact_sites", "nclip_keep_sites",
+                "negsub_sites", "plane_nx_sites", "range_sites", "scale", "screen_h_imms",
+                "screen_w_imms", "screen_x_sites", "slti_lower_sites", "slti_sites", "sxy",
+                "vxrange_sites", "xclip_load_sites"});
             auto load_sites = [&](const char* key, std::vector<uint32_t>& out) {
                 if (!cull.contains(key)) return;
                 for (const auto& a : toml::find<std::vector<std::string>>(cull, key))
