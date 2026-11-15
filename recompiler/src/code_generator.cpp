@@ -208,14 +208,14 @@ std::string CodeGenerator::translate_addiu(uint32_t instr) {
     uint32_t rt = get_rt(instr);
     int16_t imm = get_imm16(instr);
 
+    // Optimize: don't assign to $zero (must precede the li shortcut)
+    if (config_.optimize_zero_reg && rt == 0) {
+        return "/* nop: write to $zero */";
+    }
+
     // Optimize: loading immediate into register (from $zero)
     if (rs == 0) {
         return fmt::format("{} = {};", reg_name(rt), imm);
-    }
-
-    // Optimize: don't assign to $zero
-    if (config_.optimize_zero_reg && rt == 0) {
-        return "/* nop: write to $zero */";
     }
 
     return fmt::format("{} = {} + {};", reg_name(rt), reg_name(rs), imm);
