@@ -3126,21 +3126,6 @@ void overlay_loader_init(const char *cache_dir, const char *game_id,
                        s_native_block_n, s_native_block_n == 1 ? "y" : "ies", nb);
         }
     }
-#ifndef PSX_NO_DEBUG_TOOLS
-    {
-        const char *limit = getenv("PSX_NATIVE_RANK_LIMIT");
-        if (limit && *limit) {
-            unsigned long long n = strtoull(limit, NULL, 0);
-            s_native_rank_limit = n >= UINT32_MAX ? UINT32_MAX - 1u : (uint32_t)n;
-            s_native_rank_next = 0;
-            s_native_rank_blocked = 0;
-            fprintf(stdout,
-                    "psxrecomp: PSX_NATIVE_RANK_LIMIT=%u: "
-                    "first-seen candidate bisection ON\n",
-                    s_native_rank_limit);
-        }
-    }
-#endif
     /* Boot-time full-interp override (diagnostic): PSX_OVERLAY_NATIVE_OFF=1 forces
      * native overlay execution off from the first instruction, so a pristine
      * interpreter reference can be captured without racing post-boot cmds. Same
@@ -3153,60 +3138,10 @@ void overlay_loader_init(const char *cache_dir, const char *game_id,
         }
     }
     {
-        const char *sup = getenv("PSX_OVERLAY_IRQ_SUPPRESS");
-        const char *rl  = getenv("PSX_OVERLAY_IRQ_RATELIMIT");
-        if (sup && *sup && *sup != '0') {
-            overlay_loader_set_irq_suppress(1, 0);
-            loader_log("PSX_OVERLAY_IRQ_SUPPRESS set: native overlay IRQ checks suppressed from boot");
-        } else if (rl && *rl) {
-            uint32_t n = (uint32_t)strtoul(rl, NULL, 0);
-            if (n == 0) n = 1;
-            overlay_loader_set_irq_suppress(1, n);
-            loader_log("PSX_OVERLAY_IRQ_RATELIMIT set: native overlay IRQ checks every %u call(s)", n);
-        }
-    }
-    {
-        const char *budget = getenv("PSX_OVERLAY_IRQ_BUDGET");
-        if (budget && *budget) {
-            uint32_t n = (uint32_t)strtoul(budget, NULL, 0);
-            s_irq_budget_cycles = n;
-            s_irq_last_check_cycle = UINT64_MAX;
-            loader_log("PSX_OVERLAY_IRQ_BUDGET set: native overlay IRQ checks every %u guest cycle(s)", n);
-        }
-    }
-    {
-        const char *no_cd = getenv("PSX_OVERLAY_IRQ_NO_CDROM");
-        if (no_cd && *no_cd && *no_cd != '0') {
-            s_irq_suppress_cdrom_only = 1;
-            loader_log("PSX_OVERLAY_IRQ_NO_CDROM set: native overlay CDROM-only IRQ checks suppressed");
-        }
-    }
-    {
-        const char *defer_cd = getenv("PSX_OVERLAY_IRQ_DEFER_CDROM");
-        if (defer_cd && *defer_cd && *defer_cd != '0') {
-            s_irq_defer_cdrom = 1;
-            loader_log("PSX_OVERLAY_IRQ_DEFER_CDROM set: native overlay CDROM IRQ delivery deferred");
-        }
-    }
-    {
-        const char *post = getenv("PSX_OVERLAY_IRQ_POST_PUMP");
-        if (post && *post && *post != '0') {
-            s_irq_post_dispatch_pump = 1;
-            s_irq_last_check_cycle = UINT64_MAX;
-            loader_log("PSX_OVERLAY_IRQ_POST_PUMP set: native overlay dispatch-return IRQ pump enabled");
-        }
-    }
-    {
         const char *diff = getenv("PSX_OVERLAY_DIFF");
         if (diff && *diff && *diff != '0') {
             s_diff_mode = 1;
             loader_log("PSX_OVERLAY_DIFF set: native/interp shadow diff ON from boot");
-        }
-        const char *diff_addr = getenv("PSX_OVERLAY_DIFF_ADDR");
-        if (diff_addr && *diff_addr) {
-            s_diff_addr = (uint32_t)strtoul(diff_addr, NULL, 0);
-            loader_log("PSX_OVERLAY_DIFF_ADDR set: shadow diff restricted to 0x%08X",
-                       s_diff_addr);
         }
     }
     s_active = 1;
