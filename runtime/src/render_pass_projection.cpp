@@ -6,7 +6,7 @@
 #include <cmath>
 #include <cstring>
 #include <new>
-#include <unordered_map>
+#include <utility>
 #include <vector>
 
 namespace {
@@ -67,12 +67,26 @@ struct PSXProjectionHistory {
     PSXProjectionHistory* next = nullptr;
     uint32_t capacity;
     std::vector<Projection> current, previous;
-    std::unordered_map<uint64_t, std::vector<uint32_t>> index;
+    // Sorted (key, position) pairs; capacity is reused across frames.
+    std::vector<std::pair<uint64_t, uint32_t>> index;
     std::vector<uint8_t> used;
     PSXProjectionStats stats{};
     bool capturing = false, replaying = false, history_valid = false;
     double alpha = 1;
 };
+static void build_index(std::vector<std::pair<uint64_t, uint32_t>>& idx,
+                        const std::vector<Projection>& v) {
+    idx.clear();
+    for (uint32_t i=0; i<v.size(); ++i) idx.emplace_back(v[i].key, i);
+    std::sort(idx.begin(), idx.end());  // positions ascend within a key, as push_back order did
+}
+static std::pair<const std::pair<uint64_t, uint32_t>*, const std::pair<uint64_t, uint32_t>*>
+index_range(const std::vector<std::pair<uint64_t, uint32_t>>& idx, uint64_t key) {
+    auto lo = std::lower_bound(idx.begin(), idx.end(), std::make_pair(key, uint32_t(0)));
+    auto hi = lo;
+    while (hi != idx.end() && hi->first == key) ++hi;
+    return { idx.data() + (lo - idx.begin()), idx.data() + (hi - idx.begin()) };
+}
 static PSXProjectionHistory* active = nullptr;
 // Intrusive list has no global destructor: title replay objects may release
 // their histories from static destructors, in either link initialization order.
@@ -123,14 +137,15 @@ extern "C" void psx_projection_capture_end(PSXProjectionHistory* h, uint32_t tic
     h->index.clear();
     try {
     if (h->history_valid && ticks && ticks <= 8 && !h->stats.overflow) {
-        for (uint32_t i=0; i<h->previous.size(); ++i) h->index[h->previous[i].key].push_back(i);
+        build_index(h->index, h->previous);
         h->used.assign(h->previous.size(), 0);
         const double limit = max_move * ticks;
         for (auto& p : h->current) {
-            auto it = h->index.find(p.key);
+            auto r = index_range(h->index, p.key);
             uint32_t best = UINT32_MAX;
             double best_d = INFINITY;
-            if (it != h->index.end()) for (uint32_t i : it->second) {
+            for (auto e = r.first; e != r.second; ++e) {
+                const uint32_t i = e->second;
                 if (h->used[i] || !same_vertices(p, h->previous[i])) continue;
                 const double d = distance(p.current, h->previous[i].current);
                 if (d < best_d) { best = i; best_d = d; }
@@ -152,8 +167,7 @@ extern "C" void psx_projection_capture_end(PSXProjectionHistory* h, uint32_t tic
     h->history_valid = !h->stats.overflow && !h->current.empty();
     // Index the current frame for replay; visibility/subdivision may reorder
     // projections. Never blend a different vertex because an ordinal shifted.
-    h->index.clear();
-    for (uint32_t i=0; i<h->current.size(); ++i) h->index[h->current[i].key].push_back(i);
+    build_index(h->index, h->current);
     } catch (...) {  // allocation failure: drop history; replay then finds nothing
         h->index.clear(); h->used.clear(); h->history_valid = false;
     }
@@ -190,9 +204,9 @@ extern "C" int psx_projection_command(CPUState* cpu, uint32_t command) {
         return 0;
     }
     if (!h->replaying || !g_psx_render_pass_active) return 0;
-    auto it = h->index.find(p.key);
-    if (it == h->index.end()) return 0;
-    for (uint32_t i : it->second) {
+    auto r = index_range(h->index, p.key);
+    for (auto e = r.first; e != r.second; ++e) {
+        const uint32_t i = e->second;
         const auto& c = h->current[i];
         if (h->used[i] || !same_vertices(c,p) || !same_matrix(c.current,p.current)) continue;
         h->used[i] = 1;

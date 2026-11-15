@@ -80,7 +80,19 @@ static void test_overflow_and_reset() {
     psx_projection_stats(h,&st); CHECK(!st.captured);
     psx_projection_destroy(h);
 }
+static void test_disjoint_frames() {
+    // Keys present in an earlier frame must act as absent once the index is rebuilt.
+    auto* h=psx_projection_create(16);
+    CPUState a[]={pose(0,1),pose(0,1)}, b[]={pose(10,2)}, c3[]={pose(20,2)};
+    capture(h,a,2); capture(h,b,1);
+    PSXProjectionStats st{}; psx_projection_stats(h,&st); CHECK(st.matched==0 && st.unmatched==1);
+    g_psx_render_pass_active=1; psx_projection_replay_begin(h,32768);
+    CPUState c=a[0]; CHECK(!psx_projection_command(&c,1));
+    psx_projection_replay_end(h);
+    capture(h,c3,1); psx_projection_stats(h,&st); CHECK(st.matched==1);
+    psx_projection_destroy(h);
+}
 int main() {
-    test_matching(); test_cuts_and_rotation(); test_overflow_and_reset();
+    test_matching(); test_cuts_and_rotation(); test_overflow_and_reset(); test_disjoint_frames();
     std::printf("projection history failures=%d\n",failures); return failures?1:0;
 }
