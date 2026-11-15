@@ -773,8 +773,9 @@ static void raster_flat_triangle(const RTarget *t,
     int dy_total = y2 - y0;
     if (dy_total == 0) return;
 
-    for (int y = y0; y < y2; y++) {
-        if (y < t->cy1 || y > t->cy2) continue;
+    /* Every per-row value is recomputed from y, so clipped rows can be skipped outright. */
+    int y_end = min_i(y2, t->cy2 + 1);
+    for (int y = max_i(y0, t->cy1); y < y_end; y++) {
 
         int xa, xb;
         psx_triangle_edges_at_y(x0, y0, x1, y1, x2, y2, y, &xa, &xb);
@@ -844,8 +845,9 @@ static void raster_gouraud_triangle(const RTarget *t,
     int dy_total = y2 - y0;
     if (dy_total == 0) return;
 
-    for (int y = y0; y < y2; y++) {
-        if (y < t->cy1 || y > t->cy2) continue;
+    /* Every per-row value is recomputed from y, so clipped rows can be skipped outright. */
+    int y_end = min_i(y2, t->cy2 + 1);
+    for (int y = max_i(y0, t->cy1); y < y_end; y++) {
 
         int second_half = (y >= y1);
         int seg_height = second_half ? (y2 - y1) : (y1 - y0);
@@ -970,8 +972,9 @@ static void raster_textured_triangle(const RTarget *t,
     int dy_total = y2 - y0;
     if (dy_total == 0) return;
 
-    for (int y = y0; y < y2; y++) {
-        if (y < t->cy1 || y > t->cy2) continue;
+    /* Every per-row value is recomputed from y, so clipped rows can be skipped outright. */
+    int y_end = min_i(y2, t->cy2 + 1);
+    for (int y = max_i(y0, t->cy1); y < y_end; y++) {
 
         int second_half = (y >= y1);
         int seg_height = second_half ? (y2 - y1) : (y1 - y0);
@@ -1137,8 +1140,9 @@ static void raster_shaded_textured_triangle(const RTarget *t,
     int dy_total = y2 - y0;
     if (dy_total == 0) return;
 
-    for (int y = y0; y < y2; y++) {
-        if (y < t->cy1 || y > t->cy2) continue;
+    /* Every per-row value is recomputed from y, so clipped rows can be skipped outright. */
+    int y_end = min_i(y2, t->cy2 + 1);
+    for (int y = max_i(y0, t->cy1); y < y_end; y++) {
 
         int second_half = (y >= y1);
         int seg_height = second_half ? (y2 - y1) : (y1 - y0);

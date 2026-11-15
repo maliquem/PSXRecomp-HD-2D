@@ -58,6 +58,54 @@ static void draw(int perspective, int precise, int filter, uint16_t *dst) {
         memcpy(dst + y * 256, vram + (260 + y) * 1024, 256 * sizeof(uint16_t));
 }
 
+/* GPU-O2: the y loop starts and ends at the draw area. A big triangle mostly
+ * outside it must draw, inside, exactly what the full draw does there. Edges by
+ * hand: the long edge (0,0)->(0,400) stays at x=0; the short one (400,0)->(0,400)
+ * steps exactly -1 column per line, so row y covers x in [0, 400-y). */
+enum { CL_X1 = 100, CL_Y1 = 200, CL_X2 = 300, CL_Y2 = 210 };
+static uint16_t clip_ref[CL_Y2 - CL_Y1 + 1][512];
+
+static void big_tri(int kind) {
+    switch (kind) {
+    case 0: sw_draw_flat_triangle(0, 0, 400, 0, 0, 400, 0x1234); break;
+    case 1: sw_draw_gouraud_triangle(0, 0, 0x001F, 400, 0, 0x03E0, 0, 400, 0x7C00); break;
+    case 2: sw_draw_textured_triangle(0, 0, 0, 0, 400, 0, 255, 0, 0, 400, 0, 255,
+                                      0, 0, TEXPAGE); break;
+    default: sw_draw_shaded_textured_triangle(0, 0, 0, 0, 0x0000FF,
+                                              400, 0, 255, 0, 0x00FF00,
+                                              0, 400, 0, 255, 0xFF0000,
+                                              0, 0, TEXPAGE, 0); break;
+    }
+}
+
+static void check_clipped_big_triangles(void) {
+    sw_set_texture_filter(0);
+    for (int kind = 0; kind < 4; kind++) {
+        reset_vram();
+        sw_set_draw_area(0, 0, 1023, 511);
+        big_tri(kind);
+        for (int y = CL_Y1; y <= CL_Y2; y++)
+            memcpy(clip_ref[y - CL_Y1], vram + y * 1024, sizeof clip_ref[0]);
+
+        reset_vram();
+        sw_set_draw_area(CL_X1, CL_Y1, CL_X2, CL_Y2);
+        big_tri(kind);
+        for (int y = 0; y < 512; y++)
+            for (int x = 0; x < 512; x++) {
+                int in = y >= CL_Y1 && y <= CL_Y2 && x >= CL_X1 && x <= CL_X2;
+                assert(vram[y * 1024 + x] == (in ? clip_ref[y - CL_Y1][x] : 0));
+            }
+        if (kind == 0)
+            for (int y = CL_Y1; y <= CL_Y2; y++) {
+                assert(vram[y * 1024 + CL_X1 - 1] == 0);
+                assert(vram[y * 1024 + CL_X1] == 0x1234);
+                assert(vram[y * 1024 + 399 - y] == 0x1234);
+                assert(vram[y * 1024 + 400 - y] == 0);
+            }
+    }
+    sw_set_draw_area(0, 0, 1023, 511);
+}
+
 int main(void) {
     sw_renderer_init(vram);
     assert(!sw_faithful_authority());
@@ -88,6 +136,8 @@ int main(void) {
     assert(sw_texture_filter() == 1);
     draw(1, 0, 1, out);
     assert(memcmp(out, plain, sizeof plain) != 0);
+
+    check_clipped_big_triangles();
 
     printf("sw_faithful_authority_test: all checks passed\n");
     return 0;
