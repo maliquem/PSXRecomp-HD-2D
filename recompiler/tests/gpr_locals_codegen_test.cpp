@@ -415,6 +415,8 @@ void run_case(const Case& c, const char* mode, PSXRecomp::CodeGenConfig config) 
     const auto gen = generator.generate_function(function, cfg);
     const std::string where = std::string(c.name) + "/" + mode;
     check(!gen.body.empty(), where + ": generator produced a body");
+    if (std::string(c.name) == "div_overflow")
+        check(gen.body.find("== 0x80000000u && ") != std::string::npos, where + ": DIV guards INT32_MIN / -1");
     const auto& st = generator.gpr_locals_stats();
     if (st.localized != 1) {
         // Not an invariant break, but the pass then says nothing about real output.
@@ -466,6 +468,13 @@ int main() {
             0x90A80002u,  // +14 lbu   $t0, 2($a1)
             0x03E00008u,  // +18 jr    $ra
             0x00481021u,  // +1C addu  $v0, $v0, $t0     (delay slot)
+        }},
+        // GEN-1: DIV must guard 0x80000000 / -1 (host int32_t overflow).
+        {"div_overflow", {
+            0x0109001Au,  // +00 div   $t0, $t1
+            0x00001012u,  // +04 mflo  $v0
+            0x03E00008u,  // +08 jr    $ra
+            0x00000000u,  // +0C nop
         }},
     };
 

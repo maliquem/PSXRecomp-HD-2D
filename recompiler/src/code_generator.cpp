@@ -716,9 +716,10 @@ std::string CodeGenerator::translate_div(uint32_t instr) {
 
     // MIPS division: quotient in LO, remainder in HI
     // Handle division by zero (MIPS behavior: result is unpredictable but doesn't trap)
-    return fmt::format("if ({} != 0) {{ cpu->lo = (uint32_t)((int32_t){} / (int32_t){}); cpu->hi = (uint32_t)((int32_t){} % (int32_t){}); }} else {{ cpu->lo = ((int32_t){} >= 0) ? 0xFFFFFFFF : 1; cpu->hi = (uint32_t){}; }}"
+    // 0x80000000 / -1 overflows host int32_t (UB/trap); R3000 gives LO=0x80000000, HI=0 (same as strict_translator and dirty_ram_interp)
+    return fmt::format("if ({} == 0) {{ cpu->lo = ((int32_t){} >= 0) ? 0xFFFFFFFF : 1; cpu->hi = (uint32_t){}; }} else if ({} == 0x80000000u && {} == 0xFFFFFFFFu) {{ cpu->lo = 0x80000000u; cpu->hi = 0u; }} else {{ cpu->lo = (uint32_t)((int32_t){} / (int32_t){}); cpu->hi = (uint32_t)((int32_t){} % (int32_t){}); }}"
                       "\n#ifdef PSX_ENABLE_BLOCK_CYCLES\n    psx_muldiv_set(cpu, 37u);\n#endif",
-                      reg_name(rt), reg_name(rs), reg_name(rt), reg_name(rs), reg_name(rt), reg_name(rs), reg_name(rs));
+                      reg_name(rt), reg_name(rs), reg_name(rs), reg_name(rs), reg_name(rt), reg_name(rs), reg_name(rt), reg_name(rs), reg_name(rt));
 }
 
 std::string CodeGenerator::translate_divu(uint32_t instr) {
