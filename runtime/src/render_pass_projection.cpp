@@ -125,6 +125,7 @@ extern "C" void psx_projection_destroy(PSXProjectionHistory* h) {
 extern "C" void psx_projection_capture_begin(PSXProjectionHistory* h) {
     if (!h || g_psx_render_pass_active) return;
     h->previous.swap(h->current); h->current.clear();
+    h->index.clear();  // old positions would point past the new, empty current
     h->stats = {}; h->capturing = true; h->replaying = false;
     active = h; g_psx_projection_command = psx_projection_command;
 }

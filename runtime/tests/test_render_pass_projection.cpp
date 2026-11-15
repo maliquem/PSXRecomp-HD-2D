@@ -92,7 +92,19 @@ static void test_disjoint_frames() {
     capture(h,c3,1); psx_projection_stats(h,&st); CHECK(st.matched==1);
     psx_projection_destroy(h);
 }
+static void test_replay_inside_capture() {
+    // Replay begun between capture_begin and capture_end must not use the old frame's index.
+    auto* h=psx_projection_create(16);
+    CPUState a[]={pose(0,1),pose(0,1)};
+    capture(h,a,2); capture(h,a,2);
+    g_psx_render_pass_active=0; psx_projection_capture_begin(h);
+    g_psx_render_pass_active=1; psx_projection_replay_begin(h,32768);
+    CPUState c=a[0]; CHECK(!psx_projection_command(&c,1));
+    psx_projection_replay_end(h); g_psx_render_pass_active=0;
+    psx_projection_destroy(h);
+}
 int main() {
     test_matching(); test_cuts_and_rotation(); test_overflow_and_reset(); test_disjoint_frames();
+    test_replay_inside_capture();
     std::printf("projection history failures=%d\n",failures); return failures?1:0;
 }
