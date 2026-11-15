@@ -342,7 +342,23 @@ static void test_reserved(void) {
 
     reset();
     rv = step(CODE, i_type(0x18, A0, V0, 0));           /* primary opcode 18h */
-    KNOWN("primary opcode 18h raises RI", "CPU-9", exc_taken(rv, EXC_RI, CODE, 0u));
+    CHECK("primary opcode 18h raises RI", exc_taken(rv, EXC_RI, CODE, 0u));
+
+    /* LWC0 raises Coprocessor Unusable (0Bh) with CE = 0; BadVAddr untouched. */
+    reset();
+    s_cpu.cop0[CAUSE] = 0x30000000u;
+    s_cpu.cop0[BADVADDR] = 0xDEADBEEFu;
+    rv = step(CODE, i_type(0x30, A0, V0, 0));
+    CHECK("LWC0 raises CpU, CE=0", exc_taken(rv, 11u, CODE, 0u) &&
+          (s_cpu.cop0[CAUSE] & 0x30000000u) == 0u && s_cpu.cop0[BADVADDR] == 0xDEADBEEFu);
+
+    /* A reserved word in a delay slot still aborts (no slot exception delivery yet). */
+    reset();
+    put_word(CODE + 0x304u, i_type(0x3F, A0, V0, 0));
+    rv = step(CODE + 0x300u, i_type(0x04, ZERO, ZERO, 3));
+    KNOWN("reserved opcode in delay slot: RI, BD=1, EPC=branch", "CPU-2",
+          exc_taken(rv, EXC_RI, CODE + 0x300u, 1u));
+    CHECK("reserved in delay slot leaves SR", (s_cpu.cop0[SR] & 0x3Fu) == 0x01u);
     g_unsupported_seen = 0;
 }
 

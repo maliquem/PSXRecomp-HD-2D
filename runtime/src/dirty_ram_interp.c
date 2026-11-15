@@ -1397,6 +1397,14 @@ static int exec_one(CPUState *cpu, uint32_t pc, uint32_t *next_pc_out) {
     return exec_one_fetched(cpu, pc, fetch_word(pc & 0x1FFFFFFFu), next_pc_out);
 }
 
+/* psx-spx "Illegal Opcodes": N/A primary opcodes raise RI; LWC0/SWC0 raise CpU.
+ * Same set as the game emitter's default (code_generator.cpp, GEN-3). */
+static int interp_reserved_primary(uint32_t opc) {
+    return opc == 0x30u || opc == 0x38u || (opc >= 0x14u && opc <= 0x1Fu) ||
+           opc == 0x27u || opc == 0x2Cu || opc == 0x2Du ||
+           (opc >= 0x34u && opc <= 0x37u) || opc >= 0x3Cu;
+}
+
 /* Forward: helper for delay-slot execution on jumps/branches. */
 static void exec_delay_slot(CPUState *cpu, uint32_t pc) {
     /* Delay-slot instruction at pc must NOT be a control transfer.
@@ -1415,6 +1423,11 @@ static void exec_delay_slot(CPUState *cpu, uint32_t pc) {
         opc == 0x01 /*regimm*/ ||
         (opc == 0x00 && (fnt == 0x08 /*jr*/ || fnt == 0x09 /*jalr*/))) {
         (void)abort_unsupported(pc, insn, "control-transfer in delay slot");
+        return;
+    }
+    /* The caller overwrites cpu->pc after the slot, so a slot exception cannot be delivered yet (CPU-2). */
+    if (interp_reserved_primary(opc)) {
+        (void)abort_unsupported(pc, insn, "reserved opcode in delay slot");
         return;
     }
     uint32_t dummy_next = 0;
@@ -2473,6 +2486,12 @@ static int exec_one_fetched_inner(CPUState *cpu, uint32_t pc, uint32_t insn,
         return 0;
     }
     default:
+        if (interp_reserved_primary(opc)) {
+            /* RI (0Ah) or CpU (0Bh, CE = 0); BadVAddr is left as it was. */
+            const int cpu_unusable = (opc == 0x30u || opc == 0x38u);
+            if (cpu_unusable) cpu->cop0[13] &= ~0x30000000u;
+            return interp_exception(cpu, cpu_unusable ? 11u : 10u, cpu->cop0[8], pc);
+        }
         return abort_unsupported(pc, insn, "primary opcode");
     }
     return 0;
