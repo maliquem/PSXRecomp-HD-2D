@@ -1859,6 +1859,11 @@ BiosConfig load_bios_config(const fs::path& config_path_in) {
             "{}: [program] load_address must be \"0xBFC00000\" and text_size \"0x80000\" "
             "(got 0x{:08X} and 0x{:X})",
             config_path.string(), load_address, text_size));
+    if (entry_pc < load_address || entry_pc - load_address >= text_size || (entry_pc & 3u))
+        throw std::runtime_error(fmt::format(
+            "{}: [program] entry_pc 0x{:08X} must be 4-byte aligned inside the BIOS window "
+            "[0x{:08X}, 0x{:08X})",
+            config_path.string(), entry_pc, load_address, load_address + text_size));
 
     // [program.image] — declared identity (optional)
     std::string image_sha256;
