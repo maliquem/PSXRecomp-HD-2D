@@ -96,7 +96,7 @@ by the plumbing issues below).
 1. CRC of live RAM — wrong: scatter-load gaps contain old data in live RAM but zeros
    in the DMA-assembled image, so the CRC never matched.
 2. Address-only — no collision safety.
-3. DMA-CRC (from `overlay_capture_get_region_crc`) — correct in theory, but the DMA
+3. DMA-CRC (from `overlay_capture_get_region_crc`, since removed) — correct in theory, but the DMA
    blocks are not in `s_entries` after a fast-boot restore (no DMA fired), so the
    function hashed a zeroed image and produced the wrong CRC.
 

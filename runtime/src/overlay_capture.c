@@ -1553,26 +1553,3 @@ void overlay_autocapture_shutdown(void)
     s_autocap_write_job = NULL;
     SDL_AtomicSet(&s_autocap_write_state, 0);
 }
-
-uint32_t overlay_capture_get_region_crc(uint32_t region_start,
-                                         uint32_t region_size)
-{
-    int j;
-    uint8_t *image = (uint8_t *)calloc(region_size, 1);
-    if (!image) return 0;
-
-    for (j = 0; j < s_count; j++) {
-        OvEntry *blk = &s_entries[j];
-        if (!blk->bytes) continue;
-        if (blk->load_addr < region_start ||
-            blk->load_addr >= region_start + region_size) continue;
-        uint32_t off     = blk->load_addr - region_start;
-        uint32_t copy_sz = blk->size;
-        if (off + copy_sz > region_size) copy_sz = region_size - off;
-        memcpy(image + off, blk->bytes, copy_sz);
-    }
-
-    uint32_t crc = crc32_compute(image, region_size);
-    free(image);
-    return crc;
-}

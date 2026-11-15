@@ -73,14 +73,6 @@ void overlay_autocapture_shutdown(void);
 void overlay_autocapture_get_status(int *enabled, uint32_t *triggers,
                                     uint64_t *last_delta);
 
-/* Compute CRC32 of the DMA-time bytes for the region [region_start,
- * region_start+region_size).  Zero-filled for gaps between DMA blocks,
- * exactly as overlay_captures.json bytes_b64 is assembled.  Use this
- * in overlay_loader to build a consistent DLL filename without reading
- * live RAM (which has scatter-load gap contamination). */
-uint32_t overlay_capture_get_region_crc(uint32_t region_start,
-                                         uint32_t region_size);
-
 #ifdef __cplusplus
 }
 #endif
