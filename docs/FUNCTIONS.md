@@ -264,15 +264,15 @@ Loads and validates the BIOS, game, options and user settings TOML files, and wr
 - `parse_quality_presets` (L1705) — Parses the quality presets of a game config into a list, checking each key against the supported set.
 - `derive_out_stem` (L1758) — Derives an output name stem from a ROM file name by removing its extension, matched without regard to case.
 - `load_bios_config` (L1775) — Load a BIOS config TOML.
-- `load_game_config` (L2071) — Load a game config TOML.
-- `load_game_options` (L3486) — Load game_options.toml ([[option]] array of {name, addr, size}).
-- `valid_user_audio_freq` (L3523) — True when an audio frequency is one of the allowed user values: 32040, 32000, 44100 or 48000.
-- `load_user_settings` (L3527) — Load settings.toml. Returns an all-defaults (all has_*=false) struct if the file is missing or unreadable.
-- `relative_to_folder` (L3986) — Returns a path relative to a folder when the path is absolute, or the path unchanged when it is not.
-- `toml_escape` (L4000) — A basic TOML string must not carry a raw quote, backslash or control char.
-- `write_text_atomic` (L4016) — Write to a sibling temp file then rename, so a crash never leaves a cut file.
-- `save_user_settings` (L4031) — Write settings.toml deterministically.
-- `upsert_game_toml_controller_bool` (L4275) — Sets a boolean key in the controller section of a game TOML file, adding or updating it, and returns whether the write succeeded.
+- `load_game_config` (L2076) — Load a game config TOML.
+- `load_game_options` (L3491) — Load game_options.toml ([[option]] array of {name, addr, size}).
+- `valid_user_audio_freq` (L3528) — True when an audio frequency is one of the allowed user values: 32040, 32000, 44100 or 48000.
+- `load_user_settings` (L3532) — Load settings.toml. Returns an all-defaults (all has_*=false) struct if the file is missing or unreadable.
+- `relative_to_folder` (L3991) — Returns a path relative to a folder when the path is absolute, or the path unchanged when it is not.
+- `toml_escape` (L4005) — A basic TOML string must not carry a raw quote, backslash or control char.
+- `write_text_atomic` (L4021) — Write to a sibling temp file then rename, so a crash never leaves a cut file.
+- `save_user_settings` (L4036) — Write settings.toml deterministically.
+- `upsert_game_toml_controller_bool` (L4280) — Sets a boolean key in the controller section of a game TOML file, adding or updating it, and returns whether the write succeeded.
 
 ### recompiler/src/config_loader.h
 
@@ -4190,21 +4190,21 @@ The PS1 GPU emulation: GP0 and GP1 command handling, software rasterising, VRAM 
 - `gp1_get_info` (L10139) — GP1 get-info handler (0x10): returns the requested GPU info.
 - `gpu_write_gp1` (L10172) — Writes a GP1 control word and dispatches it by its command number.
 - `gpu_snap_emit` (L10245) — GPU snap fields are scalars / u32 arrays — emit as LE u32/i32 (no struct pad).
-- `gpu_snap_parse` (L10278) — Reads GPU snapshot fields from a buffer.
-- `gpu_snapshot_bytes` (L10319) — Byte size of the GPU snapshot.
-- `gpu_snapshot_write` (L10324) — Writes the GPU snapshot into a buffer.
-- `gpu_cosim_snapshot_bytes` (L10329) — Byte size of the co-simulation snapshot.
-- `gpu_cosim_snapshot_write` (L10330) — Writes the co-simulation snapshot into a buffer.
-- `gpu_cosim_dump` (L10331) — Debug: dumps the co-simulation state.
-- `gpu_snapshot_validate` (L10372) — Pass-1 check for boot_state's two-pass load: refuses a GP0 state the parser would accept but gpu_write_gp0 would index gp0_cmd_buf out of range with.
-- `gpu_snapshot_read` (L10387) — Restores the GPU state from a snapshot buffer.
-- `gpu_pass_provenance_transfer` (L10465) — One transfer list keeps save and restore symmetric.
-- `gpu_pass_scene_transfer` (L10510) — Scene transfer list for a render pass checkpoint.
-- `gpu_pass_checkpoint_save` (L10542) — Render-pass GPU register checkpoint (render_pass.c).
-- `gpu_pass_checkpoint_restore` (L10559) — Restores the GPU registers from a render-pass checkpoint.
-- `gpu_pass_state_hash` (L10585) — FNV-1a over the checkpointed register set (PSX_RENDER_PASS_VERIFY).
-- `gpu_get_vram_ptr` (L10598) — Pointer to the VRAM buffer.
-- `gpu_get_vram_bytes` (L10599) — Size of the VRAM buffer in bytes.
+- `gpu_snap_parse` (L10282) — Reads GPU snapshot fields from a buffer.
+- `gpu_snapshot_bytes` (L10323) — Byte size of the GPU snapshot.
+- `gpu_snapshot_write` (L10328) — Writes the GPU snapshot into a buffer.
+- `gpu_cosim_snapshot_bytes` (L10333) — Byte size of the co-simulation snapshot.
+- `gpu_cosim_snapshot_write` (L10334) — Writes the co-simulation snapshot into a buffer.
+- `gpu_cosim_dump` (L10335) — Debug: dumps the co-simulation state.
+- `gpu_snapshot_validate` (L10376) — Pass-1 check for boot_state's two-pass load: refuses a GP0 state the parser would accept but gpu_write_gp0 would index gp0_cmd_buf out of range with.
+- `gpu_snapshot_read` (L10391) — Restores the GPU state from a snapshot buffer.
+- `gpu_pass_provenance_transfer` (L10469) — One transfer list keeps save and restore symmetric.
+- `gpu_pass_scene_transfer` (L10514) — Scene transfer list for a render pass checkpoint.
+- `gpu_pass_checkpoint_save` (L10546) — Render-pass GPU register checkpoint (render_pass.c).
+- `gpu_pass_checkpoint_restore` (L10563) — Restores the GPU registers from a render-pass checkpoint.
+- `gpu_pass_state_hash` (L10589) — FNV-1a over the checkpointed register set (PSX_RENDER_PASS_VERIFY).
+- `gpu_get_vram_ptr` (L10602) — Pointer to the VRAM buffer.
+- `gpu_get_vram_bytes` (L10603) — Size of the VRAM buffer in bytes.
 
 ### runtime/src/gpu_edge.inc
 
@@ -5110,45 +5110,45 @@ Software rasterizer: draws PS1 primitives (triangles, rectangles, lines, texture
 - `sw_fill_rect` (L678) — Drawing primitives — called from gpu.c command processing
 - `sw_copy_rect` (L700) — Copies a VRAM rectangle to another place in VRAM, handling overlap and mirroring the copy into the high-res mirror.
 - `raster_flat_triangle` (L765) — Rasterizes a flat-colored triangle into the target, sorting vertices by Y first.
-- `sw_draw_flat_triangle` (L793) — Draws a flat-colored triangle into native VRAM and mirrors it to the high-res and wide surfaces.
-- `raster_gouraud_triangle` (L821) — Rasterizes a triangle with per-vertex colors into the target by interpolating across scanlines.
-- `sw_draw_gouraud_triangle` (L913) — Draws a triangle with per-vertex colors into native VRAM and mirrors it to the high-res and wide surfaces.
-- `raster_textured_triangle` (L942) — Rasterizes a textured triangle into the target, sampling UVs with CLUT and texpage state.
-- `sw_draw_textured_triangle` (L1053) — Draws a textured triangle with CLUT and texpage into native VRAM and mirrors it to the other surfaces.
-- `color24_to_mod` (L1097) — Converts a 24-bit vertex color into the 5-bit per-channel modulation factors used for textures.
-- `sw_draw_shaded_textured_triangle` (L1238) — Draws a textured triangle with per-vertex colors, modulating the texel by the interpolated colors.
-- `raster_flat_rect` (L1296) — Fills a rectangle of the target with one color, row by row.
-- `sw_draw_flat_rect` (L1311) — Fills a flat rectangle in native VRAM and mirrors it into the high-res and wide surfaces.
-- `raster_textured_rect` (L1351) — Draws a textured rectangle into the target with UV stepping from its top-left corner.
-- `sw_draw_textured_rect` (L1380) — Draws a textured rectangle into native VRAM with CLUT and texpage, mirroring the result to the other surfaces.
-- `sw_wide_emit_tile` (L1419) — ---- MMX6 native-wide reveal-column tile (host-side, WIDE SURFACE ONLY) -------- Rasterize ONE 16x16 textured tile into the active wide surface for a given vertical band, leaving canonical VRAM AND th
-- `raster_textured_rect_scaled` (L1438) — Draws a textured rectangle that stretches its texture from u0,v0 to u1,v1 across the target area.
-- `sw_draw_textured_rect_scaled` (L1472) — Draws a stretched textured rectangle into native VRAM and mirrors the result to the other surfaces.
-- `hr_put_block_opaque` (L1507) — Writes an opaque native pixel as a scale-by-scale block into the high-resolution mirror.
-- `wide_put_block_opaque` (L1518) — Mirror a 1px line pixel into the active wide surface (s*s block, x-translated).
-- `sw_draw_line` (L1528) — Draws a one-pixel flat line between two points into native VRAM and mirrors it to the other surfaces.
-- `sw_draw_shaded_line` (L1549) — Draws a one-pixel line whose color interpolates from c0 to c1 into native VRAM and mirrors it.
-- `sw_vram_write` (L1589) — VRAM transfer (CPU->VRAM, VRAM->CPU)
-- `sw_vram_read` (L1605) — Reads one 15-bit pixel from canonical VRAM at x,y.
-- `hr_rebuild_from_vram` (L1616) — Rebuild the supersampled mirror from canonical VRAM after a bulk replace.
-- `sw_vram_transfer_in` (L1651) — Copies a CPU block of pixels into VRAM and updates the high-res mirror; a full-VRAM copy triggers one full rebuild.
-- `sw_vram_transfer_out` (L1699) — Copies a block of VRAM pixels out to a CPU buffer, with a fast path for the whole VRAM.
-- `rgb555_to_argb` (L1732) — Converts a 15-bit PS1 pixel to a 32-bit ARGB value with the top bits expanded to 8 bits per channel.
-- `sw_render_display` (L1743) — Renders the displayed VRAM rectangle into a 32-bit output buffer at native resolution; returns the pixel count.
-- `sw_render_display_hires` (L1761) — Renders the displayed area from the high-res mirror when scale is above 1, else falls back to native rendering.
-- `wide_free_all` (L1793) — Frees every native-wide surface and resets their base addresses.
-- `wide_surf_for` (L1801) — Returns the native-wide surface for base_x, allocating a free slot when none exists yet; NULL when wide mode is off.
-- `sw_wide_set_view` (L1829) — Enable native-wide with a wide width + centering offset (native px), or disable (wide_w <= 0).
-- `sw_wide_configure` (L1839) — Native-wide compositor (see gpu_sw_renderer.c).
-- `sw_wide_set_target` (L1847) — Select the wide surface to mirror into for the back buffer at base_x.
-- `sw_wide_disable_target` (L1853) — Stop mirroring (offscreen draws that don't target a framebuffer).
-- `sw_wide_clear` (L1857) — Mirror a framebuffer clear: fill the full wide width over [y, y+h) of the surface for base_x, so the revealed margins are clean (not stale).
-- `sw_wide_clear_margins` (L1874) — Clear only the synthetic columns outside the centred canonical framebuffer.
-- `wide_surf_existing` (L1894) — An existing wide surface for base_x (never allocates: a source that was not drawn yet has nothing to copy).
-- `sw_wide_feedback_rect` (L1904) — Band texels count as bit 15 set: the band columns' own bit 15 is not authoritative (margin fills write 0), and a framebuffer trail keeps the centre at bit 15 once it blends, so the bands blend exactly
-- `sw_render_wide_display` (L1936) — Present source: convert the wide surface for the displayed buffer (base_x) to ARGB.
-- `sw_wide_width` (L1958) — Returns the current native-wide width in native pixels.
-- `sw_wide_dump_full` (L1965) — Diagnostic: dump the ENTIRE active wide surface for base_x (full g_wide_w*scale × VRAM_HEIGHT*scale — BOTH double-buffer y-bands, all margins) to ARGB.
+- `sw_draw_flat_triangle` (L794) — Draws a flat-colored triangle into native VRAM and mirrors it to the high-res and wide surfaces.
+- `raster_gouraud_triangle` (L822) — Rasterizes a triangle with per-vertex colors into the target by interpolating across scanlines.
+- `sw_draw_gouraud_triangle` (L915) — Draws a triangle with per-vertex colors into native VRAM and mirrors it to the high-res and wide surfaces.
+- `raster_textured_triangle` (L944) — Rasterizes a textured triangle into the target, sampling UVs with CLUT and texpage state.
+- `sw_draw_textured_triangle` (L1056) — Draws a textured triangle with CLUT and texpage into native VRAM and mirrors it to the other surfaces.
+- `color24_to_mod` (L1100) — Converts a 24-bit vertex color into the 5-bit per-channel modulation factors used for textures.
+- `sw_draw_shaded_textured_triangle` (L1242) — Draws a textured triangle with per-vertex colors, modulating the texel by the interpolated colors.
+- `raster_flat_rect` (L1300) — Fills a rectangle of the target with one color, row by row.
+- `sw_draw_flat_rect` (L1315) — Fills a flat rectangle in native VRAM and mirrors it into the high-res and wide surfaces.
+- `raster_textured_rect` (L1355) — Draws a textured rectangle into the target with UV stepping from its top-left corner.
+- `sw_draw_textured_rect` (L1384) — Draws a textured rectangle into native VRAM with CLUT and texpage, mirroring the result to the other surfaces.
+- `sw_wide_emit_tile` (L1423) — ---- MMX6 native-wide reveal-column tile (host-side, WIDE SURFACE ONLY) -------- Rasterize ONE 16x16 textured tile into the active wide surface for a given vertical band, leaving canonical VRAM AND th
+- `raster_textured_rect_scaled` (L1442) — Draws a textured rectangle that stretches its texture from u0,v0 to u1,v1 across the target area.
+- `sw_draw_textured_rect_scaled` (L1476) — Draws a stretched textured rectangle into native VRAM and mirrors the result to the other surfaces.
+- `hr_put_block_opaque` (L1511) — Writes an opaque native pixel as a scale-by-scale block into the high-resolution mirror.
+- `wide_put_block_opaque` (L1522) — Mirror a 1px line pixel into the active wide surface (s*s block, x-translated).
+- `sw_draw_line` (L1532) — Draws a one-pixel flat line between two points into native VRAM and mirrors it to the other surfaces.
+- `sw_draw_shaded_line` (L1553) — Draws a one-pixel line whose color interpolates from c0 to c1 into native VRAM and mirrors it.
+- `sw_vram_write` (L1593) — VRAM transfer (CPU->VRAM, VRAM->CPU)
+- `sw_vram_read` (L1609) — Reads one 15-bit pixel from canonical VRAM at x,y.
+- `hr_rebuild_from_vram` (L1620) — Rebuild the supersampled mirror from canonical VRAM after a bulk replace.
+- `sw_vram_transfer_in` (L1655) — Copies a CPU block of pixels into VRAM and updates the high-res mirror; a full-VRAM copy triggers one full rebuild.
+- `sw_vram_transfer_out` (L1703) — Copies a block of VRAM pixels out to a CPU buffer, with a fast path for the whole VRAM.
+- `rgb555_to_argb` (L1736) — Converts a 15-bit PS1 pixel to a 32-bit ARGB value with the top bits expanded to 8 bits per channel.
+- `sw_render_display` (L1747) — Renders the displayed VRAM rectangle into a 32-bit output buffer at native resolution; returns the pixel count.
+- `sw_render_display_hires` (L1765) — Renders the displayed area from the high-res mirror when scale is above 1, else falls back to native rendering.
+- `wide_free_all` (L1797) — Frees every native-wide surface and resets their base addresses.
+- `wide_surf_for` (L1805) — Returns the native-wide surface for base_x, allocating a free slot when none exists yet; NULL when wide mode is off.
+- `sw_wide_set_view` (L1833) — Enable native-wide with a wide width + centering offset (native px), or disable (wide_w <= 0).
+- `sw_wide_configure` (L1843) — Native-wide compositor (see gpu_sw_renderer.c).
+- `sw_wide_set_target` (L1851) — Select the wide surface to mirror into for the back buffer at base_x.
+- `sw_wide_disable_target` (L1857) — Stop mirroring (offscreen draws that don't target a framebuffer).
+- `sw_wide_clear` (L1861) — Mirror a framebuffer clear: fill the full wide width over [y, y+h) of the surface for base_x, so the revealed margins are clean (not stale).
+- `sw_wide_clear_margins` (L1878) — Clear only the synthetic columns outside the centred canonical framebuffer.
+- `wide_surf_existing` (L1898) — An existing wide surface for base_x (never allocates: a source that was not drawn yet has nothing to copy).
+- `sw_wide_feedback_rect` (L1908) — Band texels count as bit 15 set: the band columns' own bit 15 is not authoritative (margin fills write 0), and a framebuffer trail keeps the centre at bit 15 once it blends, so the bands blend exactly
+- `sw_render_wide_display` (L1940) — Present source: convert the wide surface for the displayed buffer (base_x) to ARGB.
+- `sw_wide_width` (L1962) — Returns the current native-wide width in native pixels.
+- `sw_wide_dump_full` (L1969) — Diagnostic: dump the ENTIRE active wide surface for base_x (full g_wide_w*scale × VRAM_HEIGHT*scale — BOTH double-buffer y-bands, all margins) to ARGB.
 
 ### runtime/src/gpu_timeline.c
 
@@ -7258,19 +7258,19 @@ Computes the state digests netplay compares between peers to detect desync, spli
 - `digest_module` (L39) — CRC of one module's snapshot bytes, written through write_fn into a reusable buffer; 0 when the module reports no bytes.
 - `netplay_cdrom_digest` (L60) — CRC of the CD-ROM controller snapshot.
 - `netplay_av_digest` (L78) — CRC of the GPU registers, the full VRAM and the MDEC data, for the audio-video side of the state.
-- `netplay_core_digest_parts` (L110) — Fills out with the CRCs of the core parts (CPU, clock, timers, RAM, DMA) that make up the core digest.
-- `netplay_core_digest` (L204) — Core state digest: the core CRC of the CPU, clock, timers, RAM and DMA state.
-- `netplay_spu_regs_digest` (L211) — CRC of the SPU registers only, through the snapshot module.
-- `spu_dig_regs_only` (L216) — Reads PSX_RB_SPU_DIG_REGS_ONLY once; 1 means the SPU digest skips SPU RAM.
-- `netplay_spu_digest` (L232) — uint32_t netplay_av_digest(void); /* GPU + VRAM SPU regs+RAM and MDEC — in snaps but not core/av; pin zlib skew with matched core/av was this.
-- `netplay_mdec_digest` (L249) — CRC of the MDEC decoder snapshot.
-- `netplay_aux_digest` (L254) — CRC over the SPU and MDEC digests combined.
-- `netplay_spad_digest` (L264) — CRC of the 1 KiB scratchpad; 0 when the scratchpad pointer is unavailable.
-- `netplay_dma_digest` (L273) — uint32_t netplay_aux_digest(void); /* crc(spu, mdec) uint32_t netplay_spad_digest(void); /* 1 KiB scratchpad
-- `netplay_sio_digest` (L278) — CRC of the SIO controller and memory-card state, folded through the FSM pace field only.
-- `netplay_sio_digest_parts` (L304) — Fills out with per-part CRCs of the SIO state so an audit can see which part differs.
-- `netplay_baseline_ext_digest` (L344) — Baseline dig_c: crc(aux, cd, spad, dma, sio).
-- `netplay_master_digest` (L360) — Master state digest: folds the core and CD-ROM digests as raw words into one CRC for comparison; 0 when cpu is null.
+- `netplay_core_digest_parts` (L111) — Fills out with the CRCs of the core parts (CPU, clock, timers, RAM, DMA) that make up the core digest.
+- `netplay_core_digest` (L205) — Core state digest: the core CRC of the CPU, clock, timers, RAM and DMA state.
+- `netplay_spu_regs_digest` (L212) — CRC of the SPU registers only, through the snapshot module.
+- `spu_dig_regs_only` (L217) — Reads PSX_RB_SPU_DIG_REGS_ONLY once; 1 means the SPU digest skips SPU RAM.
+- `netplay_spu_digest` (L233) — uint32_t netplay_av_digest(void); /* GPU + VRAM SPU regs+RAM and MDEC — in snaps but not core/av; pin zlib skew with matched core/av was this.
+- `netplay_mdec_digest` (L250) — CRC of the MDEC decoder snapshot.
+- `netplay_aux_digest` (L255) — CRC over the SPU and MDEC digests combined.
+- `netplay_spad_digest` (L265) — CRC of the 1 KiB scratchpad; 0 when the scratchpad pointer is unavailable.
+- `netplay_dma_digest` (L274) — uint32_t netplay_aux_digest(void); /* crc(spu, mdec) uint32_t netplay_spad_digest(void); /* 1 KiB scratchpad
+- `netplay_sio_digest` (L279) — CRC of the SIO controller and memory-card state, folded through the FSM pace field only.
+- `netplay_sio_digest_parts` (L305) — Fills out with per-part CRCs of the SIO state so an audit can see which part differs.
+- `netplay_baseline_ext_digest` (L345) — Baseline dig_c: crc(aux, cd, spad, dma, sio).
+- `netplay_master_digest` (L361) — Master state digest: folds the core and CD-ROM digests as raw words into one CRC for comparison; 0 when cpu is null.
 
 ### runtime/src/overlay_backend.c
 
@@ -8904,8 +8904,8 @@ Rewind feature: a ring of recent machine snapshots with thumbnails, plus the on-
 - `rewind_resolve_resume_pc` (L278) — Mid-FMV / present-edge IRQ paths often pass hint=0 — same latch walk as savestate_resolve_resume_pc / selfcheck sc_pick_snap_pc.
 - `capture_thumb` (L300) — Fills a 128 by 96 thumbnail from the current display, black when the display is off.
 - `list_drop_after` (L321) — Removes list entries newer than tick and keeps the selection in range.
-- `list_push` (L341) — Adds a tick and its thumbnail to the list, replacing the same tick or dropping the oldest when full.
-- `do_capture` (L470) — Saves a machine snapshot at a safe resume point into the ring, with its thumbnail; returns 1 on success.
+- `list_push_slot` (L343) — Claims the list slot for tick and returns it for the caller to fill, so the thumbnail is rendered in place instead of through a 48 KB stack copy.
+- `do_capture` (L471) — Saves a machine snapshot at a safe resume point into the ring, with its thumbnail; returns 1 on success.
 - `rewind_load_blocked` (L504) — Same continuation gates as savestate_poll: a load longjmps to the scheduler, so it must not unwind a mod callback (psx_mod_call_guest restores registers after it) or a host call that restores register
 - `do_load` (L511) — Restores the snapshot at tick, drops newer snapshots, resyncs timing and resumes; returns 0 on failure.
 - `blit_thumb` (L740) — Draws a thumbnail scaled into a panel cell, with a border highlighted when selected.
