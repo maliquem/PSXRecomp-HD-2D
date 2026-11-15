@@ -5,7 +5,10 @@
 #include <unordered_set>
 #include <algorithm>
 #include <cctype>
+#include <cerrno>
+#include <cmath>
 #include <cstdio>
+#include <cstdlib>
 #include <fstream>
 #include <initializer_list>
 #include <sstream>
@@ -339,6 +342,50 @@ static uint32_t parse_hex(const std::string& s, const std::string& field) {
         throw std::runtime_error(
             fmt::format("config field '{}': expected 32-bit hex string, got '{}'", field, s));
     return static_cast<uint32_t>(v);
+}
+
+// Whole-string unsigned 32-bit number, base auto-detected like std::stoul(s, 0, 0)
+// ("0x1F", "31", "017"), but a bad value names its key and trailing junk, a sign or
+// leading blanks are errors instead of being accepted.
+static uint32_t parse_u32_auto(const std::string& s, const char* field) {
+    char* end = nullptr;
+    errno = 0;
+    const unsigned long long v =
+        (!s.empty() && std::isdigit(static_cast<unsigned char>(s[0])))
+            ? std::strtoull(s.c_str(), &end, 0) : 0ull;
+    if (end == nullptr || end == s.c_str() || *end != '\0' || errno == ERANGE ||
+        v > 0xFFFFFFFFull)
+        throw std::runtime_error(
+            fmt::format("{}: expected an unsigned 32-bit number, got '{}'", field, s));
+    return static_cast<uint32_t>(v);
+}
+
+static float parse_float_strict(const std::string& s, const char* field) {
+    char* end = nullptr;
+    errno = 0;
+    const float v = std::strtof(s.c_str(), &end);
+    if (s.empty() || end == s.c_str() || *end != '\0' || errno == ERANGE || !std::isfinite(v))
+        throw std::runtime_error(
+            fmt::format("{}: expected a finite number, got '{}'", field, s));
+    return v;
+}
+
+// game.toml [controller] mode: unlike the settings file, a typo is an error, not "analog".
+static int strict_pad_mode(const toml::value& ct, const char* key) {
+    const std::string v = toml::find<std::string>(ct, key);
+    const int m = pad_mode_from_string(v, 0);
+    if (m == 0)
+        throw std::runtime_error(fmt::format(
+            "[controller] {} must be \"analog\" or \"digital\": {}", key, v));
+    return m;
+}
+
+// A TOML number key that must be finite (nan/inf parse as valid TOML floats).
+static double toml_finite(const toml::value& table, const char* key, const char* where) {
+    const double v = toml_number(table, key);
+    if (!std::isfinite(v))
+        throw std::runtime_error(fmt::format("{} {} must be a finite number", where, key));
+    return v;
 }
 
 // One [[widescreen.cull.sxy]] entry. The fold and its consumer are identified
@@ -720,10 +767,20 @@ static RuntimeConfig parse_runtime_block(const toml::value& cfg, const fs::path&
         rt.overlay_precompile = toml::find<bool>(runtime, "overlay_precompile");
     }
     if (runtime.contains("mdec_dma_batch")) {
-        rt.mdec_dma_batch = toml::find<int>(runtime, "mdec_dma_batch");
+        // 1 = off; the runtime clamps to 1..256 (dma.c mdec_out_batch).
+        const auto n = toml::find<int64_t>(runtime, "mdec_dma_batch");
+        if (n < 1 || n > 256)
+            throw std::runtime_error(fmt::format(
+                "[runtime] mdec_dma_batch out of range (1..256): {}", n));
+        rt.mdec_dma_batch = static_cast<int>(n);
     }
     if (runtime.contains("pgxp_idle_hold")) {
-        rt.pgxp_idle_hold = toml::find<int>(runtime, "pgxp_idle_hold");
+        // 0 = never; a negative value would read as the runtime's "unset" sentinel (gpu.c).
+        const auto n = toml::find<int64_t>(runtime, "pgxp_idle_hold");
+        if (n < 0 || n > INT32_MAX)
+            throw std::runtime_error(fmt::format(
+                "[runtime] pgxp_idle_hold out of range (0..{}): {}", INT32_MAX, n));
+        rt.pgxp_idle_hold = static_cast<int>(n);
     }
     if (runtime.contains("game_core")) {
         rt.game_core = toml::find<bool>(runtime, "game_core");
@@ -1029,7 +1086,7 @@ static RuntimeConfig parse_runtime_block(const toml::value& cfg, const fs::path&
                 else if (c == "none") rt.video_shadow_camera = 0;
                 else if (c.rfind("ram:", 0) == 0) {
                     rt.video_shadow_camera = 2;
-                    rt.video_shadow_camera_addr = (uint32_t)std::stoul(c.substr(4), nullptr, 0);
+                    rt.video_shadow_camera_addr = (uint32_t)parse_u32_auto(c.substr(4), "[video.shadow] camera");
                 }
                 else throw std::runtime_error(fmt::format(
                     "[video.shadow] camera must be \"gte\", \"ram:0xADDR\" or \"none\": {}", c));
@@ -1043,9 +1100,9 @@ static RuntimeConfig parse_runtime_block(const toml::value& cfg, const fs::path&
             if (sh.contains("scene_keys")) {
                 for (const auto& k : toml::find<std::vector<std::string>>(sh, "scene_keys")) {
                     const auto colon = k.find(':');
-                    const uint32_t addr = (uint32_t)std::stoul(k.substr(0, colon), nullptr, 0);
+                    const uint32_t addr = (uint32_t)parse_u32_auto(k.substr(0, colon), "[video.shadow] scene_keys");
                     const uint32_t size = colon == std::string::npos ? 4u
-                        : (uint32_t)std::stoul(k.substr(colon + 1), nullptr, 0);
+                        : (uint32_t)parse_u32_auto(k.substr(colon + 1), "[video.shadow] scene_keys");
                     if (size != 1 && size != 2 && size != 4)
                         throw std::runtime_error(fmt::format(
                             "[video.shadow] scene_keys size must be 1, 2 or 4: {}", k));
@@ -1061,9 +1118,9 @@ static RuntimeConfig parse_runtime_block(const toml::value& cfg, const fs::path&
                     if (colon == std::string::npos)
                         throw std::runtime_error(fmt::format(
                             "[video.shadow] hide_textures entries are \"0xPAGE:0xCLUT\": {}", k));
-                    rt.video_shadow_hide_tpage.push_back((uint32_t)std::stoul(k.substr(0, colon), nullptr, 0));
+                    rt.video_shadow_hide_tpage.push_back((uint32_t)parse_u32_auto(k.substr(0, colon), "[video.shadow] hide_textures"));
                     const std::string c = k.substr(colon + 1);   // "*" = any palette
-                    rt.video_shadow_hide_clut.push_back(c == "*" ? 0xFFFFu : (uint32_t)std::stoul(c, nullptr, 0));
+                    rt.video_shadow_hide_clut.push_back(c == "*" ? 0xFFFFu : (uint32_t)parse_u32_auto(c, "[video.shadow] hide_textures"));
                 }
                 if (rt.video_shadow_hide_tpage.size() > 16)
                     throw std::runtime_error("[video.shadow] hide_textures: at most 16");
@@ -1075,8 +1132,8 @@ static RuntimeConfig parse_runtime_block(const toml::value& cfg, const fs::path&
                         throw std::runtime_error(fmt::format(
                             "[video.shadow] off_textures entries are \"0xPAGE:0xCLUT\" (either may be *): {}", k));
                     const std::string p = k.substr(0, colon), c = k.substr(colon + 1);
-                    rt.video_shadow_off_tpage.push_back(p == "*" ? 0xFFFFu : (uint32_t)std::stoul(p, nullptr, 0) & 0x1FFu);
-                    rt.video_shadow_off_clut.push_back(c == "*" ? 0xFFFFu : (uint32_t)std::stoul(c, nullptr, 0));
+                    rt.video_shadow_off_tpage.push_back(p == "*" ? 0xFFFFu : (uint32_t)parse_u32_auto(p, "[video.shadow] off_textures") & 0x1FFu);
+                    rt.video_shadow_off_clut.push_back(c == "*" ? 0xFFFFu : (uint32_t)parse_u32_auto(c, "[video.shadow] off_textures"));
                 }
                 if (rt.video_shadow_off_tpage.size() > 16)
                     throw std::runtime_error("[video.shadow] off_textures: at most 16");
@@ -1088,8 +1145,8 @@ static RuntimeConfig parse_runtime_block(const toml::value& cfg, const fs::path&
                         throw std::runtime_error(fmt::format(
                             "[video.shadow] nocast_textures entries are \"0xPAGE:0xCLUT\" (the CLUT may be *): {}", k));
                     const std::string c = k.substr(colon + 1);
-                    rt.video_shadow_nocast_tpage.push_back((uint32_t)std::stoul(k.substr(0, colon), nullptr, 0) & 0x1FFu);
-                    rt.video_shadow_nocast_clut.push_back(c == "*" ? 0xFFFFu : (uint32_t)std::stoul(c, nullptr, 0));
+                    rt.video_shadow_nocast_tpage.push_back((uint32_t)parse_u32_auto(k.substr(0, colon), "[video.shadow] nocast_textures") & 0x1FFu);
+                    rt.video_shadow_nocast_clut.push_back(c == "*" ? 0xFFFFu : (uint32_t)parse_u32_auto(c, "[video.shadow] nocast_textures"));
                 }
                 if (rt.video_shadow_nocast_tpage.size() > 16)
                     throw std::runtime_error("[video.shadow] nocast_textures: at most 16");
@@ -1100,7 +1157,7 @@ static RuntimeConfig parse_runtime_block(const toml::value& cfg, const fs::path&
                 for (const auto& k : toml::find<std::vector<std::string>>(sh, "sun_areas")) {
                     const auto c1 = k.find(':'), c2 = c1 == std::string::npos ? c1 : k.find(':', c1 + 1);
                     if (c1 != std::string::npos && k.substr(c1 + 1) == "off") {   // no sun in this area
-                        rt.video_shadow_sun_area.push_back((uint32_t)std::stoul(k.substr(0, c1), nullptr, 0));
+                        rt.video_shadow_sun_area.push_back((uint32_t)parse_u32_auto(k.substr(0, c1), "[video.shadow] sun_areas"));
                         rt.video_shadow_sun_az.push_back(0.0f);
                         rt.video_shadow_sun_el.push_back(0.0f);
                         continue;
@@ -1108,10 +1165,10 @@ static RuntimeConfig parse_runtime_block(const toml::value& cfg, const fs::path&
                     if (c2 == std::string::npos)
                         throw std::runtime_error(fmt::format(
                             "[video.shadow] sun_areas entries are \"0xAREA:azimuth:elevation\" or \"0xAREA:off\": {}", k));
-                    const float az = std::stof(k.substr(c1 + 1, c2 - c1 - 1)), el = std::stof(k.substr(c2 + 1));
+                    const float az = parse_float_strict(k.substr(c1 + 1, c2 - c1 - 1), "[video.shadow] sun_areas"), el = parse_float_strict(k.substr(c2 + 1), "[video.shadow] sun_areas");
                     if (el < 1.0f || el > 89.0f)
                         throw std::runtime_error(fmt::format("[video.shadow] sun_areas elevation must be 1..89: {}", k));
-                    rt.video_shadow_sun_area.push_back((uint32_t)std::stoul(k.substr(0, c1), nullptr, 0));
+                    rt.video_shadow_sun_area.push_back((uint32_t)parse_u32_auto(k.substr(0, c1), "[video.shadow] sun_areas"));
                     rt.video_shadow_sun_az.push_back(az);
                     rt.video_shadow_sun_el.push_back(el);
                 }
@@ -1120,13 +1177,13 @@ static RuntimeConfig parse_runtime_block(const toml::value& cfg, const fs::path&
             }
             if (sh.contains("sprite_anchors")) {
                 for (const auto& k : toml::find<std::vector<std::string>>(sh, "sprite_anchors"))
-                    rt.video_shadow_sprite_anchors.push_back((uint32_t)std::stoul(k, nullptr, 0));
+                    rt.video_shadow_sprite_anchors.push_back((uint32_t)parse_u32_auto(k, "[video.shadow] sprite_anchors"));
                 if (rt.video_shadow_sprite_anchors.size() > 8)
                     throw std::runtime_error("[video.shadow] sprite_anchors: at most 8");
             }
             if (sh.contains("noface_routines")) {
                 for (const auto& k : toml::find<std::vector<std::string>>(sh, "noface_routines"))
-                    rt.video_shadow_noface_routines.push_back((uint32_t)std::stoul(k, nullptr, 0));
+                    rt.video_shadow_noface_routines.push_back((uint32_t)parse_u32_auto(k, "[video.shadow] noface_routines"));
                 if (rt.video_shadow_noface_routines.size() > 16)
                     throw std::runtime_error("[video.shadow] noface_routines: at most 16");
             }
@@ -1213,7 +1270,7 @@ static RuntimeConfig parse_runtime_block(const toml::value& cfg, const fs::path&
         }
         if (video.contains("pgxp_tolerance")) {
             rt.video_pgxp_tolerance =
-                toml_number(video, "pgxp_tolerance");
+                toml_finite(video, "pgxp_tolerance", "[video]");
             rt.video_pgxp_tolerance_set = true;
         }
         if (video.contains("pgxp_position_fallback")) {
@@ -1257,7 +1314,7 @@ static RuntimeConfig parse_runtime_block(const toml::value& cfg, const fs::path&
         if (video.contains("pgxp_color_correction"))
             rt.video_pgxp_color_correction = toml::find<bool>(video, "pgxp_color_correction");
         if (video.contains("pgxp_depth_threshold"))
-            rt.video_pgxp_depth_threshold = toml_number(video, "pgxp_depth_threshold");
+            rt.video_pgxp_depth_threshold = toml_finite(video, "pgxp_depth_threshold", "[video]");
         if (video.contains("pgxp_depth_tolerance")) {
             const double t = toml_number(video, "pgxp_depth_tolerance");
             if (t < 0.0 || t > 0.5) throw std::runtime_error(fmt::format(
@@ -1300,16 +1357,27 @@ static RuntimeConfig parse_runtime_block(const toml::value& cfg, const fs::path&
             rt.video_offer_skip_fmv = toml::find<bool>(video, "offer_skip_fmv");
         }
         if (video.contains("fmv_skip_total_table")) {
-            rt.video_fmv_skip_total_table =
-                (uint32_t)toml::find<int64_t>(video, "fmv_skip_total_table");
+            // Guest addresses: 32 bits, not silently truncated.
+            const auto n = toml::find<int64_t>(video, "fmv_skip_total_table");
+            if (n < 0 || n > 0xFFFFFFFFll)
+                throw std::runtime_error(fmt::format(
+                    "[video] fmv_skip_total_table out of range (0..0xFFFFFFFF): {}", n));
+            rt.video_fmv_skip_total_table = static_cast<uint32_t>(n);
         }
         if (video.contains("fmv_skip_movie_id")) {
-            rt.video_fmv_skip_movie_id =
-                (uint32_t)toml::find<int64_t>(video, "fmv_skip_movie_id");
+            const auto n = toml::find<int64_t>(video, "fmv_skip_movie_id");
+            if (n < 0 || n > 0xFFFFFFFFll)
+                throw std::runtime_error(fmt::format(
+                    "[video] fmv_skip_movie_id out of range (0..0xFFFFFFFF): {}", n));
+            rt.video_fmv_skip_movie_id = static_cast<uint32_t>(n);
         }
         if (video.contains("fmv_skip_end_total")) {
-            rt.video_fmv_skip_end_total =
-                (int)toml::find<int64_t>(video, "fmv_skip_end_total");
+            // 0 = runtime default (3); the runtime stores it into a u16 table.
+            const auto n = toml::find<int64_t>(video, "fmv_skip_end_total");
+            if (n < 0 || n > 0xFFFF)
+                throw std::runtime_error(fmt::format(
+                    "[video] fmv_skip_end_total out of range (0..65535): {}", n));
+            rt.video_fmv_skip_end_total = static_cast<int>(n);
         }
         if (video.contains("fmv_skip_no_xa")) {
             rt.video_fmv_skip_no_xa = toml::find<bool>(video, "fmv_skip_no_xa");
@@ -1429,19 +1497,16 @@ static RuntimeConfig parse_runtime_block(const toml::value& cfg, const fs::path&
         }
         // Preferred string form.
         if (ct.contains("default_mode")) {
-            const int m = pad_mode_from_string(
-                toml::find<std::string>(ct, "default_mode"), PAD_MODE_ANALOG);
+            const int m = strict_pad_mode(ct, "default_mode");
             rt.default_p1_mode = rt.default_p2_mode = m;
             rt.has_default_mode = true;
         }
         if (ct.contains("p1_mode")) {
-            rt.default_p1_mode = pad_mode_from_string(
-                toml::find<std::string>(ct, "p1_mode"), PAD_MODE_ANALOG);
+            rt.default_p1_mode = strict_pad_mode(ct, "p1_mode");
             rt.has_default_mode = true;
         }
         if (ct.contains("p2_mode")) {
-            rt.default_p2_mode = pad_mode_from_string(
-                toml::find<std::string>(ct, "p2_mode"), PAD_MODE_ANALOG);
+            rt.default_p2_mode = strict_pad_mode(ct, "p2_mode");
             rt.has_default_mode = true;
         }
         if (ct.contains("p1_device")) {
