@@ -4133,7 +4133,10 @@ static int write_windows_deferred_rebuild_helper(int force_pgo,
              (unsigned long)GetCurrentProcessId());
     fprintf(f, "@echo off\r\n");
     fprintf(f, "setlocal EnableExtensions\r\n");
-    fprintf(f, "title %s - %s\r\n", g_display,
+    /* cmd reads batch files in the console codepage; paths are written in ANSI */
+    fprintf(f, "chcp %u >NUL\r\n", (unsigned)GetACP());
+    /* g_display stays out of title/echo: & | < > would run as commands */
+    fprintf(f, "title Recomp - %s\r\n",
             force_pgo ? "PGO optimize" : "rebuilding");
     bat_write_set(f, "PARENT_PID", pid_buf);
     bat_write_set(f, "PYTHON", g_python);
@@ -4157,7 +4160,7 @@ static int write_windows_deferred_rebuild_helper(int force_pgo,
     if (g_toolchain_bin[0])
         bat_write_set(f, "TC_BIN", g_toolchain_bin);
     fprintf(f,
-            "echo Waiting for %%DISPLAY%% to exit...\r\n"
+            "echo Waiting for the game to exit...\r\n"
             ":waitloop\r\n"
             "tasklist /FI \"PID eq %%PARENT_PID%%\" 2>NUL | "
             "findstr /I \"%%PARENT_PID%%\" >NUL\r\n"
@@ -4214,7 +4217,7 @@ static int write_windows_deferred_rebuild_helper(int force_pgo,
              * such as "... (1)" would close the block early. */
             "if defined GEN_MARKER if not exist \"%%GEN_MARKER%%\" goto no_gen\r\n"
             "if not exist \"%%EXE_FINAL%%\" goto no_exe\r\n"
-            "echo Starting %%DISPLAY%%...\r\n"
+            "echo Starting the game...\r\n"
             "start \"\" /D \"%%ROOT%%\" \"%%EXE_FINAL%%\" --launcher\r\n"
             "endlocal\r\n"
             "exit /b 0\r\n"
