@@ -222,10 +222,10 @@ int main(void) {
 
     const uint32_t snapshot_len = sio_snapshot_bytes();
     /* JogCon steering[0] sits before steering[1..], the motor bytes, the
-     * pad-mode section (lock + device per pad) and the 13-byte present-hold
-     * block. */
+     * pad-mode section (lock + device per pad), the 13-byte present-hold
+     * block and the 34-byte multitap block. */
     const uint32_t steering_at = snapshot_len - 2u * PSX_MAX_PLAYERS -
-                                 2u * PSX_MAX_PLAYERS - 13u;
+                                 2u * PSX_MAX_PLAYERS - 13u - 34u;
     uint8_t *snapshot = (uint8_t *)malloc(snapshot_len);
     if (!snapshot) return 1;
     sio_snapshot_write(snapshot);

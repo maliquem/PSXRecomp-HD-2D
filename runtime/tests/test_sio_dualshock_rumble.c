@@ -173,9 +173,11 @@ int main(void) {
     EXPECT("snapshot.current.small", 0x01, small);
     EXPECT("snapshot.current.large", 0x80, large);
 
-    /* The present-hold window (seq u32, progress u64, armed u8) is the last
-     * block: round-trip it, refuse a non-flag armed byte, and accept a state
-     * without it. */
+    /* The present-hold window (seq u32, progress u64, armed u8) sits before
+     * the 34-byte multitap block: round-trip it, refuse a non-flag armed
+     * byte, and accept a state without it. */
+    enum { MTAP = 34 };
+    const uint32_t hold_end = snapshot_len - MTAP;
     {
         enum { HOLD = 13 };
         static const uint8_t hold[HOLD] = {0x78, 0x56, 0x34, 0x12,
@@ -183,22 +185,58 @@ int main(void) {
                                            0x44, 0x33, 0x22, 0x11, 0x01};
         uint8_t *again = (uint8_t *)malloc(snapshot_len);
         if (!again) return 1;
-        memcpy(snapshot + snapshot_len - HOLD, hold, HOLD);
+        memcpy(snapshot + hold_end - HOLD, hold, HOLD);
         EXPECT("snapshot.hold.read", 1,
                sio_snapshot_read(snapshot, snapshot_len));
         sio_snapshot_write(again);
         EXPECT("snapshot.hold.roundtrip", 0,
-               memcmp(again + snapshot_len - HOLD, hold, HOLD));
-        snapshot[snapshot_len - 1] = 2;
+               memcmp(again + hold_end - HOLD, hold, HOLD));
+        snapshot[hold_end - 1] = 2;
         EXPECT("snapshot.hold.armed-range", 0,
                sio_snapshot_validate(snapshot, snapshot_len));
-        snapshot[snapshot_len - 1] = 1;
+        EXPECT("snapshot.pre-mtap.armed-range", 0,
+               sio_snapshot_validate(snapshot, hold_end));
+        snapshot[hold_end - 1] = 1;
         EXPECT("snapshot.pre-hold.read", 1,
-               sio_snapshot_read(snapshot, snapshot_len - HOLD));
+               sio_snapshot_read(snapshot, hold_end - HOLD));
         sio_snapshot_write(again);
-        EXPECT("snapshot.pre-hold.disarmed", 0, again[snapshot_len - 1]);
+        EXPECT("snapshot.pre-hold.disarmed", 0, again[hold_end - 1]);
         EXPECT("snapshot.pre-hold.seq", 0,
-               again[snapshot_len - HOLD] | again[snapshot_len - HOLD + 1]);
+               again[hold_end - HOLD] | again[hold_end - HOLD + 1]);
+
+        /* Multitap block: addr, next_mode[2], req_this[2], returned[2],
+         * active logical pad, response bytes 8..33. Round-trip it, refuse
+         * out-of-range bytes, and reset it to Slot A when it is absent. */
+        uint8_t mtap[MTAP];
+        mtap[0] = 0x03; mtap[1] = 1; mtap[2] = 2; mtap[3] = 1; mtap[4] = 0;
+        mtap[5] = 2; mtap[6] = 1; mtap[7] = 1;
+        for (unsigned i = 8; i < MTAP; ++i) mtap[i] = (uint8_t)(0xA0u + i);
+        memcpy(snapshot + hold_end, mtap, MTAP);
+        EXPECT("snapshot.mtap.validate", 1,
+               sio_snapshot_validate(snapshot, snapshot_len));
+        EXPECT("snapshot.mtap.read", 1,
+               sio_snapshot_read(snapshot, snapshot_len));
+        sio_snapshot_write(again);
+        EXPECT("snapshot.mtap.roundtrip", 0,
+               memcmp(again + hold_end, mtap, MTAP));
+        static const unsigned bad_at[] = {0, 0, 1, 3, 5, 7};
+        static const uint8_t bad_val[] = {0x00, 0x05, 3, 2, 3, PSX_MAX_PLAYERS};
+        for (unsigned k = 0; k < sizeof bad_at / sizeof bad_at[0]; ++k) {
+            snapshot[hold_end + bad_at[k]] = bad_val[k];
+            EXPECT("snapshot.mtap.range", 0,
+                   sio_snapshot_validate(snapshot, snapshot_len));
+            snapshot[hold_end + bad_at[k]] = mtap[bad_at[k]];
+        }
+        EXPECT("snapshot.pre-mtap.read", 1,
+               sio_snapshot_read(snapshot, hold_end));
+        sio_snapshot_write(again);
+        EXPECT("snapshot.pre-mtap.addr", 0x01, again[hold_end]);
+        EXPECT("snapshot.pre-mtap.modes", 0,
+               again[hold_end + 1] | again[hold_end + 2] | again[hold_end + 3] |
+               again[hold_end + 4] | again[hold_end + 5] | again[hold_end + 6]);
+        EXPECT("snapshot.pre-mtap.logical", 0, again[hold_end + 7]);
+        EXPECT("snapshot.pre-mtap.hold", 0,
+               memcmp(again + hold_end - HOLD, hold, HOLD));
         free(again);
     }
 
@@ -207,14 +245,14 @@ int main(void) {
      * the preceding formats; removing all twenty-four bytes before the hold
      * block models a pre-rumble state. */
     EXPECT("snapshot.pre-pad-mode.read", 1,
-           sio_snapshot_read(snapshot, snapshot_len - 13 - 4));
+           sio_snapshot_read(snapshot, hold_end - 13 - 4));
     EXPECT("snapshot.pre-jogcon.read", 1,
-           sio_snapshot_read(snapshot, snapshot_len - 13 - 8));
+           sio_snapshot_read(snapshot, hold_end - 13 - 8));
     EXPECT("snapshot.pre-jogcon.small", 0x01,
            (sio_get_pad_rumble(0, &small, &large), small));
     EXPECT("snapshot.pre-jogcon.large", 0x80, large);
     EXPECT("snapshot.legacy.read", 1,
-           sio_snapshot_read(snapshot, snapshot_len - 13 - 24));
+           sio_snapshot_read(snapshot, hold_end - 13 - 24));
     sio_get_pad_rumble(0, &small, &large);
     EXPECT("snapshot.legacy.small", 0x00, small);
     EXPECT("snapshot.legacy.large", 0x00, large);

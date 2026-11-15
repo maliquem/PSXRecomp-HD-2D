@@ -867,6 +867,10 @@ void sio_init(void) {
     pad_response_idx = 0;
     pad_current_cmd = 0;
     pad_active_logical = 0;
+    pad_mtap_addr = 0x01;
+    mtap_next_mode[0] = mtap_next_mode[1] = MTAP_NEXT_SLOT_A;
+    mtap_req_this[0] = mtap_req_this[1] = 0;
+    mtap_returned[0] = mtap_returned[1] = MTAP_NEXT_SLOT_A;
     s_hold_seq = 0;
     s_hold_progress_cyc = 0;
     s_hold_armed = 0;
@@ -3061,6 +3065,21 @@ static int sio_snap_emit_hold(PstW *w) {
            pst_w_u8(w, s_hold_armed);
 }
 
+/* Multitap latch, active logical pad and response bytes 8..33 (EST-11/MEM-7),
+ * appended after the present-hold block. */
+#define SIO_SNAP_MTAP_BYTES (8u + (PAD_RESPONSE_MAX - 8u))
+static int sio_snap_emit_mtap(PstW *w) {
+    if (!pst_w_u8(w, pad_mtap_addr)) return 0;
+    for (int k = 0; k < 2; k++)
+        if (!pst_w_u8(w, (uint8_t)mtap_next_mode[k])) return 0;
+    for (int k = 0; k < 2; k++)
+        if (!pst_w_u8(w, (uint8_t)mtap_req_this[k])) return 0;
+    for (int k = 0; k < 2; k++)
+        if (!pst_w_u8(w, (uint8_t)mtap_returned[k])) return 0;
+    return pst_w_u8(w, (uint8_t)pad_active_logical) &&
+           pst_w_bytes(w, pad_response + 8, PAD_RESPONSE_MAX - 8u);
+}
+
 static void sio_pad_mode_legacy_defaults(void) {
     for (int s = 0; s < PSX_MAX_PLAYERS; s++) {
         analog_mode_locked[s] = 0;
@@ -3078,13 +3097,13 @@ static int sio_snap_emit(PstW *w) {
     return sio_snap_emit_regs(w) && sio_snap_emit_pads(w) &&
            sio_snap_emit_mc(w) && sio_snap_emit_fsm(w) && sio_snap_emit_rumble(w) &&
            sio_snap_emit_jogcon(w) && sio_snap_emit_pad_mode(w) &&
-           sio_snap_emit_hold(w);
+           sio_snap_emit_hold(w) && sio_snap_emit_mtap(w);
 }
 
 /* Cumulative section end offsets in the snapshot wire:
  * out[0]=regs, out[1]=pads, out[2]=memcard, out[3]=fsm_pace (netplay),
- * out[4]=full including fsm metadata, rumble, JogCon, pad-mode and the
- * present-hold window. */
+ * out[4]=full including fsm metadata, rumble, JogCon, pad-mode, the
+ * present-hold window and the multitap latch. */
 void sio_snapshot_section_ends(uint32_t out[5]) {
     PstW w;
     pst_w_init(&w, NULL, 0);
@@ -3101,6 +3120,7 @@ void sio_snapshot_section_ends(uint32_t out[5]) {
     (void)sio_snap_emit_jogcon(&w);
     (void)sio_snap_emit_pad_mode(&w);
     (void)sio_snap_emit_hold(&w);
+    (void)sio_snap_emit_mtap(&w);
     out[4] = (uint32_t)w.written;
 }
 
@@ -3110,7 +3130,7 @@ static void sio_hold_legacy_defaults(void) {
     s_hold_armed = 0;
 }
 
-static int sio_snap_parse(PstR *r) {
+static int sio_snap_parse_blocks(PstR *r, int *mtap_seen) {
     uint32_t u;
     int32_t i;
     int16_t tr;
@@ -3126,15 +3146,6 @@ static int sio_snap_parse(PstR *r) {
         return 0;
     pad_state = (PadState)u;
     selected_slot = (int)i;
-    pad_active_logical = pad_logical_for_port(selected_slot);
-    /* Multitap bulk responses are 34 bytes; snap only stores 8. Abort an
-     * in-flight bulk restore rather than feed a truncated frame. */
-    if (pad_response_len > 8) {
-        pad_state = PAD_IDLE;
-        pad_response_len = 0;
-        pad_response_idx = 0;
-        pad_current_cmd = 0;
-    }
     for (int s = 0; s < PSX_MAX_PLAYERS; s++) {
         if (!pst_r_i16(r, &tr))
             return 0;
@@ -3248,7 +3259,46 @@ static int sio_snap_parse(PstR *r) {
     if (!pst_r_u32(r, &s_hold_seq) || !pst_r_u64(r, &s_hold_progress_cyc) ||
         !pst_r_u8(r, &s_hold_armed))
         return 0;
+    if (r->p == r->end) return 1;
+    {
+        uint8_t b[6], logical;
+        if (!pst_r_u8(r, &pad_mtap_addr) || !pst_r_bytes(r, b, sizeof(b)) ||
+            !pst_r_u8(r, &logical) ||
+            !pst_r_bytes(r, pad_response + 8, PAD_RESPONSE_MAX - 8u))
+            return 0;
+        for (int k = 0; k < 2; k++) {
+            mtap_next_mode[k] = b[k];
+            mtap_req_this[k] = b[2 + k];
+            mtap_returned[k] = b[4 + k];
+        }
+        pad_active_logical = logical;
+        *mtap_seen = 1;
+    }
     if (r->p != r->end) return 0;
+    return 1;
+}
+
+/* Pre-multitap snapshots: the active pad comes from the port, the latch
+ * restarts at Slot A, and a bulk response (only 8 of 34 bytes stored) is
+ * aborted rather than fed truncated. */
+static void sio_mtap_legacy_defaults(void) {
+    pad_active_logical = pad_logical_for_port(selected_slot);
+    pad_mtap_addr = 0x01;
+    mtap_next_mode[0] = mtap_next_mode[1] = MTAP_NEXT_SLOT_A;
+    mtap_req_this[0] = mtap_req_this[1] = 0;
+    mtap_returned[0] = mtap_returned[1] = MTAP_NEXT_SLOT_A;
+    if (pad_response_len > 8) {
+        pad_state = PAD_IDLE;
+        pad_response_len = 0;
+        pad_response_idx = 0;
+        pad_current_cmd = 0;
+    }
+}
+
+static int sio_snap_parse(PstR *r) {
+    int mtap_seen = 0;
+    if (!sio_snap_parse_blocks(r, &mtap_seen)) return 0;
+    if (!mtap_seen) sio_mtap_legacy_defaults();
     return 1;
 }
 
@@ -3305,6 +3355,26 @@ static int sio_snapshot_ranges_ok(const uint8_t *p, uint32_t len) {
     return 1;
 }
 
+/* Ranges of the trailing hold and multitap blocks, when present. */
+static int sio_snapshot_tail_ok(const uint8_t *p, uint32_t len, uint32_t current) {
+    const uint32_t mtap = SIO_SNAP_MTAP_BYTES;
+    /* pad_response_len: regs(10) + analog + connected + state + slot + 8 bytes. */
+    const uint32_t resp_len_at = 10u + PSX_MAX_PLAYERS + 1u + 4u + 4u + 8u;
+    if (len + mtap == current)
+        return p[len - 1u] <= 1u; /* s_hold_armed is a flag */
+    if (len != current)
+        return 1;
+    const uint8_t *m = p + len - mtap;
+    if (p[len - mtap - 1u] > 1u || m[0] < 0x01u || m[0] > 0x04u ||
+        m[7] >= PSX_MAX_PLAYERS || p[resp_len_at] > PAD_RESPONSE_MAX)
+        return 0;
+    for (int k = 0; k < 2; k++)
+        if (m[1 + k] > MTAP_NEXT_GARBAGE || m[3 + k] > 1u ||
+            m[5 + k] > MTAP_NEXT_GARBAGE)
+            return 0;
+    return 1;
+}
+
 /* Non-mutating pre-check for boot_state's two-pass load: a section that passes
  * cannot fail sio_snapshot_read (the parser only reads fixed-width fields, and
  * every accepted length ends exactly where one of its layouts ends), and holds
@@ -3318,15 +3388,17 @@ int sio_snapshot_validate(const uint8_t *p, uint32_t len) {
                                   sizeof(pad_jogcon_motor_command));
     const uint32_t mode_bytes = (uint32_t)(sizeof(analog_mode_locked) +
                                 sizeof(pad_analog_device));
-    const uint32_t hold = SIO_SNAP_HOLD_BYTES;
+    const uint32_t mtap = SIO_SNAP_MTAP_BYTES;
+    const uint32_t hold = SIO_SNAP_HOLD_BYTES + mtap;
     return p && (len == current ||
+                 (len < current && len + mtap == current) ||
                  (len < current && len + hold == current) ||
                  (len < current && len + hold + mode_bytes == current) ||
                  (len < current && len + hold + mode_bytes + jogcon_bytes == current) ||
                  (len < current &&
                   len + hold + mode_bytes + jogcon_bytes + rumble_bytes == current)) &&
            sio_snapshot_ranges_ok(p, len) &&
-           (len != current || p[len - 1u] <= 1u); /* s_hold_armed is a flag */
+           sio_snapshot_tail_ok(p, len, current);
 }
 
 int sio_snapshot_read(const uint8_t *p, uint32_t len) {

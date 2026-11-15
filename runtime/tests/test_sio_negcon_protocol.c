@@ -276,9 +276,10 @@ static void set_mode_keeps_device(void) {
  * section still loads, unlocked. */
 static void snapshot_pad_mode(void) {
     uint8_t d[6];
-    /* Pad-mode block (lock + device per pad) plus the 13-byte present-hold
-     * block after it: dropping both models a pre-pad-mode state. */
-    const uint32_t mode_bytes = 2u * PSX_MAX_PLAYERS + 13u;
+    /* Pad-mode block (lock + device per pad), the 13-byte present-hold block
+     * and the 34-byte multitap block after it: dropping all three models a
+     * pre-pad-mode state. */
+    const uint32_t mode_bytes = 2u * PSX_MAX_PLAYERS + 13u + 34u;
     sio_init();
     sio_connect_pad(0);
     sio_set_pad_type(0, SIO_PAD_JOGCON, 0x80, 0x80, 0x80, 0x80);

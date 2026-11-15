@@ -139,6 +139,18 @@ int main(void) {
         expect("tap poll low", 0xCD, transfer(slot, 0));
         expect("tap poll high", 0xAB, transfer(slot, 0));
         expect("tap poll final ACK", 0, irq);
+        {
+            /* Mid-session tap state survives a snapshot round-trip. */
+            const uint32_t n = sio_snapshot_bytes();
+            uint8_t *s1 = (uint8_t *)malloc(n), *s2 = (uint8_t *)malloc(n);
+            if (!s1 || !s2) return 1;
+            sio_snapshot_write(s1);
+            sio_init();
+            expect("tap snapshot read", 1, (unsigned)sio_snapshot_read(s1, n));
+            sio_snapshot_write(s2);
+            expect("tap snapshot roundtrip", 0, (unsigned)memcmp(s1, s2, n));
+            free(s1); free(s2);
+        }
         sio_write(CTRL, 0); /* New DTR session for the rejected command. */
         expect("tap address", 0xFF, transfer(slot, 0x01));
         expect("tap unknown command", 0xFF, transfer(slot, 0x99));
