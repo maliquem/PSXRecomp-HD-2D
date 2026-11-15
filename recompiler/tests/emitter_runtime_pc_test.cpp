@@ -727,6 +727,19 @@ void check_strict_swl_swr() {
     }
 }
 
+// GEN-10: ADDIU and load/store addresses wrap mod 2^32; a signed C sum would be UB on overflow.
+void check_strict_unsigned_sums() {
+    const uint32_t pc = 0xBFC10A00u;
+    for (uint32_t raw : {0x2488FFFCu /* addiu $t0,$a0,-4 */, 0x8C88FFFCu /* lw $t0,-4($a0) */,
+                         0xAC88FFFCu /* sw $t0,-4($a0) */, 0xC888FFFCu /* lwc2 $8,-4($a0) */}) {
+        const std::string c =
+            PSXRecompV4::StrictTranslator::translate(PSXRecomp::MipsDecoder::decode(raw, pc)).c_code;
+        check(c.find("cpu->gpr[4] + (uint32_t)(-4)") != std::string::npos &&
+                  c.find("(int32_t)cpu->gpr[4] +") == std::string::npos,
+              "translator: 0x" + hex(raw) + " must sum base + offset unsigned: " + c);
+    }
+}
+
 }  // namespace
 
 int main() {
@@ -748,6 +761,7 @@ int main() {
     check_strict_translator(strict_cps);
     check_strict_div_corners();
     check_strict_swl_swr();
+    check_strict_unsigned_sums();
     if (failures != 0) {
         std::fprintf(stderr, "emitter_runtime_pc_test: %d failure(s)\n", failures);
         return 1;
