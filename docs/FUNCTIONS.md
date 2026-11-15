@@ -67,7 +67,7 @@ Builds the static analysis database for a PS1 executable, covering functions, ca
 - `AnalysisDb::containing` (L455) — Returns the function whose address range contains pc, or null when pc is outside every function.
 - `load_symbols` (L466) — --------------------------------------------------------------------------- symbols.toml ---------------------------------------------------------------------------
 - `build_analysis_db` (L499) — --------------------------------------------------------------------------- Main build ---------------------------------------------------------------------------
-- `disassemble_range` (L1036) — Disassembles the words from lo up to hi as text lines, one per instruction, stopping at unreadable memory.
+- `disassemble_range` (L1043) — Disassembles the words from lo up to hi as text lines, one per instruction, stopping at unreadable memory.
 
 ### recompiler/src/analysis_export.cpp
 
@@ -264,15 +264,15 @@ Loads and validates the BIOS, game, options and user settings TOML files, and wr
 - `parse_quality_presets` (L1705) — Parses the quality presets of a game config into a list, checking each key against the supported set.
 - `derive_out_stem` (L1758) — Derives an output name stem from a ROM file name by removing its extension, matched without regard to case.
 - `load_bios_config` (L1775) — Load a BIOS config TOML.
-- `load_game_config` (L2062) — Load a game config TOML.
-- `load_game_options` (L3459) — Load game_options.toml ([[option]] array of {name, addr, size}).
-- `valid_user_audio_freq` (L3496) — True when an audio frequency is one of the allowed user values: 32040, 32000, 44100 or 48000.
-- `load_user_settings` (L3500) — Load settings.toml. Returns an all-defaults (all has_*=false) struct if the file is missing or unreadable.
-- `relative_to_folder` (L3959) — Returns a path relative to a folder when the path is absolute, or the path unchanged when it is not.
-- `toml_escape` (L3973) — A basic TOML string must not carry a raw quote, backslash or control char.
-- `write_text_atomic` (L3989) — Write to a sibling temp file then rename, so a crash never leaves a cut file.
-- `save_user_settings` (L4004) — Write settings.toml deterministically.
-- `upsert_game_toml_controller_bool` (L4248) — Sets a boolean key in the controller section of a game TOML file, adding or updating it, and returns whether the write succeeded.
+- `load_game_config` (L2071) — Load a game config TOML.
+- `load_game_options` (L3486) — Load game_options.toml ([[option]] array of {name, addr, size}).
+- `valid_user_audio_freq` (L3523) — True when an audio frequency is one of the allowed user values: 32040, 32000, 44100 or 48000.
+- `load_user_settings` (L3527) — Load settings.toml. Returns an all-defaults (all has_*=false) struct if the file is missing or unreadable.
+- `relative_to_folder` (L3986) — Returns a path relative to a folder when the path is absolute, or the path unchanged when it is not.
+- `toml_escape` (L4000) — A basic TOML string must not carry a raw quote, backslash or control char.
+- `write_text_atomic` (L4016) — Write to a sibling temp file then rename, so a crash never leaves a cut file.
+- `save_user_settings` (L4031) — Write settings.toml deterministically.
+- `upsert_game_toml_controller_bool` (L4275) — Sets a boolean key in the controller section of a game TOML file, adding or updating it, and returns whether the write succeeded.
 
 ### recompiler/src/config_loader.h
 
