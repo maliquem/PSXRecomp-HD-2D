@@ -49,8 +49,6 @@ typedef struct {
     double err_lp_ms;       /* error low-pass time constant ms (default 75)    */
     double slew_pp_per_s;   /* correction slew, percent-points/sec (default 0.75) */
     double deadband_ms;     /* +/- band around target with no correction (1.0)  */
-    double em_low_ms;       /* below this = underrun emergency (default 12)     */
-    double em_high_ms;      /* above this = overflow emergency (default 235)    */
 } rab_config;
 
 typedef struct {
@@ -161,8 +159,6 @@ void rab_config_defaults(rab_config *c) {
     c->err_lp_ms      = 75.0;
     c->slew_pp_per_s  = 0.75;
     c->deadband_ms    = 1.0;
-    c->em_low_ms      = 12.0;
-    c->em_high_ms     = 235.0;
 }
 
 int rab_init(rab_bridge *b, const rab_config *cfg) {
