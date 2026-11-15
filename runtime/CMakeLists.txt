@@ -1680,6 +1680,27 @@ if(BUILD_TESTING)
     target_include_directories(data_shards_test PRIVATE include)
     add_test(NAME data_shards_test COMMAND data_shards_test)
 
+    # CPU-27 (b): per-instruction semantics of the dirty-RAM interpreter; KNOWN
+    # divergences do not fail. The test #includes gpu.c and dirty_ram_interp.c;
+    # link-time dead-code removal keeps the stub set small.
+    if(NOT MSVC)
+        add_executable(dirty_interp_semantics_test
+            tests/test_dirty_interp_semantics.c
+            src/ws_aspect_cone_math.c)
+        target_include_directories(dirty_interp_semantics_test PRIVATE include src)
+        target_compile_options(dirty_interp_semantics_test PRIVATE
+            -O2 -flto -ffunction-sections -fdata-sections)
+        if(APPLE)
+            target_link_options(dirty_interp_semantics_test PRIVATE -flto -Wl,-dead_strip)
+        else()
+            target_link_options(dirty_interp_semantics_test PRIVATE -flto -Wl,--gc-sections)
+        endif()
+        if(NOT WIN32)
+            target_link_libraries(dirty_interp_semantics_test PRIVATE m)
+        endif()
+        add_test(NAME dirty_interp_semantics_test COMMAND dirty_interp_semantics_test)
+    endif()
+
     # ---- previously-unregistered standalone tests -------------------------
     # These 16 existed in runtime/tests/ with no add_test() entry. Their only
     # build instructions were a gcc command line in each file's header comment,
