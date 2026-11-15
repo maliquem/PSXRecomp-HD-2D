@@ -74,7 +74,6 @@ extern int      gpu_snapshot_read(const uint8_t* p, uint32_t len);
 extern uint32_t spu_snapshot_bytes(void);
 extern void     spu_snapshot_write(uint8_t* p);
 extern int      spu_snapshot_read(const uint8_t* p, uint32_t len);
-extern int      spu_snapshot_len_ok(uint32_t len);
 extern uint8_t* spu_get_ram_ptr(void);
 extern uint32_t spu_get_ram_bytes(void);
 extern uint32_t cdrom_snapshot_bytes(void);
@@ -90,8 +89,12 @@ extern int      sio_snapshot_read(const uint8_t* p, uint32_t len);
 extern uint32_t mdec_snapshot_bytes(void);
 extern void     mdec_snapshot_write(uint8_t* p);
 extern int      mdec_snapshot_read(const uint8_t* p, uint32_t len);
-/* Non-mutating pre-checks for the readers whose acceptance is not just an
- * exact length (the two-pass load below). */
+/* Non-mutating pre-checks for the two-pass load below: each accepts exactly
+ * what its reader accepts, including the range of every saved index. */
+extern int      gpu_snapshot_validate(const uint8_t* p, uint32_t len);
+extern int      spu_snapshot_validate(const uint8_t* p, uint32_t len);
+extern int      spu_cd_snapshot_validate(const uint8_t* p, uint32_t len);
+extern int      dma_snapshot_validate(const uint8_t* p, uint32_t len);
 extern int      sio_snapshot_validate(const uint8_t* p, uint32_t len);
 extern int      mdec_snapshot_validate(const uint8_t* p, uint32_t len);
 
@@ -858,12 +861,12 @@ static int validate_section(uint32_t tag, const uint8_t* p, uint32_t len) {
     case BS_SEC_IRQ:    return len == 8u || len == 12u;
     case BS_SEC_TIMER:  return len == TIMER_REGS_WIRE_BYTES;
     case BS_SEC_CLOCK:  return len == 8u;
-    case BS_SEC_GPU:    return len == gpu_snapshot_bytes();
+    case BS_SEC_GPU:    return gpu_snapshot_validate(p, len);
     case BS_SEC_VRAM:   return len == VRAM_SIZE;
-    case BS_SEC_SPU:    return spu_snapshot_len_ok(len);
+    case BS_SEC_SPU:    return spu_snapshot_validate(p, len);
     case BS_SEC_SPURAM: return len == spu_get_ram_bytes();
     case BS_SEC_CDROM:  return cdrom_snapshot_validate(p, len);
-    case BS_SEC_DMA:    return len == dma_snapshot_bytes();
+    case BS_SEC_DMA:    return dma_snapshot_validate(p, len);
     case BS_SEC_SIO:    return sio_snapshot_validate(p, len);
     case BS_SEC_MDEC:   return mdec_snapshot_validate(p, len);
     /* A longer dirty bitmap than the live RAM has pages is a state from a
@@ -876,7 +879,7 @@ static int validate_section(uint32_t tag, const uint8_t* p, uint32_t len) {
     case BS_SEC_ICACHE: return len == 1024u * 4u;
     case BS_SEC_GCS:    return len == PSX_GCS_SNAPSHOT_BYTES;
     case BS_SEC_CPUTIM: return len == BS_CPUTIM_BYTES;
-    case BS_SEC_SPUCD:  return len >= 4u && (len - 4u) % 4u == 0u;
+    case BS_SEC_SPUCD:  return spu_cd_snapshot_validate(p, len);
     default:            return 1;
     }
 }
@@ -1110,7 +1113,10 @@ int boot_state_load_buffer(const uint8_t* file, size_t file_len,
     /* PASS 2 -- apply. Every section passed validate_section, whose checks
      * are exactly the preconditions apply_section can fail on, so this pass
      * does not fail on well-framed input; the check below stays as the
-     * backstop. test_boot_state_load_atomic pins both passes. */
+     * backstop. psx_ram_runtime_map_test pins "refused load leaves the
+     * machine untouched"; each device's invalid-state test (gpu_texture_
+     * disable_status, sio_card_irq_integrity_snapshot, cdrom_sector_fifo,
+     * spu_guest_clock, psx_ram_runtime_map for DMA) pins its validator. */
     for (uint32_t i = 0; ok && i < n_sections; i++) {
         const double t_sec = boot_state_mono_ms();
         if (!apply_section(sections[i].tag, sections[i].p, sections[i].len,

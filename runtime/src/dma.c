@@ -1648,10 +1648,27 @@ void dma_snapshot_write(uint8_t *p) {
         dma_w_delay(&w, &delayed_complete[i]);
 }
 
+/* Pass-1 check for boot_state's two-pass load. It parses into locals, so the
+ * read below cannot fail halfway, and refuses an async start address outside
+ * live RAM (finish_async_cdrom_transfer spans ram + start_addr). */
+int dma_snapshot_validate(const uint8_t *p, uint32_t len) {
+    PstR r;
+    DMAAsyncChannel a;
+    DMAGPULinkedList ll;
+    if (!p || len != DMA_SNAP_WIRE_BYTES) return 0;
+    pst_r_init(&r, p, len);
+    if (!pst_r_bytes(&r, NULL, 7u * 12u + 8u)) return 0;
+    for (int i = 0; i < 3; i++)
+        if (!dma_r_async(&r, &a) || a.start_addr != DMA_RAM_ADDR(a.start_addr) ||
+            a.remaining_words > a.total_words)
+            return 0;
+    return dma_r_gpu_ll(&r, &ll);
+}
+
 int dma_snapshot_read(const uint8_t *p, uint32_t len) {
     PstR r;
     int gpu_ll_was_active = gpu_linked_list.active != 0;
-    if (len != DMA_SNAP_WIRE_BYTES) return 0;
+    if (!dma_snapshot_validate(p, len)) return 0;
     pst_r_init(&r, p, len);
     for (int i = 0; i < 7; i++) {
         if (!pst_r_u32(&r, &channels[i].madr) || !pst_r_u32(&r, &channels[i].bcr) ||

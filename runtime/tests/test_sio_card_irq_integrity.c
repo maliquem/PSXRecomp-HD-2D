@@ -6,6 +6,7 @@
  */
 #include "../src/sio.c"
 #include <stdio.h>
+#include <stdlib.h>
 
 uint32_t i_stat, i_mask, g_debug_current_func_addr, g_debug_last_store_pc;
 static uint64_t clock_now;
@@ -85,6 +86,47 @@ int main(int argc, char **argv) {
         advance(1088 + 170);
         check("coarse advance consumes shift and ACK deadlines", (i_stat & 0x80) != 0);
         check("coarse advance leaves no overdue ACK", !sio_pending_ack);
+    } else if (!strcmp(scenario, "snapshot")) {
+        /* A saved cursor or state outside its range is refused in the load's
+         * validate pass, and a refused read leaves the SIO unchanged. */
+        static const char *const names[] = {
+            "refuses negative mc_data_idx", "refuses mc_data_idx past mc_data",
+            "refuses selected_slot 2", "refuses mc_slot -1",
+            "refuses saved slot cursor 200", "refuses unknown saved slot state",
+            "refuses unknown pad_state", "refuses unknown active_device",
+            "refuses unknown bus owner",
+        };
+        const uint32_t n = sio_snapshot_bytes();
+        uint8_t *good = malloc(n), *bad = malloc(n), *again = malloc(n);
+        mc_state = MC_WRITE_DATA;
+        mc_data_idx = 5;
+        sio_snapshot_write(good);
+        check("in-range state validates", sio_snapshot_validate(good, n));
+        for (int k = 0; k < (int)(sizeof names / sizeof names[0]); k++) {
+            sio_snapshot_read(good, n);
+            switch (k) {
+            case 0: mc_data_idx = -4000; break;
+            case 1: mc_data_idx = 128; break;
+            case 2: selected_slot = 2; break;
+            case 3: mc_slot = -1; break;
+            case 4: mc_slots[1].data_idx = 200; break;
+            case 5: mc_slots[0].state = (McState)99; break;
+            case 6: pad_state = (PadState)3; break;
+            case 7: active_device = (ActiveDevice)3; break;
+            default:
+#if SIO_MODEL_CYCLE_PACED
+                sio_bus_owner = (SioBusOwner)4;
+#else
+                continue;
+#endif
+            }
+            sio_snapshot_write(bad);
+            sio_snapshot_read(good, n);
+            check(names[k], !sio_snapshot_validate(bad, n) && !sio_snapshot_read(bad, n));
+            sio_snapshot_write(again);
+            check("refused state leaves the SIO unchanged", !memcmp(again, good, n));
+        }
+        free(good); free(bad); free(again);
     } else {
         return 2;
     }

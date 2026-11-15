@@ -42,11 +42,38 @@ int main(void) {
     stat = gpu_read_gpustat();
     CHECK((stat & 0x87FFu) == 0u);
 
+    /* A saved GP0 cursor outside gp0_cmd_buf, or an unknown GP0 state, is
+     * refused by the load's validate pass. */
+    {
+        static const int32_t bad[][3] = {
+            { GP0_COLLECTING, 16, 20 }, { GP0_COLLECTING, -4000, 4 },
+            { GP0_COLLECTING, 4, 4 }, { GP0_IDLE, 3, 2 }, { GP0_POLYLINE_SHADED + 1, 0, 0 },
+        };
+        const uint32_t n = gpu_snapshot_bytes();
+        uint8_t *wire = malloc(n);
+        CHECK(wire != NULL);
+        gp0_state = GP0_COLLECTING;
+        gp0_words_collected = 1;
+        gp0_words_needed = 4;
+        gpu_snapshot_write(wire);
+        CHECK(gpu_snapshot_validate(wire, n));
+        for (unsigned k = 0; k < sizeof bad / sizeof bad[0]; k++) {
+            gp0_state = (Gp0State)bad[k][0];
+            gp0_words_collected = bad[k][1];
+            gp0_words_needed = bad[k][2];
+            gpu_snapshot_write(wire);
+            CHECK(!gpu_snapshot_validate(wire, n));
+        }
+        gp0_state = GP0_IDLE;
+        gp0_words_collected = gp0_words_needed = 0;
+        free(wire);
+    }
+
     if (failures) {
         fprintf(stderr, "%d failure(s)\n", failures);
         return 1;
     }
-    puts("PASS: GP0(E1h) bit 11 does not set GPUSTAT bit 15 without GP1(09h)");
+    puts("PASS: GP0(E1h) bit 11 does not set GPUSTAT bit 15 without GP1(09h); bad GP0 cursors refused");
     return 0;
 }
 

@@ -36,6 +36,10 @@ extern void     psx_write_half(uint32_t addr, uint16_t val);
 extern void     psx_write_byte(uint32_t addr, uint8_t val);
 extern uint8_t *memory_get_ram_ptr(void);
 extern uint8_t *memory_get_scratchpad_ptr(void);
+extern uint32_t dma_snapshot_bytes(void);
+extern void     dma_snapshot_write(uint8_t *p);
+extern int      dma_snapshot_validate(const uint8_t *p, uint32_t len);
+extern int      dma_snapshot_read(const uint8_t *p, uint32_t len);
 
 /* Stub-side mutation counters (psx_ram_runtime_map_stubs.c). */
 extern int g_stub_device_restores;
@@ -304,6 +308,47 @@ static void check_savestates(void) {
     free(expanded);
 }
 
+/* ---- 6. DMA section: async cursors are range-checked in pass 1 ---------- */
+/* Wire offsets of the CD-ROM async channel (dma.c dma_w_async): 7 channels x
+ * 12 + DPCR + DICR = 92, two MDEC records of 18, then total/remaining/start. */
+enum { CD_ASYNC = 92 + 2 * 18, CD_TOTAL = CD_ASYNC + 2, CD_REMAIN = CD_ASYNC + 6,
+       CD_START = CD_ASYNC + 14 };
+
+static void put32(uint8_t *p, uint32_t v) {
+    p[0] = (uint8_t)v; p[1] = (uint8_t)(v >> 8); p[2] = (uint8_t)(v >> 16); p[3] = (uint8_t)(v >> 24);
+}
+
+static void dma_expect(int expanded, uint32_t start, uint32_t total, uint32_t remain,
+                       int want_ok, const char *label) {
+    uint32_t n = dma_snapshot_bytes();
+    uint8_t *good = (uint8_t *)malloc(n), *bad = (uint8_t *)malloc(n);
+    uint8_t *after = (uint8_t *)malloc(n);
+    set_geometry(expanded);
+    dma_snapshot_write(good);
+    memcpy(bad, good, n);
+    put32(bad + CD_START, start);
+    put32(bad + CD_TOTAL, total);
+    put32(bad + CD_REMAIN, remain);
+    check(dma_snapshot_validate(bad, n) == want_ok, label);
+    if (!want_ok) {
+        check(!dma_snapshot_read(bad, n), label);
+        dma_snapshot_write(after);
+        check(memcmp(after, good, n) == 0, label); /* refused read changed nothing */
+    }
+    free(good); free(bad); free(after);
+}
+
+static void check_dma_snapshot_ranges(void) {
+    dma_expect(0, 0x001FFFF0u, 4, 4, 1, "DMA state: retail start in RAM validates");
+    dma_expect(0, 0x00200000u, 4, 4, 0, "DMA state: retail start past 2 MiB refused");
+    dma_expect(0, 0xFFFFFFFCu, 4, 4, 0, "DMA state: wild start refused");
+    dma_expect(0, 0x00000102u, 4, 4, 0, "DMA state: unaligned start refused");
+    dma_expect(0, 0x00001000u, 4, 5, 0, "DMA state: remaining above total refused");
+    dma_expect(1, 0x00200000u, 4, 4, 1, "DMA state: 8 MiB start above 2 MiB validates");
+    dma_expect(1, 0x00800000u, 4, 4, 0, "DMA state: 8 MiB start past 8 MiB refused");
+    set_geometry(0);
+}
+
 int main(void) {
     /* Process start and memory_init() without the mod: retail. */
     check_helpers_everywhere(0, "default geometry is retail 2 MiB mirroring");
@@ -326,6 +371,7 @@ int main(void) {
         check_dma(expanded);
     }
     check_savestates();
+    check_dma_snapshot_ranges();
 
     if (failures == 0) printf("PASS  psx_ram_runtime_map (2 and 8 MiB, real memory/DMA/savestate paths)\n");
     return failures ? 1 : 0;

@@ -77,6 +77,11 @@ void psx_guest_cycle_scale_snapshot(uint32_t out[3]) { out[0] = out[1] = out[2] 
 void psx_guest_cycle_scale_restore(const uint32_t in[3]) { (void)in; }
 void psx_devices_mmio_sync(void) {}
 void psx_devices_service_to_now(void) {}
+int psx_mod_host_output_active(void) { return 0; }
+int g_debug_write_trace_live;
+int g_parity_trace_armed;
+volatile int g_card_data_writes_armed;
+uint32_t g_psx_cyc_gate = 32u; /* PSX_CYC_GATE_NODEFER */
 int  psx_get_in_exception(void) { return 0; }
 void psx_irq_raise(uint32_t bit, uint32_t detail) { (void)bit; (void)detail; }
 void psx_irq_refresh_cause_ip2(void) {}
@@ -114,6 +119,11 @@ void dma_gpu_ll_cancel(void *s) { (void)s; }
 /* The kick's CPU hold asks for the next walk event; the stubbed start leaves
  * the walk inactive, so the hold never loops. */
 uint32_t dma_gpu_ll_cycles_to_event(const void *s) { (void)s; return 0xFFFFFFFFu; }
+/* Only asked while a walk is active, which the stubbed start never makes. */
+uint32_t dma_gpu_ll_cycles_to_finish(const void *s, const void *ops, void *o,
+                                     int (*peek)(uint32_t, uint32_t *), uint32_t cap) {
+    (void)s; (void)ops; (void)o; (void)peek; (void)cap; __builtin_trap();
+}
 void gpu_ws_begin_linked_list(void) {}
 void gpu_ws_end_linked_list(void) {}
 void gpu_ws_prepass_linked_list(uint32_t a) { (void)a; }
@@ -161,8 +171,15 @@ STUB_SECTION(spu, 80u)
 STUB_SECTION(cdrom, 64u)
 STUB_SECTION(sio, 48u)
 STUB_SECTION(mdec, 400u)
+STUB_SECTION(spu_cd, 4u)
+int gpu_snapshot_validate(const uint8_t *p, uint32_t len) { return p && len == 96u; }
+int spu_snapshot_validate(const uint8_t *p, uint32_t len) { return p && len == 80u; }
+int cdrom_snapshot_validate(const uint8_t *p, uint32_t len) { return p && len == 64u; }
 int sio_snapshot_validate(const uint8_t *p, uint32_t len) { return p && len == 48u; }
 int mdec_snapshot_validate(const uint8_t *p, uint32_t len) { return p && len == 400u; }
+int spu_cd_snapshot_validate(const uint8_t *p, uint32_t len) { return p && len == 4u; }
+/* boot_state.c drains the SPU before saving; there is no SPU here. */
+void spu_catch_up(void) {}
 
 static uint8_t s_spu_ram[512u * 1024u];
 uint8_t *spu_get_ram_ptr(void) { return s_spu_ram; }

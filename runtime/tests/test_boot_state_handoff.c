@@ -37,9 +37,11 @@ void timers_set_snapshot(const uint16_t c[3],const uint32_t m[3],const uint16_t 
 #define MODULE(name) uint32_t name##_snapshot_bytes(void){return 4;} \
     void name##_snapshot_write(uint8_t* p){memset(p,0,4);} \
     int name##_snapshot_read(const uint8_t* p,uint32_t n){(void)p;return n==4;}
-MODULE(gpu) MODULE(spu) MODULE(cdrom) MODULE(dma) MODULE(sio) MODULE(mdec)
-int sio_snapshot_validate(const uint8_t* p,uint32_t n){(void)p;return n==4;}
-int mdec_snapshot_validate(const uint8_t* p,uint32_t n){(void)p;return n==4;}
+MODULE(gpu) MODULE(spu) MODULE(cdrom) MODULE(dma) MODULE(sio) MODULE(mdec) MODULE(spu_cd)
+#define VALIDATE(name) int name##_snapshot_validate(const uint8_t* p,uint32_t n){(void)p;return n==4;}
+VALIDATE(gpu) VALIDATE(spu) VALIDATE(cdrom) VALIDATE(dma) VALIDATE(sio) VALIDATE(mdec) VALIDATE(spu_cd)
+void spu_catch_up(void){}
+void psx_devices_service_to_now(void){}
 uint8_t* spu_get_ram_ptr(void){return spuram;}
 uint32_t spu_get_ram_bytes(void){return sizeof spuram;}
 uint32_t psx_mod_memory_snapshot_bytes(void){return 0;}

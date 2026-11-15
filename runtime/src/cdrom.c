@@ -3507,10 +3507,22 @@ static uint32_t cdrom_snapshot_legacy_bytes(void) {
     return (uint32_t)w.written;
 }
 
+/* The parameter and response FIFO cursors index param_fifo / response_fifo;
+ * every layout starts with the legacy prefix, so this applies to all of them. */
+static int cdrom_snapshot_fifos_ok(const uint8_t *p, uint32_t len) {
+    PstR r;
+    int32_t param, rd, cnt;
+    pst_r_init(&r, p, len);
+    return pst_r_bytes(&r, NULL, 5u + 4u * 4u + sizeof param_fifo) && pst_r_i32(&r, &param) &&
+           pst_r_bytes(&r, NULL, sizeof response_fifo) && pst_r_i32(&r, &rd) &&
+           pst_r_i32(&r, &cnt) && param >= 0 && param <= PARAM_FIFO_SIZE && rd >= 0 &&
+           rd <= cnt && cnt <= RESPONSE_FIFO_SIZE;
+}
+
 int cdrom_snapshot_validate(const uint8_t *p, uint32_t len) {
     const uint32_t legacy = cdrom_snapshot_legacy_bytes();
     const uint32_t current = cdrom_snapshot_bytes();
-    if (!p) return 0;
+    if (!p || !cdrom_snapshot_fifos_ok(p, len)) return 0;
     if (len == legacy) return 1;
     if (len != current && len != current - 1u && len != current - 6u)
         return 0; /* CDF4, CDF3 or CDF2 */

@@ -125,6 +125,55 @@ static void test_snapshot_keeps_clock_phase(void) {
     free(snap);
 }
 
+/* Saved values the SPU indexes with are refused by the load's validate pass,
+ * and a refused read changes nothing (it used to apply the registers and the
+ * voices before it reached a bad sample bank). */
+static void test_snapshot_refuses_out_of_range(void) {
+    static const char *const names[] = {
+        "refuses transfer_addr past SPU RAM", "refuses sample_idx two blocks ahead",
+        "refuses negative sample_idx", "refuses phase above 12 bits",
+        "refuses sample bank 32 on the last voice", "refuses capture_pos past 0x3FF",
+        "refuses rev_cur past SPU RAM",
+    };
+    stage_voice0();
+    g_cycle = 768u * 4u;
+    spu_write(0x1F801D88u, 0x0001u);             /* KEYON voice 0 */
+    g_cycle += 768u * 3u;
+    spu_catch_up();
+    const uint32_t n = spu_snapshot_bytes();
+    uint8_t *good = malloc(n), *bad = malloc(n), *ref = malloc(n), *again = malloc(n);
+    spu_snapshot_write(good);
+    CHECK(spu_snapshot_validate(good, n), "in-range snapshot validates");
+    for (int k = 0; k < (int)(sizeof names / sizeof names[0]); k++) {
+        spu_snapshot_read(good, n);
+        switch (k) {
+        case 0: transfer_addr = 0xFFFFFFFEu; break;
+        case 1: voices[0].sample_idx = 2 * SPU_BLOCK_SAMPLES; break;
+        case 2: voices[0].sample_idx = -1; break;
+        case 3: voices[3].phase = 0x1000u; break;
+        case 4: voices[SPU_VOICE_COUNT - 1].sample_bank = SPU_SAMPLE_BANKS; break;
+        case 5: capture_pos = 0x400u; break;
+        default: rev_cur = SPU_RAM_SIZE; break;
+        }
+        spu_snapshot_write(bad);
+        spu_snapshot_read(good, n);
+        spu_write(0x1F801D88u, 0x0002u);         /* live state now differs from both */
+        spu_snapshot_write(ref);
+        CHECK(!spu_snapshot_validate(bad, n) && !spu_snapshot_read(bad, n), names[k]);
+        spu_snapshot_write(again);
+        CHECK(!memcmp(again, ref, n), "refused snapshot leaves the SPU unchanged");
+    }
+    free(good); free(bad); free(ref); free(again);
+
+    uint8_t cd[12] = { 2, 0, 0, 0 };
+    CHECK(spu_cd_snapshot_validate(cd, sizeof cd), "SPUCD with matching count validates");
+    cd[0] = 3;
+    CHECK(!spu_cd_snapshot_validate(cd, sizeof cd) && !spu_cd_snapshot_read(cd, sizeof cd),
+          "SPUCD count that does not match its length is refused");
+    memset(cd, 0xFF, 4);
+    CHECK(!spu_cd_snapshot_validate(cd, sizeof cd), "SPUCD count past the ring is refused");
+}
+
 static void test_gate_and_rewind(void) {
     stage_voice0();
     spu_set_output_gate(suppressed);
@@ -149,6 +198,7 @@ int main(void) {
     test_initial_clock_boundary();
     test_envelope_rises_between_accesses();
     test_snapshot_keeps_clock_phase();
+    test_snapshot_refuses_out_of_range();
     test_gate_and_rewind();
     if (failures) { fprintf(stderr, "%d failure(s)\n", failures); return 1; }
     puts("spu_guest_clock_test: ok");

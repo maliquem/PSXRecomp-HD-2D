@@ -413,11 +413,16 @@ void spu_cd_snapshot_write(uint8_t *p) {
         pos = (pos + 1u) % SPU_CD_RING_FRAMES;
     }
 }
-int spu_cd_snapshot_read(const uint8_t *p, uint32_t len) {
+int spu_cd_snapshot_validate(const uint8_t *p, uint32_t len) {
     uint32_t n;
     if (!p || len < 4u) return 0;
     n = (uint32_t)p[0] | ((uint32_t)p[1] << 8) | ((uint32_t)p[2] << 16) | ((uint32_t)p[3] << 24);
-    if (n > SPU_CD_RING_FRAMES || len != 4u + n * 4u) return 0;
+    return n <= SPU_CD_RING_FRAMES && len == 4u + n * 4u;
+}
+int spu_cd_snapshot_read(const uint8_t *p, uint32_t len) {
+    uint32_t n;
+    if (!spu_cd_snapshot_validate(p, len)) return 0;
+    n = (uint32_t)p[0] | ((uint32_t)p[1] << 8) | ((uint32_t)p[2] << 16) | ((uint32_t)p[3] << 24);
     p += 4;
     for (uint32_t i = 0; i < n; i++, p += 4) {
         cd_ring[i * 2u] = (int16_t)(uint16_t)(p[0] | (p[1] << 8));
@@ -2081,6 +2086,48 @@ int spu_snapshot_len_ok(uint32_t len) {
            len == SPU_SNAPSHOT_BASE_BYTES + SPU_PRIVATE_WIRE_BYTES + 4u;
 }
 
+/* Saved voice values the mixer indexes with: the sample bank bindings, the
+ * decode cursor (at most one block ahead: voice_step decodes once and the
+ * Gaussian window holds 3 + 28 samples) and the 12-bit pitch phase. */
+static int spu_voice_wire_ok(PstR *r) {
+    uint32_t bank, pending, phase;
+    int32_t idx;
+    return pst_r_bytes(r, NULL, 12u) && pst_r_u32(r, &bank) && pst_r_u32(r, &pending) &&
+           pst_r_bytes(r, NULL, (SPU_BLOCK_SAMPLES + 3u) * 2u) && pst_r_i32(r, &idx) &&
+           pst_r_u32(r, &phase) &&
+           pst_r_bytes(r, NULL, SPU_VOICE_WIRE_BYTES - 28u - (SPU_BLOCK_SAMPLES + 3u) * 2u) &&
+           bank < SPU_SAMPLE_BANKS && pending < SPU_SAMPLE_BANKS &&
+           idx >= 0 && idx < 2 * SPU_BLOCK_SAMPLES && phase <= 0xFFFu;
+}
+
+/* Pass-1 check for boot_state's two-pass load: walks the snapshot without
+ * touching the SPU and refuses every value spu_snapshot_read would reject
+ * halfway or the SPU would later index out of range with. */
+int spu_snapshot_validate(const uint8_t *p, uint32_t len) {
+    PstR r;
+    uint32_t transfer, rev, capture;
+    if (!p || !spu_snapshot_len_ok(len)) return 0;
+    pst_r_init(&r, p, len);
+    if (!pst_r_bytes(&r, NULL, SPU_REG_COUNT * 2u)) return 0;
+    for (int i = 0; i < SPU_VOICE_COUNT; i++)
+        if (!spu_voice_wire_ok(&r)) return 0;
+    /* Trailer: transfer_addr, 4 latches, irq, LFSR, noise timer, rev_cur,
+     * rev_phase, 4 reverb holds, capture_pos, 2 main sweep envelopes. */
+    if (!pst_r_u32(&r, &transfer) || !pst_r_bytes(&r, NULL, 16u + 1u + 2u + 4u) ||
+        !pst_r_u32(&r, &rev) || !pst_r_bytes(&r, NULL, 1u + 16u) ||
+        !pst_r_u32(&r, &capture) || !pst_r_bytes(&r, NULL, 2u * (2u + 4u)) ||
+        transfer >= SPU_RAM_SIZE || rev >= SPU_RAM_SIZE || capture >= 0x400u)
+        return 0;
+    if (len >= SPU_SNAPSHOT_BASE_BYTES + SPU_PRIVATE_WIRE_BYTES)
+        for (unsigned slot = 0; slot < SPU_PRIVATE_VOICES; ++slot) {
+            uint8_t mode;
+            if (!pst_r_bytes(&r, NULL, 16u) || !pst_r_u8(&r, &mode) || mode > 3u ||
+                !spu_voice_wire_ok(&r))
+                return 0;
+        }
+    return 1;
+}
+
 void spu_snapshot_write(uint8_t *p) {
     spu_catch_up();
     PstW w;
@@ -2118,7 +2165,7 @@ void spu_snapshot_write(uint8_t *p) {
 
 int spu_snapshot_read(const uint8_t *p, uint32_t len) {
     PstR r;
-    if (!spu_snapshot_len_ok(len)) return 0;
+    if (!spu_snapshot_validate(p, len)) return 0;
     private_enabled = len >= SPU_SNAPSHOT_BASE_BYTES + SPU_PRIVATE_WIRE_BYTES;
     if(!private_enabled) {
         memset(voices+SPU_VOICE_COUNT,0,sizeof(SpuVoice)*SPU_PRIVATE_VOICES);

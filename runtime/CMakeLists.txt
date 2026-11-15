@@ -255,7 +255,7 @@ if(BUILD_TESTING)
     endif()
     add_executable(sio_card_irq_integrity_test tests/test_sio_card_irq_integrity.c)
     target_include_directories(sio_card_irq_integrity_test PRIVATE include)
-    foreach(scenario absent deselect pending coarse)
+    foreach(scenario absent deselect pending coarse snapshot)
         add_test(NAME sio_card_irq_integrity_${scenario}
                  COMMAND sio_card_irq_integrity_test ${scenario})
         # The retired environment variable must not reactivate the workaround.

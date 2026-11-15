@@ -10458,9 +10458,26 @@ void gpu_cosim_dump(char *out, int cap) {
     APPEND("%s", "\n");
 #undef APPEND
 }
+/* Pass-1 check for boot_state's two-pass load: refuses a GP0 state the parser
+ * would accept but gpu_write_gp0 would index gp0_cmd_buf out of range with. */
+int gpu_snapshot_validate(const uint8_t *p, uint32_t len) {
+    PstR r;
+    uint32_t state;
+    int32_t collected, needed;
+    if (!p || len != gpu_snapshot_bytes()) return 0;
+    pst_r_init(&r, p, len);
+    /* 35 = fields gpu_snap_parse reads before gp0_state. */
+    if (!pst_r_bytes(&r, NULL, 35u * 4u) || !pst_r_u32(&r, &state) ||
+        !pst_r_bytes(&r, NULL, sizeof gp0_cmd_buf) ||
+        !pst_r_i32(&r, &collected) || !pst_r_i32(&r, &needed))
+        return 0;
+    return state <= GP0_POLYLINE_SHADED && collected >= 0 && collected <= needed &&
+           needed <= (int32_t)(sizeof gp0_cmd_buf / sizeof gp0_cmd_buf[0]) &&
+           (state != GP0_COLLECTING || collected < needed);
+}
 int gpu_snapshot_read(const uint8_t *p, uint32_t len) {
     PstR r;
-    if (len != gpu_snapshot_bytes()) return 0;
+    if (!gpu_snapshot_validate(p, len)) return 0;
     pst_r_init(&r, p, len);
     if (!gpu_snap_parse(&r)) return 0;
     (void)psx_video_timing_set_pal((int)video_mode);

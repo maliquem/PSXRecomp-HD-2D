@@ -3232,9 +3232,49 @@ void sio_snapshot_write(uint8_t *p) {
     (void)sio_snap_emit(&w);
 }
 
+/* A saved card cursor must stay inside mc_data for every byte its state can
+ * still exchange: READ_DATA/WRITE_DATA touch mc_data[idx], WRITE_LSB_ECHO
+ * writes idx and hands idx+1 to WRITE_DATA. */
+static int sio_mc_cursor_ok(uint32_t state, int32_t idx) {
+    if (state > MC_GETID_4 || idx < 0 || idx > 128) return 0;
+    if (state == MC_WRITE_LSB_ECHO) return idx < 127;
+    return idx < 128 || (state != MC_READ_DATA && state != MC_WRITE_DATA);
+}
+
+/* Ranges of every saved value the SIO indexes with or switches on. The
+ * fields walked here sit at the same offsets in all accepted layouts. */
+static int sio_snapshot_ranges_ok(const uint8_t *p, uint32_t len) {
+    PstR r;
+    McSlotState s0, s1;
+    uint32_t pad_st, mc_st, dev;
+    int32_t sel, slot, idx;
+    pst_r_init(&r, p, len);
+    if (!pst_r_bytes(&r, NULL, 10u + PSX_MAX_PLAYERS + 1u) || !pst_r_u32(&r, &pad_st) ||
+        !pst_r_i32(&r, &sel) || !pst_r_bytes(&r, NULL, 11u + 3u * PSX_MAX_PLAYERS) ||
+        !pst_r_u32(&r, &mc_st) || !pst_r_i32(&r, &slot) || !pst_r_bytes(&r, NULL, 5u + 128u) ||
+        !pst_r_i32(&r, &idx) || !pst_r_bytes(&r, NULL, 2u) ||
+        !sio_r_mcslot(&r, &s0) || !sio_r_mcslot(&r, &s1) || !pst_r_u32(&r, &dev))
+        return 0;
+    if (pad_st > PAD_SEND_RESPONSE || (uint32_t)sel > 1u || (uint32_t)slot > 1u ||
+        !sio_mc_cursor_ok(mc_st, idx) || !sio_mc_cursor_ok((uint32_t)s0.state, s0.data_idx) ||
+        !sio_mc_cursor_ok((uint32_t)s1.state, s1.data_idx) || dev > DEV_MEMCARD)
+        return 0;
+#if SIO_MODEL_CYCLE_PACED
+    {
+        uint32_t owner;
+        /* 38 = pacing fields emitted before sio_bus_owner. */
+        if (!pst_r_bytes(&r, NULL, 38u) || !pst_r_u32(&r, &owner) ||
+            owner > SIO_OWNER_UNKNOWN)
+            return 0;
+    }
+#endif
+    return 1;
+}
+
 /* Non-mutating pre-check for boot_state's two-pass load: a section that passes
  * cannot fail sio_snapshot_read (the parser only reads fixed-width fields, and
- * both accepted lengths end exactly where one of its two layouts ends). */
+ * every accepted length ends exactly where one of its layouts ends), and holds
+ * no cursor or state outside its range. */
 int sio_snapshot_validate(const uint8_t *p, uint32_t len) {
     const uint32_t current = sio_snapshot_bytes();
     const uint32_t rumble_bytes = (uint32_t)(sizeof(pad_rumble_map) +
@@ -3248,7 +3288,8 @@ int sio_snapshot_validate(const uint8_t *p, uint32_t len) {
                  (len < current && len + mode_bytes == current) ||
                  (len < current && len + mode_bytes + jogcon_bytes == current) ||
                  (len < current &&
-                  len + mode_bytes + jogcon_bytes + rumble_bytes == current));
+                  len + mode_bytes + jogcon_bytes + rumble_bytes == current)) &&
+           sio_snapshot_ranges_ok(p, len);
 }
 
 int sio_snapshot_read(const uint8_t *p, uint32_t len) {

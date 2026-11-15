@@ -103,6 +103,29 @@ static void snapshot_pending_deadline(void) {
     request(); drain(101, 512);
     free(wire);
 }
+/* Saved parameter/response FIFO cursors out of range are refused in the
+ * validate pass (current and legacy layouts), leaving the controller as it was. */
+static void snapshot_rejects_fifo_cursors(void) {
+    static const int32_t bad[][3] = { {-1, 0, 0}, {17, 0, 0}, {0, -1, 0}, {0, 3, 2}, {0, 0, 17} };
+    setup(); sector();
+    const uint32_t size = cdrom_snapshot_bytes(), legacy = cdrom_snapshot_legacy_bytes();
+    uint8_t *good = malloc(size), *ref = malloc(size), *wire = malloc(size), *again = malloc(size);
+    CHECK(good && ref && wire && again);
+    cdrom_snapshot_write(good);
+    for (unsigned k = 0; k < sizeof bad / sizeof bad[0]; k++) {
+        CHECK(cdrom_snapshot_read(good, size));
+        cdrom_snapshot_write(ref);
+        param_count = bad[k][0]; response_read = bad[k][1]; response_count = bad[k][2];
+        cdrom_snapshot_write(wire);
+        CHECK(cdrom_snapshot_read(good, size));
+        CHECK(!cdrom_snapshot_validate(wire, size));
+        CHECK(!cdrom_snapshot_validate(wire, legacy));
+        CHECK(!cdrom_snapshot_read(wire, size));
+        cdrom_snapshot_write(again);
+        CHECK(!memcmp(again, ref, size));
+    }
+    free(good); free(ref); free(wire); free(again);
+}
 static void snapshot_between_request_and_dma(void) {
     setup(); sector(); request(); drain(100, 11); sector();
     const uint32_t size = cdrom_snapshot_bytes();
@@ -249,6 +272,7 @@ int main(void) {
     request_rearms_retained_sector();
     snapshot_between_request_and_dma();
     snapshot_pending_deadline();
+    snapshot_rejects_fifo_cursors();
     puts("PASS: CD FIFO latching, pending IRQ, DMA continuation, and state compatibility");
     return 0;
 }
