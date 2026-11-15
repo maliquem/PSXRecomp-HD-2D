@@ -3269,6 +3269,8 @@ void overlay_loader_resync_validation_after_restore(void)
  * dll_already_loaded() makes the re-walk idempotent. */
 void overlay_loader_rescan(void) {
     if (!s_active || !overlay_loads_allowed()) return;
+    /* A transient load failure must not stick: the rescan skips already-indexed paths. */
+    for (int i = 0; i < s_cache_idx_count; i++) s_cache_idx[i].load_failed = 0;
     scan_cache_dir();
     load_bios_resident_shards();
     s_nchecked = 0;
