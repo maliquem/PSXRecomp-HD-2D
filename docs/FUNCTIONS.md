@@ -10034,17 +10034,18 @@ Simulates the console's three root counters: counting, targets, interrupts, cloc
 - `timers_get_snapshot` (L84) — Copies the counter, mode, target, interrupt line and fraction of all three timers into arrays for a save state.
 - `timers_set_snapshot` (L96) — Restores the counter, mode, target, interrupt line and fraction of all three timers from arrays.
 - `timers_snapshot_mode_ok` (L110) — Range check for a saved mode word (pass 1 of a .pst load): the guest can only produce bits 0-12, plus the internal one-shot-spent bit.
-- `timer_uses_sysclk` (L115) — Determine whether this timer uses system clock ticks
-- `timer_fire_irq` (L127) — Fire IRQ for a timer — sets I_STAT bit; a one-shot timer (mode bit 6 = 0) fires only once until the next mode write.
-- `timer_tick_one` (L158) — Tick a single timer by one count.
-- `timer_advance_counts` (L177) — Adds the given number of counts to one timer, handling target and overflow events along the way.
-- `timer_advance_divided` (L208) — Advances one timer by cycles divided by its divisor, keeping the remainder for the next call.
-- `timers_advance` (L217) — Advance all timers by guest CPU cycles.
-- `timer_divisor` (L238) — Cycles until this timer's clock advances by one count, given its source.
-- `timers_cycles_to_irq` (L254) — Cycle-budgeted precise event slicing: distance (in guest CPU cycles) to the next moment this timer block would raise a DELIVERABLE IRQ — i.e.
-- `timers_read` (L289) — MMIO read/write for 0x1F801100..0x1F80112F.
-- `timers_write` (L327) — Handles a guest write to a timer register in the 0x1F801100 to 0x1F80112F range, setting its counter, target or mode.
-- `timers_tick` (L354) — Legacy coarse tick used by interpreter/oracle builds.
+- `timer_stopped` (L118) — CPU-3 (partial): timer 2 with sync enabled and sync mode 0 or 3 stops at its current value until the next mode write (psx-spx, counter 2 sync modes).
+- `timer_uses_sysclk` (L124) — Determine whether this timer uses system clock ticks
+- `timer_fire_irq` (L136) — Fire IRQ for a timer — sets I_STAT bit; a one-shot timer (mode bit 6 = 0) fires only once until the next mode write.
+- `timer_tick_one` (L167) — Tick a single timer by one count.
+- `timer_advance_counts` (L186) — Adds the given number of counts to one timer, handling target and overflow events along the way.
+- `timer_advance_divided` (L217) — Advances one timer by cycles divided by its divisor, keeping the remainder for the next call.
+- `timers_advance` (L226) — Advance all timers by guest CPU cycles.
+- `timer_divisor` (L248) — Cycles until this timer's clock advances by one count, given its source.
+- `timers_cycles_to_irq` (L264) — Cycle-budgeted precise event slicing: distance (in guest CPU cycles) to the next moment this timer block would raise a DELIVERABLE IRQ — i.e.
+- `timers_read` (L300) — MMIO read/write for 0x1F801100..0x1F80112F.
+- `timers_write` (L339) — Handles a guest write to a timer register in the 0x1F801100 to 0x1F80112F range, setting its counter, target or mode.
+- `timers_tick` (L366) — Legacy coarse tick used by interpreter/oracle builds.
 
 ### runtime/src/traps.c
 

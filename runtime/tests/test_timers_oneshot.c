@@ -1,4 +1,4 @@
-/* CPU-8: a one-shot timer IRQ (mode bit 6 = 0) fires once and keeps bits 4/5
+/* Timer tests. CPU-8: a one-shot timer IRQ (mode bit 6 = 0) fires once and keeps bits 4/5
  * readable as written; the next mode write re-arms it. The internal "spent"
  * state rides in the 48-byte .pst timer section (mode word), so it also has
  * to survive a snapshot round-trip and pass the pass-1 range check. */
@@ -86,6 +86,21 @@ int main(void) {
     s_raises[2] = 0;
     timers_advance(50);
     timers_advance(0x10000);
+    CHECK(s_raises[2] == 1);
+
+    /* CPU-3: timer 2 sync modes 0/3 stop the counter; 1/2 run free. */
+    timers_init();
+    arm_t2(0x0011, 100);               /* sync on, mode 0, IRQ on target */
+    timers_write(T2_COUNT, 40);
+    timers_advance(1000);
+    CHECK(timers_read(T2_COUNT) == 40);
+    CHECK(s_raises[2] == 0);
+    CHECK(timers_cycles_to_irq(IRQ_T2) == 0xFFFFFFFFu);
+    arm_t2(0x0017, 100);               /* sync on, mode 3 */
+    timers_advance(1000);
+    CHECK(timers_read(T2_COUNT) == 0);
+    arm_t2(0x0013, 100);               /* sync on, mode 1: free run */
+    timers_advance(100);
     CHECK(s_raises[2] == 1);
 
     /* Pass-1 range check. */

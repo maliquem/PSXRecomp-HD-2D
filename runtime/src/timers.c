@@ -111,6 +111,15 @@ int timers_snapshot_mode_ok(uint32_t mode) {
     return (mode & ~(0x1FFFu | MODE_ONESHOT_DONE)) == 0;
 }
 
+/* CPU-3 (partial): timer 2 with sync enabled and sync mode 0 or 3 stops at
+ * its current value until the next mode write (psx-spx, counter 2 sync
+ * modes). shortcut: timer 0 HBlank and timer 1 VBlank sync modes still run
+ * free; they need blank edges from the video timing, upgrade when that lands. */
+static int timer_stopped(int t) {
+    uint32_t sync = (timers[t].mode & MODE_SYNC_MASK) >> 1;
+    return t == 2 && (timers[t].mode & MODE_SYNC_EN) && (sync == 0 || sync == 3);
+}
+
 /* Determine whether this timer uses system clock ticks */
 static int timer_uses_sysclk(int t) {
     int src = (timers[t].mode >> 8) & 3;
@@ -219,6 +228,7 @@ void timers_advance(uint32_t cycles) {
 
     for (int t = 0; t < 3; t++) {
         int src = (timers[t].mode >> 8) & 3;
+        if (timer_stopped(t)) continue;
         if (t == 2 && (src == 2 || src == 3)) {
             timer_advance_divided(t, cycles, 8);
         } else if (timer_uses_sysclk(t)) {
@@ -255,6 +265,7 @@ uint32_t timers_cycles_to_irq(uint32_t i_mask) {
     uint32_t best = 0xFFFFFFFFu;
     for (int t = 0; t < 3; t++) {
         if (!(i_mask & (1u << timer_irq[t]))) continue;   /* IRQ masked: not deliverable */
+        if (timer_stopped(t)) continue;                   /* sync-stopped: never counts */
         const Timer* tm = &timers[t];
         int want_target   = (tm->mode & MODE_IRQ_TARGET)   != 0;
         int want_overflow = (tm->mode & MODE_IRQ_OVERFLOW) != 0;
@@ -295,6 +306,7 @@ uint32_t timers_read(uint32_t addr) {
     switch (reg) {
         case 0x00: {
 #ifndef PSX_ENABLE_BLOCK_CYCLES
+            if (timer_stopped(timer)) return timers[timer].counter;
             /* Advance counter by a small amount to simulate continuous
              * counting between bulk timers_tick calls. */
             int inc = 8;
@@ -360,6 +372,7 @@ void timers_tick(int cycles) {
 
     for (int t = 0; t < 3; t++) {
         int ticks;
+        if (timer_stopped(t)) continue;
         if (timer_uses_sysclk(t)) {
             ticks = cycles;
         } else if (t == 2) {
