@@ -1229,6 +1229,47 @@ void cfg_codegen_load_delay_test() {
           writeback != std::string::npos && deferred < successor &&
           successor < writeback,
           "CFG codegen preserves MIPS-I dependent load-delay value semantics");
+
+    // `load; exit reading rt`: the condition / jr target sees the OLD rt and
+    // the writeback lands before the delay slot.
+    struct ExitCase { std::vector<uint32_t> words; const char* latch; const char* what; };
+    const ExitCase exit_cases[] = {
+        {{0x8C820000u,   // lw v0,0(a0)
+          0x14400003u,   // bne v0,zero,+3 (reads old v0)
+          0x00000000u,   // delay slot
+          0x03E00008u, 0x00000000u, 0x03E00008u, 0x00000000u},
+         "int _bc_80003594 =", "load; bne rt"},
+        {{0x8C880000u,   // lw t0,0(a0)
+          0x01000008u,   // jr t0 (target is old t0)
+          0x00000000u},
+         "uint32_t _jt_80003594 =", "load; jr rt"},
+    };
+    for (const ExitCase& c : exit_cases) {
+        PSXRecomp::PS1Executable ex{};
+        ex.header.load_address = base;
+        ex.header.initial_pc = base;
+        ex.header.file_size = static_cast<uint32_t>(c.words.size() * 4u);
+        for (uint32_t w : c.words) append_word(ex.code_data, w);
+        PSXRecomp::Function fn{};
+        fn.start_addr = base;
+        fn.end_addr = base + ex.header.file_size;
+        fn.size = ex.header.file_size;
+        fn.name = "cfg_load_delay_exit";
+        PSXRecomp::ControlFlowAnalyzer an(ex);
+        const auto fcfg = an.analyze_function(fn);
+        PSXRecomp::CodeGenerator gen(ex);
+        const std::string out = gen.generate_function(fn, fcfg).full_code;
+        const uint32_t rt = (c.words[0] >> 16) & 31u;
+        const size_t d = out.find("uint32_t psx_ldd_80003590 =");
+        const size_t l = out.find(c.latch);
+        const size_t wb = out.find(fmt::format(
+            "cpu->gpr[{}] = psx_ldd_80003590;  /* load-delay writeback */", rt));
+        const size_t ds = out.find("/* delay slot (always executes) */");
+        check(d != std::string::npos && l != std::string::npos &&
+              wb != std::string::npos && ds != std::string::npos &&
+              d < l && l < wb && wb < ds,
+              std::string("CFG codegen defers the load past its exit: ") + c.what);
+    }
 }
 
 void mod_function_completion_codegen_test() {

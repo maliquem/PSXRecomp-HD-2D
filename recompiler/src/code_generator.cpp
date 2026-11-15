@@ -2620,8 +2620,13 @@ std::string CodeGenerator::translate_basic_block(
             if (!delayed_load_active && load_dest > 0 && addr + 4u <= block.end_addr &&
                 !extra_labels_.count(addr + 4u)) {
                 auto next = exe_.read_word(addr + 4u);
+                // `load; branch/jr reading rt`: the exit's condition/target also
+                // sees the OLD rt (as in the BIOS emitter); 0x14-0x17 raise RI.
+                const uint32_t next_op = next.has_value() ? (*next >> 26) : 0u;
+                const bool exit_pair = addr + 4u == exit_branch_addr &&
+                    !block.exit_instr.is_likely && !(next_op >= 0x14u && next_op <= 0x17u);
                 defer_load = next.has_value() &&
-                    !ControlFlowAnalyzer::is_control_flow(*next) &&
+                    (!ControlFlowAnalyzer::is_control_flow(*next) || exit_pair) &&
                     reads_gpr(*next, static_cast<uint32_t>(load_dest));
             }
             if (defer_load) {
@@ -2769,6 +2774,27 @@ std::string CodeGenerator::translate_basic_block(
                         ss << config_.indent
                            << fmt::format("cpu->gpr[31] = 0x{:08X}u;  /* branch-and-link before delay slot */\n",
                                           runtime_pc(addr + 8));
+                    }
+                }
+
+                // Load-delay pair ending at this exit: the target latch/link above
+                // and the condition read the OLD rt; retire the load before the slot.
+                const bool ldd_exit = delayed_load_active && addr == delayed_load_addr + 4u;
+                if (ldd_exit) {
+                    if (block.exit_instr.type == ControlFlowType::Branch && delay_saved_cond.empty()) {
+                        delay_saved_cond = fmt::format("_bc_{:08X}", addr);
+                        ss << config_.indent
+                           << fmt::format("int {} = ({});  /* save branch cond before load-delay writeback */\n",
+                                          delay_saved_cond,
+                                          generate_branch_condition(block.exit_instr.instruction, block.exit_instr.address));
+                    }
+                    if (writes_gpr(block.exit_instr.instruction, delayed_load_dest)) {
+                        ss << config_.indent << fmt::format(
+                            "(void)psx_ldd_{:08X};  /* successor write wins */\n", delayed_load_addr);
+                    } else {
+                        ss << config_.indent << fmt::format(
+                            "cpu->gpr[{}] = psx_ldd_{:08X};  /* load-delay writeback */\n",
+                            delayed_load_dest, delayed_load_addr);
                     }
                 }
 
@@ -3193,6 +3219,10 @@ std::string CodeGenerator::translate_basic_block(
                         }
                     }
                     }
+                }
+                if (ldd_exit) {
+                    ss << config_.indent << "}\n";  // closes the load-delay pair scope
+                    delayed_load_active = false;
                 }
             }
         }
