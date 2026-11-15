@@ -2732,6 +2732,11 @@ std::string CodeGenerator::translate_basic_block(
                     uint32_t b_opcode = (branch_instr >> 26) & 0x3F;
                     uint32_t regimm_op = (branch_instr >> 16) & 0x1F;
                     if (b_opcode == 0x01 && (regimm_op == 0x10 || regimm_op == 0x11)) {
+                        // rs may be $ra: the condition reads the pre-link value.
+                        delay_saved_cond = fmt::format("_bc_{:08X}", addr);
+                        ss << config_.indent
+                           << fmt::format("int {} = ({});  /* save branch cond before link */\n", delay_saved_cond,
+                                          generate_branch_condition(branch_instr, block.exit_instr.address));
                         ss << config_.indent
                            << fmt::format("cpu->gpr[31] = 0x{:08X}u;  /* branch-and-link before delay slot */\n",
                                           runtime_pc(addr + 8));
@@ -2773,7 +2778,7 @@ std::string CodeGenerator::translate_basic_block(
                             // In MIPS, the branch condition is evaluated at the branch
                             // instruction (before the delay slot). If the delay slot
                             // modifies a condition register we must save the result first.
-                            if (block.exit_instr.type == ControlFlowType::Branch) {
+                            if (block.exit_instr.type == ControlFlowType::Branch && delay_saved_cond.empty()) {
                                 std::string cond = generate_branch_condition(block.exit_instr.instruction, block.exit_instr.address);
                                 delay_saved_cond = fmt::format("_bc_{:08X}", addr);
                                 ss << config_.indent
