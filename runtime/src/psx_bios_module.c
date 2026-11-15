@@ -436,12 +436,26 @@ static int run_command(const char *cmd) {
 }
 
 static int append_q(char *buf, size_t cap, const char *s) {
-    size_t n = strlen(buf), m = strlen(s);
-    if (n + m + 3 >= cap) return 0;
-    buf[n] = '"';
-    memcpy(buf + n + 1, s, m);
-    buf[n + 1 + m] = '"';
-    buf[n + 2 + m] = '\0';
+    size_t n = strlen(buf), m = strlen(s), i;
+    if (n + 2 >= cap) return 0;
+    buf[n++] = '"';
+    for (i = 0; i < m; i++) {
+#if defined(_WIN32)
+        /* A quote cannot be escaped portably for CreateProcess; Windows paths cannot hold one. */
+        if (s[i] == '"') return 0;
+#else
+        /* popen runs this through sh: escape what stays special inside double quotes. */
+        if (s[i] == '"' || s[i] == '$' || s[i] == '`' || s[i] == '\\') {
+            if (n + 1 >= cap) return 0;
+            buf[n++] = '\\';
+        }
+#endif
+        if (n + 1 >= cap) return 0;
+        buf[n++] = s[i];
+    }
+    if (n + 2 > cap) return 0;
+    buf[n++] = '"';
+    buf[n] = '\0';
     return 1;
 }
 static int append_s(char *buf, size_t cap, const char *s) {
@@ -474,13 +488,12 @@ static int build_module(const BmToolchain *tk, const char *dump_path,
         set_err(err, err_cap, "build command too long");
         return 0;
     }
-    if (tk->has_gcc && tk->gcc[0]) {
-        append_s(cmd, sizeof(cmd), " --gcc ");
-        append_q(cmd, sizeof(cmd), tk->gcc);
-    }
-    if (!tk->has_gcc) {
-        append_s(cmd, sizeof(cmd), " --tcc ");
-        append_q(cmd, sizeof(cmd), tk->tcc);
+    if ((tk->has_gcc && tk->gcc[0] &&
+         (!append_s(cmd, sizeof(cmd), " --gcc ") || !append_q(cmd, sizeof(cmd), tk->gcc))) ||
+        (!tk->has_gcc &&
+         (!append_s(cmd, sizeof(cmd), " --tcc ") || !append_q(cmd, sizeof(cmd), tk->tcc)))) {
+        set_err(err, err_cap, "build command too long");
+        return 0;
     }
     note("building %s backend from %s with %s (one-time; this can take a while)",
          stem, dump_path, compiler);
