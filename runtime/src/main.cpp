@@ -3333,10 +3333,11 @@ static bool       s_drc_ready = false;
  * (SDL_QueueAudio, no bridge) so the underrun baseline can be measured against
  * the bridge from a single build; default (unset) = bridge/pull model. Output
  * health is surfaced through the audio_stats TCP command (no stderr probe). */
+static bool s_drc_init_failed = false;  /* rab_init failed: device reopened in queue mode */
 static bool audio_legacy_mode(void) {
     static int v = -1;
     if (v < 0) { const char* e = getenv("PSXRECOMP_AUDIO_LEGACY"); v = (e && *e && *e != '0') ? 1 : 0; }
-    return v != 0;
+    return v != 0 || s_drc_init_failed;
 }
 /* Legacy-mode underrun counter: incremented when the SDL queue is found empty
  * at pump time (the device was silence-filling = an audible gap). */
@@ -4875,7 +4876,9 @@ static void sdl_audio_pump(bool discard_output = false) {
          * while the callback keeps pulling); those dry pulls are the mute,
          * not gaps — resync past them instead of reporting them. */
         rab_stats st;
+        psx_sdl_audio_lock(sdl_audio_device);
         rab_get_stats(&s_drc, &st);
+        psx_sdl_audio_unlock(sdl_audio_device);
         static uint64_t prev_underruns = 0;
         extern int g_audio_unmute_resync;
         if (g_audio_unmute_resync) {
@@ -5037,7 +5040,9 @@ extern "C" int psx_audio_out_stats(double *fill_ms, double *target_ms,
         return sdl_audio_device != 0;
     }
     rab_stats st;
+    psx_sdl_audio_lock(sdl_audio_device);
     rab_get_stats(&s_drc, &st);
+    psx_sdl_audio_unlock(sdl_audio_device);
     *fill_ms = st.last_fill_ms;
     *target_ms = s_drc.cfg.target_ms;
     *underruns = st.underrun_events;
@@ -22187,11 +22192,21 @@ session_reboot:
                 cfg.source_rate = 44100.0;            /* SPU render rate */
                 cfg.host_rate   = (double)have.freq;  /* actual device rate */
                 cfg.target_ms   = (double)resolved_audio_buffer_ms;
-                if (rab_init(&s_drc, &cfg) == 0) s_drc_ready = true;
+                if (rab_init(&s_drc, &cfg) == 0) {
+                    s_drc_ready = true;
+                } else {
+                    /* Bridge allocation failed: reopen in the queue model instead of staying silent. */
+                    psx_sdl_audio_close(sdl_audio_device);
+                    s_drc_init_failed = true;
+                    want.callback = nullptr;
+                    want.allow_frequency_change = 0;
+                    sdl_audio_device = psx_sdl_audio_open(&want, &have);
+                    host_osd_push("Audio bridge unavailable: using basic audio", 4000);
+                }
             }
             g_audio_host_rate = have.freq;
             audio_trace_set_tap_rate(AUDIO_TAP_HOST, (uint32_t)have.freq);
-            (void)psx_sdl_audio_resume(sdl_audio_device);
+            if (sdl_audio_device) (void)psx_sdl_audio_resume(sdl_audio_device);
         }
     }
     /* Always register: SPU advance is guest-cycle budgeted and must not
