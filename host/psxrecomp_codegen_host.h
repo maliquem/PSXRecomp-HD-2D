@@ -27,7 +27,7 @@ typedef struct PsxrecompCodegenHostConfig {
     const char* psxrecomp_cli_relpath; /* default: psxrecomp/psxrecomp_cli.py */
     const char* seed_cfg_relpath;      /* default: game.toml (root probe) */
     const char* game_toml_relpath;     /* default: game.toml */
-    const char* gen_marker_relpath;    /* default: generated/SLUS_011.89_dispatch.c */
+    const char* gen_marker_relpath;    /* required: generated/<BOOT_EXE>_dispatch.c */
     const char* build_dir_name;        /* default: build */
 
     /* CMake / binary identity (required for auto-rebuild). */

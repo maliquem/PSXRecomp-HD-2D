@@ -740,7 +740,6 @@ static void dirty_ram_log_instruction(CPUState *cpu, uint32_t pc, uint32_t insn,
 
     uint32_t tcb_ptr_addr = cpu->read_word(0x00000108u);
     uint32_t current_tcb = tcb_ptr_addr ? cpu->read_word(tcb_ptr_addr) : 0;
-    uint32_t task_ptr = cpu->read_word(0x1F8001D4u);
 
     uint64_t s = g_dirty_ram_insn_log_seq++;
     DirtyRamInsnLogEntry *e =
@@ -767,9 +766,6 @@ static void dirty_ram_log_instruction(CPUState *cpu, uint32_t pc, uint32_t insn,
     e->k0           = cpu->gpr[26];
     e->k1           = cpu->gpr[27];
     e->current_tcb  = current_tcb;
-    e->task_ptr     = task_ptr;
-    e->task_mode    = task_ptr ? cpu->read_half(task_ptr + 72u) : 0;
-    e->task_submode = task_ptr ? cpu->read_half(task_ptr + 74u) : 0;
     e->frame        = (uint32_t)s_frame_count;
     e->transferred  = (uint8_t)(transferred ? 1u : 0u);
 }
@@ -1053,67 +1049,6 @@ static size_t psx_mixed_stack_watermark(void) {
     return (size_t)v * 1024u;
 }
 
-/* ── Flight recorder: per-frame count of the re-entry edge interp->0x8001A954 ──
- * (RECURSION_BUG.md §15). The long-run freeze is a per-frame update that, at
- * ~frame 50k, re-enters func_8001A954 (the per-frame loop head) unboundedly via
- * an interpreted overlay. Record, per emulated frame, how many times that edge
- * fires + the cycle counter, in a ring the crash report dumps. Answers: is the
- * re-entry ORDINARY bounded per-frame behavior that stops TERMINATING at ~50k
- * (count goes unbounded), or a brand-new edge — and whether cycles advance.
- * Only the INTERP->compiled re-entry passes through here; the normal compiled
- * per-frame entry to func_8001A954 does not, so this isolates the suspect edge. */
-extern uint64_t psx_cycle_count;
-#define SITE_CAP 32u   /* 3 sites x 256 overflowed crash_trace's 8KB sub-buffer; 32 frames of lead-up is plenty */
-typedef struct { uint32_t frame; uint32_t count; uint64_t cycle; } SiteEntry;
-typedef struct { SiteEntry ring[SITE_CAP]; uint64_t seq; uint32_t cur;
-                 uint32_t last_frame; uint32_t maxf; } SiteRec;
-/* Per-frame dispatch-count recorders for the suspect loop sites (RECURSION_BUG.md
- * §15). g_site_interp (interp->0x8001A954) was found ORDINARY (1/frame); the
- * recursion re-dispatches the compiled loop via dirty_ram_dispatch's entry because
- * the CD-DMA dirty bitmap is saturated. So record dirty_ram_dispatch(0x8001A954)
- * = loop head and dirty_ram_dispatch(0x80046264) = loop tail. Bounded normally,
- * spike at the freeze => "the per-frame loop stopped terminating." */
-static SiteRec g_site_interp = { .last_frame = 0xFFFFFFFFu };  /* interp -> 0x8001A954 */
-static SiteRec g_site_dd954  = { .last_frame = 0xFFFFFFFFu };  /* dirty_ram_dispatch(0x8001A954) */
-static SiteRec g_site_dd264  = { .last_frame = 0xFFFFFFFFu };  /* dirty_ram_dispatch(0x80046264) */
-
-static void site_note(SiteRec *s) {
-    uint32_t f = (uint32_t)s_frame_count;
-    if (f != s->last_frame) {
-        if (s->last_frame != 0xFFFFFFFFu) {
-            SiteEntry *e = &s->ring[s->seq++ & (SITE_CAP - 1u)];
-            e->frame = s->last_frame; e->count = s->cur; e->cycle = psx_cycle_count;
-            if (s->cur > s->maxf) s->maxf = s->cur;
-        }
-        s->cur = 0; s->last_frame = f;
-    }
-    s->cur++;
-}
-
-static int site_json(char *out, int cap, const char *name, const SiteRec *s) {
-    int n = snprintf(out, cap, "  \"%s\": {\"max_per_frame\":%u,\"cur_frame\":%u,\"cur_count\":%u,\"history\":[",
-                     name, s->maxf, s->last_frame, s->cur);
-    uint64_t total = s->seq;
-    int avail = (total < SITE_CAP) ? (int)total : (int)SITE_CAP;
-    uint64_t start = total - (uint64_t)avail;
-    for (int i = 0; i < avail && n < cap - 96; i++) {
-        const SiteEntry *e = &s->ring[(start + (uint64_t)i) & (SITE_CAP - 1u)];
-        n += snprintf(out + n, cap - n, "%s{\"f\":%u,\"n\":%u,\"cyc\":%llu}",
-                      i ? "," : "", e->frame, e->count, (unsigned long long)e->cycle);
-    }
-    n += snprintf(out + n, cap - n, "]},\n");
-    return n;
-}
-
-/* Emit all three loop-site recorders as JSON (called by crash_trace). */
-int dirty_ram_re954_json(char *out, int cap) {
-    int n = 0;
-    n += site_json(out + n, cap - n, "reentry_interp_8001A954", &g_site_interp);
-    n += site_json(out + n, cap - n, "dispatch_8001A954",       &g_site_dd954);
-    n += site_json(out + n, cap - n, "dispatch_80046264",       &g_site_dd264);
-    return n;
-}
-
 /* ── Boundary control-flow flight recorder (RECURSION_BUG.md §18) ──────────────
  * The long-run freeze is a runaway interp↔compiled re-entry. To choose among the
  * four shapes (gradual boundary leak / sudden same-frame spin / interpreter
@@ -1153,7 +1088,7 @@ typedef struct {
     uint32_t istat; uint32_t imask; uint16_t depth; uint8_t op; uint8_t site;
 } XDetail;
 typedef struct {
-    uint32_t frame; uint32_t crossings; uint32_t a954; int32_t depth_max;
+    uint32_t frame; uint32_t crossings; int32_t depth_max;
     uint32_t stk_max_kb; uint64_t cyc_advanced;
 } XSum;
 
@@ -1165,7 +1100,7 @@ static uint64_t g_xdet_seq = 0, g_xsum_seq = 0;
 
 /* per-frame accumulators */
 static uint32_t s_xf_frame = 0xFFFFFFFFu;
-static uint32_t s_xf_crossings = 0, s_xf_a954 = 0;
+static uint32_t s_xf_crossings = 0;
 static int32_t  s_xf_depth_max = 0;
 static uint32_t s_xf_stk_max_kb = 0;
 static uint64_t s_xf_cyc_start = 0;
@@ -1202,7 +1137,7 @@ void dirty_ram_xprobe_arm(int frame_trip, int stk_kb, int warmup) {
 static void xprobe_flush_frame(void) {
     if (s_xf_frame == 0xFFFFFFFFu) return;
     XSum *s = &g_xsum[g_xsum_seq++ & (XSUM_CAP - 1u)];
-    s->frame = s_xf_frame; s->crossings = s_xf_crossings; s->a954 = s_xf_a954;
+    s->frame = s_xf_frame; s->crossings = s_xf_crossings;
     s->depth_max = s_xf_depth_max; s->stk_max_kb = s_xf_stk_max_kb;
     s->cyc_advanced = psx_cycle_count - s_xf_cyc_start;
 }
@@ -1297,12 +1232,11 @@ static void xprobe_event(uint32_t src_pc, uint8_t op, uint8_t site, uint32_t tar
     uint32_t f = (uint32_t)s_frame_count;
     if (f != s_xf_frame) {
         xprobe_flush_frame();
-        s_xf_frame = f; s_xf_crossings = 0; s_xf_a954 = 0; s_xf_depth_max = 0;
+        s_xf_frame = f; s_xf_crossings = 0; s_xf_depth_max = 0;
         s_xf_stk_max_kb = 0; s_xf_cyc_start = psx_cycle_count;
         g_mixed_depth = 0;   /* shallow at frame top (proven ~5KB) — leak-proof reset */
     }
     s_xf_crossings++;
-    if (target == 0x8001A954u) s_xf_a954++;
     if (g_mixed_depth > s_xf_depth_max) s_xf_depth_max = g_mixed_depth;
     if (g_mixed_depth > 0 && s_xf_first_depth_frame == 0xFFFFFFFFu) {
         s_xf_first_depth_frame = f; s_xf_first_depth_cycle = psx_cycle_count;
@@ -1379,8 +1313,8 @@ int dirty_ram_xprobe_json(char *out, int cap) {
         for (uint32_t i = 0; i < avail && n < cap - 160; i++) {
             const XSum *s = &g_xsum[(start + i) & (XSUM_CAP - 1u)];
             n += snprintf(out + n, cap - n,
-                "%s{\"f\":%u,\"cr\":%u,\"a954\":%u,\"dmax\":%d,\"stk\":%u,\"cyc\":%llu}",
-                i ? "," : "", s->frame, s->crossings, s->a954, s->depth_max,
+                "%s{\"f\":%u,\"cr\":%u,\"dmax\":%d,\"stk\":%u,\"cyc\":%llu}",
+                i ? "," : "", s->frame, s->crossings, s->depth_max,
                 s->stk_max_kb, (unsigned long long)s->cyc_advanced);
         }
     }
@@ -1430,7 +1364,6 @@ int dirty_ram_xprobe_json(char *out, int cap) {
  * two callers below are themselves gated behind the same macro. */
 #ifdef PSX_HAS_GAME_DISPATCH
 static int interp_enter_compiled(CPUState *cpu, uint32_t target) {
-    if (target == 0x8001A954u) site_note(&g_site_interp);
     /* Decline when the target page no longer matches the static game image.
      * Returning 0 lets the JAL/JALR handler fall through to local-flow interp
      * of the live RAM bytes instead of running stale compiled code. */
@@ -1677,17 +1610,15 @@ static int exec_one_fetched_inner(CPUState *cpu, uint32_t pc, uint32_t insn,
                 cpu->gpr[dest] = finalv;
                 cpu->gpr[0] = 0;
                 /* Rich snapshot for the ring: s7 (gpr[23]) = byte tile-row extent;
-                 * s0 (gpr[16]) = DL object, count byte at +3; camera-X = scratchpad
-                 * halfword 0x176. */
+                 * s0 (gpr[16]) = DL object, count byte at +3. */
                 {
                     int      extent = (int)(int16_t)cpu->gpr[23];
-                    int      camx   = (int)(int16_t)(cpu->read_word(0x1F800174u) >> 16);
                     uint32_t s0a    = cpu->gpr[16] + 3u;
                     int      count  = (int)((cpu->read_word(s0a & ~3u) >> ((s0a & 3u) * 8u)) & 0xFFu);
                     /* base = s4 (gpr[20]) = backdrop data ptr (extent@+0, table@+4);
                      * dl = s0 (gpr[16]) = the ordering-table object. */
                     uint32_t a1 = cpu->gpr[20];
-                    psx_ws_backdrop_ring_note(pc, bk, wcols, orig, finalv, extent, camx,
+                    psx_ws_backdrop_ring_note(pc, bk, wcols, orig, finalv, extent,
                                               count, a1, cpu->gpr[16]);
                     /* Publish the backdrop structure's address range so the GL
                      * 2D-stretch gate can match tile prims by gp0_cmd_source_addr.
@@ -2616,8 +2547,6 @@ int dirty_ram_dispatch(CPUState* cpu, uint32_t addr, uint32_t stop_addr) {
      * and the handoff's baseline/scratch clears then corrupt the boot
      * (observed: MoH SLUS-00974 garbage-jump/VBLANK-wedge, 2026-08-06). */
     fntrace_maybe_mark_game_started(cpu, addr);
-    if (addr == 0x8001A954u)      site_note(&g_site_dd954);   /* loop head re-dispatch */
-    else if (addr == 0x80046264u) site_note(&g_site_dd264);   /* loop tail re-dispatch */
     int prev = g_dirty_interp_active;
     g_dirty_interp_active = 1;
     int prev_phase = g_exec_phase;

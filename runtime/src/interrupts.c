@@ -55,11 +55,11 @@
 extern int g_dirty_interp_active;
 extern uint32_t g_dirty_safe_resume_pc;
 
-/* IRQ-delivery context ring (MMX6 VSync-vs-CD-DMA hunt; dumped via `irqctx_ring`). */
+/* IRQ-delivery context ring (dumped via `irqctx_ring`). */
 #define IRQCTX_RING_CAP 4096u
 typedef struct {
     uint64_t seq, cycle;
-    uint32_t frame, istat, imask, sr, d44, cdrom_active, is_vblank;
+    uint32_t frame, istat, imask, sr, cdrom_active, is_vblank;
     int      dma_depth;
     /* Exception-EXIT half (Tomba menu IRQ-resume wedge): filled when this
      * delivery returns to the interrupted code, so the ring shows for EVERY
@@ -1613,12 +1613,8 @@ irq_deliver_eval:
     g_irq_deliver_count++;
     if ((i_stat & i_mask) & (1u << IRQ_VBLANK)) g_vblank_deliver_count++;
     if ((i_stat & i_mask) & (1u << IRQ_CDROM))  g_cdrom_deliver_count++;
-    /* IRQ-delivery context ring (MMX6 VSync-vs-CD-DMA hunt). Capture, at every IRQ
-     * delivery, whether the kernel VSync callback-block word at 0x80079D44 is the
-     * clobbered game value AND whether a CD DMA (ch3) is mid-transfer / a DMA is
-     * executing. If VBlank gets delivered with d44 already==0x016F0110 while the CD
-     * DMA is active, that is ChatGPT's class (c)+(#2): IRQ delivered in the DMA
-     * clobber window because the CPU isn't stalled / the event wasn't torn down. */
+    /* IRQ-delivery context ring: at every IRQ delivery, whether a CD DMA (ch3) is
+     * mid-transfer / a DMA is executing. */
     {
         extern int dma_cdrom_transfer_active(void);
         extern int g_dma_exec_depth;
@@ -1626,7 +1622,7 @@ irq_deliver_eval:
         g_irqctx_ring[g_irqctx_seq & (IRQCTX_RING_CAP - 1u)] = (IrqCtxEntry){
             .seq = g_irqctx_seq, .cycle = psx_get_cycle_count(),
             .frame = (uint32_t)s_frame_count, .istat = i_stat, .imask = i_mask,
-            .sr = cpu->cop0[COP0_SR], .d44 = cpu->read_word(0x80079D44u),
+            .sr = cpu->cop0[COP0_SR],
             .cdrom_active = (uint32_t)dma_cdrom_transfer_active(),
             .dma_depth = g_dma_exec_depth,
             .is_vblank = (uint32_t)(((i_stat & i_mask) & (1u << IRQ_VBLANK)) != 0),

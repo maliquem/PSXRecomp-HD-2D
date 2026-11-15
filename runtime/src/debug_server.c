@@ -3193,8 +3193,7 @@ static void handle_dirty_insn_log(int id, const char *json)
                         "\"t0\":\"0x%08X\",\"t1\":\"0x%08X\","
                         "\"t2\":\"0x%08X\","
                         "\"at\":\"0x%08X\",\"k0\":\"0x%08X\",\"k1\":\"0x%08X\","
-                        "\"current_tcb\":\"0x%08X\",\"task_ptr\":\"0x%08X\","
-                        "\"task_mode\":\"0x%08X\",\"task_submode\":\"0x%08X\","
+                        "\"current_tcb\":\"0x%08X\","
                         "\"frame\":%u,\"transferred\":%u}",
                         emitted == 0 ? "" : ",",
                         (unsigned long long)e->seq,
@@ -3203,8 +3202,7 @@ static void handle_dirty_insn_log(int id, const char *json)
                         e->v0, e->v1, e->a0, e->a1, e->a2, e->a3,
                         e->t0, e->t1, e->t2,
                         e->at, e->k0, e->k1,
-                        e->current_tcb, e->task_ptr, e->task_mode,
-                        e->task_submode, e->frame, (unsigned)e->transferred);
+                        e->current_tcb, e->frame, (unsigned)e->transferred);
         emitted++;
     }
     pos += snprintf(out + pos, BUF_SZ - pos, "],\"emitted\":%d}\n", emitted);
@@ -9964,7 +9962,7 @@ static void handle_scanline(int id, const char *json)
 }
 
 /* ws_backdrop_ring: dump the always-on auto_backdrop rewrite ring (which windows
- * fire, live extent/camera/DL-count, orig vs final bound). Read-only; small
+ * fire, live extent/DL-count, orig vs final bound). Read-only; small
  * heap envelope so the per-byte stall of a giant read is never in play. */
 static void handle_ws_backdrop_ring(int id, const char *json)
 {
@@ -12593,42 +12591,6 @@ static void handle_pc_probe_clear(int id, const char *json)
  *   - fn_entry histogram dominance               → stuck-in-N-functions loop
  *   - dispatch_count change between calls       → recompiled code progressing
  *   - sio.irq_pending + countdown stuck         → IRQ pacing breakdown */
-/* Dump the VSync callback-pointer (0x80079D44) write-provenance ring (memory.c).
- * Each entry = one write to that word with its real source: store_pc (accurate for
- * CPU/dirty-interp stores; stale for DMA), and dma_depth/ch/madr/bcr (set in dma.c
- * while a DMA moves data). Lets the corrupting 0x016F0110 write be attributed to the
- * exact channel + destination instead of a stale per-instruction store PC. */
-static void handle_d44_ring(int id, const char *json)
-{
-    (void)json;
-    typedef struct { uint64_t seq; uint32_t val, old, store_pc;
-                     int32_t dma_depth, dma_ch; uint32_t dma_madr, dma_bcr, frame; } D44E;
-    extern D44E g_d44_ring[]; extern uint64_t g_d44_seq;
-    uint64_t total = g_d44_seq;
-    uint32_t cap = 32u;
-    uint32_t n = total < cap ? (uint32_t)total : cap;
-    char buf[8192]; size_t pos = 0;
-    pos += snprintf(buf + pos, sizeof(buf) - pos,
-                    "{\"id\":%d,\"ok\":true,\"total\":%llu,\"entries\":[",
-                    id, (unsigned long long)total);
-    for (uint32_t i = 0; i < n && pos < sizeof(buf) - 256; i++) {
-        uint64_t idx = total - n + i;
-        D44E *e = &g_d44_ring[idx & (cap - 1u)];
-        pos += snprintf(buf + pos, sizeof(buf) - pos,
-            "%s{\"seq\":%llu,\"frame\":%u,\"old\":\"0x%08X\",\"new\":\"0x%08X\","
-            "\"store_pc\":\"0x%08X\",\"dma_depth\":%d,\"dma_ch\":%d,"
-            "\"dma_madr\":\"0x%08X\",\"dma_bcr\":\"0x%08X\"}",
-            i ? "," : "", (unsigned long long)e->seq, e->frame, e->old, e->val,
-            e->store_pc, e->dma_depth, e->dma_ch, e->dma_madr, e->dma_bcr);
-    }
-    pos += snprintf(buf + pos, sizeof(buf) - pos, "]}");
-    debug_server_send_line(buf);
-}
-
-/* Dump the IRQ-delivery context ring (interrupts.c): per IRQ delivery, the VSync
- * callback word [0x80079D44], CD-DMA-active + dma-depth, and COP0/IRQ state. Shows
- * whether VBlank was delivered while 0x80079D44 was the clobbered 0x016F0110 AND a
- * CD DMA was mid-transfer (the VSync-in-DMA-window bug). */
 /* irq_exc_stats: cumulative per-source exception accounting since boot
  * (interrupts.c). Each delivery is charged to every I_STAT&I_MASK bit pending
  * at entry ("sw" = software interrupt only), with the guest cycles from entry
@@ -12720,7 +12682,7 @@ static void handle_dma_hold_ring(int id, const char *json)
 
 static void handle_irqctx_ring(int id, const char *json)
 {
-    typedef struct { uint64_t seq, cycle; uint32_t frame, istat, imask, sr, d44,
+    typedef struct { uint64_t seq, cycle; uint32_t frame, istat, imask, sr,
                      cdrom_active, is_vblank; int dma_depth;
                      uint32_t take_pc, real_epc, exit_pc, exit_reason, same_thread,
                      restored, v0_exit, v0_saved, v1_exit, v1_saved, ra_exit,
@@ -12753,7 +12715,7 @@ static void handle_irqctx_ring(int id, const char *json)
         if (frame_hi >= 0 && (int)e->frame > frame_hi) continue;
         pos += snprintf(buf + pos, BUF_SZ - pos,
             "%s{\"seq\":%llu,\"cycle\":%llu,\"frame\":%u,\"vblank\":%u,"
-            "\"d44\":\"0x%08X\",\"cdrom_active\":%u,\"dma_depth\":%d,"
+            "\"cdrom_active\":%u,\"dma_depth\":%d,"
             "\"sr\":\"0x%08X\",\"istat\":\"0x%08X\",\"imask\":\"0x%08X\","
             "\"take_pc\":\"0x%08X\",\"real_epc\":\"0x%08X\",\"exit_pc\":\"0x%08X\","
             "\"exit_reason\":%u,\"same_thread\":%u,\"restored\":%u,"
@@ -12762,7 +12724,7 @@ static void handle_irqctx_ring(int id, const char *json)
             "\"ra_exit\":\"0x%08X\",\"ra_saved\":\"0x%08X\",\"redirects\":%u,"
             "\"entry_sp\":\"0x%08X\",\"pump_site\":%u,\"exit_cycle\":%llu}",
             emitted ? "," : "", (unsigned long long)e->seq, (unsigned long long)e->cycle,
-            e->frame, e->is_vblank, e->d44, e->cdrom_active, e->dma_depth,
+            e->frame, e->is_vblank, e->cdrom_active, e->dma_depth,
             e->sr, e->istat, e->imask,
             e->take_pc, e->real_epc, e->exit_pc, e->exit_reason, e->same_thread,
             e->restored, e->v0_exit, e->v0_saved, e->v1_exit, e->v1_saved,
@@ -16947,7 +16909,6 @@ static const CmdEntry s_commands[] = {
     { "wtrace_del",          handle_wtrace_del },
     { "wtrace_clear",        handle_wtrace_clear },
     { "freeze_check",      handle_freeze_check },
-    { "d44_ring",          handle_d44_ring },
     { "irqctx_ring",       handle_irqctx_ring },
     { "irq_exc_stats",     handle_irq_exc_stats },
     { "dma_hold_stats",    handle_dma_hold_stats },

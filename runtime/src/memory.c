@@ -1955,40 +1955,6 @@ static uint32_t psx_read_word_raw(uint32_t addr) {
     return 0;
 }
 
-/* ---- VSync callback-pointer provenance probe (MMX6 boot wedge) -------------
- * The kernel VSync/RCnt callback-block pointer at phys 0x79D44 (KSEG0 0x80079D44)
- * is corrupted to 0x016F0110 at frame ~1188 by a write whose g_debug_last_store_pc
- * is STALE (so it is not a compiled/dirty-interp store — a DMA or runtime mem-op
- * with a wrong destination). This always-on ring records EVERY write to that word
- * at the unified RAM-write chokepoint, tagging CPU-vs-DMA via the dma.c exec flags,
- * so the real corrupting writer (and, if DMA, its channel + madr) is captured even
- * though the per-instruction store-PC tracker can't see it. Dump via `d44_ring`. */
-#define D44_PHYS 0x00079D44u
-#define D44_RING_CAP 32u
-typedef struct {
-    uint64_t seq;
-    uint32_t val, old, store_pc;
-    int32_t  dma_depth, dma_ch;
-    uint32_t dma_madr, dma_bcr, frame;
-} D44Entry;
-D44Entry  g_d44_ring[D44_RING_CAP];
-uint64_t  g_d44_seq = 0;
-extern uint32_t g_debug_last_store_pc;
-extern int      g_dma_exec_depth;     /* >0 while a DMA is moving data (dma.c) */
-extern int      g_dma_cur_ch;         /* channel of the in-flight DMA, else -1  */
-extern uint32_t g_dma_cur_madr;       /* current MADR of the in-flight DMA      */
-extern uint32_t g_dma_cur_bcr;        /* BCR of the in-flight DMA               */
-extern uint64_t s_frame_count;
-static inline void d44_note(uint32_t phys, uint32_t old, uint32_t val) {
-    if (phys != D44_PHYS) return;
-    uint64_t i = g_d44_seq++;
-    D44Entry *e = &g_d44_ring[i & (D44_RING_CAP - 1u)];
-    e->seq = i; e->val = val; e->old = old; e->store_pc = g_debug_last_store_pc;
-    e->dma_depth = g_dma_exec_depth; e->dma_ch = g_dma_cur_ch;
-    e->dma_madr = g_dma_cur_madr; e->dma_bcr = g_dma_cur_bcr;
-    e->frame = (uint32_t)s_frame_count;
-}
-
 /* ---- Render-pass stores (render_pass.c, docs/RENDER_PASSES.md) -------------
  * A render pass runs guest draw code in frozen time and afterwards restores
  * RAM, scratchpad, CPU, GPU and DMA state byte-for-byte. Its stores therefore
@@ -2275,7 +2241,6 @@ static void psx_write_word_raw(uint32_t addr, uint32_t val) {
                 }
             }
         }
-        if (phys == D44_PHYS) d44_note(phys, read_ram_word(phys), val);
 #ifndef PSX_NO_DEBUG_TOOLS
         if (g_debug_write_trace_live) debug_server_trace_write_check(phys, read_ram_word(phys), val, 4);
 #endif
@@ -2908,12 +2873,11 @@ void psx_store_pages_forget_all(void) { memset(g_psx_store_page, 0, sizeof(g_psx
 /* 1: every aligned store to the page is a plain store here; 2: one is when
  * its text line is already marked (text_line_mark would do nothing); 0:
  * neither (kernel window, executed code, watched overlay page, game text not
- * yet seen modified, the D44 word's page). */
+ * yet seen modified). */
 static uint32_t psx_store_page_kind(uint32_t pg) {
     const uint32_t lo = pg << DIRTY_RAM_PAGE_SHIFT, hi = lo + (1u << DIRTY_RAM_PAGE_SHIFT);
     const uint32_t bit = 1u << (pg & 31u);
     if (lo < DIRTY_RAM_KERNEL_TRACK_BYTES || lo >= RAM_LIVE) return 0u;
-    if (pg == (D44_PHYS >> DIRTY_RAM_PAGE_SHIFT)) return 0u;
     if ((g_dirty_ram_exec_page_bitmap[pg >> 5] | overlay_watch_bitmap[pg >> 5]) & bit) return 0u;
     if (!text_ref_image || hi <= text_ref_lo || lo >= text_ref_hi) return 1u;
     return (text_modified_bitmap[pg >> 5] & bit) ? 2u : 0u;
@@ -2969,7 +2933,6 @@ static inline uint8_t *psx_store_fast_ptr(uint32_t addr, uint32_t size, uint32_t
             text_line_mark(off);   /* a page already modified: no compare here */
         }
     }
-    if (size == 4u && off == D44_PHYS) return NULL;
     if (__builtin_expect(g_psx_store_page[pg] == 0u, 0))
         g_psx_store_page[pg] = (uint8_t)psx_store_page_kind(pg);
     return &ram[off];

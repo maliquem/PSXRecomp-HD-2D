@@ -137,8 +137,8 @@ void     cd_dma_log_get_entry(uint32_t idx, int *lba, uint32_t *dest, uint32_t *
  * only the busy-bit clear + completion IRQ are deferred). */
 #define DMA_SPU_CYCLES_PER_WORD      48u
 
-/* DMA-execution provenance flags (read by memory.c's psx_write_word d44_note probe
- * for the MMX6 VSync-callback-pointer corruption hunt). g_dma_exec_depth>0 means a
+/* DMA-execution provenance flags (read by memory.c, interrupts.c's irqctx ring and
+ * debug_server). g_dma_exec_depth>0 means a
  * DMA is currently moving data through psx_write_word, so a RAM write seen there is
  * DMA-sourced (not a CPU/dirty-interp store, whose g_debug_last_store_pc is accurate).
  * cur_ch/cur_madr/cur_bcr name the in-flight channel + its destination, so a wrong

@@ -3211,34 +3211,33 @@ uint32_t psx_ws_backdrop_value(uint32_t orig, int is_end, int window_cols) {
     /* Single chokepoint for every path (interp hook, native cache-DLL via the
      * overlay callback). The interp records its own richer entry, so skip
      * here when it set the flag; native-DLL calls (flag 0) are recorded here with
-     * pc/extent/camera = 0 -- which is how the ring sees native execution. */
+     * pc/extent = 0 -- which is how the ring sees native execution. */
     if (!from_interp)
         psx_ws_backdrop_ring_note(0u, is_end ? 2 /*WS_BD_END*/ : 1 /*WS_BD_START*/,
-                                  window_cols, orig, finalv, 0, 0, 0, 0u, 0u);
+                                  window_cols, orig, finalv, 0, 0, 0u, 0u);
     return finalv;
 }
 
 /* ---- auto_backdrop diagnostic ring (always-on; see BACKDROP_PRELOAD.md) -----
  * Every backdrop-window rewrite (interp or native) is recorded here so the live
- * tile-row extent, the camera-tracked bounds, and exactly WHICH of a scene's
- * windows fire can be read back via the `ws_backdrop_ring` debug command --
- * query the ring for the window of interest, never pause/step. The recorder is
- * fed by the interpreter (which has the live CPU state: s7=extent, the DL count,
- * and the scratchpad camera-X) at the rewrite site. */
+ * tile-row extent and exactly WHICH of a scene's windows fire can be read back
+ * via the `ws_backdrop_ring` debug command -- query the ring for the window of
+ * interest, never pause/step. The recorder is fed by the interpreter (which has
+ * the live CPU state: s7=extent, the DL count) at the rewrite site. */
 typedef struct {
     uint32_t frame, pc, orig, finalv, base, dl;
-    int      kind, wcols, extent, camx, count;
+    int      kind, wcols, extent, count;
 } WsBdRingEnt;
 #define WS_BD_RING_CAP 512
 static WsBdRingEnt s_bd_ring[WS_BD_RING_CAP];
 static uint32_t    s_bd_ring_seq = 0;
 
 void psx_ws_backdrop_ring_note(uint32_t pc, int kind, int wcols, uint32_t orig,
-                               uint32_t finalv, int extent, int camx, int count,
+                               uint32_t finalv, int extent, int count,
                                uint32_t base, uint32_t dl) {
     WsBdRingEnt *e = &s_bd_ring[s_bd_ring_seq & (WS_BD_RING_CAP - 1)];
     e->frame  = (uint32_t)s_frame_count; e->pc = pc; e->kind = kind; e->wcols = wcols;
-    e->orig   = orig; e->finalv = finalv; e->extent = extent; e->camx = camx; e->count = count;
+    e->orig   = orig; e->finalv = finalv; e->extent = extent; e->count = count;
     e->base   = base; e->dl = dl;
     s_bd_ring_seq++;
 }
@@ -3250,9 +3249,9 @@ int psx_ws_backdrop_ring_json(char *buf, int cap) {
     for (int i = 0; i < n && off < cap - 200; i++) {
         WsBdRingEnt *e = &s_bd_ring[(start + (uint32_t)i) & (WS_BD_RING_CAP - 1)];
         off += snprintf(buf + off, (size_t)(cap - off),
-            "%s{\"f\":%u,\"pc\":\"%08x\",\"k\":%d,\"wc\":%d,\"o\":%d,\"fin\":%d,\"ext\":%d,\"cam\":%d,\"cnt\":%d,\"base\":\"%08x\",\"dl\":\"%08x\"}",
+            "%s{\"f\":%u,\"pc\":\"%08x\",\"k\":%d,\"wc\":%d,\"o\":%d,\"fin\":%d,\"ext\":%d,\"cnt\":%d,\"base\":\"%08x\",\"dl\":\"%08x\"}",
             i ? "," : "", e->frame, e->pc, e->kind, e->wcols,
-            (int)(int16_t)e->orig, (int)(int16_t)e->finalv, e->extent, e->camx, e->count,
+            (int)(int16_t)e->orig, (int)(int16_t)e->finalv, e->extent, e->count,
             e->base, e->dl);
     }
     off += snprintf(buf + off, (size_t)(cap - off), "]");
@@ -9310,21 +9309,18 @@ void gpu_set_gp0_source(uint32_t addr) {
     gp0_next_source_addr = addr;
 }
 
-/* ---- Draw census ring (ALWAYS-ON) -----------------------------------------
+/* ---- Draw census ring (off by default; TCP `ws_census on`) ----------------
  * Every drawn primitive (GP0 opcode 0x20-0x7F) records: frame, the prim's DMA
- * source address, the live camera (scratchpad camX/camY), and the prim's first
- * vertex in DRAWING space (pre draw_offset). Purpose: see object spawn/despawn
- * and edge-cull in DATA, not screenshots. When a background object despawns,
- * its prim simply stops appearing in the census at a specific camX while its
- * last recorded screen-x shows how far on-screen it still was — i.e. the
- * effective (4:3-sized) despawn margin, which the 16:9 view exceeds. A prim
- * present in the census but absent on screen would instead indict the renderer
- * gate. Query via TCP `ws_census` → CSV file (large dumps mustn't ride TCP). */
+ * source address, and the prim's first vertex in DRAWING space (pre
+ * draw_offset). Purpose: see object spawn/despawn and edge-cull in DATA, not
+ * screenshots: a background prim stops appearing at a specific frame while its
+ * last recorded screen-x shows how far on-screen it still was. A prim present
+ * in the census but absent on screen would instead indict the renderer gate.
+ * Query via TCP `ws_census` → CSV file (large dumps mustn't ride TCP). */
 #define WS_CENSUS_CAP (1u << 21)            /* 2,097,152 entries * 24B = 48 MiB */
 typedef struct {
     uint32_t frame;
     uint32_t src_addr;
-    int16_t  cam_x, cam_y;
     int16_t  x, y;        /* first vertex (screen / pre-draw_offset) */
     int16_t  xmin, xmax;  /* screen-X extent across the prim's position verts */
     int16_t  base_x;      /* back-buffer origin (draw_area_left) at draw time */
@@ -9333,8 +9329,7 @@ typedef struct {
 } WsCensusEntry;
 static WsCensusEntry *ws_census = NULL;
 static uint64_t       ws_census_seq = 0;
-static int            ws_census_on  = 1;     /* always-on; toggle via ws_census */
-extern uint16_t       psx_read_half(uint32_t addr);
+static int            ws_census_on  = 0;     /* toggle via ws_census */
 
 /* Screen-X extent (raw vertex coords = SX, pre-draw_offset) across a prim's
  * position vertices. Polygons (0x20-0x3F) decoded exactly via the packet stride
@@ -9459,8 +9454,6 @@ static void ws_census_record(uint8_t opcode, int32_t x, int32_t y) {
     WsCensusEntry *e = &ws_census[ws_census_seq & (WS_CENSUS_CAP - 1)];
     e->frame    = (uint32_t)s_frame_count;
     e->src_addr = gp0_cmd_source_addr;
-    e->cam_x    = (int16_t)psx_read_half(0x1F800176);
-    e->cam_y    = (int16_t)psx_read_half(0x1F800186);
     e->x        = (int16_t)x;
     e->y        = (int16_t)y;
     e->xmin     = (int16_t)xmn;
@@ -9476,7 +9469,7 @@ int gpu_ws_census_dump(uint32_t f0, uint32_t f1, const char *path) {
     if (!ws_census) return 0;
     FILE *fp = fopen(path, "w");
     if (!fp) return -1;
-    fprintf(fp, "frame,src_addr,cam_x,cam_y,x,y,xmin,xmax,base_x,opcode,tagged\n");
+    fprintf(fp, "frame,src_addr,x,y,xmin,xmax,base_x,opcode,tagged\n");
     uint64_t total = ws_census_seq;
     uint64_t avail = total < WS_CENSUS_CAP ? total : WS_CENSUS_CAP;
     uint64_t start = total - avail;
@@ -9484,8 +9477,8 @@ int gpu_ws_census_dump(uint32_t f0, uint32_t f1, const char *path) {
     for (uint64_t s = start; s < total; s++) {
         WsCensusEntry *e = &ws_census[s & (WS_CENSUS_CAP - 1)];
         if (e->frame < f0 || e->frame > f1) continue;
-        fprintf(fp, "%u,0x%08X,%d,%d,%d,%d,%d,%d,%d,0x%02X,%u\n",
-                e->frame, e->src_addr, e->cam_x, e->cam_y, e->x, e->y,
+        fprintf(fp, "%u,0x%08X,%d,%d,%d,%d,%d,0x%02X,%u\n",
+                e->frame, e->src_addr, e->x, e->y,
                 e->xmin, e->xmax, e->base_x, e->opcode, e->tagged);
         n++;
     }
@@ -9589,7 +9582,7 @@ static void gp0_execute_command(void) {
         gr_wide_set_view(ws_view_enabled(), v.shift, v.pad_left, v.pad_right);
     }
 
-    /* Draw-census: capture every drawing primitive's first vertex + camera. */
+    /* Draw-census: capture every drawing primitive's first vertex. */
     if (opcode >= 0x20 && opcode <= 0x7F) {
         gpu_drawn_note_draw();
         int32_t cvx, cvy;

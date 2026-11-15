@@ -1306,17 +1306,10 @@ void psx_unaligned_access(CPUState* cpu, uint32_t addr, uint32_t pc) {
     static int count = 0;
     if (count < 3) {
         char buf[1024];
-        int n = snprintf(buf, sizeof(buf),
+        snprintf(buf, sizeof(buf),
             "ADEL: addr=0x%08X PC=0x%08X ra=0x%08X v0=0x%08X a0=0x%08X t9=0x%08X (hit #%d)\n"
-            "  Callback table at 0x800DFEE0:",
-            addr, pc, cpu->gpr[31], cpu->gpr[2], cpu->gpr[4], cpu->gpr[25], count + 1);
-        for (int i = 0; i < 11; i++) {
-            uint32_t cb = cpu->read_word(0x800DFEE0u + (uint32_t)(i * 4));
-            n += snprintf(buf + n, sizeof(buf) - (size_t)n, " [%d]=0x%08X", i, cb);
-        }
-        n += snprintf(buf + n, sizeof(buf) - (size_t)n,
-            "\n  Mask=0x%08X s0=0x%08X s1=0x%08X s2=0x%08X",
-            cpu->read_word(0x800DFF0Cu),
+            "  s0=0x%08X s1=0x%08X s2=0x%08X",
+            addr, pc, cpu->gpr[31], cpu->gpr[2], cpu->gpr[4], cpu->gpr[25], count + 1,
             cpu->gpr[16], cpu->gpr[17], cpu->gpr[18]);
         trap_crash(buf);
         count++;

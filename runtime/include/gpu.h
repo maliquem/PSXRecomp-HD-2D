@@ -806,11 +806,11 @@ int      psx_ws_backdrop_preload(void);
 uint32_t psx_ws_backdrop_value(uint32_t orig, int is_end, int window_cols);
 
 /* auto_backdrop diagnostic ring (always-on). The interpreter records every
- * window rewrite (with the live extent / DL count / camera-X); `ws_backdrop_ring`
+ * window rewrite (with the live extent / DL count); `ws_backdrop_ring`
  * dumps it. psx_ws_backdrop_ring_json() formats the recent entries into `buf`
  * (returns bytes written, excluding the caller's JSON envelope). */
 void psx_ws_backdrop_ring_note(uint32_t pc, int kind, int wcols, uint32_t orig,
-                               uint32_t finalv, int extent, int camx, int count,
+                               uint32_t finalv, int extent, int count,
                                uint32_t base, uint32_t dl);
 int  psx_ws_backdrop_ring_json(char *buf, int cap);
 

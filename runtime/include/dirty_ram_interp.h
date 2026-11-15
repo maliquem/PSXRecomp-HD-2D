@@ -456,9 +456,6 @@ typedef struct {
     uint32_t k0;
     uint32_t k1;
     uint32_t current_tcb;
-    uint32_t task_ptr;
-    uint32_t task_mode;
-    uint32_t task_submode;
     uint32_t frame;
     uint8_t  transferred;
     uint8_t  pad[3];

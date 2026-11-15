@@ -1232,7 +1232,8 @@ static int bios_backends_missing(void) {
 
 int psxrecomp_codegen_host_sources_missing(
     const PsxrecompCodegenHostConfig* cfg) {
-    if (!cfg || !cfg->cmake_target || !cfg->exe_basename)
+    if (!cfg || !cfg->cmake_target || !cfg->exe_basename ||
+        !cfg->gen_marker_relpath)
         return 0;
     g_cfg = cfg;
     if (!g_project_root[0] &&
@@ -1240,8 +1241,7 @@ int psxrecomp_codegen_host_sources_missing(
         return 0;
     char marker[1100];
     if (!join_path(marker, sizeof(marker), g_project_root,
-                   cfg_or(cfg->gen_marker_relpath,
-                          "generated/SLUS_011.89_dispatch.c")))
+                   cfg->gen_marker_relpath))
         return 1;
     if (!path_is_file(marker))
         return 1;
@@ -3882,8 +3882,7 @@ static const char* host_loop_breaker_note(void) {
     now = (long long)time(NULL);
     if (then <= 0 || now < then || now - then > HOST_LOOP_BREAKER_WINDOW_SECS)
         return NULL;
-    marker_rel = cfg_or(g_cfg->gen_marker_relpath,
-                        "generated/SLUS_011.89_dispatch.c");
+    marker_rel = g_cfg->gen_marker_relpath;
     game_missing =
         !join_path(marker_abs, sizeof(marker_abs), g_project_root,
                    marker_rel) ||
@@ -4029,8 +4028,7 @@ static int host_prepare_generate(const char* source_path, char* out_path,
     /* The exact dispatch filename this host (and CMakeLists GEN_MARKER) will
      * gate on later. Handing it to generate makes a boot-exe name skew fail
      * there, loudly, instead of surfacing as an endless setup-wizard loop. */
-    const char* marker_rel =
-        cfg_or(g_cfg->gen_marker_relpath, "generated/SLUS_011.89_dispatch.c");
+    const char* marker_rel = g_cfg->gen_marker_relpath;
     const char* marker_name = marker_rel;
     for (const char* p = marker_rel; *p; ++p)
         if (*p == '/' || *p == '\\')
@@ -4145,8 +4143,7 @@ static int write_windows_deferred_rebuild_helper(int force_pgo,
         /* Post-build sanity: the dispatch file the launcher will gate on. */
         char marker_abs[1200];
         if (join_path(marker_abs, sizeof(marker_abs), g_project_root,
-                      cfg_or(g_cfg->gen_marker_relpath,
-                             "generated/SLUS_011.89_dispatch.c")))
+                      g_cfg->gen_marker_relpath))
             bat_write_set(f, "GEN_MARKER", marker_abs);
     }
     if (force_pgo && disc_path && disc_path[0])
@@ -4455,7 +4452,8 @@ static void host_selfcheck_or_return(const PsxrecompCodegenHostConfig* cfg,
     if (i >= argc)
         return;
 
-    if (!cfg || !cfg->cmake_target || !cfg->exe_basename) {
+    if (!cfg || !cfg->cmake_target || !cfg->exe_basename ||
+        !cfg->gen_marker_relpath) {
         printf("{\"error\": \"no codegen host config linked\"}\n");
         exit(1);
     }
@@ -4466,8 +4464,7 @@ static void host_selfcheck_or_return(const PsxrecompCodegenHostConfig* cfg,
         exit(1);
     }
 
-    marker_rel = cfg_or(cfg->gen_marker_relpath,
-                        "generated/SLUS_011.89_dispatch.c");
+    marker_rel = cfg->gen_marker_relpath;
     game_ok = join_path(marker_abs, sizeof(marker_abs), g_project_root,
                         marker_rel) && path_is_file(marker_abs);
     bios_ok = !bios_backends_missing();
@@ -4556,7 +4553,8 @@ void psxrecomp_codegen_host_forward_if_built(
     const char* force_env;
     const char* force;
 
-    if (!cfg || !cfg->cmake_target || !cfg->exe_basename)
+    if (!cfg || !cfg->cmake_target || !cfg->exe_basename ||
+        !cfg->gen_marker_relpath)
         return;
 
     no_fwd = getenv("PSXRECOMP_NO_FORWARD");
@@ -4725,7 +4723,8 @@ void psxrecomp_codegen_host_relaunch_or_exit(const char* disc_path) {
 
 void psxrecomp_codegen_host_apply(RecompLauncherCGameInfo* gi,
                                   const PsxrecompCodegenHostConfig* cfg) {
-    if (!gi || !cfg || !cfg->cmake_target || !cfg->exe_basename)
+    if (!gi || !cfg || !cfg->cmake_target || !cfg->exe_basename ||
+        !cfg->gen_marker_relpath)
         return;
 
 #if !defined(PSX_HAS_SETUP_WIZARD)

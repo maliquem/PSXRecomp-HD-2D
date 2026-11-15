@@ -145,8 +145,8 @@ proportions on the 16:9 stretch.
 **Live diagnostics (TCP debug server, committed `1e28a94`/earlier):**
 `ws_aspect num den` (toggle the GTE squash on/off in place — `1 1` = off),
 `ws_far_threshold [t]` (set the SZ depth split + read the backdrop driver's SZ
-stats so the split is data-driven), `ws_census on|off|<start> <end>` (always-on
-per-prim draw ring → CSV), `ws_margin <v|-1>` (force the cull margin), and the
+stats so the split is data-driven), `ws_census on|off|<start> <end>` (per-prim
+draw ring → CSV, off until `ws_census on`), `ws_margin <v|-1>` (force the cull margin), and the
 `gpu_state` `ws.{configured,active,game_mode,present_native_43,x_margin,squash}`
 readout. Plus `tools/_press.py` (TCP pad), `tools/_objtab.py` (0x800A3D08 actor
 table decoder).
