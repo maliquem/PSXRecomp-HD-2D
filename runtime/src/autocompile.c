@@ -1624,6 +1624,11 @@ void autocompile_poll_main(void) {
         autocompile_note_success();
 }
 
+#if defined(_WIN32) && (!defined(_WIN32_WINNT) || _WIN32_WINNT < 0x0600)
+/* kernel32 since Vista; the headers declare it only for that target */
+WINBASEAPI BOOL WINAPI CancelSynchronousIo(HANDLE hThread);
+#endif
+
 void autocompile_shutdown(void) {
 #ifdef _WIN32
     if (!s_out_lock_init) return;   /* never configured — nothing to stop */
@@ -1651,6 +1656,10 @@ void autocompile_shutdown(void) {
         s_prepare_thread = NULL;
     }
     if (s_watch_thread) {
+        /* Without a job, orphaned python/gcc still hold the pipe write end:
+         * abort the watcher's blocking ReadFile instead of waiting them out. */
+        while (!s_job && WaitForSingleObject(s_watch_thread, 100) == WAIT_TIMEOUT)
+            (void)CancelSynchronousIo(s_watch_thread);
         WaitForSingleObject(s_watch_thread, INFINITE);
         CloseHandle(s_watch_thread);
         s_watch_thread = NULL;
