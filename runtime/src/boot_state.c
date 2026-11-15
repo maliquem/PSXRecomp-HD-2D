@@ -1062,6 +1062,7 @@ int boot_state_load_buffer(const uint8_t* file, size_t file_len,
     double apply_other_ms = 0.0;
     BsSection* sections = NULL;
     uint32_t n_sections = 0;
+    uint32_t inflated_total = 0;
 
     if (!boot_state_check_buffer(file, file_len, bios_checksum, entry_pc,
                                  reject, sizeof(reject))) {
@@ -1102,6 +1103,9 @@ int boot_state_load_buffer(const uint8_t* file, size_t file_len,
         }
         payload = cur;
         cur += (size_t)len;
+        /* EST-10: each known tag is written once; a repeat is hostile (it was
+         * inflated and applied in sequence). Refuse before inflating. */
+        if (tag < 32 && (seen & (1u << tag))) { ok = 0; break; }
 
         if (h.version >= 4u && pad == BOOT_STATE_SEC_ZLIB) {
             PstR lr;
@@ -1114,6 +1118,10 @@ int boot_state_load_buffer(const uint8_t* file, size_t file_len,
                 raw_len > 64u * 1024u * 1024u) {
                 ok = 0; break;
             }
+            /* EST-10: all inflated sections stay live until pass 2, so bound
+             * their sum (a real state is ~4 MiB), not just each one. */
+            if (raw_len > 64u * 1024u * 1024u - inflated_total) { ok = 0; break; }
+            inflated_total += raw_len;
             s->owned = (uint8_t*)malloc(raw_len);
             if (!s->owned) { ok = 0; break; }
             n_sections++;   /* owned buffer is freed below on every path */
@@ -1140,9 +1148,6 @@ int boot_state_load_buffer(const uint8_t* file, size_t file_len,
         }
         s->tag = tag;
         if (!validate_section(tag, s->p, s->len)) { ok = 0; break; }
-        if (tag == BS_SEC_GAME_START && (seen & (1u << tag))) {
-            ok = 0; break;
-        }
         if (tag < 32) seen |= (1u << tag);
     }
     if (ok && (seen & required) != required)
