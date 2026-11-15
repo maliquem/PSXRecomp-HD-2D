@@ -5,9 +5,11 @@
  *
  * The enhancement vs the canon model:
  *   - 4-point cubic (Catmull-Rom) interpolation between decoded samples instead
- *     of the canon's nearest-sample pick (the PS1 hardware itself uses a 4-tap
- *     Gaussian that deliberately muffles highs; the canon model approximates
- *     that as nearest-sample). The cubic keeps high frequencies clean.
+ *     of the canon's 4-tap Gaussian (the hardware's deliberately muffling
+ *     filter). The cubic keeps high frequencies clean.
+ *   - WARNING: the mix is voices x main volume only (no reverb, CD audio or
+ *     private voices); fixing the level scale alone would make it replace the
+ *     canon output and drop those. Add them before making it provable.
  *   - everything stays in float through the per-voice envelope+volume scaling
  *     and the mix, with no int16 truncation until the final clamp — no
  *     intermediate requantization noise.
@@ -145,8 +147,6 @@ void spu_shadow_process(int16_t* canon, int frames) {
     if (!s_ever_proven && s_judged >= SPU_SHADOW_GIVE_UP_WINDOWS) {
         s_gave_up = 1;
         s_info.gave_up = 1;
-        fprintf(stderr, "[spu_shadow] never proven in %u windows: off until the next reset "
-                        "(the output was and stays the canon mix)\n", (unsigned)s_judged);
     }
     s_info.pauses     = s_verifier.pauses;
     s_info.last_r     = s_verifier.last_r;
@@ -157,8 +157,6 @@ void spu_shadow_process(int16_t* canon, int frames) {
     if (was_proven && !s_info.proven && s_verifier.reverted[0]) {
         snprintf(s_info.last_revert, sizeof(s_info.last_revert), "%s",
                  s_verifier.reverted);
-        fprintf(stderr, "[spu_shadow] DEGRADED: reverting to canon SPU mix — %s\n",
-                s_verifier.reverted);
         s_verifier.reverted[0] = '\0';
     }
 
