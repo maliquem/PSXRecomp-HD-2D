@@ -26,6 +26,8 @@
 #else
 #include <pthread.h>
 #include <time.h>
+#include <fcntl.h>
+#include <sys/file.h>
 #include <unistd.h>
 #endif
 
@@ -272,9 +274,50 @@ static void memcard_ensure_dir(const char* dir) {
 #endif
 }
 
+/* One lock file per card, held while the game runs: a second process on the
+ * same card would rewrite it whole from its own RAM copy and erase our saves.
+ * The OS drops the lock if we die, so a crash leaves nothing stale. Returns 1
+ * only when another process holds it; if the lock file cannot be made, the
+ * card is used unlocked (the old behaviour) rather than lost. */
+#ifdef _WIN32
+static HANDLE s_lock[MAX_CARDS];
+static void card_unlock(int i) {
+    if (s_lock[i]) { CloseHandle(s_lock[i]); s_lock[i] = NULL; }
+}
+static int card_lock_busy(int i, const char* path) {
+    char lp[600];
+    HANDLE h;
+    if (snprintf(lp, sizeof(lp), "%s.lock", path) >= (int)sizeof(lp)) return 0;
+    h = CreateFileA(lp, GENERIC_WRITE, 0, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+    if (h == INVALID_HANDLE_VALUE) return GetLastError() == ERROR_SHARING_VIOLATION;
+    s_lock[i] = h;
+    return 0;
+}
+#else
+static int s_lock[MAX_CARDS] = { -1, -1 };
+static void card_unlock(int i) {
+    if (s_lock[i] >= 0) { close(s_lock[i]); s_lock[i] = -1; }
+}
+static int card_lock_busy(int i, const char* path) {
+    char lp[600];
+    int fd;
+    if (snprintf(lp, sizeof(lp), "%s.lock", path) >= (int)sizeof(lp)) return 0;
+    fd = open(lp, O_RDWR | O_CREAT, 0644);
+    if (fd < 0) return 0;
+    if (flock(fd, LOCK_EX | LOCK_NB) != 0) {
+        const int busy = errno == EWOULDBLOCK;
+        close(fd);
+        return busy;
+    }
+    s_lock[i] = fd;
+    return 0;
+}
+#endif
+
 void memcard_init_slots(const char* dir, const MemcardSlotConfig slots[2]) {
     /* A reboot re-reads the files: writes still queued land first. */
     (void)memcard_flush_wait(10000);
+    for (int i = 0; i < MAX_CARDS; i++) card_unlock(i);
     memset(cards, 0, sizeof(cards));
     snprintf(s_memcard_dir, sizeof(s_memcard_dir), "%s", dir ? dir : "");
     memcard_ensure_dir(dir);
@@ -294,6 +337,11 @@ void memcard_init_slots(const char* dir, const MemcardSlotConfig slots[2]) {
                      "%s/card%d.mcd", dir, i + 1);
         } else {
             continue;  /* no path and no dir: cannot resolve a file */
+        }
+
+        if (card_lock_busy(i, cards[i].filepath)) {
+            cards[i].filepath[0] = '\0';  /* held elsewhere: absent, never written */
+            continue;
         }
 
         errno = 0;

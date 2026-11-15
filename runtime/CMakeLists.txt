@@ -2345,6 +2345,18 @@ if(BUILD_TESTING)
     add_test(NAME memcard_file_test COMMAND memcard_file_test
              WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/memcard_file_scratch)
 
+    # A card held by another process comes up absent (MEM-9).
+    add_executable(memcard_lock_test
+        tests/test_memcard_lock.c
+        src/memcard.c)
+    target_include_directories(memcard_lock_test PRIVATE include src)
+    if(WIN32)
+        target_link_libraries(memcard_lock_test PRIVATE advapi32)
+    endif()
+    file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/memcard_lock_scratch)
+    add_test(NAME memcard_lock_test COMMAND memcard_lock_test
+             WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/memcard_lock_scratch)
+
     # Save slots: a slot card mounted in RAM, read and written through the
     # real SIO card protocol, with the player's card file left alone.
     add_executable(save_slots_test
