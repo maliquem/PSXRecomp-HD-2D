@@ -17,6 +17,7 @@
 #include "memcard.h"
 #include "debug_server.h"
 #include "event_ring.h"
+#include "psx_video_timing.h"
 #include <stdlib.h>
 #include <string.h>
 
@@ -538,14 +539,17 @@ const SioCardHandoffEntry *sio_get_card_handoff(int *idx_out, int *count_out) {
 int sio_card_handoff_cap(void) { return CARD_HANDOFF_CAP; }
 int sio_card_handoff_armed(void) { return s_card_handoff_armed; }
 
+/* Present-hold progress window (MEM-18): reset by sio_init and carried in the
+ * SIO snapshot so rewind/rollback near a card access takes the same path. */
+static uint32_t s_hold_seq;
+static uint64_t s_hold_progress_cyc;
+static uint8_t s_hold_armed;
+
 int sio_hold_present_for_card(void) {
-    /* NTSC VBlank period — matches interrupts.c VBLANK_CYCLES. */
+    /* Ten frames of the live video standard (NTSC or PAL). */
     enum { SIO_PRESENT_HOLD_STALE_VB = 10 };
-    static const uint64_t stale_cycles =
-        564480ull * (uint64_t)SIO_PRESENT_HOLD_STALE_VB;
-    static uint32_t s_hold_seq;
-    static uint64_t s_hold_progress_cyc;
-    static int s_hold_armed;
+    const uint64_t stale_cycles =
+        (uint64_t)g_psx_vblank_cycles * (uint64_t)SIO_PRESENT_HOLD_STALE_VB;
     uint32_t seq;
     uint64_t now;
 
@@ -863,6 +867,9 @@ void sio_init(void) {
     pad_response_idx = 0;
     pad_current_cmd = 0;
     pad_active_logical = 0;
+    s_hold_seq = 0;
+    s_hold_progress_cyc = 0;
+    s_hold_armed = 0;
     memset(pad_rumble_map, 0xFF, sizeof(pad_rumble_map));
     memset(pad_rumble_small, 0, sizeof(pad_rumble_small));
     memset(pad_rumble_large, 0, sizeof(pad_rumble_large));
@@ -3047,6 +3054,13 @@ static int sio_snap_emit_pad_mode(PstW *w) {
            pst_w_bytes(w, pad_analog_device, sizeof(pad_analog_device));
 }
 
+/* Present-hold window (MEM-18), appended after pad-mode. */
+#define SIO_SNAP_HOLD_BYTES 13u
+static int sio_snap_emit_hold(PstW *w) {
+    return pst_w_u32(w, s_hold_seq) && pst_w_u64(w, s_hold_progress_cyc) &&
+           pst_w_u8(w, s_hold_armed);
+}
+
 static void sio_pad_mode_legacy_defaults(void) {
     for (int s = 0; s < PSX_MAX_PLAYERS; s++) {
         analog_mode_locked[s] = 0;
@@ -3063,12 +3077,14 @@ static int sio_snap_emit_fsm(PstW *w) {
 static int sio_snap_emit(PstW *w) {
     return sio_snap_emit_regs(w) && sio_snap_emit_pads(w) &&
            sio_snap_emit_mc(w) && sio_snap_emit_fsm(w) && sio_snap_emit_rumble(w) &&
-           sio_snap_emit_jogcon(w) && sio_snap_emit_pad_mode(w);
+           sio_snap_emit_jogcon(w) && sio_snap_emit_pad_mode(w) &&
+           sio_snap_emit_hold(w);
 }
 
 /* Cumulative section end offsets in the snapshot wire:
  * out[0]=regs, out[1]=pads, out[2]=memcard, out[3]=fsm_pace (netplay),
- * out[4]=full including fsm metadata, rumble, JogCon and pad-mode state. */
+ * out[4]=full including fsm metadata, rumble, JogCon, pad-mode and the
+ * present-hold window. */
 void sio_snapshot_section_ends(uint32_t out[5]) {
     PstW w;
     pst_w_init(&w, NULL, 0);
@@ -3084,7 +3100,14 @@ void sio_snapshot_section_ends(uint32_t out[5]) {
     (void)sio_snap_emit_rumble(&w);
     (void)sio_snap_emit_jogcon(&w);
     (void)sio_snap_emit_pad_mode(&w);
+    (void)sio_snap_emit_hold(&w);
     out[4] = (uint32_t)w.written;
+}
+
+static void sio_hold_legacy_defaults(void) {
+    s_hold_seq = 0;
+    s_hold_progress_cyc = 0;
+    s_hold_armed = 0;
 }
 
 static int sio_snap_parse(PstR *r) {
@@ -3181,6 +3204,7 @@ static int sio_snap_parse(PstR *r) {
             pad_rumble_map[s][1] = 0x01;
         }
         sio_pad_mode_legacy_defaults();
+        sio_hold_legacy_defaults();
         return 1;
     }
     if (!pst_r_bytes(r, pad_rumble_map, sizeof(pad_rumble_map)) ||
@@ -3194,6 +3218,7 @@ static int sio_snap_parse(PstR *r) {
         memset(pad_jogcon_motor_command, 0, sizeof(pad_jogcon_motor_command));
         memset(pad_jogcon_motor_strength, 0, sizeof(pad_jogcon_motor_strength));
         sio_pad_mode_legacy_defaults();
+        sio_hold_legacy_defaults();
         return 1;
     }
     if (!pst_r_bytes(r, pad_jogcon_last_steering,
@@ -3204,6 +3229,7 @@ static int sio_snap_parse(PstR *r) {
     /* Pre-pad-mode snapshots: unlocked, device inferred from the type. */
     if (r->p == r->end) {
         sio_pad_mode_legacy_defaults();
+        sio_hold_legacy_defaults();
         return 1;
     }
     if (!pst_r_bytes(r, analog_mode_locked, sizeof(analog_mode_locked)) ||
@@ -3214,6 +3240,14 @@ static int sio_snap_parse(PstR *r) {
         if (pad_analog_device[s] != SIO_PAD_JOGCON)
             pad_analog_device[s] = SIO_PAD_DUALSHOCK;
     }
+    /* Pre-hold snapshots: the window re-arms on the next card check. */
+    if (r->p == r->end) {
+        sio_hold_legacy_defaults();
+        return 1;
+    }
+    if (!pst_r_u32(r, &s_hold_seq) || !pst_r_u64(r, &s_hold_progress_cyc) ||
+        !pst_r_u8(r, &s_hold_armed))
+        return 0;
     if (r->p != r->end) return 0;
     return 1;
 }
@@ -3284,12 +3318,15 @@ int sio_snapshot_validate(const uint8_t *p, uint32_t len) {
                                   sizeof(pad_jogcon_motor_command));
     const uint32_t mode_bytes = (uint32_t)(sizeof(analog_mode_locked) +
                                 sizeof(pad_analog_device));
+    const uint32_t hold = SIO_SNAP_HOLD_BYTES;
     return p && (len == current ||
-                 (len < current && len + mode_bytes == current) ||
-                 (len < current && len + mode_bytes + jogcon_bytes == current) ||
+                 (len < current && len + hold == current) ||
+                 (len < current && len + hold + mode_bytes == current) ||
+                 (len < current && len + hold + mode_bytes + jogcon_bytes == current) ||
                  (len < current &&
-                  len + mode_bytes + jogcon_bytes + rumble_bytes == current)) &&
-           sio_snapshot_ranges_ok(p, len);
+                  len + hold + mode_bytes + jogcon_bytes + rumble_bytes == current)) &&
+           sio_snapshot_ranges_ok(p, len) &&
+           (len != current || p[len - 1u] <= 1u); /* s_hold_armed is a flag */
 }
 
 int sio_snapshot_read(const uint8_t *p, uint32_t len) {

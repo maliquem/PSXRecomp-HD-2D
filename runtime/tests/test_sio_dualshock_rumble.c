@@ -7,6 +7,9 @@
 #include <stdlib.h>
 #include <string.h>
 
+/* Pass-1 range check (declared extern by boot_state.c, not in sio.h). */
+int sio_snapshot_validate(const uint8_t *p, uint32_t len);
+
 uint32_t sio_snapshot_bytes(void);
 void sio_snapshot_write(uint8_t *p);
 int sio_snapshot_read(const uint8_t *p, uint32_t len);
@@ -170,19 +173,48 @@ int main(void) {
     EXPECT("snapshot.current.small", 0x01, small);
     EXPECT("snapshot.current.large", 0x80, large);
 
+    /* The present-hold window (seq u32, progress u64, armed u8) is the last
+     * block: round-trip it, refuse a non-flag armed byte, and accept a state
+     * without it. */
+    {
+        enum { HOLD = 13 };
+        static const uint8_t hold[HOLD] = {0x78, 0x56, 0x34, 0x12,
+                                           0x88, 0x77, 0x66, 0x55,
+                                           0x44, 0x33, 0x22, 0x11, 0x01};
+        uint8_t *again = (uint8_t *)malloc(snapshot_len);
+        if (!again) return 1;
+        memcpy(snapshot + snapshot_len - HOLD, hold, HOLD);
+        EXPECT("snapshot.hold.read", 1,
+               sio_snapshot_read(snapshot, snapshot_len));
+        sio_snapshot_write(again);
+        EXPECT("snapshot.hold.roundtrip", 0,
+               memcmp(again + snapshot_len - HOLD, hold, HOLD));
+        snapshot[snapshot_len - 1] = 2;
+        EXPECT("snapshot.hold.armed-range", 0,
+               sio_snapshot_validate(snapshot, snapshot_len));
+        snapshot[snapshot_len - 1] = 1;
+        EXPECT("snapshot.pre-hold.read", 1,
+               sio_snapshot_read(snapshot, snapshot_len - HOLD));
+        sio_snapshot_write(again);
+        EXPECT("snapshot.pre-hold.disarmed", 0, again[snapshot_len - 1]);
+        EXPECT("snapshot.pre-hold.seq", 0,
+               again[snapshot_len - HOLD] | again[snapshot_len - HOLD + 1]);
+        free(again);
+    }
+
     /* The pad-mode section (0x44 lock + device) and the JogCon rollback
      * fields each add four bytes for a two-seat build. Removing them restores
-     * the preceding formats; removing all twenty-four trailing bytes models a
-     * pre-rumble state. */
+     * the preceding formats; removing all twenty-four bytes before the hold
+     * block models a pre-rumble state. */
     EXPECT("snapshot.pre-pad-mode.read", 1,
-           sio_snapshot_read(snapshot, snapshot_len - 4));
+           sio_snapshot_read(snapshot, snapshot_len - 13 - 4));
     EXPECT("snapshot.pre-jogcon.read", 1,
-           sio_snapshot_read(snapshot, snapshot_len - 8));
+           sio_snapshot_read(snapshot, snapshot_len - 13 - 8));
     EXPECT("snapshot.pre-jogcon.small", 0x01,
            (sio_get_pad_rumble(0, &small, &large), small));
     EXPECT("snapshot.pre-jogcon.large", 0x80, large);
     EXPECT("snapshot.legacy.read", 1,
-           sio_snapshot_read(snapshot, snapshot_len - 24));
+           sio_snapshot_read(snapshot, snapshot_len - 13 - 24));
     sio_get_pad_rumble(0, &small, &large);
     EXPECT("snapshot.legacy.small", 0x00, small);
     EXPECT("snapshot.legacy.large", 0x00, large);

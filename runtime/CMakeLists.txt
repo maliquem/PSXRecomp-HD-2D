@@ -257,7 +257,8 @@ if(BUILD_TESTING)
         target_link_options(mod_memory_snapshot_test PRIVATE -flto -Wl,--gc-sections)
         add_test(NAME mod_memory_snapshot_test COMMAND mod_memory_snapshot_test)
     endif()
-    add_executable(sio_card_irq_integrity_test tests/test_sio_card_irq_integrity.c)
+    add_executable(sio_card_irq_integrity_test tests/test_sio_card_irq_integrity.c
+        src/psx_video_timing.c)
     target_include_directories(sio_card_irq_integrity_test PRIVATE include)
     foreach(scenario absent deselect pending coarse snapshot)
         add_test(NAME sio_card_irq_integrity_${scenario}
@@ -827,12 +828,14 @@ if(BUILD_TESTING)
     # cover both DualShock rumble and JogCon wire/state behavior.
     add_executable(sio_digital_command_test
         tests/test_sio_digital_command.c
-        src/sio.c)
+        src/sio.c
+        src/psx_video_timing.c)
     target_include_directories(sio_digital_command_test PRIVATE include)
     add_test(NAME sio_digital_command_test COMMAND sio_digital_command_test)
     add_executable(sio_digital_command_multitap_test
         tests/test_sio_digital_command.c
-        src/sio.c)
+        src/sio.c
+        src/psx_video_timing.c)
     target_include_directories(sio_digital_command_multitap_test PRIVATE include)
     target_compile_definitions(sio_digital_command_multitap_test PRIVATE
         PSX_MAX_PLAYERS=5)
@@ -840,7 +843,8 @@ if(BUILD_TESTING)
              COMMAND sio_digital_command_multitap_test)
     add_executable(sio_digital_command_dual_multitap_test
         tests/test_sio_digital_command.c
-        src/sio.c)
+        src/sio.c
+        src/psx_video_timing.c)
     target_include_directories(sio_digital_command_dual_multitap_test PRIVATE include)
     target_compile_definitions(sio_digital_command_dual_multitap_test PRIVATE
         PSX_MAX_PLAYERS=8)
@@ -848,22 +852,26 @@ if(BUILD_TESTING)
              COMMAND sio_digital_command_dual_multitap_test)
     add_executable(sio_dualshock_rumble_test
         tests/test_sio_dualshock_rumble.c
-        src/sio.c)
+        src/sio.c
+        src/psx_video_timing.c)
     target_include_directories(sio_dualshock_rumble_test PRIVATE include)
     add_test(NAME sio_dualshock_rumble_test COMMAND sio_dualshock_rumble_test)
     add_executable(sio_jogcon_protocol_test
         tests/test_sio_jogcon_protocol.c
-        src/sio.c)
+        src/sio.c
+        src/psx_video_timing.c)
     target_include_directories(sio_jogcon_protocol_test PRIVATE include)
     add_test(NAME sio_jogcon_protocol_test COMMAND sio_jogcon_protocol_test)
     add_executable(sio_negcon_protocol_test
         tests/test_sio_negcon_protocol.c
-        src/sio.c)
+        src/sio.c
+        src/psx_video_timing.c)
     target_include_directories(sio_negcon_protocol_test PRIVATE include)
     add_test(NAME sio_negcon_protocol_test COMMAND sio_negcon_protocol_test)
     add_executable(sio_negcon_protocol_multitap_test
         tests/test_sio_negcon_protocol.c
-        src/sio.c)
+        src/sio.c
+        src/psx_video_timing.c)
     target_include_directories(sio_negcon_protocol_multitap_test PRIVATE include)
     target_compile_definitions(sio_negcon_protocol_multitap_test PRIVATE
         PSX_MAX_PLAYERS=5)
@@ -874,7 +882,8 @@ if(BUILD_TESTING)
         tests/test_psx_pad_apply.c
         src/psx_pad_apply.c
         src/psx_net_pad.c
-        src/sio.c)
+        src/sio.c
+        src/psx_video_timing.c)
     target_include_directories(psx_pad_apply_test PRIVATE include)
     add_test(NAME psx_pad_apply_test COMMAND psx_pad_apply_test)
 
@@ -1543,7 +1552,8 @@ if(BUILD_TESTING)
         src/iso_reader.cpp
         src/crc32.c
         src/psx_sha256.c
-        src/sio.c)
+        src/sio.c
+        src/psx_video_timing.c)
     target_include_directories(netplay_view_mods_test PRIVATE
         include
         ../recompiler/include
@@ -1683,6 +1693,7 @@ if(BUILD_TESTING)
     add_executable(sio_spu_istat_ownership_test
         tests/test_sio_spu_istat_ownership.c
         src/sio.c
+        src/psx_video_timing.c
         src/memcard.c)
     target_include_directories(sio_spu_istat_ownership_test PRIVATE include src)
     file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/sio_spu_istat_scratch)
@@ -2291,6 +2302,7 @@ if(BUILD_TESTING)
     add_executable(sio_card_protocol_test
         tests/test_sio_card_protocol.c
         src/sio.c
+        src/psx_video_timing.c
         src/memcard.c)
     target_include_directories(sio_card_protocol_test PRIVATE include src)
     # Runs in a build-tree scratch dir, NOT in tests/: the test writes
@@ -2321,6 +2333,7 @@ if(BUILD_TESTING)
         tests/test_save_slots.c
         src/save_slots.c
         src/sio.c
+        src/psx_video_timing.c
         src/memcard.c)
     target_include_directories(save_slots_test PRIVATE include src)
     file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/save_slots_scratch)
