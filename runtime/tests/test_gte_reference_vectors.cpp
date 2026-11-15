@@ -26,6 +26,9 @@ uint32_t g_debug_last_store_pc = 0;
 }
 extern "C" uint32_t psx_gte_cmd_latency(uint32_t) { return 0; }
 extern "C" void psx_gte_set(CPUState *, uint32_t) {}
+// Isolated fixture: no mod memory and no store-page table (memory.c is not linked).
+extern "C" int psx_mod_gpu_dma_memory_contains(uint32_t, uint32_t) { return 0; }
+extern "C" void psx_store_pages_forget_all(void) {}
 
 namespace {
 
