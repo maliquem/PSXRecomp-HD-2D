@@ -243,22 +243,22 @@ static void snapshot_setloc_and_paused_head(void) {
     CHECK(cdrom_snapshot_read(wire,size) && !setloc_pending);
     exec_command(0x1B);ack();
     CHECK(msf_to_lba(read_min,read_sec,read_sect)==151);
-    wire[size-1]=2;CHECK(!cdrom_snapshot_validate(wire,size));
+    wire[cdrom_snapshot_level_bytes(3)-1u]=2;CHECK(!cdrom_snapshot_validate(wire,size));
     /* CDF2 states remain readable and retain the paused drive position. */
     exec_command(0x09);ack();
     PstW writer;pst_w_init(&writer,wire,size);
-    CHECK(cdrom_snap_emit(&writer,1) && writer.written==size-6);
+    CHECK(cdrom_snap_emit(&writer,1) && writer.written==cdrom_snapshot_level_bytes(1));
     read_sec=9;
-    CHECK(cdrom_snapshot_read(wire,size-6));
+    CHECK(cdrom_snapshot_read(wire,cdrom_snapshot_level_bytes(1)));
     exec_command(0x06);
     CHECK(msf_to_lba(read_min,read_sec,read_sect)==151);
     /* CDF3 states, the ones saved before the header flag, stay readable too. */
     exec_command(0x09);ack();
     pst_w_init(&writer,wire,size);
-    CHECK(cdrom_snap_emit(&writer,2) && writer.written==size-1);
-    CHECK(cdrom_snapshot_validate(wire,size-1));
+    CHECK(cdrom_snap_emit(&writer,2) && writer.written==cdrom_snapshot_level_bytes(2));
+    CHECK(cdrom_snapshot_validate(wire,cdrom_snapshot_level_bytes(2)));
     read_sec=9;
-    CHECK(cdrom_snapshot_read(wire,size-1) && !last_sector_header_stale);
+    CHECK(cdrom_snapshot_read(wire,cdrom_snapshot_level_bytes(2)) && !last_sector_header_stale);
     exec_command(0x06);
     CHECK(msf_to_lba(read_min,read_sec,read_sect)==151);
     free(wire);
@@ -307,7 +307,7 @@ static void snapshot_volume_matrix(void) {
     cdrom_snapshot_write(wire);
     uint32_t old_len;
     uint8_t *old = emit_level(3, &old_len);
-    CHECK(old_len + 4u + 8u == size);
+    CHECK(old_len + 4u + 8u == cdrom_snapshot_level_bytes(4));
     memset(cd_pending_vol, 0x80, 4); memset(cd_decode_vol, 0x80, 4);
     CHECK(cdrom_snapshot_read(wire, size));
     CHECK(!memcmp(cd_pending_vol, pend, 4) && !memcmp(cd_decode_vol, dec, 4));
@@ -319,6 +319,42 @@ static void snapshot_volume_matrix(void) {
     wire[old_len] ^= 1; /* CDF5 marker */
     CHECK(!cdrom_snapshot_validate(wire, size));
     CHECK(!cdrom_snapshot_validate(wire, size - 1u));
+    free(wire); free(old);
+}
+
+/* EST-8: the state records the roster disc and a load under another disc of
+ * the same game is refused; older states and single-disc runs still load. */
+static void snapshot_disc_identity(void) {
+    static const char *const paths[2] = { "disc1.cue", "disc2.cue" };
+    setup();
+    cdrom_disc_roster_set(paths, 2, 1);
+    const uint32_t size = cdrom_snapshot_bytes();
+    CHECK(size == cdrom_snapshot_level_bytes(4) + 5u);
+    uint8_t *wire = malloc(size);
+    CHECK(wire);
+    cdrom_snapshot_write(wire);
+    CHECK(wire[size - 1u] == 1);
+    CHECK(cdrom_snapshot_validate(wire, size) && cdrom_snapshot_read(wire, size));
+    CHECK(cdrom_disc_selected() == 1); /* checked, never restored */
+    s_disc_selected = 2; /* the player swapped discs after saving */
+    CHECK(!cdrom_snapshot_disc_matches(wire, size));
+    CHECK(!cdrom_snapshot_validate(wire, size) && !cdrom_snapshot_read(wire, size));
+    uint32_t old_len;
+    uint8_t *old = emit_level(4, &old_len); /* CDF5: no disc byte */
+    CHECK(cdrom_snapshot_disc_matches(old, old_len) && cdrom_snapshot_read(old, old_len));
+    wire[size - 1u] = 0; /* taken with no roster disc mounted */
+    CHECK(cdrom_snapshot_validate(wire, size));
+    wire[size - 1u] = CDROM_MAX_DISCS + 1; /* out of range */
+    CHECK(!cdrom_snapshot_validate(wire, size));
+    wire[size - 5u] ^= 1; /* CDF6 marker */
+    wire[size - 1u] = 2;
+    CHECK(!cdrom_snapshot_validate(wire, size));
+    wire[size - 5u] ^= 1;
+    CHECK(cdrom_snapshot_validate(wire, size));
+    cdrom_disc_roster_set(paths, 1, 1); /* single disc: never refused */
+    wire[size - 1u] = 1; s_disc_selected = 0;
+    CHECK(cdrom_snapshot_validate(wire, size));
+    cdrom_disc_roster_set(NULL, 0, 0);
     free(wire); free(old);
 }
 
@@ -335,6 +371,7 @@ int main(void) {
     snapshot_pending_deadline();
     snapshot_rejects_fifo_cursors();
     snapshot_volume_matrix();
+    snapshot_disc_identity();
     puts("PASS: CD FIFO latching, pending IRQ, DMA continuation, and state compatibility");
     return 0;
 }

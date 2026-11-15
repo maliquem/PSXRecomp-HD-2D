@@ -175,6 +175,7 @@ STUB_SECTION(spu_cd, 4u)
 int gpu_snapshot_validate(const uint8_t *p, uint32_t len) { return p && len == 96u; }
 int spu_snapshot_validate(const uint8_t *p, uint32_t len) { return p && len == 80u; }
 int cdrom_snapshot_validate(const uint8_t *p, uint32_t len) { return p && len == 64u; }
+int cdrom_snapshot_disc_matches(const uint8_t *p, uint32_t len) { (void)p; (void)len; return 1; }
 int sio_snapshot_validate(const uint8_t *p, uint32_t len) { return p && len == 48u; }
 int mdec_snapshot_validate(const uint8_t *p, uint32_t len) { return p && len == 400u; }
 int spu_cd_snapshot_validate(const uint8_t *p, uint32_t len) { return p && len == 4u; }

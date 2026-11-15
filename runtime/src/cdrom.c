@@ -3405,6 +3405,12 @@ static int cdrom_snap_emit(PstW *w, int extended) {
             WU(0x35464443u);
             WB(cd_pending_vol); WB(cd_decode_vol);
         }
+        if (extended >= 5) {
+            /* CDF6: which roster disc was mounted (1-based, 0 = none). Load
+             * only checks it (cdrom_snapshot_disc_matches); it never remounts. */
+            WU(0x36464443u);
+            W8(s_disc_selected);
+        }
     }
 
 #undef W8
@@ -3486,6 +3492,10 @@ static int cdrom_snap_parse(PstR *r, int extended) {
             RU(u); /* validated CDF5 marker */
             RB(cd_pending_vol); RB(cd_decode_vol);
         }
+        if (extended >= 5) {
+            RU(u); /* validated CDF6 marker */
+            if (!pst_r_u8(r, &b)) return 0; /* disc: checked, not restored */
+        }
     }
 
 #undef R8
@@ -3501,9 +3511,9 @@ static int cdrom_snap_parse(PstR *r, int extended) {
     return 1;
 }
 
-/* Wire levels: 0 legacy, 1 CDF2, 2 CDF3, 3 CDF4, 4 CDF5. Each level only
- * appends, so every level has its own length and the length names it. */
-#define CDROM_SNAP_LEVEL_CURRENT 4
+/* Wire levels: 0 legacy, 1 CDF2, 2 CDF3, 3 CDF4, 4 CDF5, 5 CDF6. Each level
+ * only appends, so every level has its own length and the length names it. */
+#define CDROM_SNAP_LEVEL_CURRENT 5
 
 static uint32_t cdrom_snapshot_level_bytes(int level) {
     PstW w;
@@ -3568,7 +3578,23 @@ int cdrom_snapshot_validate(const uint8_t *p, uint32_t len) {
         (!pst_r_u32(&r, &magic) || magic != 0x35464443u ||
          !pst_r_bytes(&r, NULL, sizeof cd_pending_vol + sizeof cd_decode_vol)))
         return 0;
-    return r.p == r.end;
+    if (level >= 5) {
+        uint8_t disc;
+        if (!pst_r_u32(&r, &magic) || magic != 0x36464443u ||
+            !pst_r_u8(&r, &disc) || disc > CDROM_MAX_DISCS) return 0;
+    }
+    return r.p == r.end && cdrom_snapshot_disc_matches(p, len);
+}
+
+/* 0 when the state was taken on another disc of this game's roster than the
+ * one mounted now: its LBAs, TOC and file table belong to that other disc.
+ * States without the disc byte (before CDF6), states taken with no roster
+ * disc, and single-disc runs always match. */
+int cdrom_snapshot_disc_matches(const uint8_t *p, uint32_t len) {
+    if (!p || cdrom_snapshot_level(len) < 5) return 1;
+    const uint8_t saved = p[len - 1u]; /* CDF6 ends with the disc byte */
+    return saved == 0 || s_disc_roster_count <= 1 ||
+           saved == (uint8_t)s_disc_selected;
 }
 
 uint32_t cdrom_snapshot_bytes(void) {

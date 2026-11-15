@@ -10,6 +10,9 @@ extern "C" {
 void cdrom_init(const char* cue_path);
 uint32_t cdrom_snapshot_bytes(void);
 int cdrom_snapshot_validate(const uint8_t *p, uint32_t len);
+/* 0 when a valid snapshot block was taken on another roster disc than the
+ * mounted one (EST-8). Older blocks and single-disc runs always match. */
+int cdrom_snapshot_disc_matches(const uint8_t *p, uint32_t len);
 
 /* Did cdrom_init() actually mount an image? 0 = the drive is empty.
  *

@@ -40,6 +40,7 @@ void timers_set_snapshot(const uint16_t c[3],const uint32_t m[3],const uint16_t 
 MODULE(gpu) MODULE(spu) MODULE(cdrom) MODULE(dma) MODULE(sio) MODULE(mdec) MODULE(spu_cd)
 #define VALIDATE(name) int name##_snapshot_validate(const uint8_t* p,uint32_t n){(void)p;return n==4;}
 VALIDATE(gpu) VALIDATE(spu) VALIDATE(cdrom) VALIDATE(dma) VALIDATE(sio) VALIDATE(mdec) VALIDATE(spu_cd)
+int cdrom_snapshot_disc_matches(const uint8_t* p,uint32_t n){(void)p;(void)n;return 1;}
 void spu_catch_up(void){}
 void psx_devices_service_to_now(void){}
 uint8_t* spu_get_ram_ptr(void){return spuram;}

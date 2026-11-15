@@ -1801,36 +1801,36 @@ Pure decision function that picks which BIOS HLE features to enable for a given 
 Saves and loads full emulator snapshots, with sections for CPU, timers, RAM, VRAM and modules, in a versioned file format.
 
 - `boot_state_mono_ms` (L35) — Monotonic millisecond clock used for save timing (QueryPerformanceCounter on Windows).
-- `boot_state_ram_cookie` (L106) — Header compatibility cookie (h.reserved): enhancement-memory layout, live RAM geometry and the fixed execution implementation.
-- `boot_state_layout_cookie` (L109) — Combines the memory layout, RAM size and execution cookies into one value that is checked on load.
-- `boot_state_load_stats` (L134) — Copies the stored stats of the boot_state loads (timings, rejects, last reason) for TCP boot_state_stats.
-- `boot_state_note_reject` (L138) — Counts a rejected boot_state load and keeps its reason and path, truncated.
-- `boot_state_last_vram_dirty_rows` (L144) — §96 telemetry: after the latest save, how many VRAM scanlines were dirty and whether the incremental mirror path patched (vs full memcpy).
-- `boot_state_last_vram_incremental` (L149) — Returns 1 when the last save patched only the dirty VRAM rows, rather than copying all of VRAM.
-- `boot_state_vram_mirror_reset` (L154) — Drop the §96 VRAM mirror (RB shutdown / before re-enable).
-- `sync_vram_mirror_for_save` (L164) — Build s_vram_mirror from live CPU VRAM using dirty rows when possible.
-- `bs_write` (L239) — Writes bytes to the save output, either to the file or to the growing in-memory buffer; returns 1 on success.
-- `write_header_le` (L258) — Writes the save file header in little-endian byte order.
-- `write_section_raw` (L276) — Writes a section header (tag, flags, length) followed by the data, uncompressed.
-- `write_section` (L291) — Prefer zlib for large blobs (smaller disk + faster load on slow storage).
-- `write_module_section` (L315) — Writes a module's state as one section, using callbacks for its size and its bytes.
-- `write_cpu_section` (L327) — Writes the general registers and the other CPU state as one section.
-- `write_timer_section` (L358) — Writes the three timer counters, targets, modes and IRQ lines as one section.
-- `write_vram_section_full` (L383) — Classic full VRAM section (offline / zlib / tracking off).
-- `boot_state_save_to` (L414) — Writes a complete snapshot, header then sections, to an output stream.
-- `boot_state_save` (L583) — Saves a snapshot to the file at path; returns 1 on success.
-- `boot_state_save_buffer_ex` (L597) — Saves a snapshot into a newly allocated buffer, with zlib compression on or off.
-- `boot_state_save_buffer` (L619) — Saves a snapshot into a newly allocated buffer, compressing large sections.
-- `boot_state_save_buffer_raw` (L626) — Saves a snapshot into a newly allocated buffer with compression turned off.
-- `apply_section` (L635) — Applies one saved section's data to the CPU, memory or devices, chosen by its tag.
-- `validate_section` (L860) — Checks that a section's length matches what this build expects for its tag.
-- `boot_state_parse_header` (L891) — Reads and checks the file header; returns 0 for a bad or oversized file.
-- `boot_state_append_reason` (L914) — Appends a part name to the reason text, separated by a comma, if it fits.
-- `boot_state_check_buffer` (L928) — Checks whether a snapshot buffer can be loaded here, filling in a reason when it cannot.
-- `boot_state_load_buffer` (L1005) — Loads a snapshot from a buffer into the CPU and machine state, after checking it.
-- `boot_state_load` (L1161) — Loads a snapshot file from path into the CPU and machine state; returns 1 on success.
-- `boot_state_set_capture` (L1200) — Sets the file path for an automatic snapshot taken when the game's entry point is first reached.
-- `boot_state_trigger_capture` (L1208) — Called from fntrace when the game entry PC first dispatches.
+- `boot_state_ram_cookie` (L107) — Header compatibility cookie (h.reserved): enhancement-memory layout, live RAM geometry and the fixed execution implementation.
+- `boot_state_layout_cookie` (L110) — Combines the memory layout, RAM size and execution cookies into one value that is checked on load.
+- `boot_state_load_stats` (L135) — Copies the stored stats of the boot_state loads (timings, rejects, last reason) for TCP boot_state_stats.
+- `boot_state_note_reject` (L139) — Counts a rejected boot_state load and keeps its reason and path, truncated.
+- `boot_state_last_vram_dirty_rows` (L145) — §96 telemetry: after the latest save, how many VRAM scanlines were dirty and whether the incremental mirror path patched (vs full memcpy).
+- `boot_state_last_vram_incremental` (L150) — Returns 1 when the last save patched only the dirty VRAM rows, rather than copying all of VRAM.
+- `boot_state_vram_mirror_reset` (L155) — Drop the §96 VRAM mirror (RB shutdown / before re-enable).
+- `sync_vram_mirror_for_save` (L165) — Build s_vram_mirror from live CPU VRAM using dirty rows when possible.
+- `bs_write` (L240) — Writes bytes to the save output, either to the file or to the growing in-memory buffer; returns 1 on success.
+- `write_header_le` (L259) — Writes the save file header in little-endian byte order.
+- `write_section_raw` (L277) — Writes a section header (tag, flags, length) followed by the data, uncompressed.
+- `write_section` (L292) — Prefer zlib for large blobs (smaller disk + faster load on slow storage).
+- `write_module_section` (L316) — Writes a module's state as one section, using callbacks for its size and its bytes.
+- `write_cpu_section` (L328) — Writes the general registers and the other CPU state as one section.
+- `write_timer_section` (L359) — Writes the three timer counters, targets, modes and IRQ lines as one section.
+- `write_vram_section_full` (L384) — Classic full VRAM section (offline / zlib / tracking off).
+- `boot_state_save_to` (L415) — Writes a complete snapshot, header then sections, to an output stream.
+- `boot_state_save` (L584) — Saves a snapshot to the file at path; returns 1 on success.
+- `boot_state_save_buffer_ex` (L598) — Saves a snapshot into a newly allocated buffer, with zlib compression on or off.
+- `boot_state_save_buffer` (L620) — Saves a snapshot into a newly allocated buffer, compressing large sections.
+- `boot_state_save_buffer_raw` (L627) — Saves a snapshot into a newly allocated buffer with compression turned off.
+- `apply_section` (L636) — Applies one saved section's data to the CPU, memory or devices, chosen by its tag.
+- `validate_section` (L861) — Checks that a section's length matches what this build expects for its tag.
+- `boot_state_parse_header` (L897) — Reads and checks the file header; returns 0 for a bad or oversized file.
+- `boot_state_append_reason` (L920) — Appends a part name to the reason text, separated by a comma, if it fits.
+- `boot_state_check_buffer` (L934) — Checks whether a snapshot buffer can be loaded here, filling in a reason when it cannot.
+- `boot_state_load_buffer` (L1011) — Loads a snapshot from a buffer into the CPU and machine state, after checking it.
+- `boot_state_load` (L1167) — Loads a snapshot file from path into the CPU and machine state; returns 1 on success.
+- `boot_state_set_capture` (L1206) — Sets the file path for an automatic snapshot taken when the game's entry point is first reached.
+- `boot_state_trigger_capture` (L1214) — Called from fntrace when the game entry PC first dispatches.
 
 ### runtime/src/bug_report.c
 
@@ -2123,24 +2123,25 @@ PS1 CD-ROM controller: register interface, command handling, sector reads, CD-DA
 - `cdrom_savestate_cd_wait_active` (L3325) — Non-zero while boost is armed AND a CD wait is outstanding (pending second response or non-XA read).
 - `cdrom_savestate_boost_vblanks_remaining` (L3332) — Remaining boost vblanks (0 when idle).
 - `cdrom_snap_emit` (L3346) — Writes the CD-ROM controller state into a snapshot writer, in the legacy or extended layout.
-- `cdrom_snap_parse` (L3418) — Reads the CD-ROM controller state from a snapshot reader, in the legacy or extended layout.
-- `cdrom_snapshot_level_bytes` (L3508) — Returns the wire size of the snapshot layout at a given level (0 = legacy, CDROM_SNAP_LEVEL_CURRENT = newest).
-- `cdrom_snapshot_level` (L3515) — Maps a snapshot block length to its layout level; -1 when no level has that size.
-- `cdrom_snapshot_legacy_bytes` (L3521) — Returns the size of the legacy snapshot layout.
-- `cdrom_snapshot_fifos_ok` (L3527) — The parameter and response FIFO cursors index param_fifo / response_fifo; every layout starts with the legacy prefix, so this applies to all of them.
-- `cdrom_snapshot_validate` (L3537) — Checks that a snapshot block has a length matching the legacy or current layout.
-- `cdrom_snapshot_bytes` (L3574) — boot_state / netplay digest — full controller FSM (sector FIFOs included).
-- `cdrom_snapshot_write` (L3577) — Writes the current CD-ROM snapshot block into a buffer.
-- `cdrom_snapshot_read` (L3583) — Reads a CD-ROM snapshot block, checking its length first; returns 1 on success.
-- `begin_tray_open_cycle` (L3609) — Open the tray: stop every transfer in flight, hide the media, and arm the timed close.
-- `debug_force_cd_reinsert` (L3625) — Simulates a disc swap by opening the tray, which hides the media until the timed close. — Notify the guest that the mounted disc was reinserted.
-- `cdrom_disc_roster_set` (L3629) — Sets the list of disc image paths the player can switch between, and which one is selected.
-- `cdrom_disc_roster_count` (L3649) — Returns how many discs are in the roster.
-- `cdrom_mounted_sector_count` (L3651) — TOC of the image currently mounted; 0 when the drive is empty.
-- `cdrom_mounted_track_count` (L3655) — Returns the number of tracks in the mounted image, 0 when the drive is empty.
-- `cdrom_disc_selected` (L3659) — Returns the 1-based number of the selected disc.
-- `cdrom_disc_roster_path` (L3661) — Returns the path of a disc in the roster by 1-based index, or NULL if out of range.
-- `cdrom_disc_select` (L3677) — Change the mounted image mid-session, the way a player changes a disc.
+- `cdrom_snap_parse` (L3424) — Reads the CD-ROM controller state from a snapshot reader, in the legacy or extended layout.
+- `cdrom_snapshot_level_bytes` (L3518) — Returns the wire size of the snapshot layout at a given level (0 = legacy, CDROM_SNAP_LEVEL_CURRENT = newest).
+- `cdrom_snapshot_level` (L3525) — Maps a snapshot block length to its layout level; -1 when no level has that size.
+- `cdrom_snapshot_legacy_bytes` (L3531) — Returns the size of the legacy snapshot layout.
+- `cdrom_snapshot_fifos_ok` (L3537) — The parameter and response FIFO cursors index param_fifo / response_fifo; every layout starts with the legacy prefix, so this applies to all of them.
+- `cdrom_snapshot_validate` (L3547) — Checks that a snapshot block has a length matching the legacy or current layout.
+- `cdrom_snapshot_disc_matches` (L3593) — 0 when the state was taken on another disc of this game's roster than the one mounted now: its LBAs, TOC and file table belong to that other disc.
+- `cdrom_snapshot_bytes` (L3600) — boot_state / netplay digest — full controller FSM (sector FIFOs included).
+- `cdrom_snapshot_write` (L3603) — Writes the current CD-ROM snapshot block into a buffer.
+- `cdrom_snapshot_read` (L3609) — Reads a CD-ROM snapshot block, checking its length first; returns 1 on success.
+- `begin_tray_open_cycle` (L3635) — Open the tray: stop every transfer in flight, hide the media, and arm the timed close.
+- `debug_force_cd_reinsert` (L3651) — Simulates a disc swap by opening the tray, which hides the media until the timed close. — Notify the guest that the mounted disc was reinserted.
+- `cdrom_disc_roster_set` (L3655) — Sets the list of disc image paths the player can switch between, and which one is selected.
+- `cdrom_disc_roster_count` (L3675) — Returns how many discs are in the roster.
+- `cdrom_mounted_sector_count` (L3677) — TOC of the image currently mounted; 0 when the drive is empty.
+- `cdrom_mounted_track_count` (L3681) — Returns the number of tracks in the mounted image, 0 when the drive is empty.
+- `cdrom_disc_selected` (L3685) — Returns the 1-based number of the selected disc.
+- `cdrom_disc_roster_path` (L3687) — Returns the path of a disc in the roster by 1-based index, or NULL if out of range.
+- `cdrom_disc_select` (L3703) — Change the mounted image mid-session, the way a player changes a disc.
 
 ### runtime/src/cdrom_irq.h
 

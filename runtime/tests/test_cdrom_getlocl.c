@@ -80,7 +80,7 @@ static void read_seek_and_restore(uint8_t cmd) {
     query_header(1, 22);
     /* Corrupt validity bytes are rejected without modifying the controller. */
     cdrom_snapshot_write(wire);
-    wire[size - 1] = 2;
+    wire[cdrom_snapshot_level_bytes(3) - 1u] = 2; /* stale-header byte */
     CHECK(!cdrom_snapshot_validate(wire, size));
     CHECK(!cdrom_snapshot_read(wire, size));
     query_header(1, 22);
