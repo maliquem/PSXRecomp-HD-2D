@@ -2268,72 +2268,7 @@ void sio_write(uint32_t addr, uint32_t value) {
              * memcard uses (RX_RDY at shift-complete, ack +170 after). Total
              * ack-IRQ latency is UNCHANGED (1088+170), so the SCPH1001
              * pad-detect phase the constants were tuned for is preserved.
-             * A/B: PSX_SIO_PAD_SYNC_RX=1 restores the legacy synchronous path. */
-            static int s_pad_sync_rx = -1;
-            if (s_pad_sync_rx < 0) {
-                const char *e = getenv("PSX_SIO_PAD_SYNC_RX");
-                s_pad_sync_rx = (e && e[0] == '1') ? 1 : 0;
-            }
-            int pad_fast_path = s_pad_sync_rx &&
-                active_device != DEV_MEMCARD &&
-                (active_device == DEV_PAD ||
-                 sio_bus_owner == SIO_OWNER_PAD ||
-                 b == 0x01);
-
-            if (pad_fast_path) {
-                uint16_t arm_dbg_ctrl_pre = sio_ctrl;
-                uint16_t arm_dbg_stat_pre = sio_stat;
-                sio_shift_active = 0;
-                sio_shift_remaining = 0;
-                sio_tx_buffered = 0;
-                sio_shift_ack_irq_en = 0;
-                sio_tx_buffer_ack_irq_en = 0;
-                sio_pending_ack = 0;
-                sio_ack_remaining = 0;
-                sio_pending_ack_irq_en = 0;
-                sio_bus_owner = SIO_OWNER_PAD;
-                sio_bus_byte_index++;
-                g_sio_timing_active = 0;
-
-                sr_record(SR_EVT_TX_DATA_WRITE, b, 0);
-                sio_process_byte(b);
-                uint8_t arm_dbg_dev_at_decision = (uint8_t)active_device;
-                int armed_now = 0;
-                if ((sio_stat & SIO_STAT_ACK) && (sio_ctrl & SIO_CTRL_ACK_IRQ_EN)) {
-                    sio_stat &= ~(SIO_STAT_ACK | SIO_STAT_TX_RDY | SIO_STAT_TX_EMPTY);
-                    /* FAITHFUL pad ACK timing (faithful-core, replaces the
-                     * access-paced sio_irq_countdown=SIO_IRQ_DELAY_PAD hack).
-                     * On real hardware the controller's DSR/ACK pulse arrives
-                     * ~one byte-shift (baud) + ack-pulse after the TX byte —
-                     * a GUEST-CYCLE delay, independent of how many SIO register
-                     * reads the CPU manages to issue while it waits. The old
-                     * countdown decremented once per SIO register access
-                     * (sio_tick(0)), so a faithful/faster CPU (load=4) fired the
-                     * pad IRQ at the wrong guest-cycle phase relative to the
-                     * cycle-paced timers/VBLANK, diverging the BIOS pad-detect
-                     * state machine (load=4 Tomba2 boot wedge). Route through the
-                     * same cycle-paced ack scheduler the card path uses, driven
-                     * by sio_advance() from psx_advance_cycles(). */
-                    sio_pending_ack        = 1;
-                    sio_ack_remaining      = SIO_BAUD_CYCLES_DEFAULT + SIO_ACK_CYCLES_DEFAULT;
-                    sio_pending_ack_irq_en = 1;
-                    g_sio_timing_active    = 1;
-                    event_ring_record_aux(EV_ENQ, (uint8_t)SRC_SIO, (uint32_t)sio_ack_remaining);
-                    sio_irq_pending_source = SIO_IRQ_SRC_PAD_ACK;
-                    sio_irq_pending_slot = (uint8_t)selected_slot;
-                    sio_irq_pending_delay = (uint8_t)SIO_ACK_CYCLES_DEFAULT;
-                    sio_irq_pending_mc_state = (uint8_t)mc_state;
-                    sio_irq_pending_byte_seq = sio_trace_seq;
-                    armed_now = 1;
-                } else {
-                    sio_stat |= SIO_STAT_TX_RDY | SIO_STAT_TX_EMPTY;
-                }
-                sio_card_arm_audit_record(arm_dbg_dev_at_decision, arm_dbg_ctrl_pre,
-                                          arm_dbg_stat_pre, sio_stat,
-                                          armed_now, sio_irq_countdown);
-                break;
-            }
-
+             * (The legacy synchronous pad path was removed.) */
             sr_record(SR_EVT_TX_DATA_WRITE, b, 0);
             if (sio_bus_byte_index == 0) {
                 sio_bus_owner = (b == 0x81) ? SIO_OWNER_CARD

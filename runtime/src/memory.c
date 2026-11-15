@@ -2539,15 +2539,6 @@ static inline void psx_load_charge_cycles(uint32_t cycles) {
  * is the access width in bytes (1/2/4) — the SPU and CDC waits are width-dependent.
  * Reads only; writes are posted (~free) in MemRW. phys is the masked physical address. */
 static inline uint32_t psx_mmio_read_wait(uint32_t phys, uint32_t size) {
-    /* The table is psx_cyc_region_wait (psx_cyc.h, shared with the block
-     * timing). Bisect gate (PSX_MMIO_WAIT=0): disable the device-region read
-     * waits (the 9ae534d feature) to test whether they move the MMX6 cutscene
-     * ordering. Read once. */
-    if (phys >= 0x1F801000u && phys <= 0x1F802FFFu) {
-        static int s_mw = -1;
-        if (s_mw < 0) { const char* e = getenv("PSX_MMIO_WAIT"); s_mw = (e && e[0] == '0') ? 0 : 1; }
-        if (!s_mw) return 0u;
-    }
     return psx_cyc_region_wait(phys, size);
 }
 
@@ -2574,19 +2565,6 @@ static inline void psx_cyc_readmem(CPUState* cpu, uint32_t phys, uint32_t size,
     cpu->ld_absorb = cost;
     psx_cpu_charge(fudge + cost);   /* CPU charge: [timing] guest_cycle_scale */
     cpu->ld_which_t = (uint8_t)arm_rt;
-    /* PROOF GATE (PSX_POLL_PROOF=N, default 0/off): a FLAT, non-absorbed extra N
-     * cycles per main-RAM data read — replicates the historical "+6 cyc/main-RAM
-     * read" fix (mmx6_memcard_invalid_rootcause) that lengthened MMX6's card
-     * busy-poll so it outlasts the VBlank-paced async card op. Unlike the
-     * region+completion above (which arms ld_absorb and gets given back in a
-     * tight loop), this is pure added cost. If setting this makes the MMX6 save
-     * load, the card regression is confirmed as poll-vs-op timing. TEMPORARY —
-     * the faithful fix models the uncached data-read cost properly. */
-    if (phys < 0x00800000u) {
-        static int s_pp = -1;
-        if (s_pp < 0) { const char* e = getenv("PSX_POLL_PROOF"); s_pp = (e && e[0]) ? atoi(e) : 0; }
-        if (s_pp > 0) psx_load_charge_cycles((uint32_t)s_pp);
-    }
 }
 
 /* Resolve PSX_LOAD_DELAY once (shared with inlined psx_cyc.h helpers). */
