@@ -1,6 +1,7 @@
 #include "overlay_loader.h"
 #include "overlay_api.h"
 #include "overlay_path_canon.h"
+#include "overlay_abi_verdict.h"
 #include "code_provider.h"
 #include "overlay_backend.h"
 #include "crc32.h"
@@ -2068,7 +2069,7 @@ static int posix_abi_sweep_file(const PsxOverlayCacheFile *file, void *opaque) {
         abi = abi_fn ? abi_fn() : 0;
         psx_overlay_posix_library_close(handle);
     }
-    if (handle && abi == PSX_OVERLAY_ABI_TAG) {
+    if (psx_overlay_abi_accepts(handle != NULL, abi, PSX_OVERLAY_ABI_TAG)) {
         sweep->kept++;
         return 0;
     }
@@ -2106,7 +2107,7 @@ static int posix_abi_sweep_file(const PsxOverlayCacheFile *file, void *opaque) {
 static void abi_preflight_sweep(const char *dir) {
 #ifdef _WIN32
     char marker[900];
-    snprintf(marker, sizeof marker, "%s/.abi_%08x.ok", dir, (unsigned)PSX_OVERLAY_ABI_TAG);
+    psx_overlay_abi_marker_name(marker, sizeof marker, dir, PSX_OVERLAY_ABI_TAG);
     if (GetFileAttributesA(marker) != INVALID_FILE_ATTRIBUTES) return;  /* swept */
 
     /* Enumerate the DIRECTORY, not the index: the index is capacity-bounded
@@ -2124,12 +2125,16 @@ static void abi_preflight_sweep(const char *dir) {
             char full[900];
             snprintf(full, sizeof full, "%s/%s", dir, fd.cFileName);
             HMODULE h = LoadLibraryA(full);
+            int abi = 0;
             if (h) {
                 typedef int (*AbiFn)(void);
                 AbiFn abi_fn = (AbiFn)GetProcAddress(h, "overlay_abi");
-                int abi = abi_fn ? abi_fn() : 0;
+                abi = abi_fn ? abi_fn() : 0;
                 FreeLibrary(h);
-                if (abi == PSX_OVERLAY_ABI_TAG) { kept++; continue; }
+            }
+            if (psx_overlay_abi_accepts(h != NULL, abi, PSX_OVERLAY_ABI_TAG)) {
+                kept++;
+                continue;
             }
             /* Drop only the index entry. Deleting `full` here can delete a new
              * shard atomically swapped in after LoadLibrary returned the old
@@ -2150,15 +2155,14 @@ static void abi_preflight_sweep(const char *dir) {
                    purged, kept, dir);
     /* Rejected files remain until the compiler replaces them, so do not create
      * a marker that would skip their in-memory rejection next boot. */
-    if (!purged) {
+    if (psx_overlay_abi_marker_wanted(purged)) {
         HANDLE m = CreateFileA(marker, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS,
                                FILE_ATTRIBUTE_NORMAL, NULL);
         if (m != INVALID_HANDLE_VALUE) CloseHandle(m);
     }
 #else
     char marker[900];
-    snprintf(marker, sizeof marker, "%s/.abi_%08x.ok", dir,
-             (unsigned)PSX_OVERLAY_ABI_TAG);
+    psx_overlay_abi_marker_name(marker, sizeof marker, dir, PSX_OVERLAY_ABI_TAG);
     if (access(marker, F_OK) == 0) return;
 
     PosixAbiSweep sweep = {0};
@@ -2166,7 +2170,7 @@ static void abi_preflight_sweep(const char *dir) {
     if (sweep.purged)
         loader_log("abi preflight: rejected %d stale DLL(s), kept %d in %s",
                    sweep.purged, sweep.kept, dir);
-    if (!sweep.purged) {
+    if (psx_overlay_abi_marker_wanted(sweep.purged)) {
         FILE *m = fopen(marker, "wb");
         if (m) fclose(m);
     }

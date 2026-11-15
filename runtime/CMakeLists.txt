@@ -1406,6 +1406,13 @@ if(BUILD_TESTING)
     target_include_directories(overlay_path_canon_test PRIVATE include)
     add_test(NAME overlay_path_canon_test COMMAND overlay_path_canon_test)
 
+    # OVL-20: ABI preflight decisions (accept, marker wanted, marker name).
+    add_executable(overlay_abi_verdict_test
+        tests/test_overlay_abi_verdict.c
+        src/overlay_abi_verdict.c)
+    target_include_directories(overlay_abi_verdict_test PRIVATE include)
+    add_test(NAME overlay_abi_verdict_test COMMAND overlay_abi_verdict_test)
+
     # The kernel-bless verifier must accept a body whose DECLARED patch range
     # the guest has overwritten (Psy-Q's install stubs land inside compiled
     # kernel bodies) and still reject one changed anywhere else. Before this,

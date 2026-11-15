@@ -94,6 +94,7 @@ def compile_harness(gcc: str, out: pathlib) -> None:
         *platform_defines,
         str(RUNTIME / "src" / "overlay_loader.c"),
         str(RUNTIME / "src" / "overlay_path_canon.c"),
+        str(RUNTIME / "src" / "overlay_abi_verdict.c"),
         str(RUNTIME / "src" / "overlay_posix.c"),
         str(RUNTIME / "src" / "crc32.c"),
         str(TESTS / "overlay_pair_dedup_harness.c"), "-o", str(out),
