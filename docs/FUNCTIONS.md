@@ -242,34 +242,38 @@ Static recompiler core that turns MIPS instructions and functions into generated
 
 Loads and validates the BIOS, game, options and user settings TOML files, and writes the user settings back to disk.
 
-- `overlay_codegen_config_hash` (L62) — Hash exactly the per-game settings that can change generated overlay code.
-- `pad_mode_from_string` (L275) — Pad mode <-> string. Accepts "hybrid"/"analog"/"digital" (case-insensitive); returns 'fallback' for anything unrecognised so a typo never silently flips the pad type.
-- `pad_mode_from_settings_string` (L296) — Settings-file variant: a user's settings.toml may still carry a persisted "hybrid" from before the mode was removed from the selector.
-- `pad_mode_to_string` (L306) — Returns the settings name for a pad mode; it never returns hybrid, which is a runtime-only request and not a saved preference.
-- `toml_number` (L318) — Parse a hex string ("0x...") to uint32_t.
-- `parse_hex` (L323) — Parses a hex string into a 32-bit value, throwing an error that names the field when the text is not valid hex.
-- `parse_sxy_cull_site` (L351) — One [[widescreen.cull.sxy]] entry.
-- `parse_aspect_ratio` (L452) — Parse a display aspect "W:H" string (e.g.
-- `validate_project_relative` (L482) — Reject a config path that is not confined to the project directory.
-- `reject_unknown_keys` (L510) — A key outside a closed list is a typo: the option would silently keep its default.
-- `parse_runtime_block` (L525) — Parse the optional [runtime] block.
-- `find_project_root` (L1528) — Locate the project root by walking upward from 'config_path' until a directory containing '.gitignore', '.git', or 'CMakeLists.txt' is found.
-- `draw_distance_clamp_reads` (L1549) — True when 'instr' is an ALU instruction (I-type or SPECIAL R-type, not a load, store, branch or jump) that reads GPR 'reg'.
-- `parse_draw_distance_clamps` (L1569) — [[draw_distance.clamp]] (docs/config_schema.md "Draw-distance clamps").
-- `quality_key_player_editable` (L1629) — True when a quality setting key may be changed by the player.
-- `quality_key_supported` (L1634) — [quality.<name>] -- a named graphics preset (docs/QUALITY_PRESETS.md).
-- `parse_quality_presets` (L1640) — Parses the quality presets of a game config into a list, checking each key against the supported set.
-- `derive_out_stem` (L1693) — Derives an output name stem from a ROM file name by removing its extension, matched without regard to case.
-- `load_bios_config` (L1710) — Load a BIOS config TOML.
-- `load_game_config` (L1997) — Load a game config TOML.
-- `load_game_options` (L3385) — Load game_options.toml ([[option]] array of {name, addr, size}).
-- `valid_user_audio_freq` (L3422) — True when an audio frequency is one of the allowed user values: 32040, 32000, 44100 or 48000.
-- `load_user_settings` (L3426) — Load settings.toml. Returns an all-defaults (all has_*=false) struct if the file is missing or unreadable.
-- `relative_to_folder` (L3885) — Returns a path relative to a folder when the path is absolute, or the path unchanged when it is not.
-- `toml_escape` (L3899) — A basic TOML string must not carry a raw quote, backslash or control char.
-- `write_text_atomic` (L3915) — Write to a sibling temp file then rename, so a crash never leaves a cut file.
-- `save_user_settings` (L3930) — Write settings.toml deterministically.
-- `upsert_game_toml_controller_bool` (L4174) — Sets a boolean key in the controller section of a game TOML file, adding or updating it, and returns whether the write succeeded.
+- `overlay_codegen_config_hash` (L65) — Hash exactly the per-game settings that can change generated overlay code.
+- `pad_mode_from_string` (L278) — Pad mode <-> string. Accepts "hybrid"/"analog"/"digital" (case-insensitive); returns 'fallback' for anything unrecognised so a typo never silently flips the pad type.
+- `pad_mode_from_settings_string` (L299) — Settings-file variant: a user's settings.toml may still carry a persisted "hybrid" from before the mode was removed from the selector.
+- `pad_mode_to_string` (L309) — Returns the settings name for a pad mode; it never returns hybrid, which is a runtime-only request and not a saved preference.
+- `toml_number` (L321) — Parse a hex string ("0x...") to uint32_t.
+- `parse_hex` (L326) — Parses a hex string into a 32-bit value, throwing an error that names the field when the text is not valid hex.
+- `parse_u32_auto` (L350) — Whole-string unsigned 32-bit number, base auto-detected like std::stoul(s, 0, 0) ("0x1F", "31", "017"), but a bad value names its key and trailing junk, a sign or leading blanks are errors instead of 
+- `parse_float_strict` (L363) — Whole-string finite float; a bad value throws naming its key.
+- `strict_pad_mode` (L374) — game.toml [controller] mode: unlike the settings file, a typo is an error, not "analog".
+- `toml_finite` (L384) — A TOML number key that must be finite (nan/inf parse as valid TOML floats).
+- `parse_sxy_cull_site` (L398) — One [[widescreen.cull.sxy]] entry.
+- `parse_aspect_ratio` (L499) — Parse a display aspect "W:H" string (e.g.
+- `validate_project_relative` (L529) — Reject a config path that is not confined to the project directory.
+- `reject_unknown_keys` (L557) — A key outside a closed list is a typo: the option would silently keep its default.
+- `parse_runtime_block` (L572) — Parse the optional [runtime] block.
+- `find_project_root` (L1593) — Locate the project root by walking upward from 'config_path' until a directory containing '.gitignore', '.git', or 'CMakeLists.txt' is found.
+- `draw_distance_clamp_reads` (L1614) — True when 'instr' is an ALU instruction (I-type or SPECIAL R-type, not a load, store, branch or jump) that reads GPR 'reg'.
+- `parse_draw_distance_clamps` (L1634) — [[draw_distance.clamp]] (docs/config_schema.md "Draw-distance clamps").
+- `quality_key_player_editable` (L1694) — True when a quality setting key may be changed by the player.
+- `quality_key_supported` (L1699) — [quality.<name>] -- a named graphics preset (docs/QUALITY_PRESETS.md).
+- `parse_quality_presets` (L1705) — Parses the quality presets of a game config into a list, checking each key against the supported set.
+- `derive_out_stem` (L1758) — Derives an output name stem from a ROM file name by removing its extension, matched without regard to case.
+- `load_bios_config` (L1775) — Load a BIOS config TOML.
+- `load_game_config` (L2062) — Load a game config TOML.
+- `load_game_options` (L3450) — Load game_options.toml ([[option]] array of {name, addr, size}).
+- `valid_user_audio_freq` (L3487) — True when an audio frequency is one of the allowed user values: 32040, 32000, 44100 or 48000.
+- `load_user_settings` (L3491) — Load settings.toml. Returns an all-defaults (all has_*=false) struct if the file is missing or unreadable.
+- `relative_to_folder` (L3950) — Returns a path relative to a folder when the path is absolute, or the path unchanged when it is not.
+- `toml_escape` (L3964) — A basic TOML string must not carry a raw quote, backslash or control char.
+- `write_text_atomic` (L3980) — Write to a sibling temp file then rename, so a crash never leaves a cut file.
+- `save_user_settings` (L3995) — Write settings.toml deterministically.
+- `upsert_game_toml_controller_bool` (L4239) — Sets a boolean key in the controller section of a game TOML file, adding or updating it, and returns whether the write succeeded.
 
 ### recompiler/src/config_loader.h
 
@@ -2076,82 +2080,82 @@ PS1 CD-ROM controller: register interface, command handling, sector reads, CD-DA
 - `xa_resample_to_44100` (L1351) — Resamples decoded XA audio to 44100 Hz and returns how many frames were produced.
 - `xa_zero_scan` (L1383) — Always-on XA zero-run scanner (audio_trace event ring).
 - `maybe_deliver_xa_audio` (L1402) — Sends a realtime XA audio sector to the audio output when XA is on and not muted.
-- `read_sector_at` (L1457) — Reads the sector at a minute, second and frame address into the buffers and returns its delivery info.
-- `advance_msf` (L1564) — Moves a minute, second and frame address forward by one sector.
-- `clear_sector_buffer` (L1570) — Empties the data FIFO and clears all sector buffers.
-- `cdrom_clear_pending_dataready` (L1609) — Drive-state changes (Read/Play/Pause/Stop/Seek) cancel a pended notification, matching Beetle's ClearAIP in every such command.
-- `read_continues_current_stream` (L1636) — A Read issued while the drive is ALREADY streaming the very sector the pending Setloc names is not a new read -- it is the game saying "keep going".
-- `start_read_stream` (L1647) — Starts a data read stream after a read command, resetting CD-DA playback and read timing.
-- `stop_read_stream` (L1706) — Stops the data read stream and its timing.
-- `stop_cdda_playback` (L1714) — Stops CD-DA audio playback and resets its track and delays.
-- `deliver_cdda_data_end` (L1722) — Sends the pending CD-DA end response once the interrupt line is clear.
-- `deliver_xa_data_end` (L1731) — Sends the pending XA end response once the interrupt line is clear.
-- `deliver_cdda_report` (L1748) — CD-DA position reports (Setmode bit2), psx-spx "Command 03h - Play": INT1(stat, track, index, mm/amm, ss+80h/ass, sect/asect, peaklo, peakhi) on every 10th frame of absolute time — asect BCD 00/20/40/
-- `cdda_track_for_lba` (L1788) — Returns the audio track that contains a sector, or 0 if none does.
-- `cdda_track_end_lba` (L1798) — Returns the sector where a track ends: the next track's start, or the end of the disc.
-- `start_cdda_playback` (L1805) — Starts CD-DA playback from a requested track, or from the current position.
-- `process_cdda_stream` (L1836) — Advances CD-DA playback by the elapsed cycles, sending timed reports and the end response.
-- `data_fifo_ready` (L1894) — Returns 1 when the CPU has requested data and data is available, counting starved moments.
-- `cdrom_get_dataready_fires` (L1900) — static uint64_t s_dataready_fires; /* INT1 (data-ready) raised per streamed sector — FMV dispatch probe
-- `deliver_read_sector` (L1902) — Reads the next sector of the data stream into the buffers, advances the position and raises the data-ready interrupt.
-- `deliver_read_sector_without_irq` (L1932) — A continuing DMA needs the newly filled slot immediately.
-- `cd_bisect_cmd_log` (L1946) — §93 P1: cmd timeline under PSX_RB_CD_BISECT (window via netplay).
-- `try_execute_queued_command` (L2019) — Runs a queued command once the interrupt line is clear.
-- `queue_or_exec_command` (L2038) — Runs a command now if the interrupt line is clear, otherwise queues it.
-- `pause_complete_delay_cycles` (L2072) — Pause (0x09) completion latency — Beetle PS_CDC::Command_Pause.
-- `exec_command` (L2084) — Runs one CD-ROM controller command, setting its response and timing; the core of the command dispatcher.
-- `process_pending` (L2564) — Completes a pending command response once its due cycle has passed.
-- `warm_route_consumer_blocked` (L2669) — Route-only HLE producer/consumer handshake.
-- `authentic_sector_period` (L2710) — Returns the sector period at the real drive speed, halved in double-speed mode.
-- `accelerated_read_active` (L2715) — Returns 1 when reads run faster than the real drive speed, not during XA or filter modes.
-- `accelerated_consumer_blocked` (L2720) — Returns 1 when an accelerated read must wait for the CPU to take the last sector or interrupt.
-- `process_read_stream` (L2727) — Advances the data read stream by the elapsed cycles, delivering sectors when due and waiting for the CPU when it is behind.
-- `present_pending_dataready` (L2812) — Present a pended data-ready INT1 the moment the guest fully acks the previous INT (Beetle CheckAIP: async results present as soon as the IRQ register clears).
-- `cdrom_init` (L2828) — Starts the CD-ROM controller: clears its FIFOs and buffers, then mounts the disc image from the cue path.
-- `cdrom_has_disc` (L2922) — Did cdrom_init() actually mount an image?
-- `cdrom_read` (L2926) — MMIO read/write (0x1F801800-0x1F801803)
-- `cdrom_write` (L2976) — Handles a CPU write to the CD-ROM registers, tracing it and dispatching by register and index.
-- `cdrom_cycles_to_irq` (L3065) — Cycle-budgeted precise event slicing: guest CPU cycles until the CD-ROM raises a DELIVERABLE IRQ (bit2 unmasked in i_mask).
-- `cdrom_advance` (L3097) — Advance CD-ROM state machine by guest CPU cycles.
-- `cdrom_tick` (L3120) — Legacy frame-paced entry point for interpreter/oracle builds.
-- `cdrom_dma_read` (L3124) — DMA channel 3 interface
-- `cdrom_dma_ready` (L3136) — Returns 1 when DMA can take data now, first loading any announced sector into the FIFO.
-- `cdrom_dma_sector_word_count` (L3145) — Returns the word count for a CD DMA transfer, using one sector's size when the count is zero.
-- `cdrom_debug_snapshot` (L3158) — Copies the controller's registers and state into a debug struct.
-- `cdrom_debug_get_trace` (L3213) — Returns the register trace ring and its total count.
-- `cdrom_debug_clear_trace` (L3218) — Clears the register trace ring.
-- `cdrom_debug_get_command_history` (L3223) — Returns the command history ring and its total count.
-- `cdrom_debug_clear_command_history` (L3228) — Clears the command history ring.
-- `cdrom_debug_get_sector_history` (L3233) — Returns the sector history ring and its total count.
-- `cdrom_debug_clear_sector_history` (L3238) — Clears the sector history ring.
-- `cdrom_debug_copy_last_sector` (L3243) — Copies part of the last sector read into a buffer and fills in its debug state.
-- `cdrom_load_in_progress` (L3272) — Load-in-progress predicate for turbo-through-loads (step 4).
-- `cdrom_data_read_active` (L3283) — Physical non-XA data-read command state, without the logical load gap bridge used by cdrom_load_in_progress().
-- `cdrom_apply_savestate_delay_caps` (L3296) — Limits long pending and interrupt delays after a savestate load so the game does not stall.
-- `cdrom_accelerate_after_savestate` (L3321) — After savestate restore: clamp long CD second-response / read-start delays and arm a short boost window so post-load ReadTOC/seek/Init waits do not freeze the picture for ~1s+.
-- `cdrom_savestate_boost_vblank` (L3332) — Call once per host vblank while the boost window is armed.
-- `cdrom_savestate_cd_wait_active` (L3338) — Non-zero while boost is armed AND a CD wait is outstanding (pending second response or non-XA read).
-- `cdrom_savestate_boost_vblanks_remaining` (L3345) — Remaining boost vblanks (0 when idle).
-- `cdrom_snap_emit` (L3359) — Writes the CD-ROM controller state into a snapshot writer, in the legacy or extended layout.
-- `cdrom_snap_parse` (L3437) — Reads the CD-ROM controller state from a snapshot reader, in the legacy or extended layout.
-- `cdrom_snapshot_level_bytes` (L3531) — Returns the wire size of the snapshot layout at a given level (0 = legacy, CDROM_SNAP_LEVEL_CURRENT = newest).
-- `cdrom_snapshot_level` (L3538) — Maps a snapshot block length to its layout level; -1 when no level has that size.
-- `cdrom_snapshot_legacy_bytes` (L3544) — Returns the size of the legacy snapshot layout.
-- `cdrom_snapshot_fifos_ok` (L3550) — The parameter and response FIFO cursors index param_fifo / response_fifo; every layout starts with the legacy prefix, so this applies to all of them.
-- `cdrom_snapshot_validate` (L3560) — Checks that a snapshot block has a length matching the legacy or current layout.
-- `cdrom_snapshot_disc_matches` (L3606) — 0 when the state was taken on another disc of this game's roster than the one mounted now: its LBAs, TOC and file table belong to that other disc.
-- `cdrom_snapshot_bytes` (L3613) — boot_state / netplay digest — full controller FSM (sector FIFOs included).
-- `cdrom_snapshot_write` (L3616) — Writes the current CD-ROM snapshot block into a buffer.
-- `cdrom_snapshot_read` (L3622) — Reads a CD-ROM snapshot block, checking its length first; returns 1 on success.
-- `begin_tray_open_cycle` (L3648) — Open the tray: stop every transfer in flight, hide the media, and arm the timed close.
-- `debug_force_cd_reinsert` (L3664) — Simulates a disc swap by opening the tray, which hides the media until the timed close. — Notify the guest that the mounted disc was reinserted.
-- `cdrom_disc_roster_set` (L3668) — Sets the list of disc image paths the player can switch between, and which one is selected.
-- `cdrom_disc_roster_count` (L3688) — Returns how many discs are in the roster.
-- `cdrom_mounted_sector_count` (L3690) — TOC of the image currently mounted; 0 when the drive is empty.
-- `cdrom_mounted_track_count` (L3694) — Returns the number of tracks in the mounted image, 0 when the drive is empty.
-- `cdrom_disc_selected` (L3698) — Returns the 1-based number of the selected disc.
-- `cdrom_disc_roster_path` (L3700) — Returns the path of a disc in the roster by 1-based index, or NULL if out of range.
-- `cdrom_disc_select` (L3716) — Change the mounted image mid-session, the way a player changes a disc.
+- `read_sector_at` (L1459) — Reads the sector at a minute, second and frame address into the buffers and returns its delivery info.
+- `advance_msf` (L1566) — Moves a minute, second and frame address forward by one sector.
+- `clear_sector_buffer` (L1572) — Empties the data FIFO and clears all sector buffers.
+- `cdrom_clear_pending_dataready` (L1611) — Drive-state changes (Read/Play/Pause/Stop/Seek) cancel a pended notification, matching Beetle's ClearAIP in every such command.
+- `read_continues_current_stream` (L1638) — A Read issued while the drive is ALREADY streaming the very sector the pending Setloc names is not a new read -- it is the game saying "keep going".
+- `start_read_stream` (L1649) — Starts a data read stream after a read command, resetting CD-DA playback and read timing.
+- `stop_read_stream` (L1708) — Stops the data read stream and its timing.
+- `stop_cdda_playback` (L1716) — Stops CD-DA audio playback and resets its track and delays.
+- `deliver_cdda_data_end` (L1724) — Sends the pending CD-DA end response once the interrupt line is clear.
+- `deliver_xa_data_end` (L1733) — Sends the pending XA end response once the interrupt line is clear.
+- `deliver_cdda_report` (L1750) — CD-DA position reports (Setmode bit2), psx-spx "Command 03h - Play": INT1(stat, track, index, mm/amm, ss+80h/ass, sect/asect, peaklo, peakhi) on every 10th frame of absolute time — asect BCD 00/20/40/
+- `cdda_track_for_lba` (L1790) — Returns the audio track that contains a sector, or 0 if none does.
+- `cdda_track_end_lba` (L1800) — Returns the sector where a track ends: the next track's start, or the end of the disc.
+- `start_cdda_playback` (L1807) — Starts CD-DA playback from a requested track, or from the current position.
+- `process_cdda_stream` (L1838) — Advances CD-DA playback by the elapsed cycles, sending timed reports and the end response.
+- `data_fifo_ready` (L1896) — Returns 1 when the CPU has requested data and data is available, counting starved moments.
+- `cdrom_get_dataready_fires` (L1902) — static uint64_t s_dataready_fires; /* INT1 (data-ready) raised per streamed sector — FMV dispatch probe
+- `deliver_read_sector` (L1904) — Reads the next sector of the data stream into the buffers, advances the position and raises the data-ready interrupt.
+- `deliver_read_sector_without_irq` (L1934) — A continuing DMA needs the newly filled slot immediately.
+- `cd_bisect_cmd_log` (L1948) — §93 P1: cmd timeline under PSX_RB_CD_BISECT (window via netplay).
+- `try_execute_queued_command` (L2021) — Runs a queued command once the interrupt line is clear.
+- `queue_or_exec_command` (L2040) — Runs a command now if the interrupt line is clear, otherwise queues it.
+- `pause_complete_delay_cycles` (L2074) — Pause (0x09) completion latency — Beetle PS_CDC::Command_Pause.
+- `exec_command` (L2086) — Runs one CD-ROM controller command, setting its response and timing; the core of the command dispatcher.
+- `process_pending` (L2566) — Completes a pending command response once its due cycle has passed.
+- `warm_route_consumer_blocked` (L2671) — Route-only HLE producer/consumer handshake.
+- `authentic_sector_period` (L2712) — Returns the sector period at the real drive speed, halved in double-speed mode.
+- `accelerated_read_active` (L2717) — Returns 1 when reads run faster than the real drive speed, not during XA or filter modes.
+- `accelerated_consumer_blocked` (L2722) — Returns 1 when an accelerated read must wait for the CPU to take the last sector or interrupt.
+- `process_read_stream` (L2729) — Advances the data read stream by the elapsed cycles, delivering sectors when due and waiting for the CPU when it is behind.
+- `present_pending_dataready` (L2814) — Present a pended data-ready INT1 the moment the guest fully acks the previous INT (Beetle CheckAIP: async results present as soon as the IRQ register clears).
+- `cdrom_init` (L2830) — Starts the CD-ROM controller: clears its FIFOs and buffers, then mounts the disc image from the cue path.
+- `cdrom_has_disc` (L2924) — Did cdrom_init() actually mount an image?
+- `cdrom_read` (L2928) — MMIO read/write (0x1F801800-0x1F801803)
+- `cdrom_write` (L2978) — Handles a CPU write to the CD-ROM registers, tracing it and dispatching by register and index.
+- `cdrom_cycles_to_irq` (L3067) — Cycle-budgeted precise event slicing: guest CPU cycles until the CD-ROM raises a DELIVERABLE IRQ (bit2 unmasked in i_mask).
+- `cdrom_advance` (L3099) — Advance CD-ROM state machine by guest CPU cycles.
+- `cdrom_tick` (L3122) — Legacy frame-paced entry point for interpreter/oracle builds.
+- `cdrom_dma_read` (L3126) — DMA channel 3 interface
+- `cdrom_dma_ready` (L3138) — Returns 1 when DMA can take data now, first loading any announced sector into the FIFO.
+- `cdrom_dma_sector_word_count` (L3147) — Returns the word count for a CD DMA transfer, using one sector's size when the count is zero.
+- `cdrom_debug_snapshot` (L3160) — Copies the controller's registers and state into a debug struct.
+- `cdrom_debug_get_trace` (L3215) — Returns the register trace ring and its total count.
+- `cdrom_debug_clear_trace` (L3220) — Clears the register trace ring.
+- `cdrom_debug_get_command_history` (L3225) — Returns the command history ring and its total count.
+- `cdrom_debug_clear_command_history` (L3230) — Clears the command history ring.
+- `cdrom_debug_get_sector_history` (L3235) — Returns the sector history ring and its total count.
+- `cdrom_debug_clear_sector_history` (L3240) — Clears the sector history ring.
+- `cdrom_debug_copy_last_sector` (L3245) — Copies part of the last sector read into a buffer and fills in its debug state.
+- `cdrom_load_in_progress` (L3274) — Load-in-progress predicate for turbo-through-loads (step 4).
+- `cdrom_data_read_active` (L3285) — Physical non-XA data-read command state, without the logical load gap bridge used by cdrom_load_in_progress().
+- `cdrom_apply_savestate_delay_caps` (L3298) — Limits long pending and interrupt delays after a savestate load so the game does not stall.
+- `cdrom_accelerate_after_savestate` (L3323) — After savestate restore: clamp long CD second-response / read-start delays and arm a short boost window so post-load ReadTOC/seek/Init waits do not freeze the picture for ~1s+.
+- `cdrom_savestate_boost_vblank` (L3334) — Call once per host vblank while the boost window is armed.
+- `cdrom_savestate_cd_wait_active` (L3340) — Non-zero while boost is armed AND a CD wait is outstanding (pending second response or non-XA read).
+- `cdrom_savestate_boost_vblanks_remaining` (L3347) — Remaining boost vblanks (0 when idle).
+- `cdrom_snap_emit` (L3361) — Writes the CD-ROM controller state into a snapshot writer, in the legacy or extended layout.
+- `cdrom_snap_parse` (L3439) — Reads the CD-ROM controller state from a snapshot reader, in the legacy or extended layout.
+- `cdrom_snapshot_level_bytes` (L3533) — Returns the wire size of the snapshot layout at a given level (0 = legacy, CDROM_SNAP_LEVEL_CURRENT = newest).
+- `cdrom_snapshot_level` (L3540) — Maps a snapshot block length to its layout level; -1 when no level has that size.
+- `cdrom_snapshot_legacy_bytes` (L3546) — Returns the size of the legacy snapshot layout.
+- `cdrom_snapshot_fifos_ok` (L3552) — The parameter and response FIFO cursors index param_fifo / response_fifo; every layout starts with the legacy prefix, so this applies to all of them.
+- `cdrom_snapshot_validate` (L3562) — Checks that a snapshot block has a length matching the legacy or current layout.
+- `cdrom_snapshot_disc_matches` (L3608) — 0 when the state was taken on another disc of this game's roster than the one mounted now: its LBAs, TOC and file table belong to that other disc.
+- `cdrom_snapshot_bytes` (L3615) — boot_state / netplay digest — full controller FSM (sector FIFOs included).
+- `cdrom_snapshot_write` (L3618) — Writes the current CD-ROM snapshot block into a buffer.
+- `cdrom_snapshot_read` (L3624) — Reads a CD-ROM snapshot block, checking its length first; returns 1 on success.
+- `begin_tray_open_cycle` (L3650) — Open the tray: stop every transfer in flight, hide the media, and arm the timed close.
+- `debug_force_cd_reinsert` (L3666) — Simulates a disc swap by opening the tray, which hides the media until the timed close. — Notify the guest that the mounted disc was reinserted.
+- `cdrom_disc_roster_set` (L3670) — Sets the list of disc image paths the player can switch between, and which one is selected.
+- `cdrom_disc_roster_count` (L3690) — Returns how many discs are in the roster.
+- `cdrom_mounted_sector_count` (L3692) — TOC of the image currently mounted; 0 when the drive is empty.
+- `cdrom_mounted_track_count` (L3696) — Returns the number of tracks in the mounted image, 0 when the drive is empty.
+- `cdrom_disc_selected` (L3700) — Returns the 1-based number of the selected disc.
+- `cdrom_disc_roster_path` (L3702) — Returns the path of a disc in the roster by 1-based index, or NULL if out of range.
+- `cdrom_disc_select` (L3718) — Change the mounted image mid-session, the way a player changes a disc.
 
 ### runtime/src/cdrom_irq.h
 
@@ -2226,14 +2230,13 @@ Computes the canonical hash of the guest's full architectural state for co-simul
 - `fnv` (L23) — FNV-style hash over a byte buffer, continuing from a seed value.
 - `fnv_u32` (L28) — Mixes a 32-bit value into a running hash.
 - `fnv_u64` (L29) — Mixes a 64-bit value into a running hash.
-- `cosim_state_reset` (L84) — Reset all incremental state (call once at machine init / after a full state load).
-- `cosim_note_ram_write` (L92) — Incremental page-hash maintenance.
-- `cosim_note_vram_write` (L98) — Marks VRAM as changed so the next state hash recomputes it.
-- `cosim_inject_ram` (L101) — Gate-4 fault injection: after this is armed, the next cosim_state_hash perturbs one byte of RAM (addr) or one CPU GPR (reg 0..31, hi=32, lo=33) by XOR val, so the oracle MUST halt at exactly that fiel
-- `cosim_inject_reg` (L102) — Arms a one-time fault injection that XORs one CPU register (index 0..33) at the next state hash.
-- `blob_hash` (L104) — Hashes a variable-size state blob, using a size function and a writer, into a running hash.
-- `hash_cpu` (L112) — Hashes the general registers and other CPU state into a running hash, leaving out the PC.
-- `cosim_state_hash` (L154) — Compute the full canonical state hash of the LIVE machine (debug_cpu_ptr + globals).
+- `cosim_state_reset` (L75) — Reset all incremental state (call once at machine init / after a full state load).
+- `cosim_note_ram_write` (L82) — Incremental page-hash maintenance.
+- `cosim_inject_ram` (L88) — Gate-4 fault injection: after this is armed, the next cosim_state_hash perturbs one byte of RAM (addr) or one CPU GPR (reg 0..31, hi=32, lo=33) by XOR val, so the oracle MUST halt at exactly that fiel
+- `cosim_inject_reg` (L89) — Arms a one-time fault injection that XORs one CPU register (index 0..33) at the next state hash.
+- `blob_hash` (L91) — Hashes a variable-size state blob, using a size function and a writer, into a running hash.
+- `hash_cpu` (L99) — Hashes the general registers and other CPU state into a running hash, leaving out the PC.
+- `cosim_state_hash` (L141) — Compute the full canonical state hash of the LIVE machine (debug_cpu_ptr + globals).
 
 ### runtime/src/crash_trace.c
 
@@ -5063,89 +5066,89 @@ Edge stepping helpers for the software rasterizer: fixed-point edge walking that
 
 Software rasterizer: draws PS1 primitives (triangles, rectangles, lines, textures, blending) into VRAM, the supersampled mirror and the native-wide surface.
 
-- `clamp_i` (L110) — Clamps an int to the range lo..hi.
-- `min_i` (L116) — Returns the smaller of two ints.
-- `max_i` (L117) — Returns the larger of two ints.
-- `vram_get` (L119) — Reads one 15-bit pixel from the canonical VRAM array, wrapping x and y to the VRAM size.
-- `rt_native` (L141) — Describes the native-resolution VRAM as a render target with the current clip rectangle.
-- `rt_hires` (L148) — Describes the supersampled high-resolution mirror as a render target, scaled to the current scale factor.
-- `rt_wide` (L170) — Describes the active native-wide surface as a render target with the current scale factor.
-- `wide_dx` (L183) — X-translation (native px) from canonical VRAM space into the active wide surface: local_x = vram_x - base_x + OFFSET.
-- `wide_bd_get` (L193) — Reads the current backdrop stretch settings from the widescreen module into a WideBd struct.
-- `wide_bd_x` (L208) — Maps an x coordinate through the backdrop stretch, rounding half away from zero; returns x if no stretch is on.
-- `blend_pixels` (L223) — Blends a front 15-bit pixel over a back pixel using the PS1 semi-transparency mode (average, add, subtract, quarter-add).
-- `put_opaque` (L265) — Write an opaque (untextured) pixel with semi-transparency if enabled
-- `put_textured` (L289) — Write a textured pixel — semi-trans only if texel bit 15 is set
-- `texel_fetch` (L338) — Fetches one texel at u,v applying the texture window and CLUT lookup for 4, 8 or 15-bit textures.
-- `bl_fetch` (L385) — Fetches one texel for bilinear sampling, with texture window wrap, returning the raw 15-bit value.
-- `texel_fetch_bilinear` (L405) — Bilinear texel sample, in RGB space (after the CLUT lookup — never interpolate palette indices).
-- `bilinear_center_shift_for_target` (L441) — Returns the sample offset for bilinear filtering on a target with the given scale, so texels are sampled at their centers.
-- `sw_tri_uv_limits` (L452) — Computes the sampled UV bounds of a textured triangle, from world-space UVs when perspective is valid, else affine.
-- `sw_rect_uv_limits` (L458) — Computes the sampled UV bounds of a textured rectangle from its corner UVs.
-- `sw_renderer_init` (L466) — Initialize software renderer
-- `sw_renderer_rebind_vram` (L488) — Point the rasterizer at another VRAM array without touching any draw state (the OpenGL render thread switches its upload source this way).
-- `sw_renderer_set_scale` (L496) — Internal-resolution supersampling (SSAA).
-- `sw_renderer_scale` (L522) — Returns the current internal resolution scale factor of the software renderer.
-- `sw_set_faithful_authority` (L531) — Faithful authority (netplay): while this rasterizer writes the guest's authoritative VRAM -- the netplay dual-raster SW@1x mirror or the netplay software GPU -- it draws exactly what hardware draws.
-- `sw_faithful_authority` (L540) — Returns 1 when this rasterizer is the netplay authority that must draw exactly like hardware.
-- `sw_set_precise_triangle` (L542) — Stores sub-pixel vertex positions for the next triangle, used when precise triangle drawing is enabled.
-- `sw_set_perspective_triangle` (L552) — Enables perspective-correct UV weights for the next triangle from three Q values, unless faithful authority is on.
-- `sw_perspective_triangle_count` (L564) — Returns how many triangles have been drawn with perspective-correct UV weights.
-- `precise_scaled` (L568) — Returns a vertex coordinate at the given scale from its sub-pixel value, or the fallback integer when none is set.
-- `precise_wide_x` (L576) — Returns a vertex x coordinate in native-wide space from its sub-pixel value, offset by dx, or the fallback.
-- `precise_consumed` (L583) — Clears the sub-pixel and perspective overrides so they apply to exactly one triangle.
-- `sw_set_texture_filter` (L588) — Texture filtering. 0 = nearest (native PSX look, default), 1 = bilinear (smooths textures/2D backgrounds; blends in RGB after the CLUT lookup, transparency-aware).
-- `sw_texture_filter` (L592) — Returns the current texture filter mode (0 nearest, 1 bilinear).
-- `sw_set_semi_transparency` (L598) — Draw state — must be set by gpu.c before each primitive
-- `sw_set_mask_bits` (L603) — Stores the set-mask and check-mask bits used by the next primitives.
-- `sw_set_texture_window` (L608) — Decodes the raw GP0 texture window value into mask and offset values for X and Y.
-- `sw_set_color_modulation` (L615) — Stores the vertex color modulation factors for the next textured primitive, converted from 8-bit to the PS1 scale.
-- `sw_set_draw_area` (L630) — Set draw area and draw offset
-- `sw_get_draw_area` (L637) — Returns the current draw area clip corners through the four output pointers.
-- `sw_set_draw_offset` (L642) — Stores the draw offset applied to the coordinates of the next primitives.
-- `hr_fill_block` (L651) — Fills a native-sized block of the supersampled mirror with one color, scaled to the current scale factor.
-- `sw_fill_rect` (L666) — Drawing primitives — called from gpu.c command processing
-- `sw_copy_rect` (L688) — Copies a VRAM rectangle to another place in VRAM, handling overlap and mirroring the copy into the high-res mirror.
-- `raster_flat_triangle` (L755) — Rasterizes a flat-colored triangle into the target, sorting vertices by Y first.
-- `sw_draw_flat_triangle` (L783) — Draws a flat-colored triangle into native VRAM and mirrors it to the high-res and wide surfaces.
-- `raster_gouraud_triangle` (L811) — Rasterizes a triangle with per-vertex colors into the target by interpolating across scanlines.
-- `sw_draw_gouraud_triangle` (L903) — Draws a triangle with per-vertex colors into native VRAM and mirrors it to the high-res and wide surfaces.
-- `raster_textured_triangle` (L932) — Rasterizes a textured triangle into the target, sampling UVs with CLUT and texpage state.
-- `sw_draw_textured_triangle` (L1043) — Draws a textured triangle with CLUT and texpage into native VRAM and mirrors it to the other surfaces.
-- `color24_to_mod` (L1087) — Converts a 24-bit vertex color into the 5-bit per-channel modulation factors used for textures.
-- `sw_draw_shaded_textured_triangle` (L1228) — Draws a textured triangle with per-vertex colors, modulating the texel by the interpolated colors.
-- `raster_flat_rect` (L1286) — Fills a rectangle of the target with one color, row by row.
-- `sw_draw_flat_rect` (L1301) — Fills a flat rectangle in native VRAM and mirrors it into the high-res and wide surfaces.
-- `raster_textured_rect` (L1341) — Draws a textured rectangle into the target with UV stepping from its top-left corner.
-- `sw_draw_textured_rect` (L1370) — Draws a textured rectangle into native VRAM with CLUT and texpage, mirroring the result to the other surfaces.
-- `sw_wide_emit_tile` (L1409) — ---- MMX6 native-wide reveal-column tile (host-side, WIDE SURFACE ONLY) -------- Rasterize ONE 16x16 textured tile into the active wide surface for a given vertical band, leaving canonical VRAM AND th
-- `raster_textured_rect_scaled` (L1428) — Draws a textured rectangle that stretches its texture from u0,v0 to u1,v1 across the target area.
-- `sw_draw_textured_rect_scaled` (L1462) — Draws a stretched textured rectangle into native VRAM and mirrors the result to the other surfaces.
-- `hr_put_block_opaque` (L1497) — Writes an opaque native pixel as a scale-by-scale block into the high-resolution mirror.
-- `wide_put_block_opaque` (L1508) — Mirror a 1px line pixel into the active wide surface (s*s block, x-translated).
-- `sw_draw_line` (L1518) — Draws a one-pixel flat line between two points into native VRAM and mirrors it to the other surfaces.
-- `sw_draw_shaded_line` (L1539) — Draws a one-pixel line whose color interpolates from c0 to c1 into native VRAM and mirrors it.
-- `sw_vram_write` (L1579) — VRAM transfer (CPU->VRAM, VRAM->CPU)
-- `sw_vram_read` (L1595) — Reads one 15-bit pixel from canonical VRAM at x,y.
-- `hr_rebuild_from_vram` (L1606) — Rebuild the supersampled mirror from canonical VRAM after a bulk replace.
-- `sw_vram_transfer_in` (L1642) — Copies a CPU block of pixels into VRAM and updates the high-res mirror; a full-VRAM copy triggers one full rebuild.
-- `sw_vram_transfer_out` (L1690) — Copies a block of VRAM pixels out to a CPU buffer, with a fast path for the whole VRAM.
-- `rgb555_to_argb` (L1723) — Converts a 15-bit PS1 pixel to a 32-bit ARGB value with the top bits expanded to 8 bits per channel.
-- `sw_render_display` (L1734) — Renders the displayed VRAM rectangle into a 32-bit output buffer at native resolution; returns the pixel count.
-- `sw_render_display_hires` (L1752) — Renders the displayed area from the high-res mirror when scale is above 1, else falls back to native rendering.
-- `wide_free_all` (L1784) — Frees every native-wide surface and resets their base addresses.
-- `wide_surf_for` (L1792) — Returns the native-wide surface for base_x, allocating a free slot when none exists yet; NULL when wide mode is off.
-- `sw_wide_set_view` (L1820) — Enable native-wide with a wide width + centering offset (native px), or disable (wide_w <= 0).
-- `sw_wide_configure` (L1830) — Native-wide compositor (see gpu_sw_renderer.c).
-- `sw_wide_set_target` (L1838) — Select the wide surface to mirror into for the back buffer at base_x.
-- `sw_wide_disable_target` (L1844) — Stop mirroring (offscreen draws that don't target a framebuffer).
-- `sw_wide_clear` (L1848) — Mirror a framebuffer clear: fill the full wide width over [y, y+h) of the surface for base_x, so the revealed margins are clean (not stale).
-- `sw_wide_clear_margins` (L1865) — Clear only the synthetic columns outside the centred canonical framebuffer.
-- `wide_surf_existing` (L1885) — An existing wide surface for base_x (never allocates: a source that was not drawn yet has nothing to copy).
-- `sw_wide_feedback_rect` (L1895) — Band texels count as bit 15 set: the band columns' own bit 15 is not authoritative (margin fills write 0), and a framebuffer trail keeps the centre at bit 15 once it blends, so the bands blend exactly
-- `sw_render_wide_display` (L1927) — Present source: convert the wide surface for the displayed buffer (base_x) to ARGB.
-- `sw_wide_width` (L1949) — Returns the current native-wide width in native pixels.
-- `sw_wide_dump_full` (L1956) — Diagnostic: dump the ENTIRE active wide surface for base_x (full g_wide_w*scale × VRAM_HEIGHT*scale — BOTH double-buffer y-bands, all margins) to ARGB.
+- `clamp_i` (L107) — Clamps an int to the range lo..hi.
+- `min_i` (L113) — Returns the smaller of two ints.
+- `max_i` (L114) — Returns the larger of two ints.
+- `vram_get` (L116) — Reads one 15-bit pixel from the canonical VRAM array, wrapping x and y to the VRAM size.
+- `rt_native` (L138) — Describes the native-resolution VRAM as a render target with the current clip rectangle.
+- `rt_hires` (L145) — Describes the supersampled high-resolution mirror as a render target, scaled to the current scale factor.
+- `rt_wide` (L167) — Describes the active native-wide surface as a render target with the current scale factor.
+- `wide_dx` (L180) — X-translation (native px) from canonical VRAM space into the active wide surface: local_x = vram_x - base_x + OFFSET.
+- `wide_bd_get` (L190) — Reads the current backdrop stretch settings from the widescreen module into a WideBd struct.
+- `wide_bd_x` (L205) — Maps an x coordinate through the backdrop stretch, rounding half away from zero; returns x if no stretch is on.
+- `blend_pixels` (L220) — Blends a front 15-bit pixel over a back pixel using the PS1 semi-transparency mode (average, add, subtract, quarter-add).
+- `put_opaque` (L262) — Write an opaque (untextured) pixel with semi-transparency if enabled
+- `put_textured` (L286) — Write a textured pixel — semi-trans only if texel bit 15 is set
+- `texel_fetch` (L335) — Fetches one texel at u,v applying the texture window and CLUT lookup for 4, 8 or 15-bit textures.
+- `bl_fetch` (L382) — Fetches one texel for bilinear sampling, with texture window wrap, returning the raw 15-bit value.
+- `texel_fetch_bilinear` (L402) — Bilinear texel sample, in RGB space (after the CLUT lookup — never interpolate palette indices).
+- `bilinear_center_shift_for_target` (L438) — Returns the sample offset for bilinear filtering on a target with the given scale, so texels are sampled at their centers.
+- `sw_tri_uv_limits` (L449) — Computes the sampled UV bounds of a textured triangle, from world-space UVs when perspective is valid, else affine.
+- `sw_rect_uv_limits` (L455) — Computes the sampled UV bounds of a textured rectangle from its corner UVs.
+- `sw_renderer_init` (L463) — Initialize software renderer
+- `sw_renderer_rebind_vram` (L483) — Point the rasterizer at another VRAM array without touching any draw state (the OpenGL render thread switches its upload source this way).
+- `sw_renderer_set_scale` (L491) — Internal-resolution supersampling (SSAA).
+- `sw_renderer_scale` (L517) — Returns the current internal resolution scale factor of the software renderer.
+- `sw_set_faithful_authority` (L526) — Faithful authority (netplay): while this rasterizer writes the guest's authoritative VRAM -- the netplay dual-raster SW@1x mirror or the netplay software GPU -- it draws exactly what hardware draws.
+- `sw_faithful_authority` (L535) — Returns 1 when this rasterizer is the netplay authority that must draw exactly like hardware.
+- `sw_set_precise_triangle` (L537) — Stores sub-pixel vertex positions for the next triangle, used when precise triangle drawing is enabled.
+- `sw_set_perspective_triangle` (L547) — Enables perspective-correct UV weights for the next triangle from three Q values, unless faithful authority is on.
+- `sw_perspective_triangle_count` (L559) — Returns how many triangles have been drawn with perspective-correct UV weights.
+- `precise_scaled` (L563) — Returns a vertex coordinate at the given scale from its sub-pixel value, or the fallback integer when none is set.
+- `precise_wide_x` (L571) — Returns a vertex x coordinate in native-wide space from its sub-pixel value, offset by dx, or the fallback.
+- `precise_consumed` (L578) — Clears the sub-pixel and perspective overrides so they apply to exactly one triangle.
+- `sw_set_texture_filter` (L583) — Texture filtering. 0 = nearest (native PSX look, default), 1 = bilinear (smooths textures/2D backgrounds; blends in RGB after the CLUT lookup, transparency-aware).
+- `sw_texture_filter` (L587) — Returns the current texture filter mode (0 nearest, 1 bilinear).
+- `sw_set_semi_transparency` (L593) — Draw state — must be set by gpu.c before each primitive
+- `sw_set_mask_bits` (L598) — Stores the set-mask and check-mask bits used by the next primitives.
+- `sw_set_texture_window` (L603) — Decodes the raw GP0 texture window value into mask and offset values for X and Y.
+- `sw_set_color_modulation` (L610) — Stores the vertex color modulation factors for the next textured primitive, converted from 8-bit to the PS1 scale.
+- `sw_set_draw_area` (L625) — Set draw area and draw offset
+- `sw_get_draw_area` (L632) — Returns the current draw area clip corners through the four output pointers.
+- `sw_set_draw_offset` (L638) — Stores the draw offset applied to the coordinates of the next primitives.
+- `hr_fill_block` (L647) — Fills a native-sized block of the supersampled mirror with one color, scaled to the current scale factor.
+- `sw_fill_rect` (L662) — Drawing primitives — called from gpu.c command processing
+- `sw_copy_rect` (L684) — Copies a VRAM rectangle to another place in VRAM, handling overlap and mirroring the copy into the high-res mirror.
+- `raster_flat_triangle` (L751) — Rasterizes a flat-colored triangle into the target, sorting vertices by Y first.
+- `sw_draw_flat_triangle` (L779) — Draws a flat-colored triangle into native VRAM and mirrors it to the high-res and wide surfaces.
+- `raster_gouraud_triangle` (L807) — Rasterizes a triangle with per-vertex colors into the target by interpolating across scanlines.
+- `sw_draw_gouraud_triangle` (L899) — Draws a triangle with per-vertex colors into native VRAM and mirrors it to the high-res and wide surfaces.
+- `raster_textured_triangle` (L928) — Rasterizes a textured triangle into the target, sampling UVs with CLUT and texpage state.
+- `sw_draw_textured_triangle` (L1039) — Draws a textured triangle with CLUT and texpage into native VRAM and mirrors it to the other surfaces.
+- `color24_to_mod` (L1083) — Converts a 24-bit vertex color into the 5-bit per-channel modulation factors used for textures.
+- `sw_draw_shaded_textured_triangle` (L1224) — Draws a textured triangle with per-vertex colors, modulating the texel by the interpolated colors.
+- `raster_flat_rect` (L1282) — Fills a rectangle of the target with one color, row by row.
+- `sw_draw_flat_rect` (L1297) — Fills a flat rectangle in native VRAM and mirrors it into the high-res and wide surfaces.
+- `raster_textured_rect` (L1337) — Draws a textured rectangle into the target with UV stepping from its top-left corner.
+- `sw_draw_textured_rect` (L1366) — Draws a textured rectangle into native VRAM with CLUT and texpage, mirroring the result to the other surfaces.
+- `sw_wide_emit_tile` (L1405) — ---- MMX6 native-wide reveal-column tile (host-side, WIDE SURFACE ONLY) -------- Rasterize ONE 16x16 textured tile into the active wide surface for a given vertical band, leaving canonical VRAM AND th
+- `raster_textured_rect_scaled` (L1424) — Draws a textured rectangle that stretches its texture from u0,v0 to u1,v1 across the target area.
+- `sw_draw_textured_rect_scaled` (L1458) — Draws a stretched textured rectangle into native VRAM and mirrors the result to the other surfaces.
+- `hr_put_block_opaque` (L1493) — Writes an opaque native pixel as a scale-by-scale block into the high-resolution mirror.
+- `wide_put_block_opaque` (L1504) — Mirror a 1px line pixel into the active wide surface (s*s block, x-translated).
+- `sw_draw_line` (L1514) — Draws a one-pixel flat line between two points into native VRAM and mirrors it to the other surfaces.
+- `sw_draw_shaded_line` (L1535) — Draws a one-pixel line whose color interpolates from c0 to c1 into native VRAM and mirrors it.
+- `sw_vram_write` (L1575) — VRAM transfer (CPU->VRAM, VRAM->CPU)
+- `sw_vram_read` (L1591) — Reads one 15-bit pixel from canonical VRAM at x,y.
+- `hr_rebuild_from_vram` (L1602) — Rebuild the supersampled mirror from canonical VRAM after a bulk replace.
+- `sw_vram_transfer_in` (L1638) — Copies a CPU block of pixels into VRAM and updates the high-res mirror; a full-VRAM copy triggers one full rebuild.
+- `sw_vram_transfer_out` (L1686) — Copies a block of VRAM pixels out to a CPU buffer, with a fast path for the whole VRAM.
+- `rgb555_to_argb` (L1719) — Converts a 15-bit PS1 pixel to a 32-bit ARGB value with the top bits expanded to 8 bits per channel.
+- `sw_render_display` (L1730) — Renders the displayed VRAM rectangle into a 32-bit output buffer at native resolution; returns the pixel count.
+- `sw_render_display_hires` (L1748) — Renders the displayed area from the high-res mirror when scale is above 1, else falls back to native rendering.
+- `wide_free_all` (L1780) — Frees every native-wide surface and resets their base addresses.
+- `wide_surf_for` (L1788) — Returns the native-wide surface for base_x, allocating a free slot when none exists yet; NULL when wide mode is off.
+- `sw_wide_set_view` (L1816) — Enable native-wide with a wide width + centering offset (native px), or disable (wide_w <= 0).
+- `sw_wide_configure` (L1826) — Native-wide compositor (see gpu_sw_renderer.c).
+- `sw_wide_set_target` (L1834) — Select the wide surface to mirror into for the back buffer at base_x.
+- `sw_wide_disable_target` (L1840) — Stop mirroring (offscreen draws that don't target a framebuffer).
+- `sw_wide_clear` (L1844) — Mirror a framebuffer clear: fill the full wide width over [y, y+h) of the surface for base_x, so the revealed margins are clean (not stale).
+- `sw_wide_clear_margins` (L1861) — Clear only the synthetic columns outside the centred canonical framebuffer.
+- `wide_surf_existing` (L1881) — An existing wide surface for base_x (never allocates: a source that was not drawn yet has nothing to copy).
+- `sw_wide_feedback_rect` (L1891) — Band texels count as bit 15 set: the band columns' own bit 15 is not authoritative (margin fills write 0), and a framebuffer trail keeps the centre at bit 15 once it blends, so the bands blend exactly
+- `sw_render_wide_display` (L1923) — Present source: convert the wide surface for the displayed buffer (base_x) to ARGB.
+- `sw_wide_width` (L1945) — Returns the current native-wide width in native pixels.
+- `sw_wide_dump_full` (L1952) — Diagnostic: dump the ENTIRE active wide surface for base_x (full g_wide_w*scale × VRAM_HEIGHT*scale — BOTH double-buffer y-bands, all margins) to ARGB.
 
 ### runtime/src/gpu_timeline.c
 
@@ -9124,16 +9127,16 @@ Graphics preset autodetection rules: maps the machine's CPU and GPU names to a L
 
 Shared audio clock-domain bridge: a polyphase sinc resampler fed from a ring, with a fill controller that keeps the host in step with the game.
 
-- `rab__sinc` (L127) — Normalized sinc function, sin(pi x) over pi x, equal to 1 at zero.
-- `rab__blackman` (L134) — Blackman window over [-1,1] mapped from t/half.
-- `rab_config_defaults` (L139) — Fill a config with the locked-in ecosystem defaults.
-- `rab_init` (L168) — Allocate internal buffers and build the polyphase filter bank.
-- `rab_free` (L229) — Frees the bridge's internal buffers.
-- `rab_fill_ms` (L235) — Current ring fill expressed in milliseconds of source audio.
-- `rab_push` (L241) — Producer: append 'frames' interleaved int16 source samples.
-- `rab__update_controller` (L267) — One proportional control update per pull, nudging the resampling rate toward the target fill using the callback's real duration.
-- `rab_pull` (L318) — Consumer: render exactly 'frames' interleaved int16 host samples (never blocks; emits faded silence on underrun / before prime).
-- `rab_get_stats` (L379) — Copies the bridge's current statistics into out.
+- `rab__sinc` (L125) — Normalized sinc function, sin(pi x) over pi x, equal to 1 at zero.
+- `rab__blackman` (L132) — Blackman window over [-1,1] mapped from t/half.
+- `rab_config_defaults` (L137) — Fill a config with the locked-in ecosystem defaults.
+- `rab_init` (L164) — Allocate internal buffers and build the polyphase filter bank.
+- `rab_free` (L225) — Frees the bridge's internal buffers.
+- `rab_fill_ms` (L231) — Current ring fill expressed in milliseconds of source audio.
+- `rab_push` (L237) — Producer: append 'frames' interleaved int16 source samples.
+- `rab__update_controller` (L263) — One proportional control update per pull, nudging the resampling rate toward the target fill using the callback's real duration.
+- `rab_pull` (L314) — Consumer: render exactly 'frames' interleaved int16 host samples (never blocks; emits faded silence on underrun / before prime).
+- `rab_get_stats` (L375) — Copies the bridge's current statistics into out.
 
 ### runtime/src/render_pass.c
 
@@ -9173,17 +9176,17 @@ Host-timed render passes: runs a draw callback inside a checkpointed transaction
 - `watchdog_overrun` (L632) — Counts a pass that ran past its cycle budget and logs the first few with PC and call details.
 - `render_pass_mmio_read_allowed` (L646) — memory.c calls this before a pass reads MMIO.
 - `note_fault` (L673) — Counts a rolled-back pass, logs the first few, and latches a fault limit when faults pile up.
-- `local_scope_set` (L689) — Sets the local-view scope flag and tells the GPU.
-- `psx_mod_local_view_scope` (L693) — 1 while a psx_mod_render_local_view draw runs.
-- `transaction_kind` (L695) — Maps an eye to its transaction kind: 1 for a stereo eye, 2 for the local view, 0 for a plain pass.
-- `transaction_end` (L699) — Ends the matching transaction (stereo eye, local view or plain pass), keeping or discarding its output.
-- `render_transaction` (L706) — Runs one render transaction: checkpoints state, runs the draw, then keeps or rolls back and records its timing.
-- `psx_mod_render_local_view` (L891) — Runs a pass drawing into a local rectangle of the view; refuses rectangles out of bounds.
-- `psx_mod_render_local_view_status` (L905) — Returns the local-view transaction status.
-- `psx_mod_render_pass` (L909) — Runs a full render pass with the given callback; returns 1 on success.
-- `stereo_eye_draw` (L919) — Calls the stereo callback for one eye with its eye index.
-- `psx_mod_render_stereo` (L925) — Renders a stereo pair, one draw per eye, within a time budget; returns 1 on success.
-- `psx_mod_render_capture_rgba` (L1009) — Renders a pass into an RGBA buffer; returns 0 when the buffer, rectangle or status does not allow it.
+- `local_scope_set` (L684) — Sets the local-view scope flag and tells the GPU.
+- `psx_mod_local_view_scope` (L688) — 1 while a psx_mod_render_local_view draw runs.
+- `transaction_kind` (L690) — Maps an eye to its transaction kind: 1 for a stereo eye, 2 for the local view, 0 for a plain pass.
+- `transaction_end` (L694) — Ends the matching transaction (stereo eye, local view or plain pass), keeping or discarding its output.
+- `render_transaction` (L701) — Runs one render transaction: checkpoints state, runs the draw, then keeps or rolls back and records its timing.
+- `psx_mod_render_local_view` (L886) — Runs a pass drawing into a local rectangle of the view; refuses rectangles out of bounds.
+- `psx_mod_render_local_view_status` (L900) — Returns the local-view transaction status.
+- `psx_mod_render_pass` (L904) — Runs a full render pass with the given callback; returns 1 on success.
+- `stereo_eye_draw` (L914) — Calls the stereo callback for one eye with its eye index.
+- `psx_mod_render_stereo` (L920) — Renders a stereo pair, one draw per eye, within a time budget; returns 1 on success.
+- `psx_mod_render_capture_rgba` (L1004) — Renders a pass into an RGBA buffer; returns 0 when the buffer, rectangle or status does not allow it.
 
 ### runtime/src/render_pass_frame.c
 
