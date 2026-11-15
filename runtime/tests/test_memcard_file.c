@@ -9,6 +9,7 @@
  * shared by every process: a leftover in the way does not block the write.
  */
 #include "memcard.h"
+#include "psx_write_atomic.h"
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -149,6 +150,97 @@ static void test_fixed_tmp_name_not_shared(void) {
     remove(path);
 }
 
+static unsigned long my_pid(void) {
+#ifdef _WIN32
+    return (unsigned long)_getpid();
+#else
+    return (unsigned long)getpid();
+#endif
+}
+
+static long file_size(const char *path) {
+    FILE *f = fopen(path, "rb");
+    long n;
+    if (!f) return -1;
+    n = (fseek(f, 0, SEEK_END) == 0) ? ftell(f) : -1;
+    fclose(f);
+    return n;
+}
+
+static void test_atomic_write_and_rewrite(void) {
+    const char *path = "memcard_file_scratch/atomic.mcd";
+    char tmp[256];
+    uint8_t other[MEMCARD_SIZE];
+    FILE *probe;
+
+    snprintf(tmp, sizeof tmp, "%s.%lu.tmp", path, my_pid());
+    for (size_t i = 0; i < MEMCARD_SIZE; i++) other[i] = (uint8_t)(i * 13u + 5u);
+    remove(path);
+
+    check(psx_write_file_atomic(path, card_bytes, MEMCARD_SIZE) == 0, "atomic: first write ok");
+    check(file_size(path) == (long)MEMCARD_SIZE && MEMCARD_SIZE == 128 * 1024,
+          "atomic: file is exactly 128 KiB");
+    check(file_equals(path, card_bytes, MEMCARD_SIZE), "atomic: content exact");
+
+    check(psx_write_file_atomic(path, other, MEMCARD_SIZE) == 0, "atomic: rewrite ok");
+    check(file_equals(path, other, MEMCARD_SIZE), "atomic: rewrite replaced the content");
+    probe = fopen(tmp, "rb");
+    check(probe == NULL, "atomic: no temporary left behind");
+    if (probe) { fclose(probe); remove(tmp); }
+    remove(path);
+}
+
+static void test_atomic_write_failure_keeps_old(void) {
+    const char *path = "memcard_file_scratch/keep.mcd";
+    const char *nodir = "memcard_file_scratch/no_such_dir_xyz/card.mcd";
+    char tmp[256];
+    uint8_t other[MEMCARD_SIZE];
+
+    snprintf(tmp, sizeof tmp, "%s.%lu.tmp", path, my_pid());
+    memset(other, 0x5A, sizeof other);
+    remove(path);
+
+    check(psx_write_file_atomic(nodir, other, MEMCARD_SIZE) == -1,
+          "failure: destination in a missing folder returns -1");
+
+    check(write_file(path, card_bytes, MEMCARD_SIZE), "failure: seed card");
+    /* A directory squatting on the temporary's name makes its open fail. */
+#ifdef _WIN32
+    (void)_mkdir(tmp);
+#else
+    (void)mkdir(tmp, 0755);
+#endif
+    check(psx_write_file_atomic(path, other, MEMCARD_SIZE) == -1,
+          "failure: temporary cannot be opened returns -1");
+    check(file_equals(path, card_bytes, MEMCARD_SIZE),
+          "failure: the previous card file is untouched");
+#ifdef _WIN32
+    (void)_rmdir(tmp);
+#else
+    (void)rmdir(tmp);
+#endif
+    remove(path);
+}
+
+/* memcard.c documents: only a missing file is created blank; a file that
+ * exists but cannot be read whole leaves the slot absent with its bytes kept. */
+static void test_wrong_size_card_left_alone(void) {
+    const char *path = "memcard_file_scratch/short.mcd";
+    MemcardSlotConfig slots[2] = { { NULL, 1 }, { NULL, 0 } };
+    static const size_t sizes[2] = { 1000, 0 };
+
+    slots[0].path = path;
+    for (int k = 0; k < 2; k++) {
+        remove(path);
+        check(write_file(path, card_bytes, sizes[k]), "short: seed card");
+        memcard_init_slots("memcard_file_scratch", slots);
+        check(!memcard_is_present(0), "short: wrong-size card comes up absent");
+        check(file_equals(path, card_bytes, sizes[k]),
+              "short: wrong-size card keeps its bytes (not formatted over)");
+    }
+    remove(path);
+}
+
 int main(void) {
     for (size_t i = 0; i < MEMCARD_SIZE; i++) card_bytes[i] = (uint8_t)(i * 7u + 3u);
 #ifdef _WIN32
@@ -159,6 +251,9 @@ int main(void) {
     test_unreadable_card_not_formatted();
     test_missing_card_created();
     test_fixed_tmp_name_not_shared();
+    test_atomic_write_and_rewrite();
+    test_atomic_write_failure_keeps_old();
+    test_wrong_size_card_left_alone();
     if (failures == 0) printf("PASS  memcard_file (unreadable card kept, missing created, private tmp)\n");
     return failures ? 1 : 0;
 }
