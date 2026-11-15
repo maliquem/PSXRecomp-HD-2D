@@ -1617,7 +1617,8 @@ static int psxrecomp_game_main(int argc, char** argv) {
     PSXRecomp::AnnotationTable annotations;
     {
         std::string stem = exe_path.filename().string();
-        std::string ann_path = "annotations/" + stem + "_annotations.csv";
+        // Relative to game.toml's folder like the other config paths (games run with cwd == that folder).
+        std::string ann_path = (config_path.parent_path() / "annotations" / (stem + "_annotations.csv")).string();
         if (annotations.load(ann_path.c_str()))
             fmt::print("✓ Loaded {} annotations from {}\n\n", annotations.count(), ann_path);
         else
