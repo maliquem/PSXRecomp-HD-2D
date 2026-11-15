@@ -140,8 +140,10 @@ CueSheet parse_cue_sheet(const fs::path& cue_path) {
 
         const std::string upper = upper_ascii(line);
 
-        const size_t file_pos = upper.find("FILE");
-        if (file_pos != std::string::npos) {
+        // FILE is a command only as the first token; REM/TITLE/PERFORMER text may contain "FILE".
+        const size_t file_pos = upper.find_first_not_of(" \t");
+        if (file_pos != std::string::npos && upper.find("FILE", file_pos) == file_pos &&
+            (file_pos + 4 == upper.size() || upper[file_pos + 4] == ' ' || upper[file_pos + 4] == '\t')) {
             std::string name, type;
             if (parse_file_line(line, file_pos, name, type)) {
                 CueFileRef ref;

@@ -227,6 +227,17 @@ void test_cue_syntax_tolerance(const fs::path& root) {
         r.Close();
     }
 
+    // CDS-12: "FILE" inside REM/TITLE text must not act as a FILE command.
+    write_text(dir / "rem.cue",
+               "REM COMMENT \"PROFILE x\"\n"
+               "TITLE \"MY FILE \"\"fake.bin\"\" BINARY\"\n"
+               "FILE \"game.bin\" BINARY\n"
+               "  TRACK 01 MODE2/2352\n"
+               "    INDEX 01 00:00:00\n");
+    const auto rem = PSXRecompV4::parse_cue_sheet(dir / "rem.cue");
+    check(rem.files.size() == 1 && rem.tracks.size() == 1 && rem.usable(),
+          "syntax: FILE inside REM/TITLE text is not a FILE command");
+
     // A WAVE payload has no fixed sector geometry — refuse rather than guess.
     write_text(dir / "wave.cue",
                "FILE \"game.bin\" BINARY\n"
