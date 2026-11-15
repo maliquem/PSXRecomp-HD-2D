@@ -140,7 +140,9 @@ int psx_mod_dma_write_ram(uint32_t address, const void* data, uint32_t bytes,
 static int ram_span(uint32_t address, uint32_t bytes) {
     const uint32_t phys = address & 0x1FFFFFFFu;
     const uint32_t live = psx_ram_live_bytes();
-    return address < 0xC0000000u && phys < live && bytes <= live - phys;
+    /* Only KUSEG/KSEG0/KSEG1 reach RAM; 0x2.. to 0x6.. must not alias through the 29-bit mask. */
+    const uint32_t seg = address >> 29;
+    return (seg == 0u || seg == 4u || seg == 5u) && phys < live && bytes <= live - phys;
 }
 
 int psx_mod_host_write_ram(uint32_t address, const void* data, uint32_t bytes) {

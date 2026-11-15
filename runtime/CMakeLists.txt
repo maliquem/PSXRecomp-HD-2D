@@ -1422,6 +1422,11 @@ if(BUILD_TESTING)
     target_include_directories(unknown_dispatch_trampolines_test PRIVATE include)
     add_test(NAME unknown_dispatch_trampolines_test COMMAND unknown_dispatch_trampolines_test)
 
+    # MEM-21: mod RAM spans only through KUSEG/KSEG0/KSEG1.
+    add_executable(mod_guest_ram_span_test tests/test_mod_guest_ram_span.c)
+    target_include_directories(mod_guest_ram_span_test PRIVATE include src)
+    add_test(NAME mod_guest_ram_span_test COMMAND mod_guest_ram_span_test)
+
     # The kernel-bless verifier must accept a body whose DECLARED patch range
     # the guest has overwritten (Psy-Q's install stubs land inside compiled
     # kernel bodies) and still reject one changed anywhere else. Before this,
