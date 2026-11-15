@@ -616,6 +616,41 @@ void check_strict_translator(bool strict_cps) {
     check(deferred == 3, "translator: lw/lh/lhu no longer emit a deferred form");
 }
 
+// R3000A (psx-spx): DIV by zero gives LO = (n >= 0 ? -1 : +1), HI = n;
+// 0x80000000 / -1 gives LO = 0x80000000, HI = 0; DIVU by zero gives LO = -1, HI = n.
+// Both corners must be decided before the host division, which would trap.
+void check_strict_div_corners() {
+    const uint32_t pc = 0xBFC10A00u;
+    const auto sdiv = PSXRecompV4::StrictTranslator::translate(
+        PSXRecomp::MipsDecoder::decode(0x0109001Au, pc));  // div $t0, $t1
+    const std::string& s = sdiv.c_code;
+    const auto host_div = s.find("int32_t psx_q = psx_n / psx_d; ");
+    const auto zero = s.find(
+        "int32_t psx_n = (int32_t)cpu->gpr[8]; int32_t psx_d = (int32_t)cpu->gpr[9]; "
+        "if (psx_d == 0) { cpu->lo = (psx_n >= 0) ? 0xFFFFFFFFu : 0x00000001u; "
+        "cpu->hi = (uint32_t)psx_n; }");
+    const auto ovf = s.find(
+        "else if (psx_n == INT32_MIN && psx_d == -1) { cpu->lo = 0x80000000u; cpu->hi = 0u; }");
+    check(sdiv.supported, "div: unsupported");
+    check(zero != std::string::npos, "div: divide-by-zero branch changed: " + s);
+    check(ovf != std::string::npos, "div: 0x80000000/-1 branch changed: " + s);
+    check(host_div != std::string::npos && zero < host_div && ovf < host_div,
+          "div: a corner is not decided before the host division: " + s);
+    check(s.find("int32_t psx_r = psx_n - (psx_q * psx_d); cpu->lo = (uint32_t)psx_q; "
+                 "cpu->hi = (uint32_t)psx_r;") != std::string::npos,
+          "div: normal quotient/remainder changed: " + s);
+
+    const auto divu = PSXRecompV4::StrictTranslator::translate(
+        PSXRecomp::MipsDecoder::decode(0x0109001Bu, pc));  // divu $t0, $t1
+    const std::string& u = divu.c_code;
+    const auto uzero = u.find(
+        "uint32_t psx_n = cpu->gpr[8]; uint32_t psx_d = cpu->gpr[9]; "
+        "if (psx_d == 0) { cpu->lo = 0xFFFFFFFFu; cpu->hi = psx_n; }");
+    check(divu.supported, "divu: unsupported");
+    check(uzero != std::string::npos && uzero < u.find("psx_n / psx_d"),
+          "divu: divide-by-zero branch changed or not before the host division: " + u);
+}
+
 }  // namespace
 
 int main() {
@@ -635,6 +670,7 @@ int main() {
     check_dispatch_rows(Mode::Legacy);
     check_dispatch_duplicate_word();
     check_strict_translator(strict_cps);
+    check_strict_div_corners();
     if (failures != 0) {
         std::fprintf(stderr, "emitter_runtime_pc_test: %d failure(s)\n", failures);
         return 1;
