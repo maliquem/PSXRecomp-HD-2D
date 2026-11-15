@@ -778,6 +778,34 @@ if(BUILD_TESTING)
     add_test(NAME uncached_fetch_codegen_test
              COMMAND uncached_fetch_codegen_test)
 
+    # [recompiler] gpr_locals over real generator output (GEN-22).
+    add_executable(gpr_locals_codegen_test
+        tests/gpr_locals_codegen_test.cpp
+        src/ps1_exe_parser.cpp
+        src/mips_decoder.cpp
+        src/control_flow.cpp
+        src/function_analysis.cpp
+        src/code_generator.cpp
+        src/gpr_locals.cpp
+        src/pgxp_hook_emitter.cpp
+        src/annotations.cpp
+        src/bios_address_model.cpp
+        src/config_loader.cpp
+        src/recompiler_patch.cpp
+    )
+    target_include_directories(gpr_locals_codegen_test PRIVATE
+        include
+        src
+        lib/rabbitizer/include
+        lib/rabbitizer/cplusplus/include
+        lib/fmt/include
+        lib/toml11
+        lib/ELFIO
+    )
+    target_link_libraries(gpr_locals_codegen_test PRIVATE fmt rabbitizer)
+    add_test(NAME gpr_locals_codegen_test
+             COMMAND gpr_locals_codegen_test)
+
     # Every guest-visible PC the game/overlay emitter and the BIOS translator
     # bake goes through runtime_pc() (docs/SEGMENT_AWARE_CODE.md §5.2): links,
     # fetch tags, IRQ resume PCs, CPS exits/continuation keys, store-PC stamps,
