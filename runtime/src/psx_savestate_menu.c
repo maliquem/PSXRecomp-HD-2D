@@ -61,6 +61,8 @@ static int s_dirty = 1;
 static uint32_t s_panel[SSM_W * SSM_H];
 static uint32_t s_thumbs[SAVESTATE_SLOTS][SAVESTATE_THUMB_W * SAVESTATE_THUMB_H];
 static int s_have_thumb[SAVESTATE_SLOTS];
+static int s_incompatible[SAVESTATE_SLOTS];
+static int s_thumbs_valid;   /* cleared when the menu opens or a slot is saved */
 
 /* A title's renderer and its canvas (psx_savestate_menu_set_renderer): 240
  * lines times the title's scale (psx_savestate_menu_set_scale), each canvas
@@ -262,11 +264,16 @@ static void format_slot_status(int slot, char *out, size_t cap)
 static void refresh_thumbs(void)
 {
     int i;
+    int64_t mt;
+    if (s_thumbs_valid) return;
     for (i = 0; i < SAVESTATE_SLOTS; i++) {
         s_have_thumb[i] =
             savestate_read_thumb(i, s_thumbs[i], SAVESTATE_THUMB_W,
                                  SAVESTATE_THUMB_H);
+        s_incompatible[i] = savestate_slot_mtime(i, &mt) &&
+                            !savestate_slot_compatible(i, NULL, 0);
     }
+    s_thumbs_valid = 1;
 }
 
 static void rasterize_panel(void)
@@ -319,6 +326,9 @@ static void rasterize_panel(void)
         }
         format_slot_status(i, buf, sizeof(buf));
         draw_text(s_panel, SSM_ROWS_X + 278, y + 42, buf, sub, 1);
+        if (s_incompatible[i])
+            draw_text(s_panel, SSM_ROWS_X + 278, y + 58, "INCOMPATIBLE",
+                      0xFFFF6B6Bu, 1);
         if (sel)
             draw_text(s_panel, SSM_ROWS_X + SSM_ROWS_W - 88, y + 82,
                       "SELECT", 0xFFFFD24Du, 1);
@@ -344,12 +354,15 @@ void psx_savestate_menu_set_state(int open, int selected_slot)
     if (selected_slot >= SAVESTATE_SLOTS) selected_slot = SAVESTATE_SLOTS - 1;
     if (s_open != (open ? 1 : 0) || s_selected != selected_slot)
         s_dirty = 1;
+    if (open && !s_open)
+        s_thumbs_valid = 0;
     s_open = open ? 1 : 0;
     s_selected = selected_slot;
 }
 
 void psx_savestate_menu_note_slots_changed(void)
 {
+    s_thumbs_valid = 0;
     s_dirty = 1;
 }
 
