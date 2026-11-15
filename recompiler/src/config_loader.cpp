@@ -128,7 +128,6 @@ uint32_t overlay_codegen_config_hash(const GameConfig& c) {
     h.u32(c.ws_auto_screen_x_cull ? 1u : 0u);
     h.u32(c.ws_auto_backdrop_preload ? 1u : 0u);
     h.u32(c.ws_bg2d_init_func);
-    h.u32((uint32_t)c.ws_cull_guard_pixels);
     h.u32((uint32_t)c.ws_cull_activation_guard_pixels);
 
     std::vector<WidescreenSignedBoundSite> signed_sites =
@@ -256,18 +255,10 @@ uint32_t overlay_codegen_config_hash(const GameConfig& c) {
         h.u32(patch.replacement);
     }
 
-    h.tag("load_charge_batch");
-    h.u32(c.load_charge_batch ? 1u : 0u);
-    {
-        std::vector<uint32_t> lcb = c.load_charge_batch_funcs;
-        std::sort(lcb.begin(), lcb.end());
-        h.u32((uint32_t)lcb.size());
-        for (uint32_t pc : lcb) h.u32(pc);
-    }
-    // Performance modes (docs/PERFORMANCE_MODES.md): appended only when on, so
-    // a title on the default path keeps the hash and its overlay cache.
-    if (c.ram_fast_path) h.tag("ram_fast_path");
-    if (c.cpu_timing_block) h.tag("cpu_timing_block_pipe");
+    // Performance modes (docs/PERFORMANCE_MODES.md): overlays only receive them
+    // through overlay_perf_modes (main_psx.cpp), so they enter the hash only then.
+    if (c.overlay_perf_modes && c.ram_fast_path) h.tag("ram_fast_path");
+    if (c.overlay_perf_modes && c.cpu_timing_block) h.tag("cpu_timing_block_pipe");
     if (c.overlay_perf_modes) h.tag("overlay_perf_modes");
     return h.value;
 }

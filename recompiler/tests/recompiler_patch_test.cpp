@@ -503,9 +503,19 @@ queue_guard = false
           "aspect participation policy changes overlay cache identity");
     changed_aspect_config = aspect_config;
     changed_aspect_config.ws_cull_guard_pixels++;
+    check(aspect_hash == PSXRecompV4::overlay_codegen_config_hash(
+                             changed_aspect_config),
+          "runtime-only widescreen guard keeps overlay cache identity");
+    changed_aspect_config.load_charge_batch = !changed_aspect_config.load_charge_batch;
+    changed_aspect_config.ram_fast_path = true;
+    changed_aspect_config.cpu_timing_block = true;
+    check(aspect_hash == PSXRecompV4::overlay_codegen_config_hash(
+                             changed_aspect_config),
+          "settings overlays never receive keep overlay cache identity");
+    changed_aspect_config.overlay_perf_modes = true;
     check(aspect_hash != PSXRecompV4::overlay_codegen_config_hash(
                              changed_aspect_config),
-          "widescreen guard changes overlay cache identity");
+          "overlay_perf_modes changes overlay cache identity");
     changed_aspect_config = aspect_config;
     changed_aspect_config.ws_cull_activation_guard_pixels++;
     check(aspect_hash != PSXRecompV4::overlay_codegen_config_hash(
