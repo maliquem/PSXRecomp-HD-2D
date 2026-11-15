@@ -2580,21 +2580,6 @@ static void process_pending(uint32_t cycles) {
     response_clear();
 
     switch (done_cmd) {
-    case 0x06: /* ReadN data ready */
-    case 0x1B: /* ReadS data ready */
-        if (reading) {
-            int delivered = read_sector_at(read_min, read_sec, read_sect);
-            advance_msf(&read_min, &read_sec, &read_sect);
-            if (delivered) {
-                response_push(stat_reg);
-                s_ring_read = s_ring_write;
-                load_data_fifo(0);
-                set_irq(CDIRQ_DATA_READY);
-                fire_cdrom_irq();
-            }
-        }
-        break;
-
     case 0x07: /* MotorOn complete — motor now spinning */
         stat_reg |= CDSTAT_MOTOR;
         response_push(stat_reg);
