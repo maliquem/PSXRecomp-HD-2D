@@ -174,7 +174,11 @@ static int s_capture_due;
 static int s_configured;
 
 static RbeSnapRing *s_ring;
-static RwThumb *s_thumbs;
+/* s_thumbs points into s_thumb_pool; the list reorders pointers, never the
+ * 48 KB thumbnails (EST-O2). s_list_cap is what configure allocated. */
+static RwThumb *s_thumb_pool;
+static RwThumb **s_thumbs;
+static uint32_t s_list_cap;
 static uint32_t *s_ticks;
 static uint32_t s_count;
 static int s_sel;
@@ -380,8 +384,10 @@ static void list_drop_after(uint32_t tick)
     for (i = 0; i < s_count; i++) {
         if (s_ticks[i] <= tick) {
             if (n != i) {
+                RwThumb *t = s_thumbs[n];   /* swap: no pool slot is lost */
                 s_ticks[n] = s_ticks[i];
                 s_thumbs[n] = s_thumbs[i];
+                s_thumbs[i] = t;
             }
             n++;
         }
@@ -397,22 +403,26 @@ static void list_push(uint32_t tick, const uint32_t *thumb)
     uint32_t i;
     for (i = 0; i < s_count; i++) {
         if (s_ticks[i] == tick) {
-            memcpy(s_thumbs[i].px, thumb, sizeof(s_thumbs[i].px));
-            s_thumbs[i].tick = tick;
+            memcpy(s_thumbs[i]->px, thumb, sizeof(s_thumbs[i]->px));
+            s_thumbs[i]->tick = tick;
             s_panel_dirty = 1;
             return;
         }
     }
-    if (s_count >= s_depth) {
+    /* s_depth can change live (settings) without a reconfigure; never index
+     * past what configure allocated. */
+    if (s_count >= s_depth || s_count >= s_list_cap) {
+        RwThumb *oldest = s_thumbs[0];
         memmove(s_ticks, s_ticks + 1, (s_count - 1u) * sizeof(s_ticks[0]));
         memmove(s_thumbs, s_thumbs + 1, (s_count - 1u) * sizeof(s_thumbs[0]));
+        s_thumbs[s_count - 1u] = oldest;
         s_count--;
         if (s_sel > 0)
             s_sel--;
     }
     s_ticks[s_count] = tick;
-    s_thumbs[s_count].tick = tick;
-    memcpy(s_thumbs[s_count].px, thumb, sizeof(s_thumbs[0].px));
+    s_thumbs[s_count]->tick = tick;
+    memcpy(s_thumbs[s_count]->px, thumb, sizeof(s_thumbs[0]->px));
     s_count++;
     s_sel = (int)s_count - 1;
     s_panel_dirty = 1;
@@ -426,14 +436,18 @@ void psx_rewind_configure(uint32_t bios_checksum, uint32_t entry_pc)
     s_bios = bios_checksum;
     s_entry = entry_pc;
     s_ring = rbe_snap_ring_create(s_depth);
-    s_thumbs = (RwThumb *)calloc(s_depth, sizeof(RwThumb));
+    s_thumb_pool = (RwThumb *)calloc(s_depth, sizeof(RwThumb));
+    s_thumbs = (RwThumb **)calloc(s_depth, sizeof(RwThumb *));
     s_ticks = (uint32_t *)calloc(s_depth, sizeof(uint32_t));
-    if (!s_ring || !s_thumbs || !s_ticks) {
+    if (!s_ring || !s_thumb_pool || !s_thumbs || !s_ticks) {
         psx_rewind_shutdown();
         fprintf(stderr, "psxrecomp: rewind alloc failed — disabled\n");
         s_enabled = 0;
         return;
     }
+    for (uint32_t i = 0; i < s_depth; i++)
+        s_thumbs[i] = &s_thumb_pool[i];
+    s_list_cap = s_depth;
     s_configured = 1;
     s_frame = 0;
     s_last_capture_frame = 0xffffffffu;
@@ -450,10 +464,13 @@ void psx_rewind_shutdown(void)
 {
     if (s_ring)
         rbe_snap_ring_destroy(s_ring);
+    free(s_thumb_pool);
     free(s_thumbs);
     free(s_ticks);
     s_ring = NULL;
+    s_thumb_pool = NULL;
     s_thumbs = NULL;
+    s_list_cap = 0;
     s_ticks = NULL;
     s_count = 0;
     s_configured = 0;
@@ -948,7 +965,7 @@ static void rasterize_panel(void)
             x += (sel_w - card_w);
         if (x + w < 0 || x >= RW_PANEL_W)
             continue;
-        blit_thumb(d, RW_PANEL_W, x, yy, w, h, s_thumbs[i].px, i == s_sel);
+        blit_thumb(d, RW_PANEL_W, x, yy, w, h, s_thumbs[i]->px, i == s_sel);
     }
     s_panel_dirty = 0;
 }

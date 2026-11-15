@@ -8882,27 +8882,27 @@ Rewind feature: a ring of recent machine snapshots with thumbnails, plus the on-
 - `psx_rewind_present_tick` (L145) — Advances the panel slide animation toward open or closed using now_ms.
 - `psx_rewind_overlay_image` (L146) — Bottom-panel ARGB8888 (little-endian).
 - `psx_rewind_slide` (L153) — 0..1 slide (0 = off-screen below, 1 = docked).
-- `env_u32` (L196) — Reads a non-negative integer from an environment variable, clamped to lo..hi, or returns def when unset.
-- `normalize_rewind_depth` (L211) — UI offers 50/100/150/200; nearest match keeps hand-edited toml values sane.
-- `normalize_rewind_interval` (L228) — UI offers 1/4/8/12/15.
-- `rewind_wanted` (L272) — Resolves on/off, capture interval, FMV interval and depth once from environment variables and preferences; returns whether rewind is enabled.
-- `rewind_fmv_media_active` (L307) — Same heuristic as netplay rb_fmv_media_active — denser snaps while media runs.
-- `rewind_capture_interval` (L318) — Returns the capture interval in frames, denser while FMV media is running.
-- `resume_pc_ok` (L326) — 1 when a PC is word-aligned, dispatchable and not an exception or reset vector.
-- `rewind_resolve_resume_pc` (L334) — Mid-FMV / present-edge IRQ paths often pass hint=0 — same latch walk as savestate_resolve_resume_pc / selfcheck sc_pick_snap_pc.
-- `capture_thumb` (L356) — Fills a 128 by 96 thumbnail from the current display, black when the display is off.
-- `list_drop_after` (L377) — Removes list entries newer than tick and keeps the selection in range.
-- `list_push` (L395) — Adds a tick and its thumbnail to the list, replacing the same tick or dropping the oldest when full.
-- `do_capture` (L513) — Saves a machine snapshot at a safe resume point into the ring, with its thumbnail; returns 1 on success.
-- `do_load` (L543) — Restores the snapshot at tick, drops newer snapshots, resyncs timing and resumes; returns 0 on failure.
-- `blit_thumb` (L749) — Draws a thumbnail scaled into a panel cell, with a border highlighted when selected.
-- `glyph_fill_rect` (L782) — Fills a clipped rectangle in the panel buffer with a colour.
-- `glyph_fill_disc` (L796) — Fills a clipped solid disc of radius r in the panel buffer.
-- `glyph_line` (L809) — Draws a thick line into the panel buffer by stepping pixels from one end to the other.
-- `draw_psx_button` (L838) — Draws a PSX pad button glyph (x, o or square) at a position on the panel.
-- `draw_char` (L856) — Draws one 8 by 8 font glyph into the panel buffer, clipped to its bounds.
-- `draw_text` (L880) — Draws a string in the panel font, uppercased, advancing 8 pixels per character.
-- `rasterize_panel` (L895) — Redraws the whole filmstrip panel: title, counter, snapshot cards, selection and key hints.
+- `env_u32` (L200) — Reads a non-negative integer from an environment variable, clamped to lo..hi, or returns def when unset.
+- `normalize_rewind_depth` (L215) — UI offers 50/100/150/200; nearest match keeps hand-edited toml values sane.
+- `normalize_rewind_interval` (L232) — UI offers 1/4/8/12/15.
+- `rewind_wanted` (L276) — Resolves on/off, capture interval, FMV interval and depth once from environment variables and preferences; returns whether rewind is enabled.
+- `rewind_fmv_media_active` (L311) — Same heuristic as netplay rb_fmv_media_active — denser snaps while media runs.
+- `rewind_capture_interval` (L322) — Returns the capture interval in frames, denser while FMV media is running.
+- `resume_pc_ok` (L330) — 1 when a PC is word-aligned, dispatchable and not an exception or reset vector.
+- `rewind_resolve_resume_pc` (L338) — Mid-FMV / present-edge IRQ paths often pass hint=0 — same latch walk as savestate_resolve_resume_pc / selfcheck sc_pick_snap_pc.
+- `capture_thumb` (L360) — Fills a 128 by 96 thumbnail from the current display, black when the display is off.
+- `list_drop_after` (L381) — Removes list entries newer than tick and keeps the selection in range.
+- `list_push` (L401) — Adds a tick and its thumbnail to the list, replacing the same tick or dropping the oldest when full.
+- `do_capture` (L530) — Saves a machine snapshot at a safe resume point into the ring, with its thumbnail; returns 1 on success.
+- `do_load` (L560) — Restores the snapshot at tick, drops newer snapshots, resyncs timing and resumes; returns 0 on failure.
+- `blit_thumb` (L766) — Draws a thumbnail scaled into a panel cell, with a border highlighted when selected.
+- `glyph_fill_rect` (L799) — Fills a clipped rectangle in the panel buffer with a colour.
+- `glyph_fill_disc` (L813) — Fills a clipped solid disc of radius r in the panel buffer.
+- `glyph_line` (L826) — Draws a thick line into the panel buffer by stepping pixels from one end to the other.
+- `draw_psx_button` (L855) — Draws a PSX pad button glyph (x, o or square) at a position on the panel.
+- `draw_char` (L873) — Draws one 8 by 8 font glyph into the panel buffer, clipped to its bounds.
+- `draw_text` (L897) — Draws a string in the panel font, uppercased, advancing 8 pixels per character.
+- `rasterize_panel` (L912) — Redraws the whole filmstrip panel: title, counter, snapshot cards, selection and key hints.
 
 ### runtime/src/psx_savestate_menu.c
 
