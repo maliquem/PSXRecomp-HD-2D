@@ -52,6 +52,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
+#include <functional>
 #include <map>
 #include <regex>
 #include <set>
@@ -651,6 +652,81 @@ void check_strict_div_corners() {
           "divu: divide-by-zero branch changed or not before the host division: " + u);
 }
 
+// SWL/SWR (psx-spx, cpuspecifications, "Unaligned Load/Store (Details)"): SWL at
+// addr&3 = a writes bytes 0..a of the aligned word from the top a+1 bytes of
+// Rt; SWR writes bytes a..3 from the low 4-a bytes of Rt; other bytes keep.
+// The emitted shift and mask expressions are evaluated for all four alignments
+// and compared with a table built byte by byte from that description.
+uint32_t eval_swx_expr(const std::string& code, const char* var, uint32_t sb) {
+    const auto at = code.find(std::string(var) + " = ");
+    check(at != std::string::npos, std::string("swl/swr: no ") + var + ": " + code);
+    if (at == std::string::npos) return 0;
+    const auto from = at + std::string(var).size() + 3;
+    const std::string e = code.substr(from, code.find(';', from) - from);
+    size_t i = 0;
+    auto ws = [&] { while (i < e.size() && e[i] == ' ') ++i; };
+    std::function<uint32_t()> shift, add, mul, prim;
+    prim = [&]() -> uint32_t {
+        ws();
+        if (e[i] == '(') { ++i; const uint32_t v = shift(); ws(); ++i; return v; }
+        if (e.compare(i, 15, "psx_shift_bytes") == 0) { i += 15; return sb; }
+        char* end = nullptr;
+        const uint32_t v = static_cast<uint32_t>(std::strtoul(e.c_str() + i, &end, 0));
+        i = static_cast<size_t>(end - e.c_str()) + 1;  // the 'u' suffix
+        return v;
+    };
+    mul = [&]() { uint32_t v = prim(); for (ws(); i < e.size() && e[i] == '*'; ws()) { ++i; v *= prim(); } return v; };
+    add = [&]() {
+        uint32_t v = mul();
+        for (ws(); i < e.size() && (e[i] == '+' || e[i] == '-'); ws()) {
+            const char op = e[i++];
+            const uint32_t r = mul();
+            v = op == '+' ? v + r : v - r;
+        }
+        return v;
+    };
+    shift = [&]() {
+        uint32_t v = add();
+        for (ws(); i + 1 < e.size() && e[i] == e[i + 1] && (e[i] == '<' || e[i] == '>'); ws()) {
+            const bool left = e[i] == '<';
+            i += 2;
+            const uint32_t r = add();
+            v = left ? v << r : v >> r;
+        }
+        return v;
+    };
+    return shift();
+}
+
+void check_strict_swl_swr() {
+    const uint32_t mem = 0x11223344u, rt = 0xAABBCCDDu;
+    const uint32_t pc = 0xBFC10A00u;
+    for (const bool swl : {true, false}) {
+        const auto tr = PSXRecompV4::StrictTranslator::translate(
+            PSXRecomp::MipsDecoder::decode(swl ? 0xA8880000u : 0xB8880000u, pc));  // swl/swr $t0,0($a0)
+        check(tr.supported, "swl/swr: unsupported");
+        const std::string& c = tr.c_code;
+        check(c.find(swl ? "(psx_mem & psx_keep_mask) | (cpu->gpr[8] >> psx_shift_bits)"
+                         : "(psx_mem & psx_keep_mask) | (cpu->gpr[8] << psx_shift_bits)") !=
+                  std::string::npos,
+              "swl/swr: merge expression changed: " + c);
+        for (uint32_t a = 0; a < 4; ++a) {
+            uint32_t want = mem;
+            for (uint32_t b = 0; b < 4; ++b) {
+                const bool written = swl ? b <= a : b >= a;
+                if (!written) continue;
+                const uint32_t src = swl ? 3 - a + b : b - a;  // byte of Rt that lands in byte b
+                want = (want & ~(0xFFu << (b * 8))) | (((rt >> (src * 8)) & 0xFFu) << (b * 8));
+            }
+            const uint32_t bits = eval_swx_expr(c, "psx_shift_bits ", a);
+            const uint32_t keep = eval_swx_expr(c, "psx_keep_mask  ", a);
+            const uint32_t got = (mem & keep) | (swl ? rt >> bits : rt << bits);
+            check(got == want, std::string(swl ? "swl" : "swr") + " addr&3=" + std::to_string(a) +
+                                   ": got 0x" + hex(got) + " want 0x" + hex(want));
+        }
+    }
+}
+
 }  // namespace
 
 int main() {
@@ -671,6 +747,7 @@ int main() {
     check_dispatch_duplicate_word();
     check_strict_translator(strict_cps);
     check_strict_div_corners();
+    check_strict_swl_swr();
     if (failures != 0) {
         std::fprintf(stderr, "emitter_runtime_pc_test: %d failure(s)\n", failures);
         return 1;

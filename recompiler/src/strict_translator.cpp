@@ -1207,7 +1207,7 @@ TranslateResult StrictTranslator::translate_impl(const PSXRecomp::DecodedInstruc
         //
         //   shift_bytes = addr & 3
         //   shift_bits  = (3 - shift_bytes) * 8
-        //   keep_mask   = 0x00FFFFFFu >> (shift_bytes * 8)   (lower bits to keep)
+        //   keep_mask   = 0xFFFFFF00u << (shift_bytes * 8)   (memory bytes kept)
         //   new_word    = (mem & keep_mask) | (rt >> shift_bits)
         //
         // Verified against the IDT R3000 manual SWL pseudocode and
@@ -1219,7 +1219,7 @@ TranslateResult StrictTranslator::translate_impl(const PSXRecomp::DecodedInstruc
             "uint32_t psx_aligned = psx_addr & ~3u; "
             "uint32_t psx_shift_bytes = psx_addr & 3u; "
             "uint32_t psx_shift_bits  = (3u - psx_shift_bytes) * 8u; "
-            "uint32_t psx_keep_mask   = 0x00FFFFFFu >> (psx_shift_bytes * 8u); "
+            "uint32_t psx_keep_mask   = 0xFFFFFF00u << (psx_shift_bytes * 8u); "
             "uint32_t psx_mem = cpu->read_word(psx_aligned); "
             "uint32_t psx_new = (psx_mem & psx_keep_mask) | (cpu->gpr[{}] >> psx_shift_bits); "
             "g_debug_last_store_pc = 0x{:08X}u; "
@@ -1259,10 +1259,10 @@ TranslateResult StrictTranslator::translate_impl(const PSXRecomp::DecodedInstruc
         //
         //   shift_bytes = addr & 3
         //   shift_bits  = shift_bytes * 8
-        //   keep_mask   = 0xFFFFFF00u << ((3 - shift_bytes) * 8)   (upper bits to keep)
+        //   keep_mask   = 0x00FFFFFFu >> ((3 - shift_bytes) * 8)   (memory bytes kept)
         //   new_word    = (mem & keep_mask) | (rt << shift_bits)
         //
-        // Note keep_mask for shift_bytes==0 is 0xFFFFFF00 << 24 = 0,
+        // Note keep_mask for shift_bytes==0 is 0x00FFFFFF >> 24 = 0,
         // i.e., overwrite the entire word — that's correct because
         // SWR with addr & 3 == 0 stores the full word at addr.
         // Verified against IDT R3000 manual and PSX-SPX.
@@ -1271,7 +1271,7 @@ TranslateResult StrictTranslator::translate_impl(const PSXRecomp::DecodedInstruc
             "uint32_t psx_aligned = psx_addr & ~3u; "
             "uint32_t psx_shift_bytes = psx_addr & 3u; "
             "uint32_t psx_shift_bits  = psx_shift_bytes * 8u; "
-            "uint32_t psx_keep_mask   = 0xFFFFFF00u << ((3u - psx_shift_bytes) * 8u); "
+            "uint32_t psx_keep_mask   = 0x00FFFFFFu >> ((3u - psx_shift_bytes) * 8u); "
             "uint32_t psx_mem = cpu->read_word(psx_aligned); "
             "uint32_t psx_new = (psx_mem & psx_keep_mask) | (cpu->gpr[{}] << psx_shift_bits); "
             "g_debug_last_store_pc = 0x{:08X}u; "
