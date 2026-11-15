@@ -1791,18 +1791,28 @@ static void wide_free_all(void) {
 
 static uint16_t *wide_surf_for(int base_x) {
     if (g_wide_w <= 0) return NULL;
+    static unsigned s_use[WIDE_MAX_SURF], s_tick;
     for (int i = 0; i < WIDE_MAX_SURF; i++)
-        if (g_wide_surf[i] && g_wide_base[i] == base_x) return g_wide_surf[i];
+        if (g_wide_surf[i] && g_wide_base[i] == base_x) { s_use[i] = ++s_tick; return g_wide_surf[i]; }
+    size_t n = (size_t)(g_wide_w * g_scale) * (size_t)(VRAM_HEIGHT * g_scale);
     for (int i = 0; i < WIDE_MAX_SURF; i++) {
         if (!g_wide_surf[i]) {
-            size_t n = (size_t)(g_wide_w * g_scale) * (size_t)(VRAM_HEIGHT * g_scale);
             g_wide_surf[i] = (uint16_t *)calloc(n, sizeof(uint16_t));
             if (!g_wide_surf[i]) return NULL;
             g_wide_base[i] = base_x;
+            s_use[i] = ++s_tick;
             return g_wide_surf[i];
         }
     }
-    return NULL;  /* more distinct buffers than WIDE_MAX_SURF — shouldn't happen */
+    /* All slots taken: recycle the least recently used one (never the active mirror). */
+    int v = -1;
+    for (int i = 0; i < WIDE_MAX_SURF; i++)
+        if (g_wide_surf[i] != g_wide_cur && (v < 0 || s_use[i] < s_use[v])) v = i;
+    if (v < 0) return NULL;
+    memset(g_wide_surf[v], 0, n * sizeof(uint16_t));
+    g_wide_base[v] = base_x;
+    s_use[v] = ++s_tick;
+    return g_wide_surf[v];
 }
 
 /* Enable native-wide with a wide width + centering offset (native px), or
