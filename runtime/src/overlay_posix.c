@@ -69,8 +69,7 @@ int psx_overlay_posix_scan_cache_dir(const char *dir,
             continue;
         int n = snprintf(file.path, sizeof(file.path), "%s/%s", dir, de->d_name);
         if (n < 0 || (size_t)n >= sizeof(file.path)) continue;
-        memcpy(file.name, de->d_name, sizeof(file.name) - 1);
-        file.name[sizeof(file.name) - 1] = '\0';
+        snprintf(file.name, sizeof(file.name), "%s", de->d_name);
 
         struct stat st;
         if (stat(file.path, &st) != 0 || !S_ISREG(st.st_mode)) continue;
