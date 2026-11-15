@@ -488,11 +488,27 @@ void sw_renderer_rebind_vram(uint16_t *vram) {
 /* Supersampling control                                              */
 /* ------------------------------------------------------------------ */
 
+/* Reusable hi-res scratch for sw_copy_rect / hr_rebuild_from_vram (never live
+ * at once). Grows only; dropped on scale change. Same single-owner rule as g_hr. */
+static uint16_t *g_hr_scratch   = NULL;
+static size_t    g_hr_scratch_n = 0;
+
+static uint16_t *hr_scratch_get(size_t n) {
+    if (n > g_hr_scratch_n) {
+        uint16_t *p = (uint16_t *)realloc(g_hr_scratch, n * sizeof(uint16_t));
+        if (!p) return NULL;
+        g_hr_scratch = p;
+        g_hr_scratch_n = n;
+    }
+    return g_hr_scratch;
+}
+
 void sw_renderer_set_scale(int scale) {
     if (scale < 1) scale = 1;
     if (scale > SW_MAX_INTERNAL_SCALE) scale = SW_MAX_INTERNAL_SCALE;
 
     if (g_hr) { free(g_hr); g_hr = NULL; }
+    free(g_hr_scratch); g_hr_scratch = NULL; g_hr_scratch_n = 0;
     /* Wide compositor surfaces are scale-sized; drop them so they re-allocate
      * at the new scale on next use (gpu re-configures native-wide after this). */
     wide_free_all();
@@ -687,7 +703,7 @@ void sw_copy_rect(int src_x, int src_y, int dst_x, int dst_y, int w, int h) {
     /* Hi-res scratch: one native row's worth of source super-rows. */
     int s = g_scale;
     uint16_t *hr_rows = NULL;
-    if (g_hr) hr_rows = (uint16_t *)malloc((size_t)w * s * s * sizeof(uint16_t));
+    if (g_hr) hr_rows = hr_scratch_get((size_t)w * s * s);
 
     for (int row = 0; row < h; row++) {
         int sy = (src_y + row) & (VRAM_HEIGHT - 1);
@@ -740,8 +756,6 @@ void sw_copy_rect(int src_x, int src_y, int dst_x, int dst_y, int w, int h) {
         }
         gpu_vram_dirty_mark_row((uint32_t)dy);
     }
-
-    if (hr_rows) free(hr_rows);
 }
 
 /* ------------------------------------------------------------------ */
@@ -1603,7 +1617,7 @@ static void hr_rebuild_from_vram(void) {
     if (!g_hr || !g_vram) return;
     const int s = g_scale;
     if (s <= 1) return;
-    uint16_t *row = (uint16_t *)malloc((size_t)g_hr_w * sizeof(uint16_t));
+    uint16_t *row = hr_scratch_get((size_t)g_hr_w);
     if (!row) {
         /* Fall back to slow per-pixel replication if OOM (should not happen). */
         for (int py = 0; py < VRAM_HEIGHT; py++) {
@@ -1632,7 +1646,6 @@ static void hr_rebuild_from_vram(void) {
                    row, (size_t)g_hr_w * sizeof(uint16_t));
         }
     }
-    free(row);
 }
 
 void sw_vram_transfer_in(int x, int y, int w, int h, const uint16_t *data) {
