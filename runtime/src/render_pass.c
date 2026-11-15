@@ -671,17 +671,12 @@ int render_pass_mmio_read_allowed(uint32_t phys, uint32_t width) {
 static char s_abort_detail[192];
 
 static void note_fault(const char *what) {
+    (void)what; /* reason and detail are read via the render-pass stats command */
     s_stats.aborted++;
-    if (s_stats.aborted <= 4)
-        fprintf(stderr, "psxrecomp: render pass rolled back (%s%s%s)\n", what,
-                s_abort_detail[0] ? "; restored skipped exits: " : "",
-                s_abort_detail);
     s_abort_detail[0] = '\0';
     if (s_stats.watchdog + s_stats.vram_leaks + s_stats.device_reads >= RP_FAULT_LIMIT &&
         !s_stats.disabled) {
         s_stats.disabled = 1;
-        fprintf(stderr, "psxrecomp: render passes disabled for this session "
-                "after %u faults\n", (unsigned)RP_FAULT_LIMIT);
     }
 }
 
