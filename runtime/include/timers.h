@@ -16,6 +16,8 @@ void timers_get_snapshot(uint16_t counter[3], uint32_t mode[3],
 void timers_set_snapshot(const uint16_t counter[3], const uint32_t mode[3],
                          const uint16_t target[3], const int32_t irq_line[3],
                          const uint32_t frac[3]);
+/* Nonzero when a saved mode word is one the timer block can hold. */
+int timers_snapshot_mode_ok(uint32_t mode);
 
 /* MMIO read/write for 0x1F801100..0x1F80112F.
  * Accepts 16-bit or 32-bit access (caller zero-extends). */

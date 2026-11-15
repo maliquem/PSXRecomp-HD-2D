@@ -824,6 +824,14 @@ if(BUILD_TESTING)
     add_test(NAME texture_image_decode_test COMMAND texture_image_decode_test
         "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/texture_images")
 
+    # CPU-8: one-shot timer IRQ keeps mode bits 4/5 and fires once.
+    add_executable(timers_oneshot_test
+        tests/test_timers_oneshot.c
+        src/timers.c
+        src/psx_video_timing.c)
+    target_include_directories(timers_oneshot_test PRIVATE include)
+    add_test(NAME timers_oneshot_test COMMAND timers_oneshot_test)
+
     # Standalone serial-pad protocol tests use explicit SIO/device stubs; they
     # cover both DualShock rumble and JogCon wire/state behavior.
     add_executable(sio_digital_command_test

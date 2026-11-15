@@ -32,6 +32,11 @@
 #define MODE_IRQ_REQUEST   (1 << 10)
 #define MODE_TARGET_FLAG   (1 << 11)
 #define MODE_OVERFLOW_FLAG (1 << 12)
+/* Internal, never guest-visible: a one-shot timer (bit 6 = 0) already raised
+ * its IRQ; further IRQs stay suppressed until the next mode write. Lives in an
+ * unused high bit so the 48-byte .pst timer section keeps its layout (old
+ * states carry 0 = "not fired yet"). */
+#define MODE_ONESHOT_DONE  (1u << 31)
 
 /* IRQ bit positions in I_STAT for timers */
 #define IRQ_TIMER0 4
@@ -62,7 +67,7 @@ void timers_get_debug(int t, uint16_t *counter, uint16_t *target,
     if (t < 0 || t > 2) return;
     if (counter)   *counter   = timers[t].counter;
     if (target)    *target    = timers[t].target;
-    if (mode)      *mode      = timers[t].mode;
+    if (mode)      *mode      = timers[t].mode & ~MODE_ONESHOT_DONE;
     if (irq_fired) *irq_fired = g_timer_irq_fired[t];
 }
 
@@ -100,6 +105,12 @@ void timers_set_snapshot(const uint16_t counter[3], const uint32_t mode[3],
     }
 }
 
+/* Range check for a saved mode word (pass 1 of a .pst load): the guest can
+ * only produce bits 0-12, plus the internal one-shot-spent bit. */
+int timers_snapshot_mode_ok(uint32_t mode) {
+    return (mode & ~(0x1FFFu | MODE_ONESHOT_DONE)) == 0;
+}
+
 /* Determine whether this timer uses system clock ticks */
 static int timer_uses_sysclk(int t) {
     int src = (timers[t].mode >> 8) & 3;
@@ -115,6 +126,12 @@ static int timer_uses_sysclk(int t) {
  * the recompiled BIOS checks (i_stat & i_mask) on its own schedule. */
 static void timer_fire_irq(int t) {
     Timer* tm = &timers[t];
+
+    /* One-shot: bits 4/5 stay as written; only the first condition fires. */
+    if (!(tm->mode & MODE_IRQ_REPEAT)) {
+        if (tm->mode & MODE_ONESHOT_DONE) return;
+        tm->mode |= MODE_ONESHOT_DONE;
+    }
 
     g_timer_irq_fired[t]++;
 
@@ -133,9 +150,6 @@ static void timer_fire_irq(int t) {
         tm->mode |= MODE_IRQ_REQUEST;
     }
 
-    if (!(tm->mode & MODE_IRQ_REPEAT)) {
-        tm->mode &= ~(MODE_IRQ_TARGET | MODE_IRQ_OVERFLOW);
-    }
     /* DEQUEUE: timer IRQ event fired (aux = timer counter at fire). */
     event_ring_record_aux(EV_DEQ, (uint8_t)(SRC_TIMER0 + t), tm->counter);
 }
@@ -245,6 +259,8 @@ uint32_t timers_cycles_to_irq(uint32_t i_mask) {
         int want_target   = (tm->mode & MODE_IRQ_TARGET)   != 0;
         int want_overflow = (tm->mode & MODE_IRQ_OVERFLOW) != 0;
         if (!want_target && !want_overflow) continue;     /* IRQ not armed in mode */
+        if (!(tm->mode & MODE_IRQ_REPEAT) && (tm->mode & MODE_ONESHOT_DONE))
+            continue;                                     /* one-shot already spent */
 
         uint32_t ticks = 0xFFFFFFFFu;
         if (want_target) {
@@ -297,8 +313,8 @@ uint32_t timers_read(uint32_t addr) {
             return timers[timer].counter;
         }
         case 0x04: {
-            uint32_t val = timers[timer].mode;
-            timers[timer].mode &= ~(MODE_TARGET_FLAG | MODE_OVERFLOW_FLAG);
+            uint32_t val = timers[timer].mode & ~MODE_ONESHOT_DONE;
+            timers[timer].mode &=~(MODE_TARGET_FLAG | MODE_OVERFLOW_FLAG);
             return val;
         }
         case 0x08:

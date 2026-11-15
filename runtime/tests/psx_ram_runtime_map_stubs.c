@@ -97,6 +97,7 @@ void timers_set_snapshot(const uint16_t c[3], const uint32_t m[3], const uint16_
                          const int32_t l[3], const uint32_t f[3]) {
     (void)c; (void)m; (void)t; (void)l; (void)f; g_stub_device_restores++;
 }
+int timers_snapshot_mode_ok(uint32_t mode) { (void)mode; return 1; }
 
 /* ---- MMIO devices the routing reaches ------------------------------------- */
 void cdrom_write(uint32_t a, uint32_t v) { (void)a; (void)v; }

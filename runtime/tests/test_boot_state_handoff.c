@@ -34,6 +34,7 @@ void timers_get_snapshot(uint16_t c[3],uint32_t m[3],uint16_t t[3],int32_t irq[3
 void timers_set_snapshot(const uint16_t c[3],const uint32_t m[3],const uint16_t t[3],const int32_t irq[3],const uint32_t f[3]) {
     (void)c;(void)m;(void)t;(void)irq;(void)f;
 }
+int timers_snapshot_mode_ok(uint32_t mode) { (void)mode; return 1; }
 #define MODULE(name) uint32_t name##_snapshot_bytes(void){return 4;} \
     void name##_snapshot_write(uint8_t* p){memset(p,0,4);} \
     int name##_snapshot_read(const uint8_t* p,uint32_t n){(void)p;return n==4;}

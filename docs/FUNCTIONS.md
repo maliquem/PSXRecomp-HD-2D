@@ -1801,36 +1801,37 @@ Pure decision function that picks which BIOS HLE features to enable for a given 
 Saves and loads full emulator snapshots, with sections for CPU, timers, RAM, VRAM and modules, in a versioned file format.
 
 - `boot_state_mono_ms` (L35) — Monotonic millisecond clock used for save timing (QueryPerformanceCounter on Windows).
-- `boot_state_ram_cookie` (L111) — Header compatibility cookie (h.reserved): enhancement-memory layout, live RAM geometry and the fixed execution implementation.
-- `boot_state_layout_cookie` (L114) — Combines the memory layout, RAM size and execution cookies into one value that is checked on load.
-- `boot_state_load_stats` (L139) — Copies the stored stats of the boot_state loads (timings, rejects, last reason) for TCP boot_state_stats.
-- `boot_state_note_reject` (L143) — Counts a rejected boot_state load and keeps its reason and path, truncated.
-- `boot_state_last_vram_dirty_rows` (L149) — §96 telemetry: after the latest save, how many VRAM scanlines were dirty and whether the incremental mirror path patched (vs full memcpy).
-- `boot_state_last_vram_incremental` (L154) — Returns 1 when the last save patched only the dirty VRAM rows, rather than copying all of VRAM.
-- `boot_state_vram_mirror_reset` (L159) — Drop the §96 VRAM mirror (RB shutdown / before re-enable).
-- `sync_vram_mirror_for_save` (L169) — Build s_vram_mirror from live CPU VRAM using dirty rows when possible.
-- `bs_write` (L244) — Writes bytes to the save output, either to the file or to the growing in-memory buffer; returns 1 on success.
-- `write_header_le` (L263) — Writes the save file header in little-endian byte order.
-- `write_section_raw` (L281) — Writes a section header (tag, flags, length) followed by the data, uncompressed.
-- `write_section` (L296) — Prefer zlib for large blobs (smaller disk + faster load on slow storage).
-- `write_module_section` (L320) — Writes a module's state as one section, using callbacks for its size and its bytes.
-- `write_cpu_section` (L332) — Writes the general registers and the other CPU state as one section.
-- `write_timer_section` (L363) — Writes the three timer counters, targets, modes and IRQ lines as one section.
-- `write_vram_section_full` (L388) — Classic full VRAM section (offline / zlib / tracking off).
-- `boot_state_save_to` (L419) — Writes a complete snapshot, header then sections, to an output stream.
-- `boot_state_save` (L591) — Saves a snapshot to the file at path; returns 1 on success.
-- `boot_state_save_buffer_ex` (L605) — Saves a snapshot into a newly allocated buffer, with zlib compression on or off.
-- `boot_state_save_buffer` (L627) — Saves a snapshot into a newly allocated buffer, compressing large sections.
-- `boot_state_save_buffer_raw` (L634) — Saves a snapshot into a newly allocated buffer with compression turned off.
-- `apply_section` (L643) — Applies one saved section's data to the CPU, memory or devices, chosen by its tag.
-- `validate_section` (L870) — Checks that a section's length matches what this build expects for its tag.
-- `boot_state_parse_header` (L907) — Reads and checks the file header; returns 0 for a bad or oversized file.
-- `boot_state_append_reason` (L930) — Appends a part name to the reason text, separated by a comma, if it fits.
-- `boot_state_check_buffer` (L944) — Checks whether a snapshot buffer can be loaded here, filling in a reason when it cannot.
-- `boot_state_load_buffer` (L1021) — Loads a snapshot from a buffer into the CPU and machine state, after checking it.
-- `boot_state_load` (L1177) — Loads a snapshot file from path into the CPU and machine state; returns 1 on success.
-- `boot_state_set_capture` (L1216) — Sets the file path for an automatic snapshot taken when the game's entry point is first reached.
-- `boot_state_trigger_capture` (L1224) — Called from fntrace when the game entry PC first dispatches.
+- `boot_state_ram_cookie` (L112) — Header compatibility cookie (h.reserved): enhancement-memory layout, live RAM geometry and the fixed execution implementation.
+- `boot_state_layout_cookie` (L115) — Combines the memory layout, RAM size and execution cookies into one value that is checked on load.
+- `boot_state_load_stats` (L140) — Copies the stored stats of the boot_state loads (timings, rejects, last reason) for TCP boot_state_stats.
+- `boot_state_note_reject` (L144) — Counts a rejected boot_state load and keeps its reason and path, truncated.
+- `boot_state_last_vram_dirty_rows` (L150) — §96 telemetry: after the latest save, how many VRAM scanlines were dirty and whether the incremental mirror path patched (vs full memcpy).
+- `boot_state_last_vram_incremental` (L155) — Returns 1 when the last save patched only the dirty VRAM rows, rather than copying all of VRAM.
+- `boot_state_vram_mirror_reset` (L160) — Drop the §96 VRAM mirror (RB shutdown / before re-enable).
+- `sync_vram_mirror_for_save` (L170) — Build s_vram_mirror from live CPU VRAM using dirty rows when possible.
+- `bs_write` (L245) — Writes bytes to the save output, either to the file or to the growing in-memory buffer; returns 1 on success.
+- `write_header_le` (L264) — Writes the save file header in little-endian byte order.
+- `write_section_raw` (L282) — Writes a section header (tag, flags, length) followed by the data, uncompressed.
+- `write_section` (L297) — Prefer zlib for large blobs (smaller disk + faster load on slow storage).
+- `write_module_section` (L321) — Writes a module's state as one section, using callbacks for its size and its bytes.
+- `write_cpu_section` (L333) — Writes the general registers and the other CPU state as one section.
+- `write_timer_section` (L364) — Writes the three timer counters, targets, modes and IRQ lines as one section.
+- `write_vram_section_full` (L389) — Classic full VRAM section (offline / zlib / tracking off).
+- `boot_state_save_to` (L420) — Writes a complete snapshot, header then sections, to an output stream.
+- `boot_state_save` (L592) — Saves a snapshot to the file at path; returns 1 on success.
+- `boot_state_save_buffer_ex` (L606) — Saves a snapshot into a newly allocated buffer, with zlib compression on or off.
+- `boot_state_save_buffer` (L628) — Saves a snapshot into a newly allocated buffer, compressing large sections.
+- `boot_state_save_buffer_raw` (L635) — Saves a snapshot into a newly allocated buffer with compression turned off.
+- `apply_section` (L644) — Applies one saved section's data to the CPU, memory or devices, chosen by its tag.
+- `timer_section_ok` (L873) — CPU-8: the timer section is fixed-size; its mode words must also be ones the timer block can hold (range check of the internal one-shot bit).
+- `validate_section` (L886) — Checks that a section's length matches what this build expects for its tag.
+- `boot_state_parse_header` (L923) — Reads and checks the file header; returns 0 for a bad or oversized file.
+- `boot_state_append_reason` (L946) — Appends a part name to the reason text, separated by a comma, if it fits.
+- `boot_state_check_buffer` (L960) — Checks whether a snapshot buffer can be loaded here, filling in a reason when it cannot.
+- `boot_state_load_buffer` (L1037) — Loads a snapshot from a buffer into the CPU and machine state, after checking it.
+- `boot_state_load` (L1193) — Loads a snapshot file from path into the CPU and machine state; returns 1 on success.
+- `boot_state_set_capture` (L1232) — Sets the file path for an automatic snapshot taken when the game's entry point is first reached.
+- `boot_state_trigger_capture` (L1240) — Called from fntrace when the game entry PC first dispatches.
 
 ### runtime/src/bug_report.c
 
@@ -10028,21 +10029,22 @@ Probes and decodes encoded texture images, using stb_image and WebP, within size
 
 Simulates the console's three root counters: counting, targets, interrupts, clock sources, the debug view and register access.
 
-- `timers_get_debug` (L60) — Copies one timer's counter, target, mode and interrupt count into the given pointers; does nothing for an invalid timer.
-- `timers_init` (L74) — Clears all three timers and their fractional cycle counters.
-- `timers_get_snapshot` (L79) — Copies the counter, mode, target, interrupt line and fraction of all three timers into arrays for a save state.
-- `timers_set_snapshot` (L91) — Restores the counter, mode, target, interrupt line and fraction of all three timers from arrays.
-- `timer_uses_sysclk` (L104) — Determine whether this timer uses system clock ticks
-- `timer_fire_irq` (L116) — Fire IRQ for a timer — sets I_STAT bit.
-- `timer_tick_one` (L144) — Tick a single timer by one count.
-- `timer_advance_counts` (L163) — Adds the given number of counts to one timer, handling target and overflow events along the way.
-- `timer_advance_divided` (L194) — Advances one timer by cycles divided by its divisor, keeping the remainder for the next call.
-- `timers_advance` (L203) — Advance all timers by guest CPU cycles.
-- `timer_divisor` (L224) — Cycles until this timer's clock advances by one count, given its source.
-- `timers_cycles_to_irq` (L240) — Cycle-budgeted precise event slicing: distance (in guest CPU cycles) to the next moment this timer block would raise a DELIVERABLE IRQ — i.e.
-- `timers_read` (L273) — MMIO read/write for 0x1F801100..0x1F80112F.
-- `timers_write` (L311) — Handles a guest write to a timer register in the 0x1F801100 to 0x1F80112F range, setting its counter, target or mode.
-- `timers_tick` (L338) — Legacy coarse tick used by interpreter/oracle builds.
+- `timers_get_debug` (L65) — Copies one timer's counter, target, mode and interrupt count into the given pointers; does nothing for an invalid timer.
+- `timers_init` (L79) — Clears all three timers and their fractional cycle counters.
+- `timers_get_snapshot` (L84) — Copies the counter, mode, target, interrupt line and fraction of all three timers into arrays for a save state.
+- `timers_set_snapshot` (L96) — Restores the counter, mode, target, interrupt line and fraction of all three timers from arrays.
+- `timers_snapshot_mode_ok` (L110) — Range check for a saved mode word (pass 1 of a .pst load): the guest can only produce bits 0-12, plus the internal one-shot-spent bit.
+- `timer_uses_sysclk` (L115) — Determine whether this timer uses system clock ticks
+- `timer_fire_irq` (L127) — Fire IRQ for a timer — sets I_STAT bit; a one-shot timer (mode bit 6 = 0) fires only once until the next mode write.
+- `timer_tick_one` (L158) — Tick a single timer by one count.
+- `timer_advance_counts` (L177) — Adds the given number of counts to one timer, handling target and overflow events along the way.
+- `timer_advance_divided` (L208) — Advances one timer by cycles divided by its divisor, keeping the remainder for the next call.
+- `timers_advance` (L217) — Advance all timers by guest CPU cycles.
+- `timer_divisor` (L238) — Cycles until this timer's clock advances by one count, given its source.
+- `timers_cycles_to_irq` (L254) — Cycle-budgeted precise event slicing: distance (in guest CPU cycles) to the next moment this timer block would raise a DELIVERABLE IRQ — i.e.
+- `timers_read` (L289) — MMIO read/write for 0x1F801100..0x1F80112F.
+- `timers_write` (L327) — Handles a guest write to a timer register in the 0x1F801100 to 0x1F80112F range, setting its counter, target or mode.
+- `timers_tick` (L354) — Legacy coarse tick used by interpreter/oracle builds.
 
 ### runtime/src/traps.c
 

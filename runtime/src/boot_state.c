@@ -67,6 +67,7 @@ extern void timers_get_snapshot(uint16_t counter[3], uint32_t mode[3],
 extern void timers_set_snapshot(const uint16_t counter[3], const uint32_t mode[3],
                                 const uint16_t target[3], const int32_t irq_line[3],
                                 const uint32_t frac[3]);
+extern int timers_snapshot_mode_ok(uint32_t mode);
 
 /* ---- per-subsystem complete-state accessors (defined in each module) ---- */
 extern uint32_t gpu_snapshot_bytes(void);
@@ -867,13 +868,28 @@ typedef struct {
 /* Current writers emit 16-17 sections; the cap only bounds a hostile count. */
 #define BOOT_STATE_MAX_SECTIONS 256u
 
+/* CPU-8: the timer section is fixed-size; its mode words must also be ones
+ * the timer block can hold (range check of the internal one-shot bit). */
+static int timer_section_ok(const uint8_t* p, uint32_t len) {
+    PstR r;
+    uint16_t skip;
+    uint32_t mode;
+    if (len != TIMER_REGS_WIRE_BYTES) return 0;
+    pst_r_init(&r, p, len);
+    for (int i = 0; i < 3; i++)
+        if (!pst_r_u16(&r, &skip)) return 0;
+    for (int i = 0; i < 3; i++)
+        if (!pst_r_u32(&r, &mode) || !timers_snapshot_mode_ok(mode)) return 0;
+    return 1;
+}
+
 static int validate_section(uint32_t tag, const uint8_t* p, uint32_t len) {
     switch (tag) {
     case BS_SEC_CPU:    return len == CPU_REGS_WIRE_BYTES;
     case BS_SEC_RAM:    return len == memory_get_ram_bytes();
     case BS_SEC_SPAD:   return len == SPAD_SIZE;
     case BS_SEC_IRQ:    return len == 8u || len == 12u;
-    case BS_SEC_TIMER:  return len == TIMER_REGS_WIRE_BYTES;
+    case BS_SEC_TIMER:  return timer_section_ok(p, len);
     case BS_SEC_CLOCK:  return len == 8u;
     case BS_SEC_GPU:    return gpu_snapshot_validate(p, len);
     case BS_SEC_VRAM:   return len == VRAM_SIZE;
