@@ -3045,80 +3045,80 @@ Emulates the PS1 DMA controller: its seven channels, transfer timing, interrupt 
 - `cd_dma_log_push` (L105) — Appends one CD-ROM DMA transfer (LBA, destination, size) to the ring log, overwriting the oldest entry once full.
 - `cd_dma_log_get_total` (L113) — Total number of CD-ROM DMA transfers logged since start.
 - `cd_dma_log_get_entry` (L114) — Reads logged CD-ROM DMA transfer idx into lba, dest and size; lba is -1 when that entry is no longer kept or not yet logged.
-- `trace_dma` (L184) — Records one DMA event (kind, channel, word count, DMA and IRQ registers before and after) in the DMA trace ring.
-- `trace_dma_reg_write` (L207) — Records a CPU write to a DMA register (address, value, mask) in the DMA trace ring, with the IRQ state before it.
-- `gpu_ot_record_walk_stats` (L231) — Stores node count, word count and cycle count of the last GPU ordering-table walk and updates the maxima.
-- `update_master_irq` (L245) — No-op: the DICR master IRQ flag is computed on read, not stored.
-- `dicr_master_flag` (L256) — Returns bit 31 of a DICR value: set when bit 15 is set, or bit 23 is set together with any channel flag.
-- `dicr_read_value` (L261) — The DICR value as the CPU reads it: the stored bits with the computed master flag in bit 31.
-- `raise_dma_irq_on_master_edge` (L265) — Raises IRQ3 when the DICR master flag went from 0 (before) to 1 (now), passing the per-channel flags as detail.
-- `start_cdrom_dma_capture` (L274) — Starts a CD-ROM DMA history entry for a transfer, snapshotting the CD-ROM and DMA registers at the start.
-- `record_cdrom_dma_word` (L302) — Adds one moved word to the active CD-ROM DMA history entry, keeping its first and last words and a count.
-- `finish_cdrom_dma_capture` (L321) — Closes the active CD-ROM DMA history entry with its final address and end state, and stores it in the history ring.
-- `channel_enabled` (L342) — True when the DPCR enable bit of the given DMA channel is set.
-- `channel_irq_flag_armed` (L348) — True when both the channel's DICR interrupt bit and the master DMA interrupt bit are set.
-- `transfer_word_count` (L357) — Number of words a channel transfer moves, from its BCR block size and count; CD-ROM uses the sector size when the block size is 0.
-- `validate_transfer_length` (L386) — Halts the emulator with a fatal error when the channel's transfer length exceeds the sanity limit (0x80000 words).
-- `complete_transfer` (L401) — Completes a channel transfer: clears its busy and start bits, latches the DICR flag if armed, and logs the completion.
-- `cancel_async_transfer` (L416) — Stops any in-flight asynchronous transfer on the channel (MDEC, CD-ROM or GPU linked list) and resets its counters.
-- `schedule_delayed_complete` (L455) — Completes the transfer at once in render passes or when it is empty; otherwise queues completion after total words times cycles per word.
-- `advance_delayed_complete` (L473) — Counts a queued channel completion down by the given cycles and completes the transfer when it reaches zero.
-- `start_async_mdec_transfer` (L487) — Starts an asynchronous MDEC transfer on channel 0 (in) or 1 (out) when none is active, sized from its BCR.
-- `finish_async_mdec_transfer` (L505) — Finishes an MDEC transfer: logs its end, cancels the async state and completes the channel.
-- `start_async_cdrom_transfer` (L515) — Starts the asynchronous CD-ROM (channel 3) transfer, or completes it at once when it has no words.
-- `dma_host_cdrom_write` (L534) — RAM-side effects of a completed CD-ROM (ch3) transfer of host-supplied sector data, for seamless-loading adapters serving a game's own CdGetSector or read loop: overlay capture before the first word,
-- `finish_async_cdrom_transfer` (L567) — Finishes a CD-ROM transfer: closes its capture and, for game data (not FMV buffers), logs it and captures the overlay bytes.
-- `psx_dma_set_mdec_batch` (L605) — Sets the MDEC DMA batch size (words per step) from configuration.
-- `mdec_out_batch` (L606) — The MDEC DMA batch size: PSX_MDEC_DMA_BATCH from the environment, else the configured value, clamped to 1..256.
-- `advance_mdec_channel` (L616) — Advances an MDEC DMA channel by the given cycles, moving its words in steps and completing it when all are moved.
-- `execute_ch0_mdec_in` (L710) — Runs the whole channel 0 transfer (RAM to MDEC) at once, moving each word and completing the channel.
-- `execute_ch1_mdec_out` (L744) — Runs the whole channel 1 transfer (MDEC to RAM) at once, moving each word and completing the channel.
-- `gpu_ll_resolve_address` (L765) — Linked-list callback: maps a guest address to the host address the GPU DMA reads from, through the mod hook.
-- `gpu_ll_read_word` (L770) — Linked-list callback: reads one guest RAM word.
-- `gpu_ll_observe_header` (L775) — Linked-list callback: checks each linked-list node header for the widescreen validator.
-- `gpu_ll_begin_node` (L781) — Linked-list callback: starts a node of num_words words, validates it and sets the GP0 node source; always returns 1.
-- `gpu_ll_emit_word` (L789) — Linked-list callback: sends one word of the node to GP0 with its source address.
-- `gpu_ll_complete` (L795) — Linked-list callback: counts a completed walk and records its statistics and timeline event.
-- `start_async_gpu_linked_list` (L816) — Starts the asynchronous GPU linked-list walk on channel 2 unless one is already active (counted as dropped then).
-- `hold_host_ticks` (L851) — Host monotonic clock tick count, used only for hold diagnostics.
-- `hold_host_ticks_per_sec` (L860) — Ticks per second of the host clock behind hold_host_ticks.
-- `ll_bulk_enabled` (L878) — While the CPU is held and no other DMA moves RAM, the list's words cannot change under the walk: its end is known in advance (dma_gpu_ll_cycles_to_ finish), and the hold advances there in one go.
-- `hold_cpu_for_gpu_linked_list` (L887) — Holds the CPU while the GPU linked list walks, advancing guest cycles to the walk's end in one go when possible.
-- `dma_debug_get_gpu_hold` (L941) — Debug accessor: copies the GPU-hold statistics and returns the hold ring.
-- `execute_ch2_gpu` (L947) — Runs a channel 2 GPU transfer: block mode moves the words to or from the GPU, linked-list mode starts the list walk.
-- `execute_ch3_cdrom` (L1015) — Runs a channel 3 CD-ROM transfer: copies sector data from the CD-ROM buffer into RAM, or completes it when it is to the device.
-- `execute_ch4_spu` (L1031) — Returns the number of words moved so the caller can schedule a faithful delayed completion (DMA_SPU_CYCLES_PER_WORD).
-- `execute_ch6_otc` (L1068) — Runs an OTC transfer: writes a backward-linked ordering table into RAM ending with the 0xFFFFFF marker.
-- `execute_ch5_pio` (L1093) — Runs a PIO transfer: moves words directly to or from RAM and completes at once.
-- `try_execute` (L1123) — Starts a transfer on the channel when its start bit is set and the channel is enabled in DPCR, dispatching by channel.
-- `dma_get_dicr` (L1198) — The DICR register value as the CPU reads it.
-- `dma_gpu_linked_list_active` (L1200) — A GPU linked-list walk is in flight (render passes refuse to start then).
-- `dma_get_dpcr` (L1201) — The DPCR register value (DMA channel priority and enable).
-- `dma_cdrom_transfer_active` (L1202) — Nonzero while the asynchronous CD-ROM transfer is active.
-- `dma_cycles_to_irq` (L1215) — Cycle-budgeted precise event slicing: guest CPU cycles until DMA raises a DELIVERABLE IRQ (bit3 unmasked in i_mask).
-- `dma_cycles_to_internal_event` (L1238) — Mask-blind scheduler boundary: next DMA word movement or delayed completion, not merely the final IRQ.
-- `dma_cycles_to_deliverable_irq` (L1294) — Strict deliverability form for wait-loop elision: unlike the conservative scheduler bound, ignores channel completions whose DICR IRQ is disabled.
-- `dma_advance` (L1321) — Advances all DMA activity by the given guest cycles: MDEC and linked-list walks, delayed completions and CD-ROM transfers.
-- `dma_init` (L1398) — Resets all DMA channels and registers to their power-on state.
-- `dma_read` (L1410) — Reads a DMA register at the given address (DPCR, DICR or a channel register) and returns its value.
-- `dma_write_masked` (L1454) — Writes a DMA register under a bit mask, handling DPCR, DICR acknowledge bits and the channel control registers.
-- `dma_write` (L1519) — Writes a full 32-bit DMA register value.
-- `dma_debug_get_gpu_ot_stats` (L1523) — Debug accessor: copies the GPU ordering-table statistics into out.
-- `dma_debug_get_trace` (L1530) — Debug accessor: returns the DMA trace ring and its entry count.
-- `dma_debug_clear_trace` (L1535) — Clears the DMA trace ring.
-- `dma_debug_get_cdrom_history` (L1540) — Debug accessor: returns the CD-ROM DMA history ring and its entry count.
-- `dma_debug_clear_cdrom_history` (L1545) — Clears the CD-ROM DMA history ring.
-- `dma_debug_get_state` (L1552) — Debug accessor: fills out with the DMA state (registers and channel status).
-- `dma_w_async` (L1590) — Saves one asynchronous channel's state into a snapshot writer; returns 1 on success.
-- `dma_r_async` (L1595) — Restores one asynchronous channel's state from a snapshot reader; returns 1 on success.
-- `dma_w_gpu_ll` (L1600) — Saves the GPU linked-list state into a snapshot writer; returns 1 on success.
-- `dma_r_gpu_ll` (L1610) — Restores the GPU linked-list state from a snapshot reader; returns 1 on success.
-- `dma_w_delay` (L1622) — Saves a delayed-completion state into a snapshot writer; returns 1 on success.
-- `dma_r_delay` (L1626) — Restores a delayed-completion state from a snapshot reader; returns 1 on success.
-- `dma_snapshot_bytes` (L1631) — Byte size of the DMA snapshot section.
-- `dma_snapshot_write` (L1633) — Writes the DMA state into the snapshot buffer p.
-- `dma_snapshot_validate` (L1654) — Pass-1 check for boot_state's two-pass load: parses into locals and refuses an async start address outside live RAM or remaining words above the total.
-- `dma_snapshot_read` (L1668) — Restores the DMA state from a snapshot buffer of len bytes; returns nonzero on success.
+- `trace_dma` (L189) — Records one DMA event (kind, channel, word count, DMA and IRQ registers before and after) in the DMA trace ring.
+- `trace_dma_reg_write` (L212) — Records a CPU write to a DMA register (address, value, mask) in the DMA trace ring, with the IRQ state before it.
+- `gpu_ot_record_walk_stats` (L236) — Stores node count, word count and cycle count of the last GPU ordering-table walk and updates the maxima.
+- `update_master_irq` (L250) — No-op: the DICR master IRQ flag is computed on read, not stored.
+- `dicr_master_flag` (L261) — Returns bit 31 of a DICR value: set when bit 15 is set, or bit 23 is set together with any channel flag.
+- `dicr_read_value` (L266) — The DICR value as the CPU reads it: the stored bits with the computed master flag in bit 31.
+- `raise_dma_irq_on_master_edge` (L270) — Raises IRQ3 when the DICR master flag went from 0 (before) to 1 (now), passing the per-channel flags as detail.
+- `start_cdrom_dma_capture` (L279) — Starts a CD-ROM DMA history entry for a transfer, snapshotting the CD-ROM and DMA registers at the start.
+- `record_cdrom_dma_word` (L308) — Adds one moved word to the active CD-ROM DMA history entry, keeping its first and last words and a count.
+- `finish_cdrom_dma_capture` (L325) — Closes the active CD-ROM DMA history entry with its final address and end state, and stores it in the history ring.
+- `channel_enabled` (L354) — True when the DPCR enable bit of the given DMA channel is set.
+- `channel_irq_flag_armed` (L360) — True when both the channel's DICR interrupt bit and the master DMA interrupt bit are set.
+- `transfer_word_count` (L369) — Number of words a channel transfer moves, from its BCR block size and count; CD-ROM uses the sector size when the block size is 0.
+- `validate_transfer_length` (L398) — Halts the emulator with a fatal error when the channel's transfer length exceeds the sanity limit (0x80000 words).
+- `complete_transfer` (L413) — Completes a channel transfer: clears its busy and start bits, latches the DICR flag if armed, and logs the completion.
+- `cancel_async_transfer` (L428) — Stops any in-flight asynchronous transfer on the channel (MDEC, CD-ROM or GPU linked list) and resets its counters.
+- `schedule_delayed_complete` (L467) — Completes the transfer at once in render passes or when it is empty; otherwise queues completion after total words times cycles per word.
+- `advance_delayed_complete` (L485) — Counts a queued channel completion down by the given cycles and completes the transfer when it reaches zero.
+- `start_async_mdec_transfer` (L499) — Starts an asynchronous MDEC transfer on channel 0 (in) or 1 (out) when none is active, sized from its BCR.
+- `finish_async_mdec_transfer` (L517) — Finishes an MDEC transfer: logs its end, cancels the async state and completes the channel.
+- `start_async_cdrom_transfer` (L527) — Starts the asynchronous CD-ROM (channel 3) transfer, or completes it at once when it has no words.
+- `dma_host_cdrom_write` (L546) — RAM-side effects of a completed CD-ROM (ch3) transfer of host-supplied sector data, for seamless-loading adapters serving a game's own CdGetSector or read loop: overlay capture before the first word,
+- `finish_async_cdrom_transfer` (L579) — Finishes a CD-ROM transfer: closes its capture and, for game data (not FMV buffers), logs it and captures the overlay bytes.
+- `psx_dma_set_mdec_batch` (L617) — Sets the MDEC DMA batch size (words per step) from configuration.
+- `mdec_out_batch` (L618) — The MDEC DMA batch size: PSX_MDEC_DMA_BATCH from the environment, else the configured value, clamped to 1..256.
+- `advance_mdec_channel` (L628) — Advances an MDEC DMA channel by the given cycles, moving its words in steps and completing it when all are moved.
+- `execute_ch0_mdec_in` (L722) — Runs the whole channel 0 transfer (RAM to MDEC) at once, moving each word and completing the channel.
+- `execute_ch1_mdec_out` (L756) — Runs the whole channel 1 transfer (MDEC to RAM) at once, moving each word and completing the channel.
+- `gpu_ll_resolve_address` (L777) — Linked-list callback: maps a guest address to the host address the GPU DMA reads from, through the mod hook.
+- `gpu_ll_read_word` (L782) — Linked-list callback: reads one guest RAM word.
+- `gpu_ll_observe_header` (L787) — Linked-list callback: checks each linked-list node header for the widescreen validator.
+- `gpu_ll_begin_node` (L793) — Linked-list callback: starts a node of num_words words, validates it and sets the GP0 node source; always returns 1.
+- `gpu_ll_emit_word` (L801) — Linked-list callback: sends one word of the node to GP0 with its source address.
+- `gpu_ll_complete` (L807) — Linked-list callback: counts a completed walk and records its statistics and timeline event.
+- `start_async_gpu_linked_list` (L828) — Starts the asynchronous GPU linked-list walk on channel 2 unless one is already active (counted as dropped then).
+- `hold_host_ticks` (L863) — Host monotonic clock tick count, used only for hold diagnostics.
+- `hold_host_ticks_per_sec` (L872) — Ticks per second of the host clock behind hold_host_ticks.
+- `ll_bulk_enabled` (L890) — While the CPU is held and no other DMA moves RAM, the list's words cannot change under the walk: its end is known in advance (dma_gpu_ll_cycles_to_ finish), and the hold advances there in one go.
+- `hold_cpu_for_gpu_linked_list` (L899) — Holds the CPU while the GPU linked list walks, advancing guest cycles to the walk's end in one go when possible.
+- `dma_debug_get_gpu_hold` (L953) — Debug accessor: copies the GPU-hold statistics and returns the hold ring.
+- `execute_ch2_gpu` (L959) — Runs a channel 2 GPU transfer: block mode moves the words to or from the GPU, linked-list mode starts the list walk.
+- `execute_ch3_cdrom` (L1027) — Runs a channel 3 CD-ROM transfer: copies sector data from the CD-ROM buffer into RAM, or completes it when it is to the device.
+- `execute_ch4_spu` (L1043) — Returns the number of words moved so the caller can schedule a faithful delayed completion (DMA_SPU_CYCLES_PER_WORD).
+- `execute_ch6_otc` (L1080) — Runs an OTC transfer: writes a backward-linked ordering table into RAM ending with the 0xFFFFFF marker.
+- `execute_ch5_pio` (L1105) — Runs a PIO transfer: moves words directly to or from RAM and completes at once.
+- `try_execute` (L1135) — Starts a transfer on the channel when its start bit is set and the channel is enabled in DPCR, dispatching by channel.
+- `dma_get_dicr` (L1210) — The DICR register value as the CPU reads it.
+- `dma_gpu_linked_list_active` (L1212) — A GPU linked-list walk is in flight (render passes refuse to start then).
+- `dma_get_dpcr` (L1213) — The DPCR register value (DMA channel priority and enable).
+- `dma_cdrom_transfer_active` (L1214) — Nonzero while the asynchronous CD-ROM transfer is active.
+- `dma_cycles_to_irq` (L1227) — Cycle-budgeted precise event slicing: guest CPU cycles until DMA raises a DELIVERABLE IRQ (bit3 unmasked in i_mask).
+- `dma_cycles_to_internal_event` (L1250) — Mask-blind scheduler boundary: next DMA word movement or delayed completion, not merely the final IRQ.
+- `dma_cycles_to_deliverable_irq` (L1306) — Strict deliverability form for wait-loop elision: unlike the conservative scheduler bound, ignores channel completions whose DICR IRQ is disabled.
+- `dma_advance` (L1333) — Advances all DMA activity by the given guest cycles: MDEC and linked-list walks, delayed completions and CD-ROM transfers.
+- `dma_init` (L1410) — Resets all DMA channels and registers to their power-on state.
+- `dma_read` (L1422) — Reads a DMA register at the given address (DPCR, DICR or a channel register) and returns its value.
+- `dma_write_masked` (L1466) — Writes a DMA register under a bit mask, handling DPCR, DICR acknowledge bits and the channel control registers.
+- `dma_write` (L1531) — Writes a full 32-bit DMA register value.
+- `dma_debug_get_gpu_ot_stats` (L1535) — Debug accessor: copies the GPU ordering-table statistics into out.
+- `dma_debug_get_trace` (L1542) — Debug accessor: returns the DMA trace ring and its entry count.
+- `dma_debug_clear_trace` (L1547) — Clears the DMA trace ring.
+- `dma_debug_get_cdrom_history` (L1552) — Debug accessor: returns the CD-ROM DMA history ring and its entry count.
+- `dma_debug_clear_cdrom_history` (L1557) — Clears the CD-ROM DMA history ring.
+- `dma_debug_get_state` (L1565) — Debug accessor: fills out with the DMA state (registers and channel status).
+- `dma_w_async` (L1603) — Saves one asynchronous channel's state into a snapshot writer; returns 1 on success.
+- `dma_r_async` (L1608) — Restores one asynchronous channel's state from a snapshot reader; returns 1 on success.
+- `dma_w_gpu_ll` (L1613) — Saves the GPU linked-list state into a snapshot writer; returns 1 on success.
+- `dma_r_gpu_ll` (L1623) — Restores the GPU linked-list state from a snapshot reader; returns 1 on success.
+- `dma_w_delay` (L1635) — Saves a delayed-completion state into a snapshot writer; returns 1 on success.
+- `dma_r_delay` (L1639) — Restores a delayed-completion state from a snapshot reader; returns 1 on success.
+- `dma_snapshot_bytes` (L1644) — Byte size of the DMA snapshot section.
+- `dma_snapshot_write` (L1646) — Writes the DMA state into the snapshot buffer p.
+- `dma_snapshot_validate` (L1667) — Pass-1 check for boot_state's two-pass load: parses into locals and refuses an async start address outside live RAM or remaining words above the total.
+- `dma_snapshot_read` (L1681) — Restores the DMA state from a snapshot buffer of len bytes; returns nonzero on success.
 
 ### runtime/src/dma_gpu_ll.c
 

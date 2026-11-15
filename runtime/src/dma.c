@@ -178,6 +178,11 @@ static DMACDROMHistoryEntry cdrom_dma_history[DMA_CDROM_HISTORY_CAP];
 static uint64_t cdrom_dma_history_seq;
 static DMACDROMHistoryEntry cdrom_dma_active_entry;
 static uint8_t cdrom_dma_history_active;
+/* Next slot of cdrom_dma_active_entry.last_words while it is a ring; the
+ * finish step rotates it back to oldest-first. */
+static uint8_t cdrom_dma_last_head;
+_Static_assert((DMA_CDROM_HISTORY_WORDS & (DMA_CDROM_HISTORY_WORDS - 1)) == 0,
+               "last_words ring needs a power-of-two size");
 
 static uint32_t dicr_read_value(uint32_t v);
 
@@ -276,6 +281,7 @@ static void start_cdrom_dma_capture(uint32_t requested_words) {
     cdrom_debug_snapshot(&s);
 
     memset(&cdrom_dma_active_entry, 0, sizeof(cdrom_dma_active_entry));
+    cdrom_dma_last_head = 0;
     cdrom_dma_active_entry.seq = cdrom_dma_history_seq++;
     cdrom_dma_active_entry.frame_start = (uint32_t)s_frame_count;
     cdrom_dma_active_entry.start_addr = DMA_RAM_ADDR(channels[3].madr);
@@ -307,13 +313,11 @@ static void record_cdrom_dma_word(uint32_t word) {
         e->first_words[e->first_count++] = word;
     }
 
-    if (e->last_count < DMA_CDROM_HISTORY_WORDS) {
-        e->last_words[e->last_count++] = word;
-    } else {
-        memmove(e->last_words, e->last_words + 1,
-                sizeof(e->last_words[0]) * (DMA_CDROM_HISTORY_WORDS - 1));
-        e->last_words[DMA_CDROM_HISTORY_WORDS - 1] = word;
-    }
+    /* Ring instead of a 60-byte memmove per word once full (MEM-O1). */
+    e->last_words[cdrom_dma_last_head] = word;
+    cdrom_dma_last_head = (uint8_t)((cdrom_dma_last_head + 1u) &
+                                    (DMA_CDROM_HISTORY_WORDS - 1u));
+    if (e->last_count < DMA_CDROM_HISTORY_WORDS) e->last_count++;
 
     e->moved_words++;
 }
@@ -332,6 +336,14 @@ static void finish_cdrom_dma_capture(uint32_t final_addr, uint8_t completed) {
     cdrom_dma_active_entry.sector_available_end =
         (uint8_t)(s.sector_available ? 1 : 0);
     cdrom_dma_active_entry.completed = completed ? 1 : 0;
+    if (cdrom_dma_active_entry.last_count == DMA_CDROM_HISTORY_WORDS &&
+        cdrom_dma_last_head != 0) {
+        uint32_t tmp[DMA_CDROM_HISTORY_WORDS];
+        for (unsigned i = 0; i < DMA_CDROM_HISTORY_WORDS; i++)
+            tmp[i] = cdrom_dma_active_entry.last_words[
+                (cdrom_dma_last_head + i) & (DMA_CDROM_HISTORY_WORDS - 1u)];
+        memcpy(cdrom_dma_active_entry.last_words, tmp, sizeof tmp);
+    }
 
     cdrom_dma_history[
         cdrom_dma_active_entry.seq % DMA_CDROM_HISTORY_CAP] =
@@ -1545,6 +1557,7 @@ uint64_t dma_debug_get_cdrom_history(const DMACDROMHistoryEntry** out_entries) {
 void dma_debug_clear_cdrom_history(void) {
     memset(cdrom_dma_history, 0, sizeof(cdrom_dma_history));
     memset(&cdrom_dma_active_entry, 0, sizeof(cdrom_dma_active_entry));
+    cdrom_dma_last_head = 0;
     cdrom_dma_history_seq = 0;
     cdrom_dma_history_active = 0;
 }
