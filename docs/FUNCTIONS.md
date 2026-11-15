@@ -1587,9 +1587,9 @@ Background overlay compiler: runs the configured compile command as a child proc
 - `autocompile_request` (L1207) — Kick a compile if configured and idle.
 - `parse_shard_result` (L1500) — Scan the child-output tail ring for the LAST "PSX_SHARD_RESULT ok=N failed=M skipped=K" line and record the counts.
 - `autocompile_poll_main` (L1541) — Emu-thread tick: applies a finished compile (cache rescan on success).
-- `autocompile_shutdown` (L1627) — Process-shutdown teardown, emu thread only: stops the publication pipeline, kills the compiler process tree (job object), and JOINS the watcher and preparer threads — waiting out any in-flight LoadLib
-- `json_escape_into` (L1678) — Minimal JSON string escaper for the output tail.
-- `autocompile_status_json` (L1697) — JSON status blob for the debug server: state, run/fail counters, last exit code, and the output tail.
+- `autocompile_shutdown` (L1632) — Process-shutdown teardown, emu thread only: stops the publication pipeline, kills the compiler process tree (job object), and JOINS the watcher and preparer threads — waiting out any in-flight LoadLib
+- `json_escape_into` (L1687) — Minimal JSON string escaper for the output tail.
+- `autocompile_status_json` (L1706) — JSON status blob for the debug server: state, run/fail counters, last exit code, and the output tail.
 
 ### runtime/src/autocompile_child_env.h
 
@@ -5818,10 +5818,10 @@ Disc image reader for BIN/CUE and CHD images: opens the image, reads data and ra
 - `ISOReader::ParseVolumeDescriptor` (L756) — Reads the primary volume descriptor at sector 16 and stores the volume ID and root directory; returns false when it is missing.
 - `ISOReader::ParseDirectoryRecord` (L789) — Parses one ISO 9660 directory record into a file entry; returns false for an invalid or padding record.
 - `ISOReader::ListFilesByLBA` (L838) — Lists the files of the directory at the given LBA and size; empty when the image is closed or the arguments are invalid.
-- `ISOReader::ListFiles` (L888) — Lists the files in a directory path on the disc.
-- `ISOReader::FindFile` (L925) — Looks up a file path on the disc and fills entry; returns false when it is not found.
-- `ISOReader::ReadFile` (L984) — Reads a file's contents into buffer, up to max_size bytes; returns the number of bytes read.
-- `ISOReader::GetFileSize` (L1023) — Returns the size in bytes of a file on the disc, or 0 when it is not found.
+- `ISOReader::ListFiles` (L890) — Lists the files in a directory path on the disc.
+- `ISOReader::FindFile` (L927) — Looks up a file path on the disc and fills entry; returns false when it is not found.
+- `ISOReader::ReadFile` (L986) — Reads a file's contents into buffer, up to max_size bytes; returns the number of bytes read.
+- `ISOReader::GetFileSize` (L1025) — Returns the size in bytes of a file on the disc, or 0 when it is not found.
 
 ### runtime/src/iso_reader_c.cpp
 
@@ -6442,28 +6442,28 @@ PS1 MDEC (motion decoder) emulation: the input and output FIFOs, command handlin
 - `mdec_recently_active` (L509) — FMV detector: nonzero if a colour (15/24-bit) MDEC decode ran within the last 'within_frames' vblanks.
 - `mdec_color_age_cycles` (L521) — Guest cycles since last colour decode; UINT64_MAX if never / reset.
 - `mdec_init` (L529) — Clears all MDEC state and the trace, and sets the quant tables to 1 for a fresh start.
-- `mdec_read` (L546) — Returns the MDEC register at addr: a data word from the output for offset 0, otherwise the status bits.
-- `mdec_write` (L584) — Writes an MDEC register: offset 0 feeds the input, the control port handles reset and DMA enable bits.
-- `mdec_dma_write_word` (L600) — Feeds one DMA channel 0 word into the MDEC as input data.
-- `mdec_dma_write_words` (L607) — Feed up to 'max_words' from a contiguous LE word source (DMA ch0).
-- `mdec_dma_read_word` (L635) — Returns the next 32-bit word of decoded output, padded with zeros past the end of the buffer.
-- `mdec_dma_read_words` (L665) — Drain up to 'max_words' into a contiguous LE destination (DMA ch1).
-- `mdec_dma_write_ready` (L674) — Returns 1 when the MDEC can accept another input word now.
-- `mdec_dma_read_ready` (L679) — Returns 1 while decoded output bytes remain to be read.
-- `mdec_debug_get_state` (L683) — Copies the MDEC registers and counters into the given debug struct.
-- `mdec_debug_get_event_total` (L708) — Returns how many trace events were recorded since the last clear.
-- `mdec_debug_copy_events` (L712) — Copies trace events in a sequence range into the caller's array; returns how many were copied.
-- `mdec_debug_clear` (L725) — Clears the MDEC trace ring and its sequence counter.
-- `mdec_debug_dma_in_start` (L731) — Records a DMA channel 0 start event with its word count, for debugging.
-- `mdec_debug_dma_in_end` (L736) — Adds the words to the DMA input count and records a DMA channel 0 end event.
-- `mdec_debug_dma_out_start` (L742) — Records a DMA channel 1 start event with its word count, for debugging.
-- `mdec_debug_dma_out_end` (L747) — Records a DMA channel 1 end event with its word count, for debugging.
-- `mdec_snap_fixed_bytes` (L764) — Returns the byte size of the fixed part of the MDEC snapshot: version, scalars, tables, counts and colour age.
-- `mdec_snapshot_bytes` (L775) — boot_state / savestate: full MDEC FIFO + tables (required for FMV resume).
-- `mdec_snapshot_write` (L783) — Serializes the MDEC state into the given buffer in the snapshot format.
-- `mdec_wire_u32` (L837) — Reads a little-endian 32-bit value from a byte buffer at an offset.
-- `mdec_snapshot_validate` (L845) — Non-mutating pre-check for boot_state's two-pass load.
-- `mdec_snapshot_read` (L861) — Restores MDEC state from a snapshot buffer; returns 1 on success and 0 for invalid data. Accepts versions 1 and 2.
+- `mdec_read` (L548) — Returns the MDEC register at addr: a data word from the output for offset 0, otherwise the status bits.
+- `mdec_write` (L586) — Writes an MDEC register: offset 0 feeds the input, the control port handles reset and DMA enable bits.
+- `mdec_dma_write_word` (L602) — Feeds one DMA channel 0 word into the MDEC as input data.
+- `mdec_dma_write_words` (L609) — Feed up to 'max_words' from a contiguous LE word source (DMA ch0).
+- `mdec_dma_read_word` (L637) — Returns the next 32-bit word of decoded output, padded with zeros past the end of the buffer.
+- `mdec_dma_read_words` (L667) — Drain up to 'max_words' into a contiguous LE destination (DMA ch1).
+- `mdec_dma_write_ready` (L676) — Returns 1 when the MDEC can accept another input word now.
+- `mdec_dma_read_ready` (L681) — Returns 1 while decoded output bytes remain to be read.
+- `mdec_debug_get_state` (L685) — Copies the MDEC registers and counters into the given debug struct.
+- `mdec_debug_get_event_total` (L710) — Returns how many trace events were recorded since the last clear.
+- `mdec_debug_copy_events` (L714) — Copies trace events in a sequence range into the caller's array; returns how many were copied.
+- `mdec_debug_clear` (L727) — Clears the MDEC trace ring and its sequence counter.
+- `mdec_debug_dma_in_start` (L733) — Records a DMA channel 0 start event with its word count, for debugging.
+- `mdec_debug_dma_in_end` (L738) — Adds the words to the DMA input count and records a DMA channel 0 end event.
+- `mdec_debug_dma_out_start` (L744) — Records a DMA channel 1 start event with its word count, for debugging.
+- `mdec_debug_dma_out_end` (L749) — Records a DMA channel 1 end event with its word count, for debugging.
+- `mdec_snap_fixed_bytes` (L766) — Returns the byte size of the fixed part of the MDEC snapshot: version, scalars, tables, counts and colour age.
+- `mdec_snapshot_bytes` (L777) — boot_state / savestate: full MDEC FIFO + tables (required for FMV resume).
+- `mdec_snapshot_write` (L785) — Serializes the MDEC state into the given buffer in the snapshot format.
+- `mdec_wire_u32` (L839) — Reads a little-endian 32-bit value from a byte buffer at an offset.
+- `mdec_snapshot_validate` (L847) — Non-mutating pre-check for boot_state's two-pass load.
+- `mdec_snapshot_read` (L863) — Restores MDEC state from a snapshot buffer; returns 1 on success and 0 for invalid data. Accepts versions 1 and 2.
 
 ### runtime/src/mdec_core.c
 
@@ -6737,22 +6737,22 @@ Services that trusted mods use to call guest functions and touch guest memory, w
 - `psx_mod_uncharged_span_active` (L132) — Returns 1 while an uncharged span is open.
 - `psx_mod_dma_write_ram` (L134) — Copies host data into guest RAM through the CD DMA path, tagged with a disc LBA; returns 0 in host output.
 - `ram_span` (L140) — Returns 1 when a guest address range of the given length lies within live main RAM.
-- `psx_mod_host_write_ram` (L146) — Store bytes through the CPU store path (any alignment): for data the original code produces with CPU stores, e.g.
-- `psx_mod_spu_sample_bank` (L164) — Private immutable ADPCM residency for opt-in title mods.
-- `psx_mod_spu_bind_voice_bank` (L168) — Binds a voice to an ADPCM bank in the SPU for an opt-in title mod; returns 0 in host output.
-- `psx_mod_spu_private_voice_play` (L172) — Starts a private SPU voice in a slot from a bank, with its registers and mode; returns 0 in host output or on failure.
-- `psx_mod_spu_private_voice_stop` (L176) — Stops the private SPU voices in the mask.
-- `psx_mod_spu_private_voice_volume` (L180) — Sets the left and right volume of a private SPU voice slot; returns 0 in host output.
-- `psx_mod_spu_private_voice_active` (L184) — Returns the mask of private SPU voices that are active.
-- `psx_mod_spu_upload` (L186) — Copies guest RAM into SPU sound RAM at an 8-byte aligned address, checking alignment and bounds; returns 0 on failure.
-- `psx_mod_psyq_load_image` (L201) — Copies a rectangle of pixel data from guest RAM into VRAM, as a PsyQ image load would; returns 0 on bad arguments.
-- `psx_mod_gte_rotation` (L224) — The GTE rotation matrix (control registers 0..4) as the guest left it, row-major R11..R33 in 4.12 fixed point (4096 = 1.0).
-- `psx_mod_gte_projection` (L234) — The rest of the GTE camera state: out[0..2] translation TRX/TRY/TRZ, out[3..4] screen offset OFX/OFY (16.16), out[5] projection distance H.
-- `psx_mod_set_overdraw` (L243) — Overdraw guard band: keep geometry up to x / y screen px past the picture's edges (the game's auto_screen_x culls and their paired height compares, see [widescreen.cull]); the picture itself is unchan
-- `psx_mod_set_overdraw_share` (L244) — The share of the band (the overdraw, not the extra) in use, of 16: 16 = whole (the default), 0 = none while it stays on.
-- `psx_mod_set_overdraw_extra` (L245) — More of that band for part of a frame: x / y px past it while the overdraw is on (shadows), e.g.
-- `psx_mod_gte_data` (L247) — The GTE data registers (COP2 0..31) as the guest left them.
-- `psx_mod_cpu_gpr` (L255) — A CPU general register (0..31) as the guest left it; 0 before the CPU is bound.
+- `psx_mod_host_write_ram` (L148) — Store bytes through the CPU store path (any alignment): for data the original code produces with CPU stores, e.g.
+- `psx_mod_spu_sample_bank` (L166) — Private immutable ADPCM residency for opt-in title mods.
+- `psx_mod_spu_bind_voice_bank` (L170) — Binds a voice to an ADPCM bank in the SPU for an opt-in title mod; returns 0 in host output.
+- `psx_mod_spu_private_voice_play` (L174) — Starts a private SPU voice in a slot from a bank, with its registers and mode; returns 0 in host output or on failure.
+- `psx_mod_spu_private_voice_stop` (L178) — Stops the private SPU voices in the mask.
+- `psx_mod_spu_private_voice_volume` (L182) — Sets the left and right volume of a private SPU voice slot; returns 0 in host output.
+- `psx_mod_spu_private_voice_active` (L186) — Returns the mask of private SPU voices that are active.
+- `psx_mod_spu_upload` (L188) — Copies guest RAM into SPU sound RAM at an 8-byte aligned address, checking alignment and bounds; returns 0 on failure.
+- `psx_mod_psyq_load_image` (L203) — Copies a rectangle of pixel data from guest RAM into VRAM, as a PsyQ image load would; returns 0 on bad arguments.
+- `psx_mod_gte_rotation` (L226) — The GTE rotation matrix (control registers 0..4) as the guest left it, row-major R11..R33 in 4.12 fixed point (4096 = 1.0).
+- `psx_mod_gte_projection` (L236) — The rest of the GTE camera state: out[0..2] translation TRX/TRY/TRZ, out[3..4] screen offset OFX/OFY (16.16), out[5] projection distance H.
+- `psx_mod_set_overdraw` (L245) — Overdraw guard band: keep geometry up to x / y screen px past the picture's edges (the game's auto_screen_x culls and their paired height compares, see [widescreen.cull]); the picture itself is unchan
+- `psx_mod_set_overdraw_share` (L246) — The share of the band (the overdraw, not the extra) in use, of 16: 16 = whole (the default), 0 = none while it stays on.
+- `psx_mod_set_overdraw_extra` (L247) — More of that band for part of a frame: x / y px past it while the overdraw is on (shadows), e.g.
+- `psx_mod_gte_data` (L249) — The GTE data registers (COP2 0..31) as the guest left them.
+- `psx_mod_cpu_gpr` (L257) — A CPU general register (0..31) as the guest left it; 0 before the CPU is bound.
 
 ### runtime/src/mod_internal_resolution.c
 
@@ -7345,197 +7345,197 @@ Writes overlay capture manifests and snapshots to disk (atomically, with history
 
 Loads native overlay code (compiled DLL shards of the game's own functions) on demand, keeps the candidate index and cache, and decides whether each guest call runs natively or in the interpreter.
 
-- `overlay_cpu_charge` (L17) — Out-of-line copy of the header-inline CPU charge for the overlay callback table: overlay DLLs publish their accumulated CPU charge here, into the same function native code charges (no scaling at this
-- `range_index_add_candidate` (L148) — Adds a candidate's code ranges to the page index so an address lookup can find it.
-- `exact_entry_set` (L194) — Marks a word-aligned RAM address as a real function entry in the exact-entry bitmap.
-- `exact_entry_has` (L202) — 1 when the address is a marked exact function entry.
-- `idx_head` (L209) — Returns the first candidate indexed at this physical address, or -1 when there is none.
-- `idx_set_head` (L218) — Stores the first candidate for an address in the open-addressed index, using a free slot when needed.
-- `overlay_loader_native_inprogress` (L252) — static uint32_t s_native_inprogress = 0; /* addr of fn currently in native, 0 = none Sampler accessor (phase_profile hot-function histogram): the innermost native candidate's registered entry.
-- `overlay_loader_set_native_exec` (L263) — Turns native overlay execution on or off.
-- `overlay_loader_get_native_exec` (L264) — 1 while native overlay execution is on.
-- `psx_native_bad_entry` (L279) — Fail-closed native entry guard: a function's CPS entry-switch calls this when dispatched at a PC that is not one of its legal entries (foreign interior PC from a range-ownership mismatch).
-- `overlay_loader_bad_entry_stats` (L286) — Reports the owner, PC and count of the last fail-closed bad entry.
-- `overlay_native_blocked` (L303) — 1 when native execution is blocked for this entry address; counts the refusal.
-- `overlay_loader_native_block_add` (L310) — Per-function native-disable for small timing-sensitive overlay routines.
-- `overlay_loader_native_block_clear` (L317) — Clears the per-function native block list and its hit count.
-- `overlay_loader_native_block_list` (L318) — Copies up to cap blocked entry addresses into out and returns how many are blocked.
-- `overlay_loader_native_block_hits` (L323) — Number of dispatches refused because their function was blocked.
-- `overlay_loader_cps_probe_set` (L338) — static int s_cps_probe_matched = -1; /* crc match static int s_cps_probe_outcome = -1; /* 0=find<0,1=crc-miss->interp,2=native,3=device,4=blocked static int s_cps_probe_ncand_inrange = 0; /* how many
-- `overlay_loader_cps_probe_get` (L343) — Reads the last continuation probe: the PC, count, chosen candidate, range and CRC match, and the outcome.
-- `overlay_count_by_range` (L352) — count how many live candidates have a range containing phys (multi-variant check)
-- `overlay_loader_get_inprogress` (L364) — Address of the native overlay function currently executing (0 if none).
-- `psx_overlay_shadow_diff_active` (L376) — gte.cpp holds PGXP's precise culling off while a shadow diff runs: it reads host-only shadows, which the native (speculative) pass does not record, so the two passes would see different NCLIP results
-- `overlay_loader_shadow_native_thread_switch_bail` (L414) — A real interpreter-pass ChangeThread is authoritative and escapes before a native validation pass starts.
-- `cand_range_contains` (L421) — 1 when a physical address falls inside one of the candidate's code ranges.
-- `cand_ranges_overlap` (L428) — 1 when any code range of one candidate overlaps a code range of another.
-- `cand_selected_for_diff` (L443) — An explicit entry filter owns its whole code envelope, including separately seeded continuation candidates.
-- `overlay_loader_set_load_freeze` (L461) — Freeze new DLL discovery/load (lazy try_load_region, live publish commit, rescan).
-- `overlay_loader_load_frozen` (L465) — 1 while new overlay loads are frozen.
-- `overlay_loads_allowed` (L467) — 1 when a new overlay may be loaded now: not frozen and not resimulating during netplay.
-- `native_hot_note` (L508) — Counts one native call to this PC in the hot-function sample table.
-- `overlay_flush_enter` (L548) — Sets the pending cycle-flush callback for this candidate's DLL and returns the previous one.
-- `overlay_flush_leave` (L557) — Runs the pending cycle flush and restores the previous callback.
-- `ov_ranges_crc` (L575) — Manifest and candidate code ranges are keyed by the address their code was compiled for (segment stripped, never mirror-folded: the compiled body bakes those PCs).
-- `ov_ranges_gensum` (L588) — Sums the page generation counters over a set of code ranges, so changed code can be detected.
-- `ov_ranges_watch` (L598) — Registers each code range with the RAM write watch so writes to it are noticed.
-- `cand_live_crc` (L608) — 1 and *live = CRC of the live bytes, or 0 when a range has no live bytes.
-- `cand_gensum` (L612) — Generation sum over a candidate's code ranges.
-- `static_range_offset` (L642) — Main-RAM offset of a variant code range, through the one geometry contract (psx_memory.h).
-- `psx_overlay_static_code_matches` (L649) — 1 when the live RAM bytes of the listed code ranges match expected_crc; counts a miss otherwise.
-- `psx_overlay_resident_crc_at` (L765) — Occupant fingerprint for an interpreted PC (tier-1 enrichment, DirtyRamPcEntry.occ_crc / occ_ok).
-- `overlay_loader_static_match_stats` (L793) — Reports how often static code matching rehashed, missed the CRC, or took the generation fast path.
-- `man_structurally_valid` (L836) — 1 when a manifest function entry is well formed: it has a CRC, a legal range count and a legal segment address.
-- `manifest_is_space` (L867) — 1 for a space, tab, carriage return, vertical tab or form feed.
-- `manifest_skip_space` (L871) — Advances a manifest text pointer past blank characters.
-- `manifest_hex_field` (L876) — Reads a hex number from the manifest text at the cursor, up to max_digits, and moves the cursor past it.
-- `manifest_record_end` (L896) — 1 when only blanks remain on the manifest line.
-- `parse_manifest` (L904) — 'S <seg>' (§5.7) names the segment the shard was compiled for: 00000000 (KUSEG), 80000000 (KSEG0) or A0000000 (KSEG1).
-- `man_find` (L1053) — Finds the manifest function with this entry address, or NULL.
-- `mips_control_kind` (L1062) — 1 = supported R3000A control transfer with a delay slot, 0 = ordinary instruction, -1 = reserved/unsupported branch encoding that native shards must never claim.
-- `ranges_contain_word` (L1082) — 1 when a word-aligned physical address lies inside one of the listed ranges.
-- `ranges_delay_slots_hashed` (L1098) — Defense in depth for caches generated before guarded capture/codegen.
-- `manifest_pair_equal` (L1169) — 1 when two manifest function lists have the same entries, CRCs and sizes.
-- `man_delay_slots_hashed` (L1185) — 1 when the code ranges of a manifest function are covered by delay-slot hashing.
-- `cand_delay_slots_hashed` (L1189) — Same delay-slot hashing check for a loaded candidate's code ranges.
-- `loaded_pair_find` (L1193) — Finds an already loaded shard pair matching tier, provenance, pair id and manifest; -1 when none matches.
-- `loaded_pair_commit` (L1206) — Records a loaded shard pair so that the same pair is not loaded twice.
-- `cand_register` (L1227) — static void loader_log(const char *fmt, ...); /* defined below
-- `idx_head_seg` (L1291) — Finds the candidate at this address for a given segment; -1 when none.
-- `loader_log` (L1320) — Formats a loader event message into the last-message buffer.
-- `overlay_loader_last_msg` (L1327) — Most recent loader event string (DLL load success/failure).
-- `cache_entry_suppress_for_shortfall` (L1359) — 1 when a cache entry must be skipped because there is not enough candidate capacity left for it.
-- `cache_entry_suppress_at_capacity` (L1388) — Candidates are process-lifetime objects, so reaching CAND_CAP is permanent.
-- `path_component_eq` (L1399) — 1 when the path has a folder component equal to wanted, with either slash style.
-- `cache_tier_from_path` (L1420) — Returns the cache tier (gcc, tcc or unknown) named by the folders in the path.
-- `cache_dir_name_eq` (L1434) — 1 when a folder name equals want, ignoring case.
-- `cache_seg_from_path` (L1440) — Returns the segment encoded in the cache folder name, or the default code segment.
-- `cache_name_is_immutable` (L1453) — 1 when a cache file name has the immutable region and CRC form.
-- `cache_path_char_equal` (L1463) — Compares two path characters, ignoring case and slash style on Windows.
-- `cache_path_equal` (L1472) — 1 when two paths are equal under the path character comparison.
-- `cache_path_has_root` (L1483) — 1 when the path starts with the given root folder.
-- `overlay_image_warm_main` (L1527) — Worker thread that pre-maps the cached overlay DLL images so their first call does not pay the mapping cost.
-- `overlay_image_warm_init` (L1557) — Reads PSX_OVERLAY_IMAGE_WARM and sets the start time, so that warming waits until boot has settled.
-- `overlay_image_warm_queue` (L1566) — Queues cached overlay DLLs for background warming; does nothing when warming is off or the candidate store is full.
-- `overlay_image_warm_cancel` (L1601) — Marks a queued warm job as cancelled.
-- `overlay_image_warm_release` (L1606) — Frees a warmed library reference once the job is finished and no longer needed.
-- `overlay_image_warm_drop_all` (L1614) — Cancels and releases every warmed image.
-- `lazy_miss_invalidate_loader` (L1678) — Invalidates all negative lazy lookups by bumping the loader generation.
-- `lazy_miss_cached` (L1687) — Keyed by the full PC: a miss for one segment says nothing about another segment's shard of the same bytes (§5.7).
-- `lazy_miss_record` (L1694) — Remembers that a lazy lookup at this PC found nothing, keyed by the current generations.
-- `overlay_loader_note_code_write` (L1702) — Invalidate negative lazy-lookups after a write to manifested code pages.
-- `rebuild_lazy_manifest_index` (L1709) — Rebuilds the exact-entry bitmap and the lazy manifest index from the loaded manifests.
-- `cache_path_hash` (L1823) — FNV-1a hash of a cache path, with case and slash style folded on Windows.
-- `cidx_set_add` (L1835) — Adds a cache index entry to the path hash set.
-- `cache_idx_has_path` (L1840) — 1 when a cache file with this path is already indexed; rebuilds the path set first when it is stale.
-- `cache_filename_equal` (L1855) — Cache discovery is idempotent only by full path.
-- `cache_path_is_bios_resident` (L1871) — 1 when the DLL path has the BIOS-resident shared-library form.
-- `refresh_bios_resident_flags` (L1889) — Recomputes the BIOS-resident flag of every indexed cache entry.
-- `overlay_loader_arch_abi` (L1897) — PSX_OVERLAY_ARCH_ABI (the cache layout's "<os>-<arch>") is defined in overlay_loader.h, so autocompile.c can hand it to the compile it spawns.
-- `add_posix_cache_file` (L1900) — Visitor that adds one cache file to the index, keeping legacy pairs from ever running in place of an immutable one.
-- `scan_one_cache_dir` (L1935) — Scan one directory for <addr8>_<crc8>.dll cache entries into the index.
-- `warn_on_cgtag_mismatch` (L1994) — Scan the namespaced gcc cache: gcc/<arch-abi>/cg<codegen-ver>/.
-- `cache_idx_remove_path` (L2043) — Removes a cache entry by path from the index and bumps the index generation.
-- `posix_abi_sweep_file` (L2059) — Visitor that opens one immutable cache library to check its ABI version against the current build.
-- `abi_preflight_sweep` (L2106) — ---- ABI pre-flight sweep (batch purge) ---------------------------------- A contract-ABI bump (e.g.
-- `scan_tier_cache_dirs` (L2176) — Scans the cache folder of one tier (gcc or tcc) for this game, build and config.
-- `scan_cache_dir` (L2195) — Indexes the cache folders of both tiers so the runtime can pick a usable artifact, preferring GCC.
-- `overlay_loader_has_cached_crc` (L2239) — True if the cache holds a usable DLL for this region/logical image CRC.
-- `overlay_unit_defer_enabled` (L2336) — A/B toggle for the nested-unit IRQ deferral (PSX_OVERLAY_UNIT_DEFER, default ON).
-- `overlay_unit_irq_defer_enabled` (L2347) — Legacy blanket IRQ deferral inside call units (overlay_unit_defer.h): default OFF; PSX_OVERLAY_UNIT_IRQ_DEFER=1 restores it for A/B bisection.
-- `overlay_loader_set_irq_suppress` (L2357) — Turns overlay interrupt suppression on or off with a rate limit, and resets its counters.
-- `overlay_loader_get_irq_suppress` (L2365) — Reports the interrupt suppression mode, its rate limit and the suppressed count.
-- `overlay_loader_get_ci_skip_diag` (L2381) — Reports how many interrupt checks the overlay wrapper skipped, by reason.
-- `overlay_loader_call_unit_depth` (L2391) — Current depth of nested call units.
-- `overlay_loader_native_nesting` (L2397) — Native-shard nesting for a landing that longjmps out of a shard and then resumes the interrupted code (the render-pass watchdog abort, render_pass.c): the active-candidate stack depth and the in-progr
-- `overlay_loader_set_native_nesting` (L2401) — Restores the active-candidate depth and the in-progress entry after a longjmp resumes interrupted code.
-- `overlay_irq_suppressed_now` (L2408) — 1 when an interrupt must be held back now, during a shadow run or under the rate limit; counts each hold.
-- `overlay_sw_irq_pending` (L2438) — COP0 software interrupts (Cause.IP0/IP1 & SR.IM0/IM1): a guest MTC0 to Cause raises them with no INTC bit, so the area edge must test them like the static edge (psx_edge.h) and psx_check_interrupts do
-- `overlay_irq_sr_allows` (L2444) — IEc must be set; the INTC line needs IM2, a software interrupt only its own IM bit (already folded into sw).
-- `overlay_ci_wrapper` (L2453) — Interrupt-check hook for overlay code: skips delivery inside a nested call unit when that legacy deferral is on.
-- `overlay_idle_note_is_internal_or_return` (L2483) — Full-VA compares (§5.7): the resume PC a shard bakes is in its own segment, so it is the caller's return point only when it equals $ra exactly, and it is internal only to a running shard of the same s
-- `overlay_ci_at_wrapper` (L2498) — extern int psx_idle_skip_area_site(uint32_t pc); /* psx_cycles.c
-- `overlay_irq_budget_blocks_now` (L2537) — 1 when the cycles since the last interrupt check are within the budget, so interrupts are held back now.
-- `overlay_post_dispatch_irq_pump` (L2549) — After a dispatch, delivers a pending interrupt, but never inside a shadow run.
-- `overlay_dispatch_call_probed` (L2566) — extern int g_exec_phase; /* wall-time sampler phase (dirty_ram_interp.c)
-- `init_callbacks` (L2575) — Fills the host callback table with the dispatch, interrupt-check and escape functions the overlay DLLs call.
-- `load_overlay_dll` (L2782) — Loads one cache DLL from its path, resolves its entries and registers them as candidates.
-- `load_bios_resident_shards` (L3055) — Loads every complete BIOS-resident shard that is not loaded yet.
-- `overlay_loader_callbacks` (L3077) — The host callback table, for a consumer that loads overlay-style modules before (or without) overlay_loader_init: the BIOS module host activates a player's retail backend during BIOS selection, ahead
-- `overlay_loader_init` (L3082) — Sets up the overlay loader for a cache folder, game id and config hash, resetting the page index and scanning the cache.
-- `overlay_loader_check_cache` (L3155) — Does nothing at load time: DLL loading is deferred to the first dispatch miss.
-- `already_checked` (L3170) — 1 when this region has already been checked against the cache.
-- `mark_checked` (L3175) — Remembers that a region has been checked against the cache.
-- `overlay_loader_clear_lazy_miss` (L3179) — Drop the negative lazy-lookup memo (host-only).
-- `overlay_loader_resync_validation_after_restore` (L3185) — After RAM restore: bust overlay candidate gen fast-path + static-match cache so native vs interp is re-decided against restored bytes.
-- `overlay_loader_rescan` (L3205) — Re-scan the cache dir for DLLs compiled after init (step 2.8 autocompile) and clear the checked-regions memo so the next dispatch into a window region reconsiders the cache.
-- `native_rank_allows` (L3230) — 1 when this candidate is within the native rank limit; gives it a rank on first use and logs it.
-- `dll_already_loaded` (L3250) — 1 when a DLL with this path is already loaded.
-- `cache_entry_already_loaded` (L3261) — A lazy manifest chain may have hundreds of functions from the same DLL.
-- `overlay_library_close` (L3270) — Closes an overlay library handle with FreeLibrary or dlclose; ignores NULL.
-- `load_one_dll` (L3281) — Consumes prepared on every path.
-- `load_one_dll_prepared` (L3384) — Publishes a prepared library by passing it to the normal single-DLL loader.
-- `published_root_canonical` (L3391) — Resolves the cache root to its canonical path once; returns 0 while it cannot be resolved, so the publish is refused.
-- `published_path_valid` (L3408) — Validates dll_path and writes its CANONICAL form into canon; every later consumer (LoadLibrary, .ranges derivation, loaded-path tracking) uses the canonical string, never the raw pipe text.
-- `overlay_loader_prepare_published` (L3431) — Checks a published DLL path and loads it into a prepared image that can be committed later; NULL when the path is invalid.
-- `overlay_loader_commit_published` (L3472) — Commits a prepared image into the loader when loads are allowed, otherwise discards it; returns 1 when committed.
-- `overlay_loader_discard_prepared` (L3493) — Closes and frees a prepared image that will not be committed.
-- `lazy_man_contains` (L3500) — 1 when a lazy manifest's entries or code ranges cover this physical address in the same segment.
-- `lazy_man_crc` (L3511) — 1 and *crc = CRC of the manifest's live bytes, 0 when it has none.
-- `lazy_man_gensum` (L3515) — Generation sum over the code ranges of a lazy manifest.
-- `lazy_man_matches` (L3519) — 1 when the live bytes of a lazy manifest still match its CRC; records the result as valid or invalid.
-- `lazy_bundle_matches` (L3541) — A CPS DLL can directly own internal tail targets, so one matching entry does not prove the rest of that captured snapshot is current.
-- `lazy_candidate_preferred` (L3563) — Same-tier artifacts that both pass the live-byte gate compute the same thing, but their block edges differ (where a page cut or another capture's branch targets end a block), so under cpu_timing = "bl
-- `lazy_choose_complete_or_fallback` (L3575) — Prefer GCC over TCC even when the TCC option happens to be a broader bundle.
-- `overlay_image_warm_seed_boot_text` (L3589) — A streamed variant is not byte-coherent until immediately before its first call, too late to hide Windows' first image-map cost.
-- `lazy_is_loadable` (L3603) — 1 when a lazy manifest entry can be loaded now for this region and segment.
-- `lazy_better_bundle` (L3620) — Chooses between two lazy bundles by manifest index order only, never by size or timestamp.
-- `lazy_load_selected` (L3630) — Loads the cache entry of a selected lazy manifest, unless it has failed, is suppressed or is already loaded.
-- `try_load_region` (L3652) — Load the cached shard of 'seg' (§5.7) that serves phys.
-- `lazy_has_exact_entry` (L3753) — O(1)-bucket discriminator between a real manifested function entry and an interior CPS continuation.
-- `range_candidate_matches` (L3777) — CPS (§25): find a non-blacklisted candidate whose code range CONTAINS phys — i.e.
-- `range_candidate_preferred` (L3830) — 1 when candidate should replace current: a higher tier wins, and among equal tiers the newer candidate wins.
-- `overlay_find_by_range` (L3837) — Finds the candidate whose code range holds this physical address in the given segment; -1 when none or the loader is off.
-- `overlay_loader_dispatch` (L3880) — Called from dirty_ram_dispatch before the interpreter.
-- `overlay_loader_dispatch_seg` (L3914) — A shard's body bakes the PCs of the segment it was compiled for: the $ra a jal/jalr writes, its jump and exception-resume PCs, its I-cache fetch tags and store-PC stamps (docs/SEGMENT_AWARE_CODE.md §5
-- `overlay_loader_active_write_check` (L4269) — ---- Self-modification of an actively-executing entry (§8.5) ------------ Lazy re-hash on the NEXT dispatch is too late if a native function modifies its own code and continues executing the modified
-- `overlay_loader_get_counters` (L4296) — Reports the loader counters: loads, invalidations, native and interpreted dispatches, and details of the last write.
-- `overlay_loader_get_load_timing` (L4317) — Reports the total, maximum and last DLL load times, in microseconds.
-- `overlay_loader_take_hot_native` (L4324) — Opt-in PSX_RUNTIME_PERF_DIAG sampler: returns and clears the hottest native owner since the preceding call.
-- `overlay_loader_get_reload_debug` (L4349) — Reload diagnostics. Repurposed for the per-entry model: r0_valid -> candidates currently VALID r0_writes...
-- `overlay_loader_registered_count` (L4365) — Returns number of functions currently registered in the dynamic table.
-- `overlay_loader_gen_fastpath` (L4370) — Dispatches that ran native via the unchanged-page-generation fast path, i.e.
-- `overlay_loader_range_link_count` (L4371) — Number of range index links in use.
-- `overlay_loader_range_index_overflow` (L4372) — 1 when the range index ran out of space.
-- `overlay_loader_lazy_manifest_count` (L4373) — Number of lazy manifest entries indexed.
-- `overlay_loader_lazy_manifest_overflow` (L4374) — 1 when the lazy manifest table overflowed.
-- `overlay_loader_candidate_overflow` (L4375) — Number of candidates refused because the candidate table was full.
-- `overlay_loader_pair_aliases` (L4376) — Number of shard pairs that aliased an already loaded pair.
-- `overlay_loader_segment_alias_interp` (L4377) — KUSEG/KSEG1 (and unmapped-segment) dispatches the loader left to the interpreter: no shard compiled for their segment is cached or valid yet (docs/SEGMENT_AWARE_CODE.md §5.7).
-- `overlay_loader_segment_native` (L4378) — KUSEG/KSEG1 dispatches run natively by a shard compiled for their segment.
-- `overlay_loader_is_candidate` (L4405) — 1 when the physical address is a known exact function entry and the loader is active.
-- `overlay_fp_enabled` (L4410) — 1 when the fingerprint log is on, set by the PSX_OVERLAY_FP_LOG variable.
-- `overlay_loader_get_shadow_summary` (L4456) — Reports the shadow-diff call and divergence counts and the first divergent PC.
-- `overlay_loader_set_diff_mode` (L4464) — Turns shadow diff mode on or off.
-- `shadow_cpu_diff` (L4475) — Compares two CPU states field by field; returns the kind of the first difference, with its index and both values.
-- `run_shadow_diff` (L4518) — Authoritative interpreter RECORD + side-effect-free native REPLAY.
-- `shadow_escape_cleanup` (L4697) — A nonlocal scheduler bail during the speculative native replay pass (see overlay_loader_shadow_native_thread_switch_bail) means the interpreter pass — authoritative and already complete by the time th
-- `shadow_escape_flush_cycles` (L4728) — Commits pending cycles and clears the cycle-flush hook after a host unwind skipped a candidate's epilogue.
-- `overlay_loader_shadow_escape_fixup` (L4748) — Called by deferred_exception_longjmp() (interrupts.c) before it unwinds.
-- `overlay_loader_shadow_scheduler_escape_fixup` (L4758) — The deterministic HLE scheduler uses a different jmp_buf and therefore has no exception-setjmp epoch.
-- `overlay_loader_dump_shadow_detail` (L4763) — Writes the captured shadow-diff detail (address and registers) as JSON into out; returns the length.
-- `overlay_loader_dump_shadow` (L4784) — Writes the shadow-diff summary and its records as JSON into out; returns the length.
-- `overlay_regs_crc` (L4823) — Fingerprint over the general registers (r1..r31) + hi/lo.
-- `overlay_regs_snap` (L4832) — Snapshot r0..r31 + hi/lo into a 34-word buffer (entry-state capture).
-- `regs34_crc` (L4839) — CRC over words 1..33 (r0 excluded — always 0), matching overlay_regs_crc.
-- `overlay_fp_log` (L4845) — Records one fingerprint entry (address, cycle, registers, native or interpreted) in the ring.
-- `overlay_loader_call_native` (L4869) — Execute 'addr' natively if a validated overlay candidate exists, keeping the §5-E fingerprint record (same as the dirty_ram_dispatch chokepoint).
-- `overlay_loader_write_fp_file` (L4901) — Write the whole fingerprint log to a file (no TCP size limit).
-- `overlay_loader_dump_native_ring` (L4932) — Dump the native-call ring (most-recent first) + the in-progress entry.
-- `overlay_loader_dump_candidates` (L4958) — Diagnostic: dump every candidate with its stored vs live hash and generation state, so reload behaviour can be inspected directly (Rule 3 — visibility via the debug server, not logs).
-- `overlay_loader_dump_candidates_at` (L4981) — Focused form for live miss diagnosis.
-- `overlay_loader_dump_lazy_at` (L5008) — Focused view of manifest-only candidates that have not been loaded yet.
-- `overlay_loader_get_status` (L5058) — Reports the loader status: active flag, registered count, regions checked, cache folder, game id and last CRC.
+- `overlay_cpu_charge` (L18) — Out-of-line copy of the header-inline CPU charge for the overlay callback table: overlay DLLs publish their accumulated CPU charge here, into the same function native code charges (no scaling at this
+- `range_index_add_candidate` (L149) — Adds a candidate's code ranges to the page index so an address lookup can find it.
+- `exact_entry_set` (L195) — Marks a word-aligned RAM address as a real function entry in the exact-entry bitmap.
+- `exact_entry_has` (L203) — 1 when the address is a marked exact function entry.
+- `idx_head` (L210) — Returns the first candidate indexed at this physical address, or -1 when there is none.
+- `idx_set_head` (L219) — Stores the first candidate for an address in the open-addressed index, using a free slot when needed.
+- `overlay_loader_native_inprogress` (L253) — static uint32_t s_native_inprogress = 0; /* addr of fn currently in native, 0 = none Sampler accessor (phase_profile hot-function histogram): the innermost native candidate's registered entry.
+- `overlay_loader_set_native_exec` (L264) — Turns native overlay execution on or off.
+- `overlay_loader_get_native_exec` (L265) — 1 while native overlay execution is on.
+- `psx_native_bad_entry` (L280) — Fail-closed native entry guard: a function's CPS entry-switch calls this when dispatched at a PC that is not one of its legal entries (foreign interior PC from a range-ownership mismatch).
+- `overlay_loader_bad_entry_stats` (L287) — Reports the owner, PC and count of the last fail-closed bad entry.
+- `overlay_native_blocked` (L304) — 1 when native execution is blocked for this entry address; counts the refusal.
+- `overlay_loader_native_block_add` (L311) — Per-function native-disable for small timing-sensitive overlay routines.
+- `overlay_loader_native_block_clear` (L318) — Clears the per-function native block list and its hit count.
+- `overlay_loader_native_block_list` (L319) — Copies up to cap blocked entry addresses into out and returns how many are blocked.
+- `overlay_loader_native_block_hits` (L324) — Number of dispatches refused because their function was blocked.
+- `overlay_loader_cps_probe_set` (L339) — static int s_cps_probe_matched = -1; /* crc match static int s_cps_probe_outcome = -1; /* 0=find<0,1=crc-miss->interp,2=native,3=device,4=blocked static int s_cps_probe_ncand_inrange = 0; /* how many
+- `overlay_loader_cps_probe_get` (L344) — Reads the last continuation probe: the PC, count, chosen candidate, range and CRC match, and the outcome.
+- `overlay_count_by_range` (L353) — count how many live candidates have a range containing phys (multi-variant check)
+- `overlay_loader_get_inprogress` (L365) — Address of the native overlay function currently executing (0 if none).
+- `psx_overlay_shadow_diff_active` (L377) — gte.cpp holds PGXP's precise culling off while a shadow diff runs: it reads host-only shadows, which the native (speculative) pass does not record, so the two passes would see different NCLIP results
+- `overlay_loader_shadow_native_thread_switch_bail` (L415) — A real interpreter-pass ChangeThread is authoritative and escapes before a native validation pass starts.
+- `cand_range_contains` (L422) — 1 when a physical address falls inside one of the candidate's code ranges.
+- `cand_ranges_overlap` (L429) — 1 when any code range of one candidate overlaps a code range of another.
+- `cand_selected_for_diff` (L444) — An explicit entry filter owns its whole code envelope, including separately seeded continuation candidates.
+- `overlay_loader_set_load_freeze` (L462) — Freeze new DLL discovery/load (lazy try_load_region, live publish commit, rescan).
+- `overlay_loader_load_frozen` (L466) — 1 while new overlay loads are frozen.
+- `overlay_loads_allowed` (L468) — 1 when a new overlay may be loaded now: not frozen and not resimulating during netplay.
+- `native_hot_note` (L509) — Counts one native call to this PC in the hot-function sample table.
+- `overlay_flush_enter` (L549) — Sets the pending cycle-flush callback for this candidate's DLL and returns the previous one.
+- `overlay_flush_leave` (L558) — Runs the pending cycle flush and restores the previous callback.
+- `ov_ranges_crc` (L576) — Manifest and candidate code ranges are keyed by the address their code was compiled for (segment stripped, never mirror-folded: the compiled body bakes those PCs).
+- `ov_ranges_gensum` (L589) — Sums the page generation counters over a set of code ranges, so changed code can be detected.
+- `ov_ranges_watch` (L599) — Registers each code range with the RAM write watch so writes to it are noticed.
+- `cand_live_crc` (L609) — 1 and *live = CRC of the live bytes, or 0 when a range has no live bytes.
+- `cand_gensum` (L613) — Generation sum over a candidate's code ranges.
+- `static_range_offset` (L643) — Main-RAM offset of a variant code range, through the one geometry contract (psx_memory.h).
+- `psx_overlay_static_code_matches` (L650) — 1 when the live RAM bytes of the listed code ranges match expected_crc; counts a miss otherwise.
+- `psx_overlay_resident_crc_at` (L766) — Occupant fingerprint for an interpreted PC (tier-1 enrichment, DirtyRamPcEntry.occ_crc / occ_ok).
+- `overlay_loader_static_match_stats` (L794) — Reports how often static code matching rehashed, missed the CRC, or took the generation fast path.
+- `man_structurally_valid` (L837) — 1 when a manifest function entry is well formed: it has a CRC, a legal range count and a legal segment address.
+- `manifest_is_space` (L868) — 1 for a space, tab, carriage return, vertical tab or form feed.
+- `manifest_skip_space` (L872) — Advances a manifest text pointer past blank characters.
+- `manifest_hex_field` (L877) — Reads a hex number from the manifest text at the cursor, up to max_digits, and moves the cursor past it.
+- `manifest_record_end` (L897) — 1 when only blanks remain on the manifest line.
+- `parse_manifest` (L905) — 'S <seg>' (§5.7) names the segment the shard was compiled for: 00000000 (KUSEG), 80000000 (KSEG0) or A0000000 (KSEG1).
+- `man_find` (L1054) — Finds the manifest function with this entry address, or NULL.
+- `mips_control_kind` (L1063) — 1 = supported R3000A control transfer with a delay slot, 0 = ordinary instruction, -1 = reserved/unsupported branch encoding that native shards must never claim.
+- `ranges_contain_word` (L1083) — 1 when a word-aligned physical address lies inside one of the listed ranges.
+- `ranges_delay_slots_hashed` (L1099) — Defense in depth for caches generated before guarded capture/codegen.
+- `manifest_pair_equal` (L1170) — 1 when two manifest function lists have the same entries, CRCs and sizes.
+- `man_delay_slots_hashed` (L1186) — 1 when the code ranges of a manifest function are covered by delay-slot hashing.
+- `cand_delay_slots_hashed` (L1190) — Same delay-slot hashing check for a loaded candidate's code ranges.
+- `loaded_pair_find` (L1194) — Finds an already loaded shard pair matching tier, provenance, pair id and manifest; -1 when none matches.
+- `loaded_pair_commit` (L1207) — Records a loaded shard pair so that the same pair is not loaded twice.
+- `cand_register` (L1228) — static void loader_log(const char *fmt, ...); /* defined below
+- `idx_head_seg` (L1292) — Finds the candidate at this address for a given segment; -1 when none.
+- `loader_log` (L1321) — Formats a loader event message into the last-message buffer.
+- `overlay_loader_last_msg` (L1328) — Most recent loader event string (DLL load success/failure).
+- `cache_entry_suppress_for_shortfall` (L1360) — 1 when a cache entry must be skipped because there is not enough candidate capacity left for it.
+- `cache_entry_suppress_at_capacity` (L1389) — Candidates are process-lifetime objects, so reaching CAND_CAP is permanent.
+- `path_component_eq` (L1400) — 1 when the path has a folder component equal to wanted, with either slash style.
+- `cache_tier_from_path` (L1421) — Returns the cache tier (gcc, tcc or unknown) named by the folders in the path.
+- `cache_dir_name_eq` (L1435) — 1 when a folder name equals want, ignoring case.
+- `cache_seg_from_path` (L1441) — Returns the segment encoded in the cache folder name, or the default code segment.
+- `cache_name_is_immutable` (L1454) — 1 when a cache file name has the immutable region and CRC form.
+- `cache_path_char_equal` (L1464) — Compares two path characters, ignoring case and slash style on Windows.
+- `cache_path_equal` (L1473) — 1 when two paths are equal under the path character comparison.
+- `cache_path_has_root` (L1484) — 1 when the path starts with the given root folder.
+- `overlay_image_warm_main` (L1528) — Worker thread that pre-maps the cached overlay DLL images so their first call does not pay the mapping cost.
+- `overlay_image_warm_init` (L1558) — Reads PSX_OVERLAY_IMAGE_WARM and sets the start time, so that warming waits until boot has settled.
+- `overlay_image_warm_queue` (L1567) — Queues cached overlay DLLs for background warming; does nothing when warming is off or the candidate store is full.
+- `overlay_image_warm_cancel` (L1602) — Marks a queued warm job as cancelled.
+- `overlay_image_warm_release` (L1607) — Frees a warmed library reference once the job is finished and no longer needed.
+- `overlay_image_warm_drop_all` (L1615) — Cancels and releases every warmed image.
+- `lazy_miss_invalidate_loader` (L1679) — Invalidates all negative lazy lookups by bumping the loader generation.
+- `lazy_miss_cached` (L1688) — Keyed by the full PC: a miss for one segment says nothing about another segment's shard of the same bytes (§5.7).
+- `lazy_miss_record` (L1695) — Remembers that a lazy lookup at this PC found nothing, keyed by the current generations.
+- `overlay_loader_note_code_write` (L1703) — Invalidate negative lazy-lookups after a write to manifested code pages.
+- `rebuild_lazy_manifest_index` (L1710) — Rebuilds the exact-entry bitmap and the lazy manifest index from the loaded manifests.
+- `cache_path_hash` (L1824) — FNV-1a hash of a cache path, with case and slash style folded on Windows.
+- `cidx_set_add` (L1836) — Adds a cache index entry to the path hash set.
+- `cache_idx_has_path` (L1841) — 1 when a cache file with this path is already indexed; rebuilds the path set first when it is stale.
+- `cache_filename_equal` (L1856) — Cache discovery is idempotent only by full path.
+- `cache_path_is_bios_resident` (L1872) — 1 when the DLL path has the BIOS-resident shared-library form.
+- `refresh_bios_resident_flags` (L1890) — Recomputes the BIOS-resident flag of every indexed cache entry.
+- `overlay_loader_arch_abi` (L1898) — PSX_OVERLAY_ARCH_ABI (the cache layout's "<os>-<arch>") is defined in overlay_loader.h, so autocompile.c can hand it to the compile it spawns.
+- `add_posix_cache_file` (L1901) — Visitor that adds one cache file to the index, keeping legacy pairs from ever running in place of an immutable one.
+- `scan_one_cache_dir` (L1936) — Scan one directory for <addr8>_<crc8>.dll cache entries into the index.
+- `warn_on_cgtag_mismatch` (L1995) — Scan the namespaced gcc cache: gcc/<arch-abi>/cg<codegen-ver>/.
+- `cache_idx_remove_path` (L2044) — Removes a cache entry by path from the index and bumps the index generation.
+- `posix_abi_sweep_file` (L2060) — Visitor that opens one immutable cache library to check its ABI version against the current build.
+- `abi_preflight_sweep` (L2107) — ---- ABI pre-flight sweep (batch purge) ---------------------------------- A contract-ABI bump (e.g.
+- `scan_tier_cache_dirs` (L2180) — Scans the cache folder of one tier (gcc or tcc) for this game, build and config.
+- `scan_cache_dir` (L2199) — Indexes the cache folders of both tiers so the runtime can pick a usable artifact, preferring GCC.
+- `overlay_loader_has_cached_crc` (L2243) — True if the cache holds a usable DLL for this region/logical image CRC.
+- `overlay_unit_defer_enabled` (L2340) — A/B toggle for the nested-unit IRQ deferral (PSX_OVERLAY_UNIT_DEFER, default ON).
+- `overlay_unit_irq_defer_enabled` (L2351) — Legacy blanket IRQ deferral inside call units (overlay_unit_defer.h): default OFF; PSX_OVERLAY_UNIT_IRQ_DEFER=1 restores it for A/B bisection.
+- `overlay_loader_set_irq_suppress` (L2361) — Turns overlay interrupt suppression on or off with a rate limit, and resets its counters.
+- `overlay_loader_get_irq_suppress` (L2369) — Reports the interrupt suppression mode, its rate limit and the suppressed count.
+- `overlay_loader_get_ci_skip_diag` (L2385) — Reports how many interrupt checks the overlay wrapper skipped, by reason.
+- `overlay_loader_call_unit_depth` (L2395) — Current depth of nested call units.
+- `overlay_loader_native_nesting` (L2401) — Native-shard nesting for a landing that longjmps out of a shard and then resumes the interrupted code (the render-pass watchdog abort, render_pass.c): the active-candidate stack depth and the in-progr
+- `overlay_loader_set_native_nesting` (L2405) — Restores the active-candidate depth and the in-progress entry after a longjmp resumes interrupted code.
+- `overlay_irq_suppressed_now` (L2412) — 1 when an interrupt must be held back now, during a shadow run or under the rate limit; counts each hold.
+- `overlay_sw_irq_pending` (L2442) — COP0 software interrupts (Cause.IP0/IP1 & SR.IM0/IM1): a guest MTC0 to Cause raises them with no INTC bit, so the area edge must test them like the static edge (psx_edge.h) and psx_check_interrupts do
+- `overlay_irq_sr_allows` (L2448) — IEc must be set; the INTC line needs IM2, a software interrupt only its own IM bit (already folded into sw).
+- `overlay_ci_wrapper` (L2457) — Interrupt-check hook for overlay code: skips delivery inside a nested call unit when that legacy deferral is on.
+- `overlay_idle_note_is_internal_or_return` (L2487) — Full-VA compares (§5.7): the resume PC a shard bakes is in its own segment, so it is the caller's return point only when it equals $ra exactly, and it is internal only to a running shard of the same s
+- `overlay_ci_at_wrapper` (L2502) — extern int psx_idle_skip_area_site(uint32_t pc); /* psx_cycles.c
+- `overlay_irq_budget_blocks_now` (L2541) — 1 when the cycles since the last interrupt check are within the budget, so interrupts are held back now.
+- `overlay_post_dispatch_irq_pump` (L2553) — After a dispatch, delivers a pending interrupt, but never inside a shadow run.
+- `overlay_dispatch_call_probed` (L2570) — extern int g_exec_phase; /* wall-time sampler phase (dirty_ram_interp.c)
+- `init_callbacks` (L2579) — Fills the host callback table with the dispatch, interrupt-check and escape functions the overlay DLLs call.
+- `load_overlay_dll` (L2786) — Loads one cache DLL from its path, resolves its entries and registers them as candidates.
+- `load_bios_resident_shards` (L3059) — Loads every complete BIOS-resident shard that is not loaded yet.
+- `overlay_loader_callbacks` (L3081) — The host callback table, for a consumer that loads overlay-style modules before (or without) overlay_loader_init: the BIOS module host activates a player's retail backend during BIOS selection, ahead
+- `overlay_loader_init` (L3086) — Sets up the overlay loader for a cache folder, game id and config hash, resetting the page index and scanning the cache.
+- `overlay_loader_check_cache` (L3159) — Does nothing at load time: DLL loading is deferred to the first dispatch miss.
+- `already_checked` (L3174) — 1 when this region has already been checked against the cache.
+- `mark_checked` (L3179) — Remembers that a region has been checked against the cache.
+- `overlay_loader_clear_lazy_miss` (L3183) — Drop the negative lazy-lookup memo (host-only).
+- `overlay_loader_resync_validation_after_restore` (L3189) — After RAM restore: bust overlay candidate gen fast-path + static-match cache so native vs interp is re-decided against restored bytes.
+- `overlay_loader_rescan` (L3209) — Re-scan the cache dir for DLLs compiled after init (step 2.8 autocompile) and clear the checked-regions memo so the next dispatch into a window region reconsiders the cache.
+- `native_rank_allows` (L3234) — 1 when this candidate is within the native rank limit; gives it a rank on first use and logs it.
+- `dll_already_loaded` (L3254) — 1 when a DLL with this path is already loaded.
+- `cache_entry_already_loaded` (L3265) — A lazy manifest chain may have hundreds of functions from the same DLL.
+- `overlay_library_close` (L3274) — Closes an overlay library handle with FreeLibrary or dlclose; ignores NULL.
+- `load_one_dll` (L3285) — Consumes prepared on every path.
+- `load_one_dll_prepared` (L3388) — Publishes a prepared library by passing it to the normal single-DLL loader.
+- `published_root_canonical` (L3395) — Resolves the cache root to its canonical path once; returns 0 while it cannot be resolved, so the publish is refused.
+- `published_path_valid` (L3412) — Validates dll_path and writes its CANONICAL form into canon; every later consumer (LoadLibrary, .ranges derivation, loaded-path tracking) uses the canonical string, never the raw pipe text.
+- `overlay_loader_prepare_published` (L3435) — Checks a published DLL path and loads it into a prepared image that can be committed later; NULL when the path is invalid.
+- `overlay_loader_commit_published` (L3476) — Commits a prepared image into the loader when loads are allowed, otherwise discards it; returns 1 when committed.
+- `overlay_loader_discard_prepared` (L3497) — Closes and frees a prepared image that will not be committed.
+- `lazy_man_contains` (L3504) — 1 when a lazy manifest's entries or code ranges cover this physical address in the same segment.
+- `lazy_man_crc` (L3515) — 1 and *crc = CRC of the manifest's live bytes, 0 when it has none.
+- `lazy_man_gensum` (L3519) — Generation sum over the code ranges of a lazy manifest.
+- `lazy_man_matches` (L3523) — 1 when the live bytes of a lazy manifest still match its CRC; records the result as valid or invalid.
+- `lazy_bundle_matches` (L3545) — A CPS DLL can directly own internal tail targets, so one matching entry does not prove the rest of that captured snapshot is current.
+- `lazy_candidate_preferred` (L3567) — Same-tier artifacts that both pass the live-byte gate compute the same thing, but their block edges differ (where a page cut or another capture's branch targets end a block), so under cpu_timing = "bl
+- `lazy_choose_complete_or_fallback` (L3579) — Prefer GCC over TCC even when the TCC option happens to be a broader bundle.
+- `overlay_image_warm_seed_boot_text` (L3593) — A streamed variant is not byte-coherent until immediately before its first call, too late to hide Windows' first image-map cost.
+- `lazy_is_loadable` (L3607) — 1 when a lazy manifest entry can be loaded now for this region and segment.
+- `lazy_better_bundle` (L3624) — Chooses between two lazy bundles by manifest index order only, never by size or timestamp.
+- `lazy_load_selected` (L3634) — Loads the cache entry of a selected lazy manifest, unless it has failed, is suppressed or is already loaded.
+- `try_load_region` (L3656) — Load the cached shard of 'seg' (§5.7) that serves phys.
+- `lazy_has_exact_entry` (L3757) — O(1)-bucket discriminator between a real manifested function entry and an interior CPS continuation.
+- `range_candidate_matches` (L3781) — CPS (§25): find a non-blacklisted candidate whose code range CONTAINS phys — i.e.
+- `range_candidate_preferred` (L3834) — 1 when candidate should replace current: a higher tier wins, and among equal tiers the newer candidate wins.
+- `overlay_find_by_range` (L3841) — Finds the candidate whose code range holds this physical address in the given segment; -1 when none or the loader is off.
+- `overlay_loader_dispatch` (L3884) — Called from dirty_ram_dispatch before the interpreter.
+- `overlay_loader_dispatch_seg` (L3918) — A shard's body bakes the PCs of the segment it was compiled for: the $ra a jal/jalr writes, its jump and exception-resume PCs, its I-cache fetch tags and store-PC stamps (docs/SEGMENT_AWARE_CODE.md §5
+- `overlay_loader_active_write_check` (L4273) — ---- Self-modification of an actively-executing entry (§8.5) ------------ Lazy re-hash on the NEXT dispatch is too late if a native function modifies its own code and continues executing the modified
+- `overlay_loader_get_counters` (L4300) — Reports the loader counters: loads, invalidations, native and interpreted dispatches, and details of the last write.
+- `overlay_loader_get_load_timing` (L4321) — Reports the total, maximum and last DLL load times, in microseconds.
+- `overlay_loader_take_hot_native` (L4328) — Opt-in PSX_RUNTIME_PERF_DIAG sampler: returns and clears the hottest native owner since the preceding call.
+- `overlay_loader_get_reload_debug` (L4353) — Reload diagnostics. Repurposed for the per-entry model: r0_valid -> candidates currently VALID r0_writes...
+- `overlay_loader_registered_count` (L4369) — Returns number of functions currently registered in the dynamic table.
+- `overlay_loader_gen_fastpath` (L4374) — Dispatches that ran native via the unchanged-page-generation fast path, i.e.
+- `overlay_loader_range_link_count` (L4375) — Number of range index links in use.
+- `overlay_loader_range_index_overflow` (L4376) — 1 when the range index ran out of space.
+- `overlay_loader_lazy_manifest_count` (L4377) — Number of lazy manifest entries indexed.
+- `overlay_loader_lazy_manifest_overflow` (L4378) — 1 when the lazy manifest table overflowed.
+- `overlay_loader_candidate_overflow` (L4379) — Number of candidates refused because the candidate table was full.
+- `overlay_loader_pair_aliases` (L4380) — Number of shard pairs that aliased an already loaded pair.
+- `overlay_loader_segment_alias_interp` (L4381) — KUSEG/KSEG1 (and unmapped-segment) dispatches the loader left to the interpreter: no shard compiled for their segment is cached or valid yet (docs/SEGMENT_AWARE_CODE.md §5.7).
+- `overlay_loader_segment_native` (L4382) — KUSEG/KSEG1 dispatches run natively by a shard compiled for their segment.
+- `overlay_loader_is_candidate` (L4409) — 1 when the physical address is a known exact function entry and the loader is active.
+- `overlay_fp_enabled` (L4414) — 1 when the fingerprint log is on, set by the PSX_OVERLAY_FP_LOG variable.
+- `overlay_loader_get_shadow_summary` (L4460) — Reports the shadow-diff call and divergence counts and the first divergent PC.
+- `overlay_loader_set_diff_mode` (L4468) — Turns shadow diff mode on or off.
+- `shadow_cpu_diff` (L4479) — Compares two CPU states field by field; returns the kind of the first difference, with its index and both values.
+- `run_shadow_diff` (L4522) — Authoritative interpreter RECORD + side-effect-free native REPLAY.
+- `shadow_escape_cleanup` (L4701) — A nonlocal scheduler bail during the speculative native replay pass (see overlay_loader_shadow_native_thread_switch_bail) means the interpreter pass — authoritative and already complete by the time th
+- `shadow_escape_flush_cycles` (L4732) — Commits pending cycles and clears the cycle-flush hook after a host unwind skipped a candidate's epilogue.
+- `overlay_loader_shadow_escape_fixup` (L4752) — Called by deferred_exception_longjmp() (interrupts.c) before it unwinds.
+- `overlay_loader_shadow_scheduler_escape_fixup` (L4762) — The deterministic HLE scheduler uses a different jmp_buf and therefore has no exception-setjmp epoch.
+- `overlay_loader_dump_shadow_detail` (L4767) — Writes the captured shadow-diff detail (address and registers) as JSON into out; returns the length.
+- `overlay_loader_dump_shadow` (L4788) — Writes the shadow-diff summary and its records as JSON into out; returns the length.
+- `overlay_regs_crc` (L4827) — Fingerprint over the general registers (r1..r31) + hi/lo.
+- `overlay_regs_snap` (L4836) — Snapshot r0..r31 + hi/lo into a 34-word buffer (entry-state capture).
+- `regs34_crc` (L4843) — CRC over words 1..33 (r0 excluded — always 0), matching overlay_regs_crc.
+- `overlay_fp_log` (L4849) — Records one fingerprint entry (address, cycle, registers, native or interpreted) in the ring.
+- `overlay_loader_call_native` (L4873) — Execute 'addr' natively if a validated overlay candidate exists, keeping the §5-E fingerprint record (same as the dirty_ram_dispatch chokepoint).
+- `overlay_loader_write_fp_file` (L4905) — Write the whole fingerprint log to a file (no TCP size limit).
+- `overlay_loader_dump_native_ring` (L4936) — Dump the native-call ring (most-recent first) + the in-progress entry.
+- `overlay_loader_dump_candidates` (L4962) — Diagnostic: dump every candidate with its stored vs live hash and generation state, so reload behaviour can be inspected directly (Rule 3 — visibility via the debug server, not logs).
+- `overlay_loader_dump_candidates_at` (L4985) — Focused form for live miss diagnosis.
+- `overlay_loader_dump_lazy_at` (L5012) — Focused view of manifest-only candidates that have not been loaded yet.
+- `overlay_loader_get_status` (L5062) — Reports the loader status: active flag, registered count, regions checked, cache folder, game id and last CRC.
 
 ### runtime/src/overlay_path_canon.c
 
@@ -9271,11 +9271,11 @@ Projection history for render passes: captures the GTE camera and projections pe
 - `psx_projection_invalidate` (L112) — Forgets a history's captured projections and stops it if it is the active one.
 - `psx_projection_destroy` (L118) — Invalidates a history, unlinks it from the list and frees it.
 - `psx_projection_capture_begin` (L125) — Starts capturing a history for this frame, moving the previous frame's projections aside.
-- `psx_projection_capture_end` (L131) — Ends the capture, recording the count and indexing the projections for matching.
-- `psx_projection_replay_begin` (L175) — Starts replaying a history inside a render pass at blend alpha, using the captured frame.
-- `psx_projection_replay_end` (L184) — Ends the replay of a history.
-- `psx_projection_stats` (L189) — Copies a history's statistics into out.
-- `psx_projection_command` (L192) — GTE bridge: before RTPS/RTPT imports its registers.
+- `psx_projection_capture_end` (L132) — Ends the capture, recording the count and indexing the projections for matching.
+- `psx_projection_replay_begin` (L176) — Starts replaying a history inside a render pass at blend alpha, using the captured frame.
+- `psx_projection_replay_end` (L185) — Ends the replay of a history.
+- `psx_projection_stats` (L190) — Copies a history's statistics into out.
+- `psx_projection_command` (L193) — GTE bridge: before RTPS/RTPT imports its registers.
 
 ### runtime/src/render_thread.c
 
@@ -10065,56 +10065,56 @@ Simulates the console's three root counters: counting, targets, interrupts, cloc
 
 Handles guest traps and the thread scheduler: crash and break reporting, saving and restoring thread contexts, and fiber-based thread switching.
 
-- `traps_parity_rw` (L24) — RAM reader adapter for the parity trace (cpu->read_word takes only addr).
-- `sched_escape_ring_log` (L70) — Logs a scheduler escape with its reason, current and target thread and resume PC into a ring for diagnostics.
-- `psx_is_dispatchable` (L89) — Fail-closed guard: is 'pc' a valid, dispatchable guest resume point?
-- `psx_bail_record` (L139) — Counts one wild return by its call site and target, and keeps the first one seen.
-- `psx_bail_ledger_top` (L170) — Read the highest-count ledger entry (the dominant wild-return source).
-- `psx_ra_tripwire` (L199) — Latches the first time the return address register is set to 1 by a jump, recording the site, PC, frame and stack pointer.
-- `trap_crash` (L212) — Writes the message to psx_crash.txt, dumps the trace ring, then halts for debugging or exits in release builds.
-- `psx_is_valid_tcb` (L221) — Returns 1 when a thread control block lies inside the kernel's thread table.
-- `psx_current_tcb_ptr` (L246) — Returns the address of the current thread control block, read from the kernel's pointer.
-- `psx_set_current_tcb` (L252) — Stores a thread control block address as the current thread in the kernel's pointer.
-- `thread_ctx_ring_log` (L284) — Logs a thread context save or restore with its block, resume PC and operation into a ring for diagnostics.
-- `psx_assert_no_sentinel_pc` (L306) — Fail-closed: the host exception sentinel must NEVER be persisted into a TCB as a thread's resume PC, nor read back out of one.
-- `psx_save_context_to_tcb` (L317) — Saves the CPU registers and the resume PC into a thread's control block.
-- `psx_store_change_thread_result` (L342) — ChangeTh (B 10h) returns 1 to its caller.
-- `psx_restore_context_from_tcb` (L347) — Loads the CPU registers of a thread from its control block and returns its resume PC.
-- `psx_sched_save_context` (L388) — Deferred cooperative thread switch (Ape Escape memcard fix #2).
-- `psx_sched_set_current_tcb` (L393) — Sets the current thread control block for the scheduler.
-- `psx_sched_current_tcb` (L398) — Returns the current thread control block address for the scheduler.
-- `psx_tcb_state` (L417) — Returns the state word of a thread control block, or 0 when the block is not valid.
-- `psx_current_host_fiber` (L422) — Returns the host fiber of the main thread, converting the current thread to a fiber on first use.
-- `psx_find_host_thread` (L434) — Returns the host fiber slot bound to a thread control block, or NULL when none is bound.
-- `psx_alloc_host_thread` (L444) — Returns a free host fiber slot, cleared, or NULL when all slots are in use.
-- `psx_bind_current_host_thread` (L457) — Binds a thread control block to a host fiber slot, creating the binding for the current thread.
-- `psx_thread_fiber_entry` (L473) — Entry point of a host fiber that runs a guest thread.
-- `psx_fiber_nesting_save` (L528) — Saves the dispatch depth and bail flags of the host nesting before a fiber switch.
-- `psx_fiber_nesting_restore` (L540) — Restores the dispatch depth and bail flags saved before a fiber switch.
-- `psx_fiber_drop_threads` (L564) — Releases all host thread fibers except the current one.
-- `psx_fiber_take_restore` (L579) — Called where the main fiber resumes after a switch: if a restore is waiting, unwind this fiber's stack to the scheduler loop, as the HLE scheduler unwinds its single stack.
-- `psx_fiber_take_restore_unnested` (L588) — Takes a pending fiber restore when there is no nesting record.
-- `psx_get_or_create_host_thread` (L593) — Returns the host fiber of a thread control block, creating one when the thread is in the expected state; NULL otherwise.
-- `psx_change_thread_fiber` (L635) — Switches the running guest thread to the target thread by way of a host fiber.
-- `psx_fiber_preempt_switch` (L751) — In-exception thread switch on the host-fiber scheduler.
-- `psx_request_thread_switch` (L803) — ── Deterministic TCB scheduler — LIVE (carve-out, replaces the fiber bridge) ─ psx_request_thread_switch performs a cooperative thread switch by committing the yielding thread's full context to its TC
-- `psx_scheduler_top_level_resume_active` (L868) — After resume_at, dispatch is top-level — there is no abandoned mid-block native chain under the resume PC.
-- `psx_scheduler_top_level_resume_clear` (L873) — Clears the flag that marks the scheduler resume as top level.
-- `psx_scheduler_resume_at` (L880) — Save-state restore: unwind to psx_scheduler_run and re-dispatch resume_pc (the restored CPUState's PC).
-- `psx_hle_scheduler_set_default` (L936) — HLE-tier standing subsystem replacement (CLAUDE.md §0 amendments 2026-06-29 + 2026-07-02).
-- `psx_hle_scheduler_enabled` (L941) — Returns 1 when the HLE scheduler is enabled by PSX_HLE_SCHEDULER, read once.
-- `psx_change_thread` (L952) — Switches to a target thread through the HLE scheduler or the fiber path, depending on whether the HLE scheduler is enabled.
-- `psx_clear_return_to_lobby` (L962) — Clears the pending return-to-lobby request.
-- `psx_return_to_lobby_requested` (L967) — Returns 1 when a return to the lobby has been requested.
-- `psx_request_return_to_lobby` (L972) — Soft-exit netplay back to the lobby UI.
-- `psx_scheduler_can_resume_at` (L984) — Returns 1 when the scheduler can resume at the PC: it is inside the scheduler run, the HLE scheduler is on and the PC is dispatchable.
-- `psx_scheduler_rfe_resume` (L990) — Records a resume at the given PC for the current thread in the scheduler escape, for an exception return.
-- `psx_scheduler_run` (L1000) — Runs the scheduler loop, dispatching guest code until it escapes or the run ends.
-- `psx_syscall` (L1138) — Trap trampolines — defined in runtime/src/traps.c psx_syscall returns 1 if control transfers (cpu->pc set to a dispatch target; the caller must return to the trampoline), 0 for a directly-handled "voi
-- `psx_break` (L1287) — Reports a BREAK instruction with its PC and code as a crash.
-- `psx_arith_overflow` (L1295) — Reports an arithmetic overflow at the CPU's PC as a crash.
-- `psx_unaligned_access` (L1303) — Logs an unaligned memory access, up to three times, and lets the current function return early.
-- `psx_unknown_dispatch` (L1319) — Unknown dispatch — defined in runtime/src/traps.c
+- `traps_parity_rw` (L25) — RAM reader adapter for the parity trace (cpu->read_word takes only addr).
+- `sched_escape_ring_log` (L71) — Logs a scheduler escape with its reason, current and target thread and resume PC into a ring for diagnostics.
+- `psx_is_dispatchable` (L90) — Fail-closed guard: is 'pc' a valid, dispatchable guest resume point?
+- `psx_bail_record` (L140) — Counts one wild return by its call site and target, and keeps the first one seen.
+- `psx_bail_ledger_top` (L171) — Read the highest-count ledger entry (the dominant wild-return source).
+- `psx_ra_tripwire` (L200) — Latches the first time the return address register is set to 1 by a jump, recording the site, PC, frame and stack pointer.
+- `trap_crash` (L213) — Writes the message to psx_crash.txt, dumps the trace ring, then halts for debugging or exits in release builds.
+- `psx_is_valid_tcb` (L222) — Returns 1 when a thread control block lies inside the kernel's thread table.
+- `psx_current_tcb_ptr` (L247) — Returns the address of the current thread control block, read from the kernel's pointer.
+- `psx_set_current_tcb` (L253) — Stores a thread control block address as the current thread in the kernel's pointer.
+- `thread_ctx_ring_log` (L285) — Logs a thread context save or restore with its block, resume PC and operation into a ring for diagnostics.
+- `psx_assert_no_sentinel_pc` (L307) — Fail-closed: the host exception sentinel must NEVER be persisted into a TCB as a thread's resume PC, nor read back out of one.
+- `psx_save_context_to_tcb` (L318) — Saves the CPU registers and the resume PC into a thread's control block.
+- `psx_store_change_thread_result` (L343) — ChangeTh (B 10h) returns 1 to its caller.
+- `psx_restore_context_from_tcb` (L348) — Loads the CPU registers of a thread from its control block and returns its resume PC.
+- `psx_sched_save_context` (L389) — Deferred cooperative thread switch (Ape Escape memcard fix #2).
+- `psx_sched_set_current_tcb` (L394) — Sets the current thread control block for the scheduler.
+- `psx_sched_current_tcb` (L399) — Returns the current thread control block address for the scheduler.
+- `psx_tcb_state` (L418) — Returns the state word of a thread control block, or 0 when the block is not valid.
+- `psx_current_host_fiber` (L423) — Returns the host fiber of the main thread, converting the current thread to a fiber on first use.
+- `psx_find_host_thread` (L435) — Returns the host fiber slot bound to a thread control block, or NULL when none is bound.
+- `psx_alloc_host_thread` (L445) — Returns a free host fiber slot, cleared, or NULL when all slots are in use.
+- `psx_bind_current_host_thread` (L458) — Binds a thread control block to a host fiber slot, creating the binding for the current thread.
+- `psx_thread_fiber_entry` (L474) — Entry point of a host fiber that runs a guest thread.
+- `psx_fiber_nesting_save` (L529) — Saves the dispatch depth and bail flags of the host nesting before a fiber switch.
+- `psx_fiber_nesting_restore` (L541) — Restores the dispatch depth and bail flags saved before a fiber switch.
+- `psx_fiber_drop_threads` (L565) — Releases all host thread fibers except the current one.
+- `psx_fiber_take_restore` (L580) — Called where the main fiber resumes after a switch: if a restore is waiting, unwind this fiber's stack to the scheduler loop, as the HLE scheduler unwinds its single stack.
+- `psx_fiber_take_restore_unnested` (L589) — Takes a pending fiber restore when there is no nesting record.
+- `psx_get_or_create_host_thread` (L594) — Returns the host fiber of a thread control block, creating one when the thread is in the expected state; NULL otherwise.
+- `psx_change_thread_fiber` (L636) — Switches the running guest thread to the target thread by way of a host fiber.
+- `psx_fiber_preempt_switch` (L752) — In-exception thread switch on the host-fiber scheduler.
+- `psx_request_thread_switch` (L804) — ── Deterministic TCB scheduler — LIVE (carve-out, replaces the fiber bridge) ─ psx_request_thread_switch performs a cooperative thread switch by committing the yielding thread's full context to its TC
+- `psx_scheduler_top_level_resume_active` (L869) — After resume_at, dispatch is top-level — there is no abandoned mid-block native chain under the resume PC.
+- `psx_scheduler_top_level_resume_clear` (L874) — Clears the flag that marks the scheduler resume as top level.
+- `psx_scheduler_resume_at` (L881) — Save-state restore: unwind to psx_scheduler_run and re-dispatch resume_pc (the restored CPUState's PC).
+- `psx_hle_scheduler_set_default` (L937) — HLE-tier standing subsystem replacement (CLAUDE.md §0 amendments 2026-06-29 + 2026-07-02).
+- `psx_hle_scheduler_enabled` (L942) — Returns 1 when the HLE scheduler is enabled by PSX_HLE_SCHEDULER, read once.
+- `psx_change_thread` (L953) — Switches to a target thread through the HLE scheduler or the fiber path, depending on whether the HLE scheduler is enabled.
+- `psx_clear_return_to_lobby` (L963) — Clears the pending return-to-lobby request.
+- `psx_return_to_lobby_requested` (L968) — Returns 1 when a return to the lobby has been requested.
+- `psx_request_return_to_lobby` (L973) — Soft-exit netplay back to the lobby UI.
+- `psx_scheduler_can_resume_at` (L985) — Returns 1 when the scheduler can resume at the PC: it is inside the scheduler run, the HLE scheduler is on and the PC is dispatchable.
+- `psx_scheduler_rfe_resume` (L991) — Records a resume at the given PC for the current thread in the scheduler escape, for an exception return.
+- `psx_scheduler_run` (L1001) — Runs the scheduler loop, dispatching guest code until it escapes or the run ends.
+- `psx_syscall` (L1139) — Trap trampolines — defined in runtime/src/traps.c psx_syscall returns 1 if control transfers (cpu->pc set to a dispatch target; the caller must return to the trampoline), 0 for a directly-handled "voi
+- `psx_break` (L1288) — Reports a BREAK instruction with its PC and code as a crash.
+- `psx_arith_overflow` (L1296) — Reports an arithmetic overflow at the CPU's PC as a crash.
+- `psx_unaligned_access` (L1304) — Logs an unaligned memory access, up to three times, and lets the current function return early.
+- `psx_unknown_dispatch` (L1320) — Unknown dispatch — defined in runtime/src/traps.c
 
 ### runtime/src/video_telemetry.cpp
 
