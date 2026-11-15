@@ -460,10 +460,6 @@ std::string CodeGenerator::translate_lwl(uint32_t instr) {
     uint32_t rt = get_rt(instr);
     int16_t offset = get_imm16(instr);
 
-    if (config_.optimize_zero_reg && rt == 0) {
-        return "/* nop: load to $zero */";
-    }
-
     // LWL: Load Word Left - merges high bytes from the aligned word into rt.
     // psx_lwl runs the full R3000A load interlock on the aligned address (GPR_DEP rs,
     // arm LDWhich=rt) and returns the merged value.
@@ -481,10 +477,6 @@ std::string CodeGenerator::translate_lwr(uint32_t instr) {
     uint32_t rs = get_rs(instr);
     uint32_t rt = get_rt(instr);
     int16_t offset = get_imm16(instr);
-
-    if (config_.optimize_zero_reg && rt == 0) {
-        return "/* nop: load to $zero */";
-    }
 
     // LWR: Load Word Right - merges low bytes from the aligned word into rt.
     std::string addr = (offset == 0) ? reg_name(rs)
