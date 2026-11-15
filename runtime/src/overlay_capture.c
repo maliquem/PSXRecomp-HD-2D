@@ -1544,6 +1544,8 @@ void overlay_autocapture_shutdown(void)
         SDL_WaitThread(s_autocap_write_thread, NULL);
         s_autocap_write_thread = NULL;
     }
+    /* A failed write keeps its job for overlay_capture_wait_pending's retry queue. */
+    if (s_autocap_write_job && !s_autocap_write_job->manifest_sig) return;
     /* The worker atomically published and durably archived the coherent
      * snapshot before setting state=2. No compiler request is needed while
      * shutting down; just release its copied inputs before the final snapshot. */
