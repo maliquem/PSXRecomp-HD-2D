@@ -124,6 +124,19 @@ int main(void) {
     known32("cdrom_async.total_words", ASYNC0 + 2 * ASYNC_SZ + A_TOTAL, 0xFFFFFFFFu);
     printf("%d KNOWN unchecked field(s)\n", known);
 
+    /* MEM-13: MADR reads back 24 bits; block mode takes BS 0 as 10000h. */
+    {
+        extern void     dma_write(uint32_t addr, uint32_t val);
+        extern uint32_t dma_read(uint32_t addr);
+        dma_write(0x1F8010A0u, 0x80001000u);
+        check("MADR bits 24-31 read 0", dma_read(0x1F8010A0u) == 0x00001000u);
+        dma_write(0x1F8010F0u, 0x00000800u);           /* DPCR: enable ch2 */
+        dma_write(0x1F8010A4u, 0x00010000u);           /* BS 0, BA 1 */
+        dma_write(0x1F8010A8u, 0x01000201u);           /* RAM -> GPU, block mode, start */
+        check("block mode BS 0 moves 10000h words",
+              dma_read(0x1F8010A0u) == 0x00001000u + 0x10000u * 4u);
+    }
+
     free(good); free(bad); free(after);
     printf("%d/%d checks passed\n", checks - failures, checks);
     return failures ? 1 : 0;

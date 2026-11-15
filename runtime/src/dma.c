@@ -368,21 +368,24 @@ static int channel_irq_flag_armed(int ch) {
     return ((dicr >> (16 + ch)) & 1u) && ((dicr >> 23) & 1u);
 }
 
+/* psx-spx dmachannels: in SyncMode 1 both BS and BA accept 0 meaning 10000h.
+ * The product can reach 2^32, so saturate; validate_transfer_length() halts on it. */
+static uint32_t dma_block_words(uint32_t bcr) {
+    uint64_t bs = bcr & 0xFFFFu, ba = bcr >> 16;
+    uint64_t words = (bs ? bs : 0x10000u) * (ba ? ba : 0x10000u);
+    return words > 0xFFFFFFFFu ? 0xFFFFFFFFu : (uint32_t)words;
+}
+
 static uint32_t transfer_word_count(int ch) {
     uint32_t chcr = channels[ch].chcr;
     uint32_t sync_mode = (chcr >> 9) & 3;
     uint32_t block_size = channels[ch].bcr & 0xFFFFu;
-    uint32_t block_count = (channels[ch].bcr >> 16) & 0xFFFFu;
 
     if (ch == 3 && block_size == 0) {
         return cdrom_dma_sector_word_count();
     }
 
-    if (sync_mode == 1) {
-        if (block_size == 0) block_size = 0x10000u;
-        if (block_count == 0) block_count = 1u;
-        return block_size * block_count;
-    }
+    if (sync_mode == 1) return dma_block_words(channels[ch].bcr);
 
     if (block_size == 0) block_size = 0x10000u;
     return block_size;
@@ -969,9 +972,7 @@ static uint32_t execute_ch2_gpu(void) {
         /* GPU → RAM (VRAM read): read pixel data via GPUREAD.
          * A prior GP0(C0h) command must have set up the VRAM read region. */
         if (sync_mode == 1) {
-            uint32_t block_size = channels[2].bcr & 0xFFFF;
-            uint32_t block_count = (channels[2].bcr >> 16) & 0xFFFF;
-            uint32_t total_words = block_size * block_count;
+            uint32_t total_words = dma_block_words(channels[2].bcr);
             uint32_t addr = DMA_RAM_ADDR(channels[2].madr);
             int32_t  addr_step = step ? -4 : 4;
             for (uint32_t i = 0; i < total_words; i++) {
@@ -988,9 +989,7 @@ static uint32_t execute_ch2_gpu(void) {
     /* direction == 1: RAM → GPU */
     if (sync_mode == 1) {
         /* Block mode: BCR bits 0-15 = block size (words), bits 16-31 = block count */
-        uint32_t block_size = channels[2].bcr & 0xFFFF;
-        uint32_t block_count = (channels[2].bcr >> 16) & 0xFFFF;
-        uint32_t total_words = block_size * block_count;
+        uint32_t total_words = dma_block_words(channels[2].bcr);
         uint32_t addr = DMA_RAM_ADDR(channels[2].madr); /* mask to RAM, word-aligned */
         int32_t  addr_step = step ? -4 : 4;
 
@@ -1407,7 +1406,7 @@ uint32_t dma_read(uint32_t addr) {
 
         if (ch > 6) goto bad;
         switch (reg) {
-            case 0x00: return channels[ch].madr;
+            case 0x00: return channels[ch].madr & 0x00FFFFFFu; /* bits 24-31 read 0 */
             case 0x04: return channels[ch].bcr;
             case 0x08:
                 if (ch == 2) {
