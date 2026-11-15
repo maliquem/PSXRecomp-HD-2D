@@ -126,21 +126,15 @@ void gr_set_backend(GrBackend backend) {
         if (gl) {
             g_b = gl;
             g_effective = GR_BACKEND_OPENGL;
-            fprintf(stdout, "psxrecomp: renderer = opengl (%s)\n", gl->name);
             return;
         }
-        fprintf(stdout, "psxrecomp: renderer = opengl requested but unavailable "
-                        "— falling back to software\n");
     } else if (backend == GR_BACKEND_VULKAN) {
         const GpuRenderBackend *vk = vk_backend_get();
         if (vk) {
             g_b = vk;
             g_effective = GR_BACKEND_VULKAN;
-            fprintf(stdout, "psxrecomp: renderer = vulkan (%s)\n", vk->name);
             return;
         }
-        fprintf(stdout, "psxrecomp: renderer = vulkan requested but unavailable "
-                        "— falling back to software\n");
     }
     g_b = &SW_BACKEND;
     g_effective = GR_BACKEND_SOFTWARE;
