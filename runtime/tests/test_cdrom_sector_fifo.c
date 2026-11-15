@@ -384,8 +384,24 @@ static void xa_mute_keeps_decoding(void) {
     CHECK(on[0] == off[0] && on[1] == off[1]);
 }
 
+/* CDS-13: SetMode without XA-ADPCM flushes the CD audio queue, except while
+ * CD-DA is playing (that queue then holds CD-DA, not XA). */
+static int reset_calls;
+static void setmode_keeps_cdda_queue(void) {
+    setup();
+    param_fifo[0] = 0x80; param_count = 1;
+    reset_calls = 0; exec_command(0x0E); ack();
+    CHECK(reset_calls == 1);
+    cdda_playing = 1;
+    param_fifo[0] = 0x80; param_count = 1;
+    reset_calls = 0; exec_command(0x0E); ack();
+    CHECK(reset_calls == 0 && mode_reg == 0x80);
+    cdda_playing = 0;
+}
+
 int main(void) {
     xa_mute_keeps_decoding();
+    setmode_keeps_cdda_queue();
     failed_disc_change_keeps_current_disc();
     pause_read_resumes_position();
     snapshot_setloc_and_paused_head();
@@ -403,7 +419,7 @@ int main(void) {
     return 0;
 }
 
-void spu_cd_audio_reset(void) {}
+void spu_cd_audio_reset(void) { ++reset_calls; }
 void spu_cd_audio_push(const int16_t* stereo,int frames) {
     pushed_frames += frames;
     for (int i = 0; i < frames * 2; i++) pushed_nonzero += stereo[i] != 0;

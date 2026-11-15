@@ -2311,7 +2311,8 @@ static void exec_command(uint8_t cmd) {
             mode_reg = param_fifo[0];
             if (!(mode_reg & 0x40u)) {
                 xa_reset_decode();
-                spu_cd_audio_reset();
+                /* XA off cannot flush CD-DA already queued for the SPU (it would click). */
+                if (!cdda_playing) spu_cd_audio_reset();
             }
         }
         response_push(stat_reg);
