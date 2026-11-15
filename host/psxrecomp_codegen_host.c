@@ -2298,7 +2298,8 @@ static void sanitize_toolchain_tag(const char* ver, char* out, size_t cap) {
             out[j++] = '_';
     }
     out[j] = '\0';
-    if (!out[0])
+    /* "." and ".." are path components, not names: rmtree_path(dest) would hit the cache root or its parent. */
+    if (!out[0] || strcmp(out, ".") == 0 || strcmp(out, "..") == 0)
         snprintf(out, cap, "offline");
 }
 
