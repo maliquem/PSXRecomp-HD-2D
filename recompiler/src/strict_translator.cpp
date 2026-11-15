@@ -1299,11 +1299,10 @@ TranslateResult StrictTranslator::translate_impl(const PSXRecomp::DecodedInstruc
             r.supported = true;
             r.is_terminator = true;
             r.terminator_kind = "rfe";
-            // RFE pops the IE/KU stack in SR (cop0[12]) by shifting bits [5:0] right by 2,
-            // preserving the top bits.
+            // RFE copies SR bits 5:2 to 3:0 and leaves bits 5:4 unchanged (psx-spx COP0).
             r.c_code =
                 "{ uint32_t sr = cpu->cop0[12]; "
-                "cpu->cop0[12] = (sr & 0xFFFFFFC0u) | ((sr >> 2) & 0x0Fu); } "
+                "cpu->cop0[12] = (sr & 0xFFFFFFF0u) | ((sr >> 2) & 0x0Fu); } "
                 "/* rfe -- slice terminator (per session approval, RFE substitutes for "
                 "FIRST_MILESTONE.md \"ERET\" since R3000A has no ERET) */ return;";
             r.comment = "rfe";
