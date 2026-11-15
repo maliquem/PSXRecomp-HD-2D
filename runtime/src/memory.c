@@ -1445,27 +1445,6 @@ void memory_init(const char* bios_path) {
 uint64_t g_io_openbus_reads;
 uint64_t g_io_openbus_writes;
 
-static void mmio_fatal(uint32_t vaddr, uint32_t phys, const char* op) {
-    static char reason[96];
-    snprintf(reason, sizeof(reason), "MMIO %s @ 0x%08X (phys 0x%08X)", op, vaddr, phys);
-    fprintf(stderr, "%s\n", reason);
-    fflush(stderr);
-    FILE* cf = fopen("psx_crash.txt", "w");
-    if (cf) { fprintf(cf, "%s\n", reason); fclose(cf); }
-    psx_fatal_halt(reason);
-}
-
-static void mmio_unimplemented(uint32_t addr, const char* op) {
-    static char reason[96];
-    snprintf(reason, sizeof(reason), "UNIMPLEMENTED MMIO %s @ 0x%08X", op, addr);
-    fprintf(stderr, "%s\n", reason);
-    fflush(stderr);
-    /* Also write to a crash file for capture when stderr is lost. */
-    FILE* cf = fopen("psx_crash.txt", "w");
-    if (cf) { fprintf(cf, "%s\n", reason); fclose(cf); }
-    psx_fatal_halt(reason);
-}
-
 static void unmapped_fatal(uint32_t vaddr, uint32_t phys, const char* op) {
     /* On real PS1 hardware, reads from unmapped addresses return open bus
      * (typically the last value on the data bus, or 0xFFFFFFFF).
