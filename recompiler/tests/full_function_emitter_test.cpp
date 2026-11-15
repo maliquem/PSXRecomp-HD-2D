@@ -302,6 +302,26 @@ void jal_jalr_link_once_before_delay_slot() {
            "jal does not rewrite $ra after a delay slot that wrote it");
 }
 
+void branch_into_jump_delay_slot_walks_on() {
+    std::vector<uint8_t> rom;
+    for (uint32_t w : {
+        0x10000002u,  // 00: beq zero,zero -> 0C (the delay slot of the j at 08)
+        0x00000000u,  // 04: nop
+        0x0BF00005u,  // 08: j 0xBFC00014
+        0x00000000u,  // 0C: nop (slot of the j, and a branch target)
+        0x24020001u,  // 10: addiu v0,zero,1 -- only reached by running on from 0C
+        0x03E00008u,  // 14: jr ra
+        0x00000000u,  // 18: nop
+    }) append_word(rom, w);
+    const auto sfr = FunctionDiscovery::walk_function(rom, kBase, kBase + 0x18u, kBase,
+                                                      kBase + 0x1Cu, "test");
+    bool has_slot_successor = false;
+    for (const auto& ins : sfr.instructions)
+        if (ins.first == kBase + 0x10u) has_slot_successor = true;
+    expect(has_slot_successor,
+           "a branch into a j delay slot keeps walking to slot+4");
+}
+
 int main() {
     BiosConfig config{};
     config.config_path = "test://full-function-emitter";
@@ -329,6 +349,7 @@ int main() {
     patch_range_delay_boundaries(config);
     FullFunctionEmitter::set_address_model(&model);
     jal_jalr_link_once_before_delay_slot();
+    branch_into_jump_delay_slot_walks_on();
 
     if (failures != 0) {
         std::fprintf(stderr, "%d full-function emitter test(s) failed\n", failures);

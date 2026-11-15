@@ -170,6 +170,10 @@ FunctionDiscovery::SingleFunctionResult FunctionDiscovery::walk_function(
     SingleFunctionResult result;
 
     std::set<uint32_t> visited;
+    // Addresses popped from the work queue. A delay slot is put in `visited`
+    // when its jump is walked, but a branch may also enter at the slot and
+    // continue to slot+4, so only `walked` gates the main loop.
+    std::set<uint32_t> walked;
     std::queue<uint32_t> work;
     work.push(entry);
 
@@ -193,10 +197,11 @@ FunctionDiscovery::SingleFunctionResult FunctionDiscovery::walk_function(
         uint32_t addr = work.front();
         work.pop();
 
-        if (visited.count(addr)) continue;
+        if (walked.count(addr)) continue;
         if (!in_bounds(addr)) continue;
 
         uint32_t raw = fetch(addr);
+        walked.insert(addr);
         visited.insert(addr);
 
         // Validate through strict translator.
