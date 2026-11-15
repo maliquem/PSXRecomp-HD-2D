@@ -740,6 +740,78 @@ void check_strict_unsigned_sums() {
     }
 }
 
+// GEN-3 (psx-spx "Illegal Opcodes"): an N/A primary opcode raises RI and LWC0/SWC0 raise
+// CpU where the word executes (EPC = the branch and BD set in a delay slot); a function
+// made mostly of such words still becomes the data stub.
+void check_reserved_primary_opcodes() {
+    set_env("PSX_CPS", "1");
+    const uint32_t base = KSEG0 | kPhys;
+    const uint32_t words[] = {
+        0x25080001u,  // +00 addiu $t0, $t0, 1
+        0x60000000u,  // +04 opcode 0x18 (N/A): RI
+        0x03E00008u,  // +08 jr    $ra
+        0x00000000u,  // +0C nop
+        0x10000002u,  // +10 beq   $zero, $zero, +1C
+        0xFC000000u,  // +14 opcode 0x3F in the delay slot: RI, BD
+        0x00000000u,  // +18 nop
+        0x03E00008u,  // +1C jr    $ra
+        0x00000000u,  // +20 nop
+        0xC0000000u,  // +24 lwc0: CpU
+        0x03E00008u,  // +28 jr    $ra
+        0x00000000u,  // +2C nop
+        0x9C000000u,  // +30 opcode 0x27 (N/A)
+        0x9C000000u,  // +34 opcode 0x27 (N/A): >= 50% reserved, data stub
+    };
+    PSXRecomp::PS1Executable exe{};
+    exe.header.load_address = base;
+    exe.header.initial_pc = base;
+    exe.header.file_size = sizeof(words);
+    for (uint32_t w : words) append_word(exe.code_data, w);
+    PSXRecomp::CodeGenConfig config{};
+    config.emit_comments = true;
+    config.indent = "    ";
+    PSXRecomp::ControlFlowAnalyzer analyzer(exe);
+    PSXRecomp::CodeGenerator generator(exe, config);
+    std::vector<PSXRecomp::Function> funcs;
+    std::set<uint32_t> known;
+    const uint32_t spans[][2] = {{0x00u, 0x10u}, {0x10u, 0x24u}, {0x24u, 0x30u}, {0x30u, 0x38u}};
+    for (const auto& span : spans) {
+        const uint32_t s = span[0], e = span[1];
+        PSXRecomp::Function f{};
+        f.start_addr = base + s;
+        f.end_addr = base + e;
+        f.size = e - s;
+        f.name = "func_" + hex(f.start_addr);
+        funcs.push_back(f);
+        known.insert(f.start_addr);
+    }
+    generator.set_known_functions(known);
+    std::map<uint32_t, PSXRecomp::ControlFlowGraph> cfgs;
+    for (const auto& f : funcs) cfgs[f.start_addr] = analyzer.analyze_function(f);
+    std::map<std::string, std::string> body;
+    for (const auto& gf : generator.generate_all_functions(funcs, cfgs))
+        body[gf.function_name] = gf.full_code;
+    const auto has = [&](uint32_t off, const std::string& text) {
+        return body["func_" + hex(base + off)].find(text) != std::string::npos;
+    };
+    check(has(0x00, "reserved opcode=0x18: architectural RI exception") &&
+              has(0x00, "cpu->cop0[14] = 0x" + hex(base + 0x04) + "u;") &&
+              has(0x00, "& ~0x8000007Cu) | 0x00000028u;") && has(0x00, "return; }"),
+          "reserved: opcode 0x18 does not raise RI at its own PC: " + body["func_" + hex(base)]);
+    check(has(0x10, "reserved opcode=0x3F: architectural RI exception") &&
+              has(0x10, "cpu->cop0[14] = 0x" + hex(base + 0x10) + "u;") &&
+              has(0x10, "| 0x80000028u;"),
+          "reserved: a delay-slot RI must point EPC at the branch and set BD: " +
+              body["func_" + hex(base + 0x10)]);
+    check(has(0x24, "reserved opcode=0x30: architectural CpU exception") &&
+              has(0x24, "& ~0xB000007Cu) | 0x0000002Cu;"),
+          "reserved: lwc0 does not raise CpU (CE=0): " + body["func_" + hex(base + 0x24)]);
+    check(has(0x30, "psx_unknown_dispatch(cpu, 0x" + hex(base + 0x30) + "u,") &&
+              !has(0x30, "reserved opcode="),
+          "reserved: a mostly-reserved function is no longer the data stub: " +
+              body["func_" + hex(base + 0x30)]);
+}
+
 }  // namespace
 
 int main() {
@@ -762,6 +834,7 @@ int main() {
     check_strict_div_corners();
     check_strict_swl_swr();
     check_strict_unsigned_sums();
+    check_reserved_primary_opcodes();
     if (failures != 0) {
         std::fprintf(stderr, "emitter_runtime_pc_test: %d failure(s)\n", failures);
         return 1;

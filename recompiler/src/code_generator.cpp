@@ -2115,8 +2115,33 @@ std::string CodeGenerator::translate_instruction_core(uint32_t addr, uint32_t in
                         swc2_addr, value, rt, instr, rt, offset, reg_name(rs));
                 }
                 break;
-            default:
-                code = fmt::format("/* TODO: opcode=0x{:02X} */", opcode);
+            default: {
+                // psx-spx "Illegal Opcodes": N/A primary opcodes raise RI (0Ah); cop0 load/store
+                // (LWC0/SWC0) raise CpU (0Bh). Raised where the word executes, so data never aborts the regen.
+                const bool cop_unusable = (opcode == 0x30 || opcode == 0x38);
+                const bool reserved = cop_unusable || (opcode >= 0x14 && opcode <= 0x1F) ||
+                    opcode == 0x27 || opcode == 0x2C || opcode == 0x2D ||
+                    (opcode >= 0x34 && opcode <= 0x37) || opcode >= 0x3C;
+                if (!reserved) {
+                    code = fmt::format("/* TODO: opcode=0x{:02X} */", opcode);
+                    break;
+                }
+                // In a delay slot EPC is the branch and Cause.BD is set (0x14-0x17 are not branches here).
+                const auto prev = exe_.read_word(addr - 4u);
+                const uint32_t prev_op = prev.has_value() ? (*prev >> 26) : 0u;
+                const bool in_delay = prev.has_value() && ControlFlowAnalyzer::is_control_flow(*prev) &&
+                    !(prev_op >= 0x14u && prev_op <= 0x17u);
+                code = fmt::format(
+                    "{{ /* reserved opcode=0x{:02X}: architectural {} exception */ "
+                    "uint32_t psx_ri_sr = cpu->cop0[12]; cpu->cop0[14] = 0x{:08X}u; "
+                    "cpu->cop0[13] = (cpu->cop0[13] & ~0x{:08X}u) | 0x{:08X}u; "
+                    "cpu->cop0[12] = (psx_ri_sr & ~0x3Fu) | ((psx_ri_sr & 0x0Fu) << 2); "
+                    "cpu->pc = (psx_ri_sr & 0x00400000u) ? 0xBFC00180u : 0x80000080u; return; }}",
+                    opcode, cop_unusable ? "CpU" : "RI", runtime_pc(in_delay ? addr - 4u : addr),
+                    cop_unusable ? 0xB000007Cu : 0x8000007Cu,
+                    (in_delay ? 0x80000000u : 0u) | ((cop_unusable ? 11u : 10u) << 2));
+                break;
+            }
         }
     }
 
@@ -3946,6 +3971,8 @@ std::vector<GeneratedFunction> CodeGenerator::generate_all_functions(
             while ((pos = gen_func.body.find("TODO: opcode", pos)) != std::string::npos) { todo++; pos += 12; }
             pos = 0;
             while ((pos = gen_func.body.find("TODO: SPECIAL", pos)) != std::string::npos) { todo++; pos += 13; }
+            pos = 0;  // reserved words were TODO words before GEN-3; keep the data cut unchanged
+            while ((pos = gen_func.body.find("reserved opcode=0x", pos)) != std::string::npos) { todo++; pos += 18; }
             uint32_t instrs = func.size / 4u;
             if (instrs > 0 && todo * 2u >= instrs) {   // >= 50% untranslatable => data
                 GeneratedFunction data_stub;
