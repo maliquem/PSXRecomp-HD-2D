@@ -38,6 +38,7 @@
 #include "debug_server.h"
 #include "event_ring.h"
 #include "lockstep.h"
+#include "overlay_loader.h"
 #include "psx_cycles.h"
 #include "psx_cycle_freeze.h"
 #include "psx_scheduler.h"
@@ -241,8 +242,6 @@ extern int g_cosim_dirty_pump_site;
 extern uint32_t g_debug_current_func_addr;
 extern uint32_t cosim_last_block(void);
 extern uint32_t overlay_loader_get_inprogress(void);
-extern void overlay_loader_native_nesting(int *active_depth, uint32_t *inprogress);
-extern void overlay_loader_set_native_nesting(int active_depth, uint32_t inprogress);
 
 static void cosim_irq_note(CPUState *cpu,
                            uint32_t kind,
