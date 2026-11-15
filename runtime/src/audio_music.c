@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "audio_trace.h"
 #include "audio_turbo.h"
 #include "spu.h"
 #include "spu_clone.h"
@@ -22,6 +23,9 @@ enum {
 /* Further behind than this, catch up anyway (a title that reports its song
  * changes catches up on those; this only bounds the accesses held). */
 #define AM_MAX_LAG_S 300.0
+/* CD audio pushed within this much guest time counts as playing (XA sectors
+ * can be ~0.2 s apart). */
+#define AM_CD_HOLD_S 0.5
 
 typedef struct { uint64_t cycle; uint32_t addr, value; uint32_t kind; } AmEvent;
 
@@ -47,6 +51,7 @@ uint32_t g_am_dbg[8];   /* TCP audio_turbo "dbg" (debug_server.c) */
 uint32_t g_am_kon[256];
 uint32_t g_am_kon_n;
 static int16_t s_sfx[AM_BUF * 2], s_mus[AM_BUF * 2];
+static uint64_t s_cd_seen, s_cd_cycle;   /* CD input frames seen, guest cycle they last grew */
 
 void am_set_classifier(uint32_t (*music_voices)(void)) { s_classify = music_voices; }
 int  am_ready(void) { return s_classify != NULL; }
@@ -220,6 +225,15 @@ static void music_render(int16_t *out, int n) {
     }
 }
 
+/* Sound only the guest's SPU makes: CD audio (XA/CD-DA) and private voices,
+ * which never reach the clones. */
+static int live_only_sound(void) {
+    const uint64_t t = audio_trace_tap_total(AUDIO_TAP_CD_IN);
+    if (t != s_cd_seen) { s_cd_seen = t; s_cd_cycle = psx_get_cycle_count(); }
+    if (spu_private_voice_active()) return 1;
+    return s_cd_cycle && (double)(psx_get_cycle_count() - s_cd_cycle) < AM_CD_HOLD_S * AM_CPS;
+}
+
 static int sfx_pull(void) {
     spus_catch_up();
     const int n = (int)spus_output_pop(s_sfx, AM_BUF);
@@ -230,6 +244,7 @@ static int sfx_pull(void) {
 
 int am_pump(const int16_t *live, int n_live, int16_t *out, int out_cap, int want, int ff, int on) {
     if (out_cap > AM_BUF) out_cap = AM_BUF;
+    const int live_only = live_only_sound();
     if (s_state == 0) {
         if (!(on && ff && s_classify && enter())) {
             at_push(live, n_live);
@@ -240,10 +255,11 @@ int am_pump(const int16_t *live, int n_live, int16_t *out, int out_cap, int want
      * back to the guest's would jump ahead in the song at every release); the
      * effects SPU, in step, needs no compressing. Pressed again: compressing
      * again, the same SPUs. To the guest's own sound only at a catch-up (a
-     * new song), or when mode 2 is turned off. */
+     * new song), when mode 2 is turned off, or while the guest's SPU plays
+     * CD audio or private voices (the clones have neither). */
     if (s_state == 1 && !ff) { at_jump_direct(); s_state = 3; }
     else if (s_state == 3 && ff && on) s_state = 1;
-    if ((s_state == 3 && (s_to_live || !on)) || (s_state == 1 && !on)) {
+    if ((s_state == 3 && (s_to_live || !on || live_only)) || (s_state == 1 && !on)) {
         if (s_state == 1) at_jump_direct();
         s_xf_left = AM_XF;
         s_state = 2;
