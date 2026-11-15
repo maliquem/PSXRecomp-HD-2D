@@ -831,6 +831,14 @@ if(BUILD_TESTING)
         src/psx_video_timing.c)
     target_include_directories(timers_oneshot_test PRIVATE include)
     add_test(NAME timers_oneshot_test COMMAND timers_oneshot_test)
+    # CPU-27 (a): timer mode table against psx-spx; KNOWN divergences do not fail.
+    add_executable(timers_modes_test
+        tests/test_timers_modes.c
+        src/timers.c
+        src/psx_video_timing.c)
+    target_include_directories(timers_modes_test PRIVATE include)
+    target_compile_definitions(timers_modes_test PRIVATE PSX_ENABLE_BLOCK_CYCLES=1)
+    add_test(NAME timers_modes_test COMMAND timers_modes_test)
 
     # Standalone serial-pad protocol tests use explicit SIO/device stubs; they
     # cover both DualShock rumble and JogCon wire/state behavior.
