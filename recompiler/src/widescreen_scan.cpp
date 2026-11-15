@@ -356,6 +356,7 @@ WsScanResult scan_widescreen(const PS1Executable& exe,
                 std::swap(out.candidates[n++], out.candidates[i]);
             }
         }
+        out.omitted = out.candidates.size() - n;
         out.candidates.resize(n);
     }
     std::sort(out.extent_funcs.begin(), out.extent_funcs.end());

@@ -365,6 +365,9 @@ int main(int argc, char** argv) {
     if (scan_ws) {
         WsScanResult ws = scan_widescreen(*exe, db, ws_opts);
         if (!quiet) print_ws_report(ws, db, top_n);
+        if (ws.omitted > 0)
+            fmt::print("  warning: {} widescreen candidates left out at the max_candidates cap ({}); no command-line flag raises it yet\n",
+                       ws.omitted, ws_opts.max_candidates);
         if (!out_dir.empty()) {
             if (!write_ws_sites_json(ws, out_dir / "widescreen_sites.json", err)) {
                 fmt::print(stderr, "error: {}\n", err); return 1;

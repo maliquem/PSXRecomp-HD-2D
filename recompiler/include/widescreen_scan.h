@@ -64,6 +64,7 @@ struct WsScanResult {
     std::vector<uint32_t> extent_funcs;
 
     std::vector<WsCandidate> candidates;
+    size_t omitted = 0;                    // candidates cut by max_candidates (0 = no cut)
     std::map<uint32_t, uint32_t> w_hist;   // width-range slt immediate -> count
     std::map<uint32_t, uint32_t> h_hist;   // height-range slt immediate -> count
     uint32_t gte_funcs = 0;
