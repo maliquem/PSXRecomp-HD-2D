@@ -1672,6 +1672,14 @@ if(BUILD_TESTING)
                  COMMAND autocompile_degraded_test)
     endif()
 
+    # OVL-20: data shard capture, replay and .dss validation (file cases are Windows-only).
+    add_executable(data_shards_test
+        tests/test_data_shards.c
+        src/data_shards.c
+        src/crc32.c)
+    target_include_directories(data_shards_test PRIVATE include)
+    add_test(NAME data_shards_test COMMAND data_shards_test)
+
     # ---- previously-unregistered standalone tests -------------------------
     # These 16 existed in runtime/tests/ with no add_test() entry. Their only
     # build instructions were a gcc command line in each file's header comment,
