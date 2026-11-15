@@ -58,6 +58,27 @@ constexpr size_t   kBiosSize     = 524288u;
 constexpr uint32_t kSliceStart   = 0xBFC00000u;
 constexpr uint32_t kMaxSliceBytes = 4096u;
 
+// Same escaping as analysis_export.cpp (its helper is file-local).
+std::string json_escape(const std::string& s) {
+    std::string out;
+    out.reserve(s.size() + 8);
+    for (char c : s) {
+        switch (c) {
+        case '"':  out += "\\\""; break;
+        case '\\': out += "\\\\"; break;
+        case '\n': out += "\\n";  break;
+        case '\r': out += "\\r";  break;
+        case '\t': out += "\\t";  break;
+        default:
+            if (static_cast<unsigned char>(c) < 0x20)
+                out += fmt::format("\\u{:04x}", static_cast<unsigned char>(c));
+            else
+                out += c;
+        }
+    }
+    return out;
+}
+
 // ----- SHA-256 (small portable implementation) ---------------------------
 // Phase 1a needs a SHA-256 of the BIOS image as a proof artifact in the
 // manifest. Implementation is a straight transcription of FIPS 180-4. No
@@ -222,7 +243,7 @@ std::string make_manifest_json(const PSXRecompV4::WalkResult& w,
     os << "{\n";
     os << "  \"schema_version\": 1,\n";
     os << "  \"bios_image\": {\n";
-    os << fmt::format("    \"path\": \"{}\",\n", bios_path.generic_string());
+    os << fmt::format("    \"path\": \"{}\",\n", json_escape(bios_path.generic_string()));
     os << fmt::format("    \"size\": {},\n", bios_size);
     os << fmt::format("    \"sha256\": \"{}\"\n", bios_sha256);
     os << "  },\n";
@@ -561,7 +582,7 @@ std::string make_discovery_log_json(const PSXRecompV4::DiscoveryResult& dr,
     os << "  \"seeds\": [\n";
     for (size_t i = 0; i < seeds.size(); ++i) {
         os << fmt::format("    {{\"address\": \"0x{:08X}\", \"label\": \"{}\"}}",
-                          seeds[i].address, seeds[i].label);
+                          seeds[i].address, json_escape(seeds[i].label));
         os << (i + 1 < seeds.size() ? ",\n" : "\n");
     }
     os << "  ],\n";
@@ -602,7 +623,7 @@ std::string make_discovery_log_json(const PSXRecompV4::DiscoveryResult& dr,
         const auto& u = dr.unsupported[i];
         os << fmt::format("    {{\"address\": \"0x{:08X}\", \"raw\": \"0x{:08X}\", "
                           "\"reason\": \"{}\"}}",
-                          u.address, u.raw, u.reason);
+                          u.address, u.raw, json_escape(u.reason));
         os << (i + 1 < dr.unsupported.size() ? ",\n" : "\n");
     }
     os << "  ]\n";
@@ -1020,6 +1041,7 @@ int main(int argc, char** argv) {
         std::optional<fs::path> config_path;
         std::optional<fs::path> config_rom_override;
         std::optional<fs::path> config_out_override;
+        std::string unknown_arg;
         for (int i = 1; i < argc; ++i) {
             const std::string a = argv[i];
             if (a == "--config" && i + 1 < argc) {
@@ -1030,7 +1052,13 @@ int main(int argc, char** argv) {
                 config_rom_override = PSXRecompV4::host_absolute(argv[++i]);
             } else if (a == "--out-dir" && i + 1 < argc) {
                 config_out_override = PSXRecompV4::host_absolute(argv[++i]);
+            } else if (unknown_arg.empty()) {
+                unknown_arg = a;  // positional form reuses these tokens; only --config rejects them
             }
+        }
+        if (config_path && !unknown_arg.empty()) {
+            std::fprintf(stderr, "psxrecomp-bios: unknown argument: %s\n", unknown_arg.c_str());
+            return 2;
         }
         if (config_path) {
             auto cfg = PSXRecompV4::load_bios_config(*config_path);
