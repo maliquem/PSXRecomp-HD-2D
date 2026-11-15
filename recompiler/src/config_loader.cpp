@@ -3792,13 +3792,44 @@ fs::path relative_to_folder(const fs::path& p, const fs::path& folder) {
     return r;
 }
 
+// A basic TOML string must not carry a raw quote, backslash or control char.
+static std::string toml_escape(const std::string& in) {
+    std::string out;
+    for (char c : in) {
+        switch (c) {
+        case '"':  out += "\\\""; break;
+        case '\\': out += "\\\\"; break;
+        case '\n': out += "\\n"; break;
+        case '\r': out += "\\r"; break;
+        case '\t': out += "\\t"; break;
+        default:   out += c;
+        }
+    }
+    return out;
+}
+
+// Write to a sibling temp file then rename, so a crash never leaves a cut file.
+static bool write_text_atomic(const fs::path& path, const std::string& text) {
+    const fs::path tmp = path.string() + ".tmp";
+    std::error_code ec;
+    {
+        std::ofstream o(tmp, std::ios::binary | std::ios::trunc);
+        if (!o) return false;
+        o << text;
+        o.flush();
+        if (!o.good()) { o.close(); fs::remove(tmp, ec); return false; }
+    }
+    fs::rename(tmp, path, ec);
+    if (ec) { fs::remove(tmp, ec); return false; }
+    return true;
+}
+
 bool save_user_settings(const fs::path& path, const UserSettings& s) {
     std::error_code ec;
     if (!path.parent_path().empty())
         fs::create_directories(path.parent_path(), ec);  // best-effort
 
-    std::ofstream f(path, std::ios::trunc);
-    if (!f.is_open()) return false;
+    std::ostringstream f;
 
     // Windows paths use forward slashes so separators need no TOML escaping.
     auto fwd = [](const fs::path& p) {
@@ -3903,13 +3934,13 @@ bool save_user_settings(const fs::path& path, const UserSettings& s) {
     if (s.has_frame_interpolation_fps)
         f << "frame_interpolation_fps = " << s.frame_interpolation_fps << "\n";
     if (s.has_quality_preset)
-        f << "quality_preset    = \"" << s.quality_preset << "\"\n";
+        f << "quality_preset    = \"" << toml_escape(s.quality_preset) << "\"\n";
     if (s.has_quality_base)
-        f << "quality_base      = \"" << s.quality_base << "\"\n";
+        f << "quality_base      = \"" << toml_escape(s.quality_base) << "\"\n";
     if (s.has_quality_hardware)
-        f << "quality_hardware  = \"" << s.quality_hardware << "\"\n";
+        f << "quality_hardware  = \"" << toml_escape(s.quality_hardware) << "\"\n";
     if (s.has_quality_detected)
-        f << "quality_detected  = \"" << s.quality_detected << "\"\n";
+        f << "quality_detected  = \"" << toml_escape(s.quality_detected) << "\"\n";
     if (s.has_aspect_ratio)
         f << "aspect_ratio      = \"" << s.aspect_num << ":" << s.aspect_den << "\"\n";
     if (s.has_adaptive_view)
@@ -3947,16 +3978,16 @@ bool save_user_settings(const fs::path& path, const UserSettings& s) {
         (s.has_netplay_lobby_url && !s.netplay_lobby_url.empty())) {
         f << "\n[netplay]\n";
         if (s.has_netplay_player_name && !s.netplay_player_name.empty())
-            f << "player_name = \"" << s.netplay_player_name << "\"\n";
+            f << "player_name = \"" << toml_escape(s.netplay_player_name) << "\"\n";
         if (s.has_netplay_lobby_url && !s.netplay_lobby_url.empty())
-            f << "lobby_url = \"" << s.netplay_lobby_url << "\"\n";
+            f << "lobby_url = \"" << toml_escape(s.netplay_lobby_url) << "\"\n";
     }
     if (s.has_bios_path)
-        f << "\n[bios]\npath = \"" << rel(s.bios_path) << "\"\n";
+        f << "\n[bios]\npath = \"" << toml_escape(rel(s.bios_path)) << "\"\n";
     if (s.has_disc_path || s.has_disc_index) {
         f << "\n[disc]\n";
         if (s.has_disc_path)
-            f << "path = \"" << rel(s.disc_path) << "\"\n";
+            f << "path = \"" << toml_escape(rel(s.disc_path)) << "\"\n";
         /* Only meaningful for a multi-disc title; harmless (and informative)
          * for a single-disc one, where it is always 1. */
         if (s.has_disc_index)
@@ -3966,11 +3997,11 @@ bool save_user_settings(const fs::path& path, const UserSettings& s) {
         s.has_memcard1_enabled || s.has_memcard2_enabled) {
         f << "\n[memcard]\n";
         if (s.has_memcard_dir)
-            f << "dir     = \"" << rel(s.memcard_dir) << "\"\n";
+            f << "dir     = \"" << toml_escape(rel(s.memcard_dir)) << "\"\n";
         if (s.has_memcard1_path)
-            f << "card1   = \"" << rel(s.memcard1_path) << "\"\n";
+            f << "card1   = \"" << toml_escape(rel(s.memcard1_path)) << "\"\n";
         if (s.has_memcard2_path)
-            f << "card2   = \"" << rel(s.memcard2_path) << "\"\n";
+            f << "card2   = \"" << toml_escape(rel(s.memcard2_path)) << "\"\n";
         if (s.has_memcard1_enabled)
             f << "enable1 = " << (s.memcard1_enabled ? "true" : "false") << "\n";
         if (s.has_memcard2_enabled)
@@ -3995,7 +4026,7 @@ bool save_user_settings(const fs::path& path, const UserSettings& s) {
             f << "\n[controller]\n";
             for (int i = 0; i < UserSettings::kMaxControllerPlayers; ++i) {
                 if (s.has_p_device[i])
-                    f << kDevKeys[i] << " = \"" << s.p_device[i] << "\"\n";
+                    f << kDevKeys[i] << " = \"" << toml_escape(s.p_device[i]) << "\"\n";
                 if (s.has_p_mode[i])
                     f << kModeKeys[i] << "   = \""
                       << pad_mode_to_string(s.p_mode[i]) << "\"\n";
@@ -4021,20 +4052,20 @@ bool save_user_settings(const fs::path& path, const UserSettings& s) {
 
     if (s.has_language) {
         f << "\n[localization]\n";
-        f << "language = \"" << s.language << "\"\n";
+        f << "language = \"" << toml_escape(s.language) << "\"\n";
     }
     if (s.has_parappa_timing_mode || s.has_parappa_timing_extra_early ||
         s.has_parappa_timing_extra_late) {
         f << "\n[parappa_timing]\n";
         if (s.has_parappa_timing_mode)
-            f << "mode = \"" << s.parappa_timing_mode << "\"\n";
+            f << "mode = \"" << toml_escape(s.parappa_timing_mode) << "\"\n";
         if (s.has_parappa_timing_extra_early)
             f << "extra_early = " << s.parappa_timing_extra_early << "\n";
         if (s.has_parappa_timing_extra_late)
             f << "extra_late = " << s.parappa_timing_extra_late << "\n";
     }
 
-    return f.good();
+    return write_text_atomic(path, f.str());
 }
 
 bool upsert_game_toml_controller_bool(const std::filesystem::path& path,
@@ -4043,13 +4074,17 @@ bool upsert_game_toml_controller_bool(const std::filesystem::path& path,
     if (!key || !key[0]) return false;
     std::string text;
     {
-        std::ifstream in(path);
+        std::error_code ec;
+        std::ifstream in(path, std::ios::binary);
         if (in) {
             std::ostringstream ss;
             ss << in.rdbuf();
             text = ss.str();
+        } else if (fs::exists(path, ec)) {
+            return false;  // unreadable: do not overwrite it with a stub
         }
     }
+    const bool crlf = text.find("\r\n") != std::string::npos;
     const std::string val = value ? "true" : "false";
     const std::string assign = std::string(key) + " = " + val;
 
@@ -4129,10 +4164,15 @@ bool upsert_game_toml_controller_bool(const std::filesystem::path& path,
         text = out.str();
     }
 
-    std::ofstream f(path, std::ios::binary | std::ios::trunc);
-    if (!f) return false;
-    f << text;
-    return f.good();
+    if (crlf) {
+        std::string t;
+        for (char c : text) {
+            if (c == '\n' && (t.empty() || t.back() != '\r')) t += '\r';
+            t += c;
+        }
+        text.swap(t);
+    }
+    return write_text_atomic(path, text);
 }
 
 } // namespace PSXRecompV4

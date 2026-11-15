@@ -948,6 +948,14 @@ if(BUILD_TESTING)
     target_link_libraries(portable_settings_paths_test PRIVATE fmt)
     add_test(NAME portable_settings_paths_test COMMAND portable_settings_paths_test)
 
+    # Saved settings escape TOML strings and are written atomically (ANA-23).
+    add_executable(settings_save_escape_test
+        tests/settings_save_escape_test.cpp src/config_loader.cpp src/ps1_exe_parser.cpp)
+    target_include_directories(settings_save_escape_test PRIVATE
+        include src lib/fmt/include lib/toml11)
+    target_link_libraries(settings_save_escape_test PRIVATE fmt)
+    add_test(NAME settings_save_escape_test COMMAND settings_save_escape_test)
+
     # Needs bios/SCPH1001.toml — run from the framework root.
     add_test(NAME bios_address_model_test
              COMMAND bios_address_model_test
