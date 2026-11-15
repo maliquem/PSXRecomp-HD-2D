@@ -4863,21 +4863,6 @@ static int np_diag_enabled(void)
     return cached;
 }
 
-/* Verbose delay-sync starvation latch/clear spam. Off by default — the latch
- * can toggle every few frames under jitter and floods stderr. Enable with
- * PSX_NET_DELAY_SYNC_DIAG=1 (alias: PSX_NET_STARVATION_DIAG=1). */
-static int np_delay_sync_diag_enabled(void)
-{
-    static int cached = -1;
-    if (cached < 0) {
-        const char *v = getenv("PSX_NET_DELAY_SYNC_DIAG");
-        if (!v || !v[0])
-            v = getenv("PSX_NET_STARVATION_DIAG");
-        cached = (v && v[0] && v[0] != '0') ? 1 : 0;
-    }
-    return cached;
-}
-
 static unsigned np_diag_interval_ms(void)
 {
     static unsigned cached = 0;
@@ -5476,21 +5461,6 @@ int psx_netplay_poll_admit(void)
                                          PSX_STARVATION_RECOVERY_BURST_DEFAULT);
             g_starv.just_cleared = 0;
             g_starv.recovery_amount = burst;
-            if (np_delay_sync_diag_enabled()) {
-                if (burst > 0) {
-                    fprintf(stderr,
-                            "psxrecomp: delay_sync_starvation cleared sim=%u lead=%d "
-                            "D=%d — recovery burst %d\n",
-                            (unsigned)psx_netplay_sim_tick(), psx_netplay_remote_lead(),
-                            psx_netplay_input_delay(), burst);
-                } else {
-                    fprintf(stderr,
-                            "psxrecomp: delay_sync_starvation cleared sim=%u lead=%d "
-                            "D=%d — resume 1:1 (rebuild input buffer)\n",
-                            (unsigned)psx_netplay_sim_tick(), psx_netplay_remote_lead(),
-                            psx_netplay_input_delay());
-                }
-            }
         }
         return 1;
     }
@@ -5500,16 +5470,7 @@ int psx_netplay_poll_admit(void)
     if (g_starv.enter_run >= enter_need) {
         g_starv.latched = 1;
         g_starv.enter_run = 0;
-        if (!g_starv.latch_logged) {
-            if (np_delay_sync_diag_enabled()) {
-                fprintf(stderr,
-                        "psxrecomp: delay_sync_starvation latched sim=%u lead=%d "
-                        "D=%d (enter=%d)\n",
-                        (unsigned)psx_netplay_sim_tick(), psx_netplay_remote_lead(),
-                        psx_netplay_input_delay(), enter_need);
-            }
-            g_starv.latch_logged = 1;
-        }
+        g_starv.latch_logged = 1;
     }
     return 0;
 }

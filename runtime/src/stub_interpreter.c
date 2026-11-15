@@ -17,3 +17,4 @@ void     interp_break_clear_all(void)                  { }
 void     interp_trace_enable(int on)                   { (void)on; }
 uint64_t interp_trace_count(void)                      { return 0; }
 const InterpTraceEntry* interp_trace_get(uint32_t idx) { (void)idx; return 0; }
+void     interp_faults(InterpFaults* out)               { if (out) { InterpFaults z = {0}; *out = z; } }

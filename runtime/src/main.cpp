@@ -11368,15 +11368,6 @@ static void dynres_setup(void) {
     dynrt_default_params(&rtp);
     dynrt_init(&g_dynres.rt, &rtp, floor_s, ceiling, ceiling);
     g_dynres.active = floor_s < ceiling;
-    if (const char* e = std::getenv("PSX_DYNRES_FORCE")) {
-        const int n = std::atoi(e);
-        if (n > 0) {
-            g_dynres.active = true;
-            const int l = dynres_force(&g_dynres.ctl, n);
-            (void)dynrt_force(&g_dynres.rt, n);
-            (void)gl_renderer_step_internal_scale_now(l);
-        }
-    }
     if (const char* e = std::getenv("PSX_DYNRES_TRACE"))
         if (*e) g_dynres.trace = std::fopen(e, "w");
     if (g_dynres.trace)
@@ -13068,9 +13059,6 @@ namespace {
     }
 
     static void ae_np_lan_udp_close(void) {
-        if (std::getenv("PSX_NET_LOBBY_TRACE"))
-            std::fprintf(stderr, "LAN trace: close socket (host=%d guest=%d)\n",
-                         g_lnch_hosting_lan, g_lnch_joined_lan);
         ae_np_lan_sock_close(&g_lnch_lan_udp);
         for (int i = 0; i < kAeLanMaxSlots; ++i)
             g_lnch_lan_peer_ok[i] = false;
@@ -13317,10 +13305,6 @@ namespace {
     }
 
     static void ae_np_lan_udp_sendto(const sockaddr_in& to, const char* msg) {
-        if (std::getenv("PSX_NET_LOBBY_TRACE") && msg)
-            std::fprintf(stderr, "LAN trace: send %.*s to %08x:%u\n",
-                         (int)std::strcspn(msg, "\n"), msg,
-                         (unsigned)ntohl(to.sin_addr.s_addr), (unsigned)ntohs(to.sin_port));
         if (g_lnch_lan_udp == kAeLanSockInvalid || !msg) return;
         const int n = (int)std::strlen(msg);
 #ifdef _WIN32
@@ -15533,10 +15517,6 @@ namespace {
 
             /* Content negotiation: a guest accepts lobby datagrams (and so a
              * plan) only from the host endpoint it joined. */
-            if (std::getenv("PSX_NET_LOBBY_TRACE"))
-                std::fprintf(stderr, "LAN trace: receive %.*s from %08x:%u\n",
-                             (int)std::strcspn(buf, "\n"), buf,
-                             (unsigned)ntohl(from.sin_addr.s_addr), (unsigned)ntohs(from.sin_port));
             if (g_lnch_remote_lan && g_netplay_content_negotiation) {
                 char host[64]; in_addr expected{};
                 if (!ae_np_lan_endpoint_host(g_lnch_lan_endpoint, host, sizeof(host)) ||
@@ -18803,12 +18783,6 @@ int main(int argc, char** argv) {
             g_headless = 1;
             force_no_launcher = true;
         }
-    }
-
-    /* Test hook: a hidden game window that still runs the launcher (and its
-     * in-game menu), unlike --hidden-window. */
-    if (const char *e = std::getenv("PSX_HIDDEN_WINDOW")) {
-        if (*e && *e != '0') g_hidden_window = 1;
     }
 
     std::string default_game_config_storage;

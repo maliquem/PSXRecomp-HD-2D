@@ -52,6 +52,7 @@ static uint32_t s_vblank_count;
 static int  s_hit_bp;
 static int  s_trace_on;
 static int  s_halted;
+static InterpFaults s_faults;
 
 /* PC breakpoints */
 #define MAX_BREAKPOINTS 64
@@ -76,6 +77,7 @@ void interp_init(CPUState* cpu) {
     s_hit_bp = 0;
     s_trace_on = 0;
     s_halted = 0;
+    memset(&s_faults, 0, sizeof s_faults);
     s_bp_count = 0;
     s_trace_seq = 0;
     s_trace_write_idx = 0;
@@ -124,6 +126,8 @@ const InterpTraceEntry* interp_trace_get(uint32_t ring_idx) {
     uint32_t idx = (s_trace_write_idx - avail + ring_idx) & TRACE_RING_MASK;
     return &s_trace_ring[idx];
 }
+
+void interp_faults(InterpFaults* out) { if (out) *out = s_faults; }
 
 static void trace_record(CPUState* cpu, uint32_t insn) {
     InterpTraceEntry* e = &s_trace_ring[s_trace_write_idx];
@@ -184,8 +188,9 @@ static void exec_one(CPUState* cpu) {
 
     /* Trap: halt if we jumped to address 0 (NULL function pointer). */
     if (pc == 0) {
-        fprintf(stderr, "INTERP: NULL jump (PC=0x00000000), ra=0x%08X, t0=0x%08X, t1=0x%08X\n",
-                cpu->gpr[31], cpu->gpr[8], cpu->gpr[9]);
+        s_faults.null_jumps++;
+        s_faults.last_pc = 0;
+        s_faults.last_ra = cpu->gpr[31];
         s_halted = 1;
         return;
     }
@@ -399,7 +404,9 @@ static void exec_one(CPUState* cpu) {
             }
             break;
         default:
-            fprintf(stderr, "INTERP: unknown COP0 op 0x%02X at PC=0x%08X\n", cop_op, pc);
+            s_faults.unknown_cop0++;
+            s_faults.last_pc = pc;
+            s_faults.last_op = cop_op;
             break;
         }
         break;
@@ -434,7 +441,9 @@ static void exec_one(CPUState* cpu) {
                 /* COP2 command */
                 gte_execute(cpu, insn & 0x1FFFFFFu);
             } else {
-                fprintf(stderr, "INTERP: unknown COP2 op 0x%02X at PC=0x%08X\n", cop_op, pc);
+                s_faults.unknown_cop2++;
+                s_faults.last_pc = pc;
+                s_faults.last_op = cop_op;
             }
             break;
         }

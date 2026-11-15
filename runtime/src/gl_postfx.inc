@@ -4038,19 +4038,6 @@ static void postfx_pillar_fill(int lx, int ly, int lw, int lh) {
     glBindTexture(GL_TEXTURE_2D, (GLuint)prev_tex);
     p_glBindVertexArray(0);
     p_glUseProgram(0);
-#ifndef PSX_NO_DEBUG_TOOLS
-    /* PSX_PILLARBOX_DEBUG=1: log the edge measure every 60 fills (a sync read). */
-    static int dbg = -1;
-    if (dbg < 0) { const char *e = getenv("PSX_PILLARBOX_DEBUG"); dbg = e && e[0] == '1'; }
-    if (dbg && s_pb_fills % 60 == 0) {
-        unsigned char px[4] = {0, 0, 0, 0};
-        p_glBindFramebuffer(PSXGL_READ_FRAMEBUFFER, s_pb_fbo[5]);
-        glReadPixels(0, 0, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, px);
-        fprintf(stdout, "psxrecomp: pillarbox edge rgb %u %u %u measure %.3f (%s)\n",
-                px[0], px[1], px[2], px[3] / 255.0, px[3] / 255.0f < s_pb_flat ? "flat" : "blur");
-        fflush(stdout);
-    }
-#endif
     pfx_state_restore(&saved);
     s_pb_fills++;
 }

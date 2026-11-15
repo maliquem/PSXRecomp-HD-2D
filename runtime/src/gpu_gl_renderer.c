@@ -703,7 +703,6 @@ static GLuint        s_interp_fbo = 0;   /* draw target of a scaled capture */
 static int           s_interp_force_4_3 = 0, s_interp_source_path = -1;
 static uint64_t      s_interp_swaps = 0;
 static uint64_t      s_interp_captures = 0;
-static int           s_interp_diag = 0;
 static double        s_interp_host_hz = 0.0;
 static double        s_interp_target_hz = 0.0;
 static double        s_interp_source_hz = 0.0;
@@ -9690,8 +9689,6 @@ void gl_renderer_set_interpolation(int enabled, double host_hz, double target_hz
     if (effective_hz < source_hz) effective_hz = source_hz;
     int active = (enabled && source_hz >= 1.0 && source_hz <= 1000.0 &&
                   effective_hz >= source_hz && effective_hz <= 1000.0) ? 1 : 0;
-    const char *diag = getenv("PSX_GL_INTERP_DIAG");
-    s_interp_diag = diag && diag[0] && diag[0] != '0';
     if (active != s_interp_enabled || source_hz != s_interp_source_hz ||
         effective_hz != s_interp_target_hz)
         interp_reset_history_unlocked();
@@ -9957,7 +9954,6 @@ static void interp_wait_until(uint64_t deadline, uint64_t frequency) {
 }
 
 static void interp_present_source_interval(void) {
-    static uint64_t diag_start, diag_swaps, diag_captures;
     uint64_t frequency = SDL_GetPerformanceFrequency();
     uint64_t now = SDL_GetPerformanceCounter();
     uint64_t deadline;
@@ -9981,24 +9977,6 @@ static void interp_present_source_interval(void) {
     }
     interp_wait_until(frame_interpolation_schedule_end(&s_interp_schedule),
                       frequency);
-
-    now = SDL_GetPerformanceCounter();
-    if (!diag_start) {
-        diag_start = now;
-        diag_swaps = s_interp_swaps;
-        diag_captures = s_interp_captures;
-    } else if (s_interp_diag && frequency &&
-               now - diag_start >= frequency * 5u) {
-        double seconds = (double)(now - diag_start) / (double)frequency;
-        fprintf(stdout, "psxrecomp: GL temporal-blend cadence: "
-                "%.2f captures/s, %.2f presents/s (single context)\n",
-                (double)(s_interp_captures - diag_captures) / seconds,
-                (double)(s_interp_swaps - diag_swaps) / seconds);
-        fflush(stdout);
-        diag_start = now;
-        diag_captures = s_interp_captures;
-        diag_swaps = s_interp_swaps;
-    }
 }
 
 /* ==== Render passes (render_pass.c, docs/RENDER_PASSES.md) ==================
@@ -12909,7 +12887,6 @@ static GLint  s_dyn_seed_uSrc = -1, s_dyn_seed_uS = -1;
 static GLint  s_dyn_rs_uSrc = -1, s_dyn_rs_uOld = -1, s_dyn_rs_uNew = -1;
 static GLint  s_dyn_rs_uOff = -1, s_dyn_rs_uSrcOff = -1;
 static int    s_dyn_pending = 0;
-static int    s_dyn_timing = -1;        /* PSX_DYNRES_TIMING: glFinish per part */
 static GlDynresStats s_dyn_stats;
 
 static const char *DYN_TL_FS =
@@ -13031,7 +13008,6 @@ static double dyn_ms(uint64_t t0, uint64_t t1) {
     return (double)(t1 - t0) * 1000.0 / (double)SDL_GetPerformanceFrequency();
 }
 static uint64_t dyn_mark(void) {
-    if (s_dyn_timing) glFinish();
     return SDL_GetPerformanceCounter();
 }
 
@@ -13121,10 +13097,6 @@ static int dyn_apply(int snew) {
         s_dyn_pending = snew;
         s_dyn_stats.deferred++;
         return 0;
-    }
-    if (s_dyn_timing < 0) {
-        const char *e = getenv("PSX_DYNRES_TIMING");
-        s_dyn_timing = (e && e[0] && e[0] != '0') ? 1 : 0;
     }
     const int sold = s_hr_scale;
     const uint64_t t0 = SDL_GetPerformanceCounter();
@@ -13331,11 +13303,6 @@ static int dyn_apply(int snew) {
     s_dyn_stats.last_wide_ms = dyn_ms(t4, t5);
     s_dyn_stats.last_rects = qn;
     dyn_stats_unlock();
-    if (s_dyn_timing)
-        fprintf(stdout, "psxrecomp: dynamic resolution %dx -> %dx in %.2f ms (drain %.2f, "
-                "1x+rects %.2f, reseed %.2f, rects back %.2f, wide %.2f)\n", sold, snew,
-                s_dyn_stats.last_ms, dyn_ms(t0, t1), dyn_ms(t1, t2), dyn_ms(t2, t3),
-                dyn_ms(t3, t4), dyn_ms(t4, t5));
     return 1;
 }
 

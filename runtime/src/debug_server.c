@@ -23,6 +23,8 @@
 #include "host_sampler.h"
 #include "perf_meter.h"
 #include "savestate.h"
+#include "boot_state.h"
+#include "psx_interpreter.h"
 #include "guest_cycle_profile.h"
 #include "host_osd.h"
 #include "psx_video_timing.h"
@@ -2733,26 +2735,6 @@ void debug_server_cyc_observe(uint32_t block_leader_phys) {
     uint32_t phys = block_leader_phys & 0x1FFFFFFFu;
     g_psx_last_block = phys;
     if (s_fmv_quiet) return;
-    /* ND debug: PSX_ND_WOOD_CLEAR80=1 clears model+184 bit0x80 at the flag-load
-     * leader so 0x5CF/'cras' models enter NdIntroWoodBatchSetup's textured path.
-     * Fires before lw v1,184(a2) @ AB3C. Default-off. */
-    if (phys == 0x0006AB3Cu) {
-        static int s_clear80 = -1;
-        if (s_clear80 < 0) {
-            const char *e = getenv("PSX_ND_WOOD_CLEAR80");
-            s_clear80 = (e && *e && *e != '0') ? 1 : 0;
-            if (s_clear80)
-                fprintf(stdout, "psxrecomp: PSX_ND_WOOD_CLEAR80 enabled\n");
-        }
-        if (s_clear80 && debug_cpu_ptr) {
-            uint32_t a2 = debug_cpu_ptr->gpr[6];
-            if (a2) {
-                uint32_t fl = psx_read_word(a2 + 184u);
-                if (fl & 0x80u)
-                    psx_host_write_word(a2 + 184u, fl & ~0x80u);
-            }
-        }
-    }
     /* Cache WoodEmit batch OT at WoodBatchSetup (runs BEFORE sibling on ND
      * rain frames) and at scratch load. */
     if (phys == 0x0006AAF0u && debug_cpu_ptr) {
@@ -2775,31 +2757,6 @@ void debug_server_cyc_observe(uint32_t block_leader_phys) {
         }
         if (base)
             psx_nd_note_wood_batch_ot(base);
-    }
-    /* ND debug: PSX_ND_SIB_OT_LIFT=<n> adds n*4 to $a3 at sibling face-loop
-     * entry 0x80069CC4 (a3 = *(a1+244)+4092 = last OT slot). Sibling PolyFT3
-     * right-flap faces use face_hi≈0 → farthest bucket (drawn before additive
-     * 0x36 glow). Negative n (e.g. -800) moves them nearer in the 1024-entry OT.
-     * Applied once per a3 value. */
-    if (phys == 0x00069CC4u && debug_cpu_ptr) {
-        static int s_sib_lift = -2; /* -2 unset, 0 disabled, else delta */
-        static uint32_t s_sib_lifted_a3 = 0;
-        if (s_sib_lift == -2) {
-            const char *e = getenv("PSX_ND_SIB_OT_LIFT");
-            if (e && *e) {
-                s_sib_lift = atoi(e);
-                fprintf(stdout, "psxrecomp: PSX_ND_SIB_OT_LIFT=%d\n", s_sib_lift);
-            } else {
-                s_sib_lift = 0;
-            }
-        }
-        if (s_sib_lift != 0) {
-            uint32_t a3 = debug_cpu_ptr->gpr[7];
-            if (a3 && a3 != s_sib_lifted_a3) {
-                debug_cpu_ptr->gpr[7] = a3 + (uint32_t)(int32_t)(s_sib_lift * 4);
-                s_sib_lifted_a3 = debug_cpu_ptr->gpr[7];
-            }
-        }
     }
     cyc_watch_observe(phys);
     pc_probe_observe(phys);
@@ -10269,6 +10226,40 @@ static void handle_savestate_status(int id, const char *json)
     send_fmt("{\"id\":%d,\"ok\":true,%s}", id, status);
 }
 
+/* EST-17: timings and rejects of the latest boot_state load (was a stderr
+ * line per load). */
+static void handle_boot_state_stats(int id, const char *json)
+{
+    (void)json;
+    BootStateLoadStats st;
+    char reject[6 * sizeof st.last_reject]; /* 6-byte escapes, worst case */
+    boot_state_load_stats(&st);
+    json_escape_string(reject, sizeof reject, st.last_reject);
+    send_fmt("{\"id\":%d,\"ok\":true,\"loads\":%u,\"rejects\":%u,"
+             "\"vram_verify_fails\":%u,\"read_ms\":%.3f,\"inflate_ms\":%.3f,"
+             "\"apply_ram_ms\":%.3f,\"apply_vram_ms\":%.3f,"
+             "\"apply_spuram_ms\":%.3f,\"apply_other_ms\":%.3f,"
+             "\"total_ms\":%.3f,\"file_len\":%zu,\"last_reject\":\"%s\"}",
+             id, st.loads, st.rejects, st.vram_verify_fails, st.read_ms,
+             st.inflate_ms, st.apply_ram_ms, st.apply_vram_ms,
+             st.apply_spuram_ms, st.apply_other_ms, st.total_ms,
+             st.file_len, reject);
+}
+
+/* Oracle interpreter faults (NULL jump, unknown COP0/COP2); zeros in the
+ * native build, which links stub_interpreter.c. */
+static void handle_interp_faults(int id, const char *json)
+{
+    (void)json;
+    InterpFaults f;
+    interp_faults(&f);
+    send_fmt("{\"id\":%d,\"ok\":true,\"null_jumps\":%u,\"unknown_cop0\":%u,"
+             "\"unknown_cop2\":%u,\"last_pc\":\"0x%08X\",\"last_op\":%u,"
+             "\"last_ra\":\"0x%08X\"}",
+             id, f.null_jumps, f.unknown_cop0, f.unknown_cop2, f.last_pc,
+             f.last_op, f.last_ra);
+}
+
 static void handle_snapshot_status(int id, const char *json)
 {
     (void)json;
@@ -16994,6 +16985,8 @@ static const CmdEntry s_commands[] = {
     { "input_route_status",handle_input_route_status },
     { "savestate",         handle_savestate },
     { "savestate_status",  handle_savestate_status },
+    { "boot_state_stats",  handle_boot_state_stats },
+    { "interp_faults",     handle_interp_faults },
     { "snapshot_status",   handle_snapshot_status },
     { "turbo",             handle_turbo },
     { "turbo_state",       handle_turbo_state },
@@ -17124,7 +17117,7 @@ void debug_server_set_restricted(int restricted)
 static int restricted_allows(const char *cmd)
 {
     static const char *const ok[] = {
-        "ping", "frame", "quit", "savestate", "savestate_status",
+        "ping", "frame", "quit", "savestate", "savestate_status", "boot_state_stats",
         "mod_counters", "perf_summary", "frame_perf",
         "sun_area",   /* the light per area only (a tuning tool) */
         "area_lights",   /* the lights placed per area only (the same tool) */
@@ -17888,15 +17881,10 @@ static void write_trace_live_refresh(void) {
                                s_wtrace_trans_range_count;
     PSX_MEM_GATE_RAISE();
     /* The block observer: the passive recorders, an armed cyc_watch, pc_probe or
-     * lockstep window, or a title debug knob read from the environment there. */
-    static int s_observe_env = -1;
-    if (s_observe_env < 0) {
-        const char *a = getenv("PSX_ND_WOOD_CLEAR80"), *b = getenv("PSX_ND_SIB_OT_LIFT");
-        s_observe_env = (a && *a) || (b && *b);
-    }
+     * lockstep window. */
     extern int ls_leader_armed(void);
     g_debug_block_observe_live = s_passive || s_cyc_watch_armed || s_pc_probe_armed ||
-                                 ls_leader_armed() || s_observe_env;
+                                 ls_leader_armed();
 }
 
 /* Policy 2: the first request turns the passive recorders on (on the

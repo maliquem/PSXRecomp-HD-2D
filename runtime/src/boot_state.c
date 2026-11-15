@@ -129,6 +129,17 @@ static uint16_t s_vram_mirror[VRAM_W * VRAM_H];
 static int      s_vram_mirror_valid;
 static uint32_t s_last_vram_dirty_rows;
 static int      s_last_vram_incremental;
+static BootStateLoadStats s_load_stats;
+
+void boot_state_load_stats(BootStateLoadStats* out) {
+    if (out) *out = s_load_stats;
+}
+
+static void boot_state_note_reject(const char* reason, const char* path) {
+    s_load_stats.rejects++;
+    snprintf(s_load_stats.last_reject, sizeof(s_load_stats.last_reject),
+             "%s%s%s", reason, path ? " " : "", path ? path : "");
+}
 
 uint32_t boot_state_last_vram_dirty_rows(void)
 {
@@ -204,11 +215,7 @@ static int sync_vram_mirror_for_save(void)
         if (full) {
             gr_vram_transfer_out(0, 0, VRAM_W, VRAM_H, full);
             if (memcmp(full, s_vram_mirror, VRAM_SIZE) != 0) {
-                fprintf(stderr,
-                        "psxrecomp: VRAM dirty VERIFY FAIL dirty_rows=%u "
-                        "incr=%d — forcing full mirror\n",
-                        (unsigned)dirty_n, s_last_vram_incremental);
-                fflush(stderr);
+                s_load_stats.vram_verify_fails++;
                 memcpy(s_vram_mirror, full, VRAM_SIZE);
                 s_last_vram_incremental = 0;
                 s_last_vram_dirty_rows = VRAM_H;
@@ -1021,8 +1028,7 @@ int boot_state_load_buffer(const uint8_t* file, size_t file_len,
 
     if (!boot_state_check_buffer(file, file_len, bios_checksum, entry_pc,
                                  reject, sizeof(reject))) {
-        fprintf(stderr, "boot_state: reject — %s\n",
-                reject[0] ? reject : "unknown");
+        boot_state_note_reject(reject[0] ? reject : "unknown", NULL);
         return 0;
     }
     if (!boot_state_parse_header(file, file_len, &h))
@@ -1140,16 +1146,15 @@ int boot_state_load_buffer(const uint8_t* file, size_t file_len,
     /* RAM was memcpy'd; force overlay revalidation before resume. */
     overlay_watch_invalidate_after_ram_restore();
 
-    {
-        const double total_ms = boot_state_mono_ms() - t0;
-        fprintf(stderr,
-                "savestate: load_timing read=0.0 inflate=%.1f "
-                "apply_ram=%.1f apply_vram=%.1f apply_spuram=%.1f "
-                "apply_other=%.1f total=%.1f ms (file=%zu)\n",
-                inflate_ms,
-                apply_ram_ms, apply_vram_ms, apply_spuram_ms,
-                apply_other_ms, total_ms, file_len);
-    }
+    s_load_stats.loads++;
+    s_load_stats.read_ms = 0.0;
+    s_load_stats.inflate_ms = inflate_ms;
+    s_load_stats.apply_ram_ms = apply_ram_ms;
+    s_load_stats.apply_vram_ms = apply_vram_ms;
+    s_load_stats.apply_spuram_ms = apply_spuram_ms;
+    s_load_stats.apply_other_ms = apply_other_ms;
+    s_load_stats.total_ms = boot_state_mono_ms() - t0;
+    s_load_stats.file_len = file_len;
     return 1;
 }
 
@@ -1164,15 +1169,13 @@ int boot_state_load(const char* path, uint32_t bios_checksum,
     double t_after_read;
 
     if (!f) {
-        fprintf(stderr, "boot_state: reject — missing %s\n",
-                path ? path : "(null)");
+        boot_state_note_reject("missing", path ? path : "(null)");
         return 0;
     }
     if (fseek(f, 0, SEEK_END) != 0) { fclose(f); return 0; }
     sz = ftell(f);
     if (sz < (long)BOOT_STATE_HEADER_WIRE_BYTES || sz > 64L * 1024L * 1024L) {
-        fprintf(stderr, "boot_state: reject — bad size %ld for %s\n",
-                sz, path ? path : "(null)");
+        boot_state_note_reject("bad size", path ? path : "(null)");
         fclose(f);
         return 0;
     }
@@ -1187,10 +1190,9 @@ int boot_state_load(const char* path, uint32_t bios_checksum,
     }
     fclose(f);
     t_after_read = boot_state_mono_ms();
-    (void)t0;
-    (void)t_after_read;
 
     ok = boot_state_load_buffer(file, file_len, bios_checksum, entry_pc, cpu);
+    if (ok) s_load_stats.read_ms = t_after_read - t0;
     free(file);
     return ok;
 }

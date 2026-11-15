@@ -56,6 +56,18 @@ uint64_t interp_trace_count(void);
 /* Get entry by index into ring (0 = oldest available). Returns NULL if OOB. */
 const InterpTraceEntry* interp_trace_get(uint32_t ring_idx);
 
+/* Instructions the interpreter could not run (counted instead of a stderr
+ * line each; read by the TCP `interp_faults` command). */
+typedef struct {
+    uint32_t null_jumps;    /* jumped to PC 0; the run halts */
+    uint32_t unknown_cop0;  /* unknown COP0 rs field, skipped */
+    uint32_t unknown_cop2;  /* unknown COP2 rs field, skipped */
+    uint32_t last_pc;       /* PC of the latest fault */
+    uint32_t last_op;       /* rs field of the latest unknown COP op */
+    uint32_t last_ra;       /* ra at the latest NULL jump */
+} InterpFaults;
+void interp_faults(InterpFaults* out);
+
 #ifdef __cplusplus
 }
 #endif

@@ -3110,24 +3110,12 @@ void cdrom_tick(void) {
 
 uint32_t cdrom_dma_read(void) {
     uint32_t val = 0;
-    int got = 0;
+    /* Per-word DMA data reads stay out of the CD trace ring: hundreds per sector
+     * would evict the command/IRQ/seek/play history. */
     if ((request_reg & CDROM_REQUEST_BFRD) && rb_available() &&
         RB_.pos + 4 <= RB_.size) {
         memcpy(&val, RB_.data + RB_.pos, 4);
         RB_.pos += 4;
-        got = 1;
-    }
-    /* Per-word DMA data reads flood the CD trace ring (hundreds per sector) and
-     * evict the command/IRQ/seek/play history we actually need to read the
-     * streaming/audio flow (Rule 15). Gate them OFF by default; opt in with
-     * PSX_CD_DMA_TRACE=1 when specifically inspecting the data path. */
-    if (got) {
-        static int s_dma_trace = -1;
-        if (s_dma_trace < 0) {
-            const char *e = getenv("PSX_CD_DMA_TRACE");
-            s_dma_trace = (e && e[0] && e[0] != '0') ? 1 : 0;
-        }
-        if (s_dma_trace) trace_cdrom('D', 0, val, 4);
     }
     return val;
 }

@@ -494,9 +494,9 @@ between Play and TCP availability.
 
 ## Complete command index (generated)
 
-**385 commands registered** — 372 on the native server (`runtime/src/debug_server.c`), 61 on the Beetle server (`runtime/src/beetle_debug_server.c`).
+**403 commands registered** — 390 on the native server (`runtime/src/debug_server.c`), 61 on the Beetle server (`runtime/src/beetle_debug_server.c`).
 
-85 of 385 have prose above; **300 are index-only**. An index-only command still works — it just has no description here yet. Send it `{"cmd":"<name>"}` and read the reply, or find its `handle_*` function in the server source.
+85 of 403 have prose above; **318 are index-only**. An index-only command still works — it just has no description here yet. Send it `{"cmd":"<name>"}` and read the reply, or find its `handle_*` function in the server source.
 
 Regenerate with `python tools/gen_tcp_commands.py`; `--check` fails if this block has drifted from the code.
 
@@ -504,8 +504,11 @@ Regenerate with `python tools/gen_tcp_commands.py`; `--check` fails if this bloc
 |---|:--:|:--:|:--:|
 | `a0_history` | ✓ |  |  |
 | `accurate_blending` | ✓ |  |  |
+| `area_lights` | ✓ |  |  |
 | `audio_events` | ✓ | ✓ |  |
 | `audio_stats` | ✓ | ✓ |  |
+| `audio_turbo` | ✓ |  |  |
+| `audio_turbo_kons` | ✓ |  |  |
 | `audio_wav` | ✓ | ✓ |  |
 | `autocompile_run` | ✓ |  |  |
 | `autocompile_status` | ✓ |  |  |
@@ -513,6 +516,8 @@ Regenerate with `python tools/gen_tcp_commands.py`; `--check` fails if this bloc
 | `bios_info` | ✓ |  | ✓ |
 | `bioscall_dump` | ✓ |  |  |
 | `bloom` | ✓ |  | ✓ |
+| `boot_state_stats` | ✓ |  |  |
+| `bug_report` | ✓ |  |  |
 | `c0_history` | ✓ |  |  |
 | `call_focus_dump` | ✓ |  |  |
 | `call_focus_reset` | ✓ |  |  |
@@ -553,6 +558,7 @@ Regenerate with `python tools/gen_tcp_commands.py`; `--check` fails if this bloc
 | `chain_trace` | ✓ |  |  |
 | `clear_input` | ✓ | ✓ | ✓ |
 | `continue` | ✓ |  | ✓ |
+| `core_rates` | ✓ |  |  |
 | `cyc_watch` | ✓ | ✓ |  |
 | `cyc_watch_clear` | ✓ | ✓ |  |
 | `cyc_watch_dump` | ✓ | ✓ |  |
@@ -645,6 +651,7 @@ Regenerate with `python tools/gen_tcp_commands.py`; `--check` fails if this bloc
 | `gl_vram_diff` | ✓ |  |  |
 | `gl_wide_fast` | ✓ |  |  |
 | `gl_ws_ablate` | ✓ |  |  |
+| `golden` | ✓ |  |  |
 | `gp1_dump` | ✓ |  | ✓ |
 | `gpu_frame_dump` | ✓ |  | ✓ |
 | `gpu_opcodes` | ✓ |  |  |
@@ -658,6 +665,7 @@ Regenerate with `python tools/gen_tcp_commands.py`; `--check` fails if this bloc
 | `gte_state` | ✓ |  |  |
 | `guest_tty_dump` | ✓ |  |  |
 | `hd_textures` | ✓ |  | ✓ |
+| `hdr` | ✓ |  |  |
 | `history` | ✓ | ✓ | ✓ |
 | `hle_dump` | ✓ |  | ✓ |
 | `host_key` | ✓ |  |  |
@@ -677,6 +685,7 @@ Regenerate with `python tools/gen_tcp_commands.py`; `--check` fails if this bloc
 | `insn_freeze_snapshot` | ✓ |  |  |
 | `insn_freeze_status` | ✓ |  |  |
 | `insn_freeze_target` | ✓ |  |  |
+| `interp_faults` | ✓ |  |  |
 | `irq_exc_stats` | ✓ |  | ✓ |
 | `irq_state` | ✓ |  | ✓ |
 | `irqctx_ring` | ✓ |  | ✓ |
@@ -685,6 +694,7 @@ Regenerate with `python tools/gen_tcp_commands.py`; `--check` fails if this bloc
 | `load_transitions` | ✓ |  |  |
 | `lockstep` | ✓ |  |  |
 | `lockstep_func` | ✓ |  |  |
+| `marks_lean` | ✓ |  |  |
 | `mc_status` | ✓ |  |  |
 | `mdec_state` | ✓ |  |  |
 | `mdec_trace` | ✓ |  |  |
@@ -732,6 +742,7 @@ Regenerate with `python tools/gen_tcp_commands.py`; `--check` fails if this bloc
 | `pc_probe_arm` | ✓ |  |  |
 | `pc_probe_clear` | ✓ |  |  |
 | `pc_probe_dump` | ✓ |  |  |
+| `perf_frames` | ✓ |  |  |
 | `perf_summary` | ✓ |  |  |
 | `pgxp` | ✓ |  | ✓ |
 | `pgxp_miss_ring` | ✓ |  |  |
@@ -744,9 +755,11 @@ Regenerate with `python tools/gen_tcp_commands.py`; `--check` fails if this bloc
 | `post_aa` | ✓ |  | ✓ |
 | `post_shader` | ✓ |  |  |
 | `post_uniform` | ✓ |  |  |
+| `postfx_cuts` | ✓ |  |  |
 | `postfx_timing` | ✓ |  |  |
 | `present_image_ring_get` | ✓ |  |  |
 | `present_image_ring_stats` | ✓ |  |  |
+| `present_phase` | ✓ |  |  |
 | `present_ring` | ✓ |  |  |
 | `present_shot` | ✓ |  | ✓ |
 | `present_shot_seq` | ✓ |  | ✓ |
@@ -790,6 +803,7 @@ Regenerate with `python tools/gen_tcp_commands.py`; `--check` fails if this bloc
 | `segment_misses` | ✓ |  |  |
 | `set_input` | ✓ | ✓ | ✓ |
 | `set_snapshot` | ✓ | ✓ | ✓ |
+| `sgl` | ✓ |  |  |
 | `shadow_cache` | ✓ |  |  |
 | `shadow_hide` | ✓ |  |  |
 | `sio_arm_audit` | ✓ |  |  |
@@ -812,6 +826,7 @@ Regenerate with `python tools/gen_tcp_commands.py`; `--check` fails if this bloc
 | `spu_events` | ✓ | ✓ |  |
 | `spu_events_reset` | ✓ |  |  |
 | `spu_ram` | ✓ |  |  |
+| `spu_shadow` | ✓ |  |  |
 | `spu_status` | ✓ |  |  |
 | `spu_voices` | ✓ | ✓ |  |
 | `sreg_trace_clear` | ✓ |  |  |
@@ -823,6 +838,7 @@ Regenerate with `python tools/gen_tcp_commands.py`; `--check` fails if this bloc
 | `step` | ✓ |  | ✓ |
 | `stereo_dump` | ✓ |  |  |
 | `stereo_stats` | ✓ |  |  |
+| `sun_area` | ✓ |  |  |
 | `synth_recurse` | ✓ |  |  |
 | `texture_filter` | ✓ |  |  |
 | `texture_lod` | ✓ |  | ✓ |
@@ -839,6 +855,7 @@ Regenerate with `python tools/gen_tcp_commands.py`; `--check` fails if this bloc
 | `vblank_rate` | ✓ |  |  |
 | `video_info` | ✓ |  | ✓ |
 | `vk_perf` | ✓ |  |  |
+| `vram_drawn_check` | ✓ |  |  |
 | `vram_peek` | ✓ | ✓ | ✓ |
 | `vsync_query_hle` | ✓ |  |  |
 | `warm_cd_route` | ✓ |  |  |
@@ -849,6 +866,7 @@ Regenerate with `python tools/gen_tcp_commands.py`; `--check` fails if this bloc
 | `write_ram` | ✓ |  | ✓ |
 | `ws_aspect` | ✓ |  |  |
 | `ws_aspect_cone_site` | ✓ |  |  |
+| `ws_backdrop_images` | ✓ |  |  |
 | `ws_backdrop_margin` | ✓ |  |  |
 | `ws_backdrop_ring` | ✓ |  |  |
 | `ws_backdrop_stretch` | ✓ |  |  |

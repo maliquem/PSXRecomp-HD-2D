@@ -151,6 +151,25 @@ int      boot_state_last_vram_incremental(void);
 /* Drop the §96 VRAM mirror (RB shutdown / before re-enable). */
 void boot_state_vram_mirror_reset(void);
 
+/* EST-17: what the latest load did, kept for the TCP `boot_state_stats` command
+ * instead of a stderr line per load (rewind and netplay load several per second).
+ * Times are milliseconds of the last accepted load; read_ms is 0 for buffers. */
+typedef struct BootStateLoadStats {
+    uint32_t loads;             /* accepted loads since start */
+    uint32_t rejects;           /* refused loads since start */
+    uint32_t vram_verify_fails; /* §96 dirty-mirror verify mismatches (saves) */
+    double   read_ms;
+    double   inflate_ms;
+    double   apply_ram_ms;
+    double   apply_vram_ms;
+    double   apply_spuram_ms;
+    double   apply_other_ms;
+    double   total_ms;
+    size_t   file_len;
+    char     last_reject[160];  /* reason of the latest refusal, "" if none */
+} BootStateLoadStats;
+void boot_state_load_stats(BootStateLoadStats* out);
+
 /* Load + validate (integrity key) + restore the full machine. On any mismatch
  * or incompleteness returns 0 (caller then boots normally and recaptures). */
 int  boot_state_load(const char* path, uint32_t bios_checksum,

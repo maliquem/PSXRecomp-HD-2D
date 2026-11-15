@@ -3436,12 +3436,7 @@ extern "C" int psx_mod_function_entry(CPUState* cpu, uint32_t address) {
 }
 
 static bool game_netplay_hooks_enabled() {
-    if (psx_netplay_active()) return true;
-    static const bool offline_probe = [] {
-        const char* e = std::getenv("PSX_GAME_FILTER_OFFLINE_PROBE");
-        return e && std::strcmp(e, "1") == 0;
-    }();
-    return offline_probe;
+    return psx_netplay_active() != 0;
 }
 
 extern "C" int psx_mod_function_entry_has_hook(uint32_t address) {
@@ -3486,8 +3481,7 @@ extern "C" int psx_game_register_netplay_function_filter(
 }
 
 /* Game netplay hooks run only in a netplay session, after the mod plan's
- * hooks (which a match clears). PSX_GAME_FILTER_OFFLINE_PROBE=1 runs them
- * offline too, to test a title's netplay path without opening a session. */
+ * hooks (which a match clears). */
 static int game_netplay_function_entry(CPUState* cpu, uint32_t address) {
     using namespace PSXRecompV4;
     const auto& table = game_netplay_entry_hooks();
