@@ -1345,6 +1345,7 @@ static int psxrecomp_game_main(int argc, char** argv) {
         };
 
         const int kMaxDiscoveryIters = 6;
+        bool discovery_converged = false;
         for (int iter = 0; iter < kMaxDiscoveryIters; ++iter) {
             PSXRecomp::FunctionAnalyzer analyzer(*exe);
             for (uint32_t a : forced) analyzer.add_forced_entry(a);
@@ -1416,9 +1417,15 @@ static int psxrecomp_game_main(int argc, char** argv) {
             fmt::print("Discovery iteration {}: {} data pointers scanned, "
                        "{} forced entries, {} alias entries\n",
                        iter + 1, scanned_words, forced.size(), alias_entries.size());
-            if (!promoted_new) break;
+            discovery_converged = !promoted_new;
+            if (discovery_converged) break;
         }
 
+        // Warning only: exit code stays 0 until the games are measured to converge in < kMaxDiscoveryIters.
+        if (!discovery_converged)
+            fmt::print(stderr, "WARNING: image discovery hit the {}-iteration cap without converging; "
+                       "entries promoted in the last pass are missing from the analysis\n",
+                       kMaxDiscoveryIters);
         materialize_alias_groups(analysis_result, alias_entries);
         fmt::print("Alias entries emitted: {}\n\n", alias_entries.size());
     }
