@@ -1,5 +1,6 @@
 #include "function_analysis.h"
 #include <algorithm>
+#include <cstdlib>
 #include <map>
 #include <queue>
 #include <set>
@@ -1640,12 +1641,10 @@ FunctionAnalysisResult FunctionAnalyzer::analyze_exact_entries(
     while (true) {
         auto state = std::make_pair(known_entries, derived_entries);
         if (++discovery_round > 64u || !seen_states.insert(state).second) {
-            fmt::print("WARNING: exact-entry ownership did not converge; "
-                       "falling back to explicit roots only\n");
-            known_entries = explicit_entries;
-            derived_entries.clear();
-            derived_evidence.clear();
-            break;
+            // A silent fallback would emit a different function set than a converging capture.
+            fmt::print(stderr, "ERROR: exact-entry ownership did not converge "
+                       "after {} discovery rounds\n", discovery_round - 1u);
+            std::exit(1);
         }
         const std::set<uint32_t> previous_entries = known_entries;
         const std::set<uint32_t> previous_derived = derived_entries;
