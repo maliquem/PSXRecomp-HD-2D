@@ -1604,9 +1604,11 @@ void autocompile_poll_main(void) {
      * compiler run, never once per DLL or interpreted instruction. A clean run
      * that built nothing (every shard already cached: the usual boot precompile)
      * left the directory as the index already has it, and the rescan is a
-     * 600 ms stall on this thread in a game with a mature cache. */
-    if (s_exit_code != 0 || !s_shard_result_seen || s_shard_ok != 0 ||
-        s_shard_fail != 0) {
+     * 600 ms stall on this thread in a game with a mature cache. A failed run
+     * that published nothing (no compiler, crash: retried every 1 s .. 5 min)
+     * is the same case. A clean exit with no result line (older tools) still
+     * rescans. */
+    if (s_shard_ok != 0 || (s_exit_code == 0 && !s_shard_result_seen)) {
         overlay_loader_rescan();
         s_rescans++;
     }
