@@ -470,10 +470,16 @@ int psx_motion_blend_at(const PSXMotionSet* s, uint32_t kind, uint32_t addr,
         else hi = mid;
     }
     if (lo >= s->n[s->cur] || ce[lo].addr != addr || ce[lo].kind != kind) return -1;
-    for (uint32_t k = 0; k < s->npairs; k++) {
-        if (s->pairs[k].cur == lo) {
+    {   /* psx_motion_prepare fills pairs[] with cur strictly increasing. */
+        uint32_t plo = 0, phi = s->npairs;
+        while (plo < phi) {
+            const uint32_t mid = (plo + phi) / 2;
+            if (s->pairs[mid].cur < lo) plo = mid + 1;
+            else phi = mid;
+        }
+        if (plo < s->npairs && s->pairs[plo].cur == lo) {
             int32_t v[12];
-            blend_entry(&s->cap_buf[s->cur ^ 1][s->pairs[k].prev], &ce[lo], t, v);
+            blend_entry(&s->cap_buf[s->cur ^ 1][s->pairs[plo].prev], &ce[lo], t, v);
             export_value(ce[lo].kind, v, out);
             return 1;
         }
