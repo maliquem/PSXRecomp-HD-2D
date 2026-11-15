@@ -28,9 +28,16 @@ int psx_irq_resume_context_snapshot_site(void) { return 0; }
 int gpu_display_is_depth24(void) { return 0; }
 int mdec_recently_active(uint32_t f) { (void)f; return 0; }
 int cdrom_xa_stream_active(void) { return 0; }
-void gpu_get_display_info(GpuDisplayInfo *out) { (void)out; assert(0); }
+/* Thumbnail source: a 128x96 display whose pixel encodes (tag, y, x). */
+static uint32_t px_tag;
+void gpu_get_display_info(GpuDisplayInfo *out) {
+    memset(out, 0, sizeof(*out));
+    out->width = RW_THUMB_W;
+    out->height = RW_THUMB_H;
+}
 uint32_t gpu_display_pixel_argb(const GpuDisplayInfo *di, uint32_t x, uint32_t y) {
-    (void)di; (void)x; (void)y; assert(0); return 0;
+    (void)di;
+    return (px_tag << 16) | (y << 8) | x;
 }
 const char *host_keymap_label(HostKeymapAction a, char *out, size_t cap) {
     (void)a; (void)cap; out[0] = '\0'; return out;
@@ -124,6 +131,48 @@ int main(void) {
     psx_rewind_poll(&cpu, 0x80010000u);
     assert(!s_load_pending && applies == 0 && cpu.pc == 0x80010000u);
     assert(drops == 0 && resumed == 0);
+
+    /* Capture renders the thumbnail straight into its list slot (EST-O1):
+     * contents follow the tick through eviction, a repeated tick reuses its
+     * slot, and every pool slot stays reachable. */
+    {
+        RwThumb pool[2];
+        RwThumb *ptrs[2] = { &pool[0], &pool[1] };
+        uint32_t ticks[2];
+        RwThumb *first;
+        memset(pool, 0, sizeof(pool));
+        s_thumb_pool = pool;
+        s_thumbs = ptrs;
+        s_ticks = ticks;
+        s_depth = s_list_cap = 2;
+        s_count = 0;
+        s_sel = 0;
+
+        for (uint32_t t = 10; t <= 11; t++) {
+            s_frame = t;
+            px_tag = t;
+            assert(do_capture(&cpu, 0x80010000u) == 1);
+        }
+        assert(s_count == 2 && s_ticks[0] == 10 && s_ticks[1] == 11 && s_sel == 1);
+        first = s_thumbs[0];
+        assert(first->px[3 * RW_THUMB_W + 5] == (0xFF000000u | (10u << 16) | (3u << 8) | 5u));
+
+        s_frame = 11;
+        px_tag = 99;
+        assert(do_capture(&cpu, 0x80010000u) == 1);
+        assert(s_count == 2 && s_thumbs[0] == first && s_thumbs[1]->px[0] == (0xFF000000u | (99u << 16)));
+
+        s_frame = 12; /* full: oldest (10) evicted, its slot is reused for 12 */
+        px_tag = 12;
+        assert(do_capture(&cpu, 0x80010000u) == 1);
+        assert(s_count == 2 && s_ticks[0] == 11 && s_ticks[1] == 12);
+        assert(s_thumbs[1] == first && s_thumbs[0] != s_thumbs[1]);
+        assert(s_thumbs[0]->px[0] == (0xFF000000u | (99u << 16)));
+        assert(s_thumbs[1]->px[7 * RW_THUMB_W + 1] == (0xFF000000u | (12u << 16) | (7u << 8) | 1u));
+        s_thumb_pool = NULL;
+        s_thumbs = NULL;
+        s_ticks = NULL;
+    }
 
     puts("rewind load gate tests passed");
     return 0;

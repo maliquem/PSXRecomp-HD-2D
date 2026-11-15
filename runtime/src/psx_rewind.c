@@ -338,15 +338,16 @@ static void list_drop_after(uint32_t tick)
     s_panel_dirty = 1;
 }
 
-static void list_push(uint32_t tick, const uint32_t *thumb)
+/* Claims the list slot for tick and returns it for the caller to fill, so the
+ * thumbnail is rendered in place instead of through a 48 KB stack copy. */
+static RwThumb *list_push_slot(uint32_t tick)
 {
     uint32_t i;
     for (i = 0; i < s_count; i++) {
         if (s_ticks[i] == tick) {
-            memcpy(s_thumbs[i]->px, thumb, sizeof(s_thumbs[i]->px));
             s_thumbs[i]->tick = tick;
             s_panel_dirty = 1;
-            return;
+            return s_thumbs[i];
         }
     }
     /* s_depth can change live (settings) without a reconfigure; never index
@@ -362,10 +363,10 @@ static void list_push(uint32_t tick, const uint32_t *thumb)
     }
     s_ticks[s_count] = tick;
     s_thumbs[s_count]->tick = tick;
-    memcpy(s_thumbs[s_count]->px, thumb, sizeof(s_thumbs[0]->px));
     s_count++;
     s_sel = (int)s_count - 1;
     s_panel_dirty = 1;
+    return s_thumbs[s_count - 1u];
 }
 
 void psx_rewind_configure(uint32_t bios_checksum, uint32_t entry_pc)
@@ -471,7 +472,6 @@ static int do_capture(CPUState *cpu, uint32_t resume_pc)
 {
     uint8_t *blob = NULL;
     size_t len = 0;
-    uint32_t thumb[RW_THUMB_W * RW_THUMB_H];
     CPUState snap;
     uint32_t tick = s_frame;
     uint32_t pc;
@@ -490,8 +490,8 @@ static int do_capture(CPUState *cpu, uint32_t resume_pc)
         free(blob);
         return 0;
     }
-    capture_thumb(thumb);
-    list_push(tick, thumb);
+    capture_thumb(list_push_slot(tick)->px);
+    s_panel_dirty = 1; /* the pixels land after the slot was listed */
     s_last_capture_frame = s_frame;
     s_capture_due = 0;
     return 1;
