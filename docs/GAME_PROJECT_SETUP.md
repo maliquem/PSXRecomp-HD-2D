@@ -161,7 +161,7 @@ Usage: psxrecomp-toml <PS1-EXE> [options]
 
 Options:
   --output <path>   Write game.toml to <path> (default: stdout)
-  --seeds <path>    Also write JAL-target seed file to <path>
+  --seeds <path>    Required. Write the JAL-target seed file to <path>
   --name <str>      Game name in TOML (default: derived from EXE)
   --id <str>        Game ID (default: auto-detect or empty)
   --stdout          Force output to stdout even with --output
