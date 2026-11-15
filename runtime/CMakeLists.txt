@@ -1682,8 +1682,9 @@ if(BUILD_TESTING)
 
     # CPU-27 (b): per-instruction semantics of the dirty-RAM interpreter; KNOWN
     # divergences do not fail. The test #includes gpu.c and dirty_ram_interp.c;
-    # link-time dead-code removal keeps the stub set small.
-    if(NOT MSVC)
+    # link-time dead-code removal keeps the stub set small. Not on Windows: lld
+    # resolves symbols before it drops sections, so the target cannot link there.
+    if(NOT MSVC AND NOT WIN32)
         add_executable(dirty_interp_semantics_test
             tests/test_dirty_interp_semantics.c
             src/ws_aspect_cone_math.c)

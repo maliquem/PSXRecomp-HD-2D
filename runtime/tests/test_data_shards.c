@@ -10,6 +10,7 @@
 #include "data_shards.h"
 #include "psx_memory.h"
 #include "interrupts.h"
+void ds_note_thread_switch(void);   /* data_shards.c; not in the header (traps.c declares it too) */
 
 #include <stdint.h>
 #include <stdio.h>
