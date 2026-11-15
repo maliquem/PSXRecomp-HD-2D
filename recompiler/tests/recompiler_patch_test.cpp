@@ -1355,78 +1355,27 @@ void unknown_key_test(const fs::path& root) {
 // Out-of-range or malformed [runtime]/[video]/[controller] values name their key.
 void config_range_test(const fs::path& root) {
     const auto ok = write_config(root, "range-ok",
-        "
-[runtime]
-mdec_dma_batch = 64
-pgxp_idle_hold = 30
-"
-        "
-[video]
-pgxp_tolerance = 0
-pgxp_depth_threshold = 4096
-"
-        "
-[video.shadow]
-sun_areas = [\"0xa0fa3035:150:25\"]
-sprite_anchors = [\"0x80141FA0\"]
-"
-        "
-[controller]
-default_mode = \"digital\"
-");
+        "\n[runtime]\nmdec_dma_batch = 64\npgxp_idle_hold = 30\n"
+        "\n[video]\npgxp_tolerance = 0\npgxp_depth_threshold = 4096\n"
+        "\n[video.shadow]\nsun_areas = [\"0xa0fa3035:150:25\"]\nsprite_anchors = [\"0x80141FA0\"]\n"
+        "\n[controller]\ndefault_mode = \"digital\"\n");
     const auto good = PSXRecompV4::load_game_config(ok);
     check(good.runtime.mdec_dma_batch == 64 && good.runtime.pgxp_idle_hold == 30,
           "valid runtime ranges still load");
     check(good.runtime.video_shadow_sprite_anchors.at(0) == 0x80141FA0u, "shadow hex still parses");
     const struct { const char* name; const char* body; const char* msg; } bad[] = {
-        {"mdec0", "
-[runtime]
-mdec_dma_batch = 0
-", "mdec_dma_batch out of range"},
-        {"mdec257", "
-[runtime]
-mdec_dma_batch = 257
-", "mdec_dma_batch out of range"},
-        {"idle-neg", "
-[runtime]
-pgxp_idle_hold = -1
-", "pgxp_idle_hold out of range"},
-        {"tol-nan", "
-[video]
-pgxp_tolerance = nan
-", "pgxp_tolerance must be a finite"},
-        {"depth-inf", "
-[video]
-pgxp_depth_threshold = inf
-", "pgxp_depth_threshold must be a finite"},
-        {"fmv-neg", "
-[video]
-fmv_skip_total_table = -1
-", "fmv_skip_total_table out of range"},
-        {"fmv-big", "
-[video]
-fmv_skip_movie_id = 4294967296
-", "fmv_skip_movie_id out of range"},
-        {"fmv-end", "
-[video]
-fmv_skip_end_total = 65536
-", "fmv_skip_end_total out of range"},
-        {"shadow-junk", "
-[video.shadow]
-sprite_anchors = [\"0x80zz\"]
-", "[video.shadow] sprite_anchors"},
-        {"shadow-trail", "
-[video.shadow]
-noface_routines = [\"12 \"]
-", "[video.shadow] noface_routines"},
-        {"shadow-sun", "
-[video.shadow]
-sun_areas = [\"0x1:abc:30\"]
-", "[video.shadow] sun_areas"},
-        {"pad-typo", "
-[controller]
-default_mode = \"anlog\"
-", "[controller] default_mode must be"},
+        {"mdec0", "\n[runtime]\nmdec_dma_batch = 0\n", "mdec_dma_batch out of range"},
+        {"mdec257", "\n[runtime]\nmdec_dma_batch = 257\n", "mdec_dma_batch out of range"},
+        {"idle-neg", "\n[runtime]\npgxp_idle_hold = -1\n", "pgxp_idle_hold out of range"},
+        {"tol-nan", "\n[video]\npgxp_tolerance = nan\n", "pgxp_tolerance must be a finite"},
+        {"depth-inf", "\n[video]\npgxp_depth_threshold = inf\n", "pgxp_depth_threshold must be a finite"},
+        {"fmv-neg", "\n[video]\nfmv_skip_total_table = -1\n", "fmv_skip_total_table out of range"},
+        {"fmv-big", "\n[video]\nfmv_skip_movie_id = 4294967296\n", "fmv_skip_movie_id out of range"},
+        {"fmv-end", "\n[video]\nfmv_skip_end_total = 65536\n", "fmv_skip_end_total out of range"},
+        {"shadow-junk", "\n[video.shadow]\nsprite_anchors = [\"0x80zz\"]\n", "[video.shadow] sprite_anchors"},
+        {"shadow-trail", "\n[video.shadow]\nnoface_routines = [\"12 \"]\n", "[video.shadow] noface_routines"},
+        {"shadow-sun", "\n[video.shadow]\nsun_areas = [\"0x1:abc:30\"]\n", "[video.shadow] sun_areas"},
+        {"pad-typo", "\n[controller]\ndefault_mode = \"anlog\"\n", "[controller] default_mode must be"},
     };
     for (const auto& b : bad) {
         const auto cfg = write_config(root, b.name, b.body);
