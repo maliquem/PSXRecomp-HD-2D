@@ -956,6 +956,14 @@ if(BUILD_TESTING)
     target_link_libraries(settings_save_escape_test PRIVATE fmt)
     add_test(NAME settings_save_escape_test COMMAND settings_save_escape_test)
 
+    # parse_hex rejects trailing junk, signs and values above 32 bits (ANA-12).
+    add_executable(parse_hex_strict_test
+        tests/parse_hex_strict_test.cpp src/ps1_exe_parser.cpp)
+    target_include_directories(parse_hex_strict_test PRIVATE
+        include src lib/fmt/include lib/toml11)
+    target_link_libraries(parse_hex_strict_test PRIVATE fmt)
+    add_test(NAME parse_hex_strict_test COMMAND parse_hex_strict_test)
+
     # Needs bios/SCPH1001.toml — run from the framework root.
     add_test(NAME bios_address_model_test
              COMMAND bios_address_model_test

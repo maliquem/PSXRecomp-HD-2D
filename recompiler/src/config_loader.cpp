@@ -320,13 +320,24 @@ static double toml_number(const toml::value& table, const char* key) {
 }
 
 static uint32_t parse_hex(const std::string& s, const std::string& field) {
-    try {
-        return static_cast<uint32_t>(std::stoul(s, nullptr, 16));
-    } catch (const std::exception& ex) {
-        throw std::runtime_error(
-            fmt::format("config field '{}': expected hex string, got '{}' ({})",
-                        field, s, ex.what()));
+    // Strict: optional surrounding blanks, optional 0x, then hex digits only, fitting 32 bits.
+    const auto b = s.find_first_not_of(" \t");
+    const auto e = s.find_last_not_of(" \t");
+    std::string t = b == std::string::npos ? std::string() : s.substr(b, e - b + 1);
+    if (t.size() >= 2 && t[0] == '0' && (t[1] == 'x' || t[1] == 'X')) t.erase(0, 2);
+    uint64_t v = 0;
+    bool ok = !t.empty() && t.size() <= 16;
+    for (char c : t) {
+        const int d = (c >= '0' && c <= '9') ? c - '0'
+                    : (c >= 'a' && c <= 'f') ? c - 'a' + 10
+                    : (c >= 'A' && c <= 'F') ? c - 'A' + 10 : -1;
+        if (d < 0) { ok = false; break; }
+        v = (v << 4) | static_cast<uint64_t>(d);
     }
+    if (!ok || v > 0xFFFFFFFFull)
+        throw std::runtime_error(
+            fmt::format("config field '{}': expected 32-bit hex string, got '{}'", field, s));
+    return static_cast<uint32_t>(v);
 }
 
 // One [[widescreen.cull.sxy]] entry. The fold and its consumer are identified
