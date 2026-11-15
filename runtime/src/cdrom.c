@@ -2266,6 +2266,7 @@ static void exec_command(uint8_t cmd) {
         stop_cdda_playback();
         spu_cd_audio_reset();
         xa_reset_decode();
+        mode_reg = 0x20; /* psx-spx cdromdrive: Init "sets mode=20h" */
         stat_reg = has_disc() ? CDSTAT_MOTOR : CDSTAT_SHELL;
         response_push(stat_reg);
         set_irq(CDIRQ_ACK);
