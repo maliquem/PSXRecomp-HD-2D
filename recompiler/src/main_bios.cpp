@@ -887,12 +887,13 @@ int run_emit_full(const fs::path& bios_path, const fs::path& out_dir,
     const auto dr = PSXRecompV4::FunctionDiscovery::discover(
         rom, kBiosBase, kBiosBase + static_cast<uint32_t>(kBiosSize) - 1, seeds);
 
+    // Exit code stays 0: the bundled OpenBIOS has data words discovered as code (4 skipped
+    // functions today), so failing here would break every build until discovery stops seeding them.
+    write_file(out_dir / "unsupported_ops.json", make_unsupported_json_discovery(dr));
     if (!dr.ok) {
-        // Write unsupported_ops.json for diagnosis, but continue — some
-        // functions may be skippable (e.g. FPU).
         std::fprintf(stderr,
             "psxrecomp-bios: WARNING: discovery had %zu unsupported instructions; "
-            "they will be skipped during emission\n",
+            "see unsupported_ops.json\n",
             dr.unsupported.size());
     }
 
