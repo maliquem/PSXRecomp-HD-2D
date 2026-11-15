@@ -131,7 +131,7 @@ static void test_snapshot_keeps_clock_phase(void) {
 static void test_snapshot_refuses_out_of_range(void) {
     static const char *const names[] = {
         "refuses transfer_addr past SPU RAM", "refuses sample_idx two blocks ahead",
-        "refuses negative sample_idx", "refuses phase above 12 bits",
+        "refuses negative sample_idx", "refuses phase past 0x1000 + the pitch cap",
         "refuses sample bank 32 on the last voice", "refuses capture_pos past 0x3FF",
         "refuses rev_cur past SPU RAM",
     };
@@ -144,13 +144,20 @@ static void test_snapshot_refuses_out_of_range(void) {
     uint8_t *good = malloc(n), *bad = malloc(n), *ref = malloc(n), *again = malloc(n);
     spu_snapshot_write(good);
     CHECK(spu_snapshot_validate(good, n), "in-range snapshot validates");
+    /* Front Mission 2's hangar_menu state, saved before f34a002f: voice 2 at
+     * the block end with two whole samples left in the phase. */
+    spu_snapshot_read(good, n);
+    voices[2].sample_idx = SPU_BLOCK_SAMPLES;
+    voices[2].phase = 0x2108u;
+    spu_snapshot_write(bad);
+    CHECK(spu_snapshot_validate(bad, n), "pre-f34a002f phase with whole samples validates");
     for (int k = 0; k < (int)(sizeof names / sizeof names[0]); k++) {
         spu_snapshot_read(good, n);
         switch (k) {
         case 0: transfer_addr = 0xFFFFFFFEu; break;
         case 1: voices[0].sample_idx = 2 * SPU_BLOCK_SAMPLES; break;
         case 2: voices[0].sample_idx = -1; break;
-        case 3: voices[3].phase = 0x1000u; break;
+        case 3: voices[3].phase = 0x5000u; break;
         case 4: voices[SPU_VOICE_COUNT - 1].sample_bank = SPU_SAMPLE_BANKS; break;
         case 5: capture_pos = 0x400u; break;
         default: rev_cur = SPU_RAM_SIZE; break;

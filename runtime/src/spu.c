@@ -2088,7 +2088,10 @@ int spu_snapshot_len_ok(uint32_t len) {
 
 /* Saved voice values the mixer indexes with: the sample bank bindings, the
  * decode cursor (at most one block ahead: voice_step decodes once and the
- * Gaussian window holds 3 + 28 samples) and the 12-bit pitch phase. */
+ * Gaussian window holds 3 + 28 samples) and the pitch phase. States saved
+ * before f34a002f keep whole samples in the phase (the old loop stopped at
+ * the block end), up to 0x1000 + the 0x4000 pitch cap; the next step folds
+ * them into the cursor and decodes them in the block after. */
 static int spu_voice_wire_ok(PstR *r) {
     uint32_t bank, pending, phase;
     int32_t idx;
@@ -2097,7 +2100,7 @@ static int spu_voice_wire_ok(PstR *r) {
            pst_r_u32(r, &phase) &&
            pst_r_bytes(r, NULL, SPU_VOICE_WIRE_BYTES - 28u - (SPU_BLOCK_SAMPLES + 3u) * 2u) &&
            bank < SPU_SAMPLE_BANKS && pending < SPU_SAMPLE_BANKS &&
-           idx >= 0 && idx < 2 * SPU_BLOCK_SAMPLES && phase <= 0xFFFu;
+           idx >= 0 && idx < 2 * SPU_BLOCK_SAMPLES && phase < 0x5000u;
 }
 
 /* Pass-1 check for boot_state's two-pass load: walks the snapshot without
