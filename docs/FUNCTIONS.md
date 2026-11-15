@@ -188,54 +188,54 @@ Static recompiler core that turns MIPS instructions and functions into generated
 - `CodeGenerator::translate_lh` (L428) — Translates LH into C that loads a sign-extended halfword from memory into rt.
 - `CodeGenerator::translate_lhu` (L443) — Translates LHU into C that loads a zero-extended halfword from memory into rt.
 - `CodeGenerator::translate_lwl` (L458) — Translates LWL into C, the left-part unaligned word load that merges bytes into rt.
-- `CodeGenerator::translate_lwr` (L480) — Translates LWR into C, the right-part unaligned word load that merges bytes into rt.
-- `CodeGenerator::translate_swl` (L500) — Translates SWL into C, the left-part unaligned word store.
-- `CodeGenerator::translate_swr` (L515) — Translates SWR into C, the right-part unaligned word store.
-- `CodeGenerator::translate_sb` (L530) — Translates SB into C that stores the low byte of rt to memory.
-- `CodeGenerator::translate_sh` (L543) — Translates SH into C that stores the low halfword of rt to memory.
-- `CodeGenerator::translate_sra` (L556) — Translates SRA into C that shifts rt right arithmetically by the shift amount and stores the result in rd.
-- `CodeGenerator::translate_andi` (L568) — Translates ANDI into C that ANDs rs with the zero-extended immediate into rt.
-- `CodeGenerator::translate_ori` (L580) — Translates ORI into C that ORs rs with the zero-extended immediate into rt.
-- `CodeGenerator::translate_xori` (L597) — Translates XORI into C that XORs rs with the zero-extended immediate into rt.
-- `CodeGenerator::translate_xor` (L609) — Translates XOR into C that stores the bitwise exclusive or of rs and rt in rd.
-- `CodeGenerator::translate_nor` (L621) — Translates NOR into C that stores the inverted bitwise or of rs and rt in rd.
-- `CodeGenerator::translate_sllv` (L641) — Translates SLLV into C that shifts rt left by the low five bits of rs and stores the result in rd.
-- `CodeGenerator::translate_srlv` (L653) — Translates SRLV into C that shifts rt right logically by the low five bits of rs and stores the result in rd.
-- `CodeGenerator::translate_srav` (L665) — Translates SRAV into C that shifts rt right arithmetically by the low five bits of rs and stores the result in rd.
-- `CodeGenerator::translate_slti` (L677) — Translates SLTI into C that sets rt to 1 when rs is less than the signed immediate, otherwise 0.
-- `CodeGenerator::translate_sltiu` (L690) — Translates SLTIU into C that sets rt to 1 when rs is less than the immediate as unsigned, otherwise 0.
-- `CodeGenerator::translate_mult` (L703) — Translates MULT into C that multiplies rs and rt as signed values into the HI and LO registers.
-- `CodeGenerator::translate_multu` (L712) — Translates MULTU into C that multiplies rs and rt as unsigned values into the HI and LO registers.
-- `CodeGenerator::translate_div` (L721) — Translates DIV into C that divides rs by rt as signed values, leaving the quotient in LO and remainder in HI.
-- `CodeGenerator::translate_divu` (L732) — Translates DIVU into C that divides rs by rt as unsigned values, leaving the quotient in LO and remainder in HI.
-- `CodeGenerator::translate_mfhi` (L743) — Translates MFHI into C that copies the HI register into rd.
-- `CodeGenerator::translate_mflo` (L756) — Translates MFLO into C that copies the LO register into rd.
-- `CodeGenerator::translate_mthi` (L767) — Translates MTHI into C that copies rs into the HI register.
-- `CodeGenerator::translate_mtlo` (L773) — Translates MTLO into C that copies rs into the LO register.
-- `ws_screen_x_site` (L790) — Explicit branch-site kinds ([widescreen.cull] bltz_sites, bgez_sites, branch_keep_sites) name one conditional branch each.
-- `CodeGenerator::check_explicit_branch_site` (L796) — Checks a conditional branch against the configured explicit branch sites and records a match; does nothing in overlay mode.
-- `CodeGenerator::generate_branch_condition` (L817) — Returns the C condition expression for a branch, with widescreen cull masking applied when the branch matches a configured site.
-- `CodeGenerator::mod_instruction_call` (L940) — Returns a call to a mod hook for this address when it is a configured mod instruction site, otherwise an empty string.
-- `CodeGenerator::draw_distance_clamp_prefix` (L952) — [[draw_distance.clamp]]: a main-EXE ordering-table range guard.
-- `block_timing_rewrite` (L988) — [recompiler] cpu_timing = "block" (docs/PERFORMANCE_MODES.md): the loads take the block helpers (psx_cyc.h psx_blk_*), which charge only the access, from the emitter's packed cost of this load (blk_pi
-- `blk_pipe_run` (L1013) — The R3000A load-delay pipeline of psx_cyc.h (Beetle's ReadAbsorb / ReadFudge / LDAbsorb / LDWhich: psx_cyc_step, psx_cyc_load_*, psx_cyc_lwc2_read) run over a block's instructions in execution order,
-- `blk_body_observes` (L1048) — A body that can see the guest clock (or hand it to the runtime): memory, GTE and mult/div timing, COP0, exceptions, calls, hooks.
-- `ram_fast_rewrite` (L1066) — [recompiler] ram_fast_path (docs/PERFORMANCE_MODES.md): the plain-RAM entries (psx_store_* in memory.c, psx_cyc_load_byte_fast in psx_cyc.h) in place of the CPUState store pointers and the out-of-line
-- `CodeGenerator::translate_instruction` (L1080) — Translates one instruction, adding the draw-distance clamp prefix and any mod hook call before its core translation.
-- `CodeGenerator::translate_instruction_core` (L1095) — Translates one instruction's opcode into C statements, dispatching on the opcode and funct fields.
-- `CodeGenerator::translate_basic_block` (L2144) — Emits the C code for one basic block, including its label, cycle charges and each of its instructions.
-- `CodeGenerator::func_has_screen_extent_cull` (L3210) — True when a function has both a width and a height compare against the widescreen sets, the signature of a screen-extent cull.
-- `CodeGenerator::detect_cull_bltz_sites` (L3236) — Finds the left-edge bltz branch addresses of a screen-extent cull and records them for the function.
-- `CodeGenerator::detect_backdrop_windows` (L3261) — Detects backdrop window sites in a function and records them, when automatic backdrop preload is enabled.
-- `CodeGenerator::generate_function` (L3287) — Generates the C function for one recompiled function from its blocks and fallthrough target.
-- `CodeGenerator::scan_jr_tables` (L3582) — Scans the blocks of a function for jr jump tables and adds their target addresses to the output edge map.
-- `CodeGenerator::generate_alias_group` (L3619) — Generates C functions for a group of alias entries that share the same code.
-- `CodeGenerator::generate_all_functions` (L3844) — Generates C code for every function in the list using its control flow graph, returning all generated functions.
-- `CodeGenerator::emit_runtime_externs` (L3978) — Writes extern declarations for the runtime helpers the generated C needs, with debug tool externs guarded by a macro.
-- `CodeGenerator::emit_unaligned_helpers` (L4048) — Writes the helper functions for unaligned loads and stores, using the block or full timing helper for LWL and LWR.
-- `CodeGenerator::build_shared_decls_header` (L4133) — Builds the shared declarations header used by split full.c shards, listing the generated functions and extra declarations.
-- `CodeGenerator::generate_file` (L4153) — Generates the complete C source file for all functions, including runtime externs, helpers and function bodies.
-- `CodeGenerator::generate_ranges_manifest` (L4409) — Generates a text manifest listing the address ranges of the generated functions.
+- `CodeGenerator::translate_lwr` (L476) — Translates LWR into C, the right-part unaligned word load that merges bytes into rt.
+- `CodeGenerator::translate_swl` (L492) — Translates SWL into C, the left-part unaligned word store.
+- `CodeGenerator::translate_swr` (L507) — Translates SWR into C, the right-part unaligned word store.
+- `CodeGenerator::translate_sb` (L522) — Translates SB into C that stores the low byte of rt to memory.
+- `CodeGenerator::translate_sh` (L535) — Translates SH into C that stores the low halfword of rt to memory.
+- `CodeGenerator::translate_sra` (L548) — Translates SRA into C that shifts rt right arithmetically by the shift amount and stores the result in rd.
+- `CodeGenerator::translate_andi` (L560) — Translates ANDI into C that ANDs rs with the zero-extended immediate into rt.
+- `CodeGenerator::translate_ori` (L572) — Translates ORI into C that ORs rs with the zero-extended immediate into rt.
+- `CodeGenerator::translate_xori` (L589) — Translates XORI into C that XORs rs with the zero-extended immediate into rt.
+- `CodeGenerator::translate_xor` (L601) — Translates XOR into C that stores the bitwise exclusive or of rs and rt in rd.
+- `CodeGenerator::translate_nor` (L613) — Translates NOR into C that stores the inverted bitwise or of rs and rt in rd.
+- `CodeGenerator::translate_sllv` (L633) — Translates SLLV into C that shifts rt left by the low five bits of rs and stores the result in rd.
+- `CodeGenerator::translate_srlv` (L645) — Translates SRLV into C that shifts rt right logically by the low five bits of rs and stores the result in rd.
+- `CodeGenerator::translate_srav` (L657) — Translates SRAV into C that shifts rt right arithmetically by the low five bits of rs and stores the result in rd.
+- `CodeGenerator::translate_slti` (L669) — Translates SLTI into C that sets rt to 1 when rs is less than the signed immediate, otherwise 0.
+- `CodeGenerator::translate_sltiu` (L682) — Translates SLTIU into C that sets rt to 1 when rs is less than the immediate as unsigned, otherwise 0.
+- `CodeGenerator::translate_mult` (L695) — Translates MULT into C that multiplies rs and rt as signed values into the HI and LO registers.
+- `CodeGenerator::translate_multu` (L704) — Translates MULTU into C that multiplies rs and rt as unsigned values into the HI and LO registers.
+- `CodeGenerator::translate_div` (L713) — Translates DIV into C that divides rs by rt as signed values, leaving the quotient in LO and remainder in HI.
+- `CodeGenerator::translate_divu` (L725) — Translates DIVU into C that divides rs by rt as unsigned values, leaving the quotient in LO and remainder in HI.
+- `CodeGenerator::translate_mfhi` (L736) — Translates MFHI into C that copies the HI register into rd.
+- `CodeGenerator::translate_mflo` (L749) — Translates MFLO into C that copies the LO register into rd.
+- `CodeGenerator::translate_mthi` (L760) — Translates MTHI into C that copies rs into the HI register.
+- `CodeGenerator::translate_mtlo` (L766) — Translates MTLO into C that copies rs into the LO register.
+- `ws_screen_x_site` (L783) — Explicit branch-site kinds ([widescreen.cull] bltz_sites, bgez_sites, branch_keep_sites) name one conditional branch each.
+- `CodeGenerator::check_explicit_branch_site` (L789) — Checks a conditional branch against the configured explicit branch sites and records a match; does nothing in overlay mode.
+- `CodeGenerator::generate_branch_condition` (L810) — Returns the C condition expression for a branch, with widescreen cull masking applied when the branch matches a configured site.
+- `CodeGenerator::mod_instruction_call` (L933) — Returns a call to a mod hook for this address when it is a configured mod instruction site, otherwise an empty string.
+- `CodeGenerator::draw_distance_clamp_prefix` (L945) — [[draw_distance.clamp]]: a main-EXE ordering-table range guard.
+- `block_timing_rewrite` (L981) — [recompiler] cpu_timing = "block" (docs/PERFORMANCE_MODES.md): the loads take the block helpers (psx_cyc.h psx_blk_*), which charge only the access, from the emitter's packed cost of this load (blk_pi
+- `blk_pipe_run` (L1006) — The R3000A load-delay pipeline of psx_cyc.h (Beetle's ReadAbsorb / ReadFudge / LDAbsorb / LDWhich: psx_cyc_step, psx_cyc_load_*, psx_cyc_lwc2_read) run over a block's instructions in execution order,
+- `blk_body_observes` (L1041) — A body that can see the guest clock (or hand it to the runtime): memory, GTE and mult/div timing, COP0, exceptions, calls, hooks.
+- `ram_fast_rewrite` (L1059) — [recompiler] ram_fast_path (docs/PERFORMANCE_MODES.md): the plain-RAM entries (psx_store_* in memory.c, psx_cyc_load_byte_fast in psx_cyc.h) in place of the CPUState store pointers and the out-of-line
+- `CodeGenerator::translate_instruction` (L1073) — Translates one instruction, adding the draw-distance clamp prefix and any mod hook call before its core translation.
+- `CodeGenerator::translate_instruction_core` (L1088) — Translates one instruction's opcode into C statements, dispatching on the opcode and funct fields.
+- `CodeGenerator::translate_basic_block` (L2162) — Emits the C code for one basic block, including its label, cycle charges and each of its instructions.
+- `CodeGenerator::func_has_screen_extent_cull` (L3233) — True when a function has both a width and a height compare against the widescreen sets, the signature of a screen-extent cull.
+- `CodeGenerator::detect_cull_bltz_sites` (L3259) — Finds the left-edge bltz branch addresses of a screen-extent cull and records them for the function.
+- `CodeGenerator::detect_backdrop_windows` (L3284) — Detects backdrop window sites in a function and records them, when automatic backdrop preload is enabled.
+- `CodeGenerator::generate_function` (L3310) — Generates the C function for one recompiled function from its blocks and fallthrough target.
+- `CodeGenerator::scan_jr_tables` (L3605) — Scans the blocks of a function for jr jump tables and adds their target addresses to the output edge map.
+- `CodeGenerator::generate_alias_group` (L3642) — Generates C functions for a group of alias entries that share the same code.
+- `CodeGenerator::generate_all_functions` (L3867) — Generates C code for every function in the list using its control flow graph, returning all generated functions.
+- `CodeGenerator::emit_runtime_externs` (L4003) — Writes extern declarations for the runtime helpers the generated C needs, with debug tool externs guarded by a macro.
+- `CodeGenerator::emit_unaligned_helpers` (L4073) — Writes the helper functions for unaligned loads and stores, using the block or full timing helper for LWL and LWR.
+- `CodeGenerator::build_shared_decls_header` (L4158) — Builds the shared declarations header used by split full.c shards, listing the generated functions and extra declarations.
+- `CodeGenerator::generate_file` (L4178) — Generates the complete C source file for all functions, including runtime externs, helpers and function bodies.
+- `CodeGenerator::generate_ranges_manifest` (L4434) — Generates a text manifest listing the address ranges of the generated functions.
 
 ### recompiler/src/config_loader.cpp
 
