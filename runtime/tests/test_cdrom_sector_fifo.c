@@ -195,6 +195,46 @@ static void invalid_setloc_preserves_target(void) {
         CHECK(setloc_pending==pending && setloc_seek_far==seek_far);
     }
 }
+/* psx-spx cdromdrive: INT5 carries an error byte (10h bad value, 20h param count,
+ * 40h invalid command, 80h disc missing). */
+static void int5_error_codes(void) {
+    setup();
+    const int pending = setloc_pending; /* cdrom_init keeps it */
+    param_count = 2; param_fifo[0] = 0; param_fifo[1] = 3;
+    exec_command(0x02);
+    CHECK(irq_flag == CDIRQ_ERROR && response_count == 2 && response_fifo[1] == 0x20);
+    CHECK((response_fifo[0] & 1u) && setloc_pending == pending);
+    const struct { uint8_t cmd, param; uint8_t err; } bad[] = {
+        {0x14, 0x02, 0x10}, {0x14, 0x0A, 0x10}, {0x14, 0x9A, 0x10}, {0x1F, 0, 0x40},
+    };
+    for (unsigned n = 0; n < sizeof bad / sizeof bad[0]; ++n) {
+        setup();
+        param_count = 1; param_fifo[0] = bad[n].param;
+        exec_command(bad[n].cmd);
+        CHECK(irq_flag == CDIRQ_ERROR && response_count == 2 && response_fifo[1] == bad[n].err);
+    }
+    setup(); /* track 1 and lead-out (00h) still answer INT3 */
+    param_count = 1; param_fifo[0] = 0x01;
+    exec_command(0x14);
+    CHECK(irq_flag == CDIRQ_ACK && response_count == 3);
+    setup();
+    param_count = 1; param_fifo[0] = 0x00;
+    exec_command(0x14);
+    CHECK(irq_flag == CDIRQ_ACK && response_count == 3);
+    const uint8_t nodisc[] = {0x03, 0x06, 0x13, 0x15, 0x16};
+    for (unsigned n = 0; n < sizeof nodisc; ++n) {
+        setup();
+        iso_handle = NULL;
+        param_count = 0;
+        exec_command(nodisc[n]);
+        CHECK(irq_flag == CDIRQ_ERROR && response_count == 2 && response_fifo[1] == 0x80);
+        CHECK(response_fifo[0] & 1u);
+    }
+    setup(); /* HINTMSK reserved bits 5-7 read as 1 at index 0 and 2 */
+    cdrom_write(0x1f801800, 1); cdrom_write(0x1f801802, 0x07);
+    cdrom_write(0x1f801800, 0); CHECK(cdrom_read(0x1f801803) == 0xE7);
+    cdrom_write(0x1f801800, 2); CHECK(cdrom_read(0x1f801803) == 0xE7);
+}
 static void pause_read_resumes_position(void) {
     const uint8_t reads[] = {0x06, 0x1B};
     for (unsigned n = 0; n < sizeof reads; ++n) {
@@ -406,6 +446,7 @@ int main(void) {
     pause_read_resumes_position();
     snapshot_setloc_and_paused_head();
     invalid_setloc_preserves_target();
+    int5_error_codes();
     delayed_notification();
     dma_continuation();
     dma_arrival_mid_drain();

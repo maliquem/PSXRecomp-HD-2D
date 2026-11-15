@@ -2154,18 +2154,26 @@ static void exec_command(uint8_t cmd) {
         break;
 
     case 0x02: /* SetLoc */
-        if (param_count >= 3) {
-            /* Invalid BCD/ranges report INT5(10h) and preserve the existing
-             * target, matching the controller and Beetle Command_Setloc.
-             * They are not an XA successful-stream sentinel. */
-            if ((param_fifo[0] & 0x0Fu) > 9u || param_fifo[0] > 0x99u ||
-                (param_fifo[1] & 0x0Fu) > 9u || param_fifo[1] > 0x59u ||
-                (param_fifo[2] & 0x0Fu) > 9u || param_fifo[2] > 0x74u) {
-                response_push(stat_reg | 1u);
-                response_push(0x10u);
-                set_irq(CDIRQ_ERROR);
-                break;
-            }
+        /* psx-spx cdromdrive error codes: 20h = wrong number of parameters.
+         * Too few parameters leave the target untouched. */
+        if (param_count < 3) {
+            response_push(stat_reg | CDSTAT_ERROR);
+            response_push(0x20u);
+            set_irq(CDIRQ_ERROR);
+            break;
+        }
+        /* Invalid BCD/ranges report INT5(10h) and preserve the existing
+         * target, matching the controller and Beetle Command_Setloc.
+         * They are not an XA successful-stream sentinel. */
+        if ((param_fifo[0] & 0x0Fu) > 9u || param_fifo[0] > 0x99u ||
+            (param_fifo[1] & 0x0Fu) > 9u || param_fifo[1] > 0x59u ||
+            (param_fifo[2] & 0x0Fu) > 9u || param_fifo[2] > 0x74u) {
+            response_push(stat_reg | 1u);
+            response_push(0x10u);
+            set_irq(CDIRQ_ERROR);
+            break;
+        }
+        {
             int current_lba = (last_sector_lba >= 0)
                 ? last_sector_lba
                 : msf_to_lba(seek_min, seek_sec, seek_sect);
@@ -2185,6 +2193,7 @@ static void exec_command(uint8_t cmd) {
     case 0x06: /* ReadN */
         if (!has_disc()) {
             response_push(stat_reg | CDSTAT_ERROR);
+            response_push(0x80u); /* psx-spx: 80h when the disc is missing (02h..09h) */
             set_irq(CDIRQ_ERROR);
             break;
         }
@@ -2394,6 +2403,12 @@ static void exec_command(uint8_t cmd) {
     }
 
     case 0x13: /* GetTN — first + last track numbers (BCD) */
+        if (!has_disc()) {
+            response_push(stat_reg | CDSTAT_ERROR);
+            response_push(0x80u); /* psx-spx: 80h when the disc is missing (10h..16h) */
+            set_irq(CDIRQ_ERROR);
+            break;
+        }
         response_push(stat_reg);
         response_push(0x01); /* first track is always 1 */
         {
@@ -2414,6 +2429,15 @@ static void exec_command(uint8_t cmd) {
 
         int raw = (param_count >= 1) ? param_fifo[0] : 0;
         int track = bcd_to_bin(raw);
+        /* psx-spx GetTD: a non-BCD or past-the-last track returns error 10h
+         * (0xAA stays accepted as lead-out, a pre-existing leniency). */
+        if (raw != 0xAA && ((raw & 0x0F) > 9 || (raw >> 4) > 9 ||
+                            track > (iso_cdda_track_count(iso_handle) < 1 ? 1 : iso_cdda_track_count(iso_handle)))) {
+            response_push(stat_reg | CDSTAT_ERROR);
+            response_push(0x10u);
+            set_irq(CDIRQ_ERROR);
+            break;
+        }
         int lba;
         if (raw == 0xAA || track == 0) {
             /* Lead-out: end of the whole image. */
@@ -2439,6 +2463,7 @@ static void exec_command(uint8_t cmd) {
                 * optional BCD track number in param[0]. */
         if (!has_disc()) {
             response_push(stat_reg | CDSTAT_ERROR);
+            response_push(0x80u); /* psx-spx: 80h when the disc is missing (02h..09h) */
             set_irq(CDIRQ_ERROR);
             break;
         }
@@ -2475,6 +2500,7 @@ static void exec_command(uint8_t cmd) {
                 * to the SetLoc position the same way for both commands. */
         if (!has_disc()) {
             response_push(stat_reg | CDSTAT_ERROR | CDSTAT_SEEKERR);
+            response_push(0x80u); /* psx-spx: 80h when the disc is missing (10h..16h) */
             set_irq(CDIRQ_ERROR);
             break;
         }
@@ -2552,6 +2578,7 @@ static void exec_command(uint8_t cmd) {
 
     default:
         response_push(stat_reg | CDSTAT_ERROR);
+        response_push(0x40u); /* psx-spx: 40h = invalid command */
         set_irq(CDIRQ_ERROR);
         break;
     }
@@ -2963,7 +2990,7 @@ uint32_t cdrom_read(uint32_t addr) {
 
     case 0x1F801803:
         if (index_reg == 0 || index_reg == 2) {
-            ret = irq_enable;
+            ret = irq_enable | 0xE0; /* psx-spx HINTMSK: reserved bits 5-7 read as 1 */
         } else {
             ret = irq_flag | 0xE0;
         }
