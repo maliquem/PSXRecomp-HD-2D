@@ -4,6 +4,7 @@
 #include <filesystem>
 #include <fstream>
 #include <initializer_list>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -322,6 +323,38 @@ void branch_into_jump_delay_slot_walks_on() {
            "a branch into a j delay slot keeps walking to slot+4");
 }
 
+// ANA-8: a recovered jump-table target that is not word aligned stops discovery.
+void jump_table_misaligned_target_is_an_error() {
+    auto walk = [](uint32_t second_target) {
+        std::vector<uint8_t> rom;
+        for (uint32_t word : {
+                 0x2C890002u,  // sltiu t1,a0,2
+                 0x00044080u,  // sll t0,a0,2
+                 0x3C01BFC0u,  // lui at,0xBFC0
+                 0x00280821u,  // addu at,at,t0
+                 0x8C280030u,  // lw t0,0x30(at) -- table at 0xBFC00030
+                 0x01000008u,  // jr t0
+                 0x00000000u,
+                 0x03E00008u,  // 0x1C: jr ra
+                 0x00000000u,
+                 0x03E00008u,  // 0x24: case 0
+                 0x00000000u,
+                 0x00000000u,
+                 kBase + 0x24u, second_target}) {
+            append_word(rom, word);
+        }
+        return FunctionDiscovery::walk_function(rom, kBase, kBase + uint32_t(rom.size()) - 1u,
+                                                kBase, kBase + uint32_t(rom.size()), "test");
+    };
+    const auto good = walk(kBase + 0x1Cu);
+    bool leader = false;
+    for (const auto& block : good.blocks) leader |= block.start_addr == kBase + 0x24u;
+    expect(leader, "aligned jump-table target becomes a block leader");
+    bool threw = false;
+    try { walk(kBase + 0x26u); } catch (const std::runtime_error&) { threw = true; }
+    expect(threw, "misaligned jump-table target is a discovery error");
+}
+
 int main() {
     BiosConfig config{};
     config.config_path = "test://full-function-emitter";
@@ -350,6 +383,7 @@ int main() {
     FullFunctionEmitter::set_address_model(&model);
     jal_jalr_link_once_before_delay_slot();
     branch_into_jump_delay_slot_walks_on();
+    jump_table_misaligned_target_is_an_error();
 
     if (failures != 0) {
         std::fprintf(stderr, "%d full-function emitter test(s) failed\n", failures);

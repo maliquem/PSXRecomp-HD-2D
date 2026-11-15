@@ -436,6 +436,14 @@ FunctionDiscovery::SingleFunctionResult FunctionDiscovery::walk_function(
                             uint32_t rom_target = ram_alias_to_rom(tval);
 
                             if (in_bounds(rom_target)) {
+                                // A taken jr to a misaligned target raises AdEL, so the
+                                // pattern match (not the program) is wrong: stop, don't walk it.
+                                if (rom_target & 3u) {
+                                    throw std::runtime_error(fmt::format(
+                                        "FunctionDiscovery: jump table of jr at 0x{:08X} (function "
+                                        "0x{:08X}) has misaligned target 0x{:08X} at table word 0x{:08X}",
+                                        addr, entry, tval, taddr));
+                                }
                                 work.push(rom_target);
                                 block_leader_set.insert(rom_target);
                             }
