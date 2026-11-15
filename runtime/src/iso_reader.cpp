@@ -805,8 +805,8 @@ bool ISOReader::ParseDirectoryRecord(const uint8_t* data, ISOFileEntry& entry) c
 
     // Extract filename length (offset 32)
     uint8_t name_len = data[32];
-    if (name_len == 0) {
-        return false;  // Invalid record
+    if (name_len == 0 || 33u + name_len > record_len) {
+        return false;  // Invalid record (name must fit inside the record)
     }
 
     // Extract filename (offset 33)
@@ -838,7 +838,9 @@ bool ISOReader::ParseDirectoryRecord(const uint8_t* data, ISOFileEntry& entry) c
 std::vector<ISOFileEntry> ISOReader::ListFilesByLBA(uint32_t lba, uint32_t dir_size) {
     std::vector<ISOFileEntry> results;
 
-    if (!is_open_ || lba == 0 || dir_size == 0) {
+    // Real directories are a few sectors; the cap also keeps (dir_size + 2047) from wrapping.
+    constexpr uint32_t kMaxDirSize = 16u * 1024 * 1024;
+    if (!is_open_ || lba == 0 || dir_size == 0 || dir_size > kMaxDirSize) {
         return results;
     }
 
