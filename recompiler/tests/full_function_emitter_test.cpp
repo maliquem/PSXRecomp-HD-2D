@@ -273,6 +273,35 @@ void mod_guest_dispatch_precedes_hardware_routes() {
            "no active mod guest functions keeps the dispatch path dormant");
 }
 
+void jal_jalr_link_once_before_delay_slot() {
+    const auto jalr = run_case("jalr-rd-eq-rs", {
+        0x00601809u,  // jalr v1,v1 -- rd == rs
+        0x00000000u,
+        0x03E00008u,
+        0x00000000u,
+    }, {function_at(kBase, kBase + 12u, {kBase, kBase + 8u})});
+    const auto latch = jalr.full.find("psx_jrt_BFC00000 = cpu->gpr[3];");
+    const auto link = jalr.full.find("cpu->gpr[3] = 0x");
+    expect(latch != std::string::npos && link != std::string::npos && latch < link,
+           "jalr rd==rs latches the target before writing the link");
+    expect(jalr.full.find("psx_jrt_BFC00000", link) != std::string::npos,
+           "jalr rd==rs resolves from the pre-link latch");
+
+    const auto jal = run_case("jal-slot-writes-ra", {
+        0x0FF00004u,  // jal 0xBFC00010
+        0x241F1234u,  // addiu ra,zero,0x1234 -- delay slot writes the link reg
+        0x03E00008u,
+        0x00000000u,
+        0x03E00008u,
+        0x00000000u,
+    }, {function_at(kBase, kBase + 20u, {kBase, kBase + 8u, kBase + 16u})});
+    const auto slot = jal.full.find("/* 0xBFC00004:");
+    const auto after = jal.full.substr(slot == std::string::npos ? 0 : slot,
+                                       jal.full.find("label_BFC00008:", slot) - slot);
+    expect(slot != std::string::npos && after.find("cpu->gpr[31] = 0x") == std::string::npos,
+           "jal does not rewrite $ra after a delay slot that wrote it");
+}
+
 int main() {
     BiosConfig config{};
     config.config_path = "test://full-function-emitter";
@@ -298,6 +327,8 @@ int main() {
     mod_guest_dispatch_precedes_hardware_routes();
     patch_range_guards(config);
     patch_range_delay_boundaries(config);
+    FullFunctionEmitter::set_address_model(&model);
+    jal_jalr_link_once_before_delay_slot();
 
     if (failures != 0) {
         std::fprintf(stderr, "%d full-function emitter test(s) failed\n", failures);

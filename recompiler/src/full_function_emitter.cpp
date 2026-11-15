@@ -714,6 +714,8 @@ bool FullFunctionEmitter::emit_function(
          * writeback flush) captures exactly that — force the snapshot. */
         auto ls = ldd_sites.find(term_addr - 4);
         if (ls != ldd_sites.end() && static_cast<uint32_t>(ls->second.first) == rs) return true;
+        /* jalr rd==rs: the link written before the delay slot clobbers rs. */
+        if ((term_raw & 0x3F) == 0x09 && rs != 0 && ((term_raw >> 11) & 0x1F) == rs) return true;
         auto ds = addr_to_raw.find(term_addr + 4);
         if (ds == addr_to_raw.end()) return false;  /* orphaned ds: resolved pre-delay */
         return insn_writes_gpr(ds->second, rs);
@@ -990,12 +992,20 @@ bool FullFunctionEmitter::emit_function(
             out += fmt::format("    /* 0x{:08X}: {:08X}  {} */\n", addr, raw, tr.comment);
 
             const std::string kind = tr.terminator_kind ? tr.terminator_kind : "";
+            /* Latch the jump target BEFORE the link and the delay slot can
+             * clobber it (hardware semantics; see psx_jrt_ decl comment). */
+            if ((kind == "jr" || kind == "jalr") && !orphaned_delay_slots.count(addr) &&
+                jr_snapshot_needed(addr, raw)) {
+                out += fmt::format("    psx_jrt_{:08X} = cpu->gpr[{}];\n",
+                                   addr, (raw >> 21) & 0x1F);
+            }
             if (kind == "jal") {
                 out += fmt::format("    cpu->gpr[31] = 0x{:08X}u;  /* jal link before delay slot */\n",
                                    relocate_ra(addr + 8));
             } else if (kind == "jalr") {
                 uint8_t rd = (raw >> 11) & 0x1F;
-                if (rd != 0) {
+                /* Orphaned slot: the orphaned path links after its own target latch. */
+                if (rd != 0 && !orphaned_delay_slots.count(addr)) {
                     out += fmt::format("    cpu->gpr[{}] = 0x{:08X}u;  /* jalr link before delay slot */\n",
                                        static_cast<int>(rd), relocate_ra(addr + 8));
                 }
@@ -1065,12 +1075,6 @@ bool FullFunctionEmitter::emit_function(
             }
             if (kind != "rfe" && !orphaned_delay_slots.count(addr)) {
                 out += fmt::format("    psx_delay_{:08X} = 1;\n", addr);
-                /* Latch the jump target BEFORE the delay slot can clobber it
-                 * (hardware semantics; see psx_jrt_ decl comment). */
-                if ((kind == "jr" || kind == "jalr") && jr_snapshot_needed(addr, raw)) {
-                    out += fmt::format("    psx_jrt_{:08X} = cpu->gpr[{}];\n",
-                                       addr, (raw >> 21) & 0x1F);
-                }
             }
             /* Deferred load writeback for a `load; branch/jump-reading-rt`
              * pair: the condition / psx_jrt_ latch above read the OLD value
@@ -1466,12 +1470,11 @@ bool FullFunctionEmitter::emit_function(
                         out += fmt::format("    debug_server_log_probe(0x{:08X}u, cpu);\n",
                                            pb.terminator_addr);
                     }
-                    out += fmt::format("    cpu->gpr[31] = 0x{:08X}u;\n", return_addr);
+                    // $ra was linked once, before the delay slot (hardware order).
                     out += emit_irq_check(target);
                     out += fmt::format("    cpu->pc = 0x{:08X}u; return;\n", target);
                 } else {
                     out += "    { uint32_t _csp = cpu->gpr[29];\n";
-                    out += fmt::format("    cpu->gpr[31] = 0x{:08X}u;\n", return_addr);
                     // Regular call: always go through psx_dispatch (handles tail-call loop).
                     if (target == 0x00006380u) {
                         out += fmt::format("    debug_server_log_probe(0x{:08X}u, cpu);\n",
@@ -1511,21 +1514,13 @@ bool FullFunctionEmitter::emit_function(
                     ? fmt::format("psx_jrt_{:08X}", pb.terminator_addr)
                     : fmt::format("cpu->gpr[{}]", static_cast<int>(rs));
                 if (cps) {
-                    // CPS jalr: capture the target register BEFORE writing the
-                    // link reg (rd==rs alias-safe), then tail-transfer.
+                    // CPS jalr: the link was written once, before the delay
+                    // slot (rd==rs reads the psx_jrt_ latch); tail-transfer.
                     out += fmt::format("    {{ uint32_t _t = {};\n", jalr_tgt);
-                    if (rd != 0) {
-                        out += fmt::format("    cpu->gpr[{}] = 0x{:08X}u;\n",
-                                           static_cast<int>(rd), return_addr);
-                    }
                     out += emit_irq_check_expr("_t");
                     out += "    cpu->pc = _t; return; }\n";
                 } else {
                     out += "    { uint32_t _csp = cpu->gpr[29];\n";
-                    if (rd != 0) {
-                        out += fmt::format("    cpu->gpr[{}] = 0x{:08X}u;\n",
-                                           static_cast<int>(rd), return_addr);
-                    }
                     out += emit_irq_check_expr(jalr_tgt);
                     out += fmt::format("    psx_dispatch(cpu, {});\n", jalr_tgt);
                     if (rd == 31) {
