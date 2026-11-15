@@ -482,6 +482,7 @@ set(PSXRECOMP_RUNTIME_SOURCES
     ${PSXRECOMP_ROOT}/runtime/src/cosim_state.c
     ${PSXRECOMP_ROOT}/runtime/src/cosim.c
     ${PSXRECOMP_ROOT}/runtime/src/traps.c
+    ${PSXRECOMP_ROOT}/runtime/src/ram_trampoline.c
     ${PSXRECOMP_ROOT}/runtime/src/crash_trace.c
     ${PSXRECOMP_ROOT}/runtime/src/freeze_dump_policy.c
     ${PSXRECOMP_ROOT}/runtime/src/freeze_heartbeat.c

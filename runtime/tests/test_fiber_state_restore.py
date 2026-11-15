@@ -17,5 +17,5 @@ if __name__ == '__main__':
     with tempfile.TemporaryDirectory() as root:
         for opt in ('-O0', '-O2'):
             build_and_run(args.cc, here, here.parent, opt, Path(root),
-                          ['traps.c', 'psx_fiber.c'], 'test_fiber_state_restore.c')
+                          ['traps.c', 'ram_trampoline.c', 'psx_fiber.c'], 'test_fiber_state_restore.c')
     print('PASS: a state restore from a thread fiber lands on the scheduler loop (O0/O2)')

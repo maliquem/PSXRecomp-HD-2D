@@ -1310,7 +1310,7 @@ if(BUILD_TESTING)
        AND CMAKE_C_COMPILER_ID STREQUAL "GNU"
        AND CMAKE_C_COMPILER_VERSION VERSION_EQUAL "16.1.0")
         add_executable(exit_critical_section_test
-            tests/test_exit_critical_section.c src/traps.c)
+            tests/test_exit_critical_section.c src/traps.c src/ram_trampoline.c)
         target_include_directories(exit_critical_section_test PRIVATE include)
         target_compile_definitions(exit_critical_section_test PRIVATE PSX_NO_DEBUG_TOOLS=1)
         target_compile_options(exit_critical_section_test PRIVATE -O3 -flto -ffunction-sections)
@@ -1332,6 +1332,7 @@ if(BUILD_TESTING)
         tests/test_same_thread_rfe_k0.c
         tests/restore_edge_irq_stubs.c
         src/traps.c
+        src/ram_trampoline.c
         src/interrupts.c)
     target_include_directories(same_thread_rfe_k0_test PRIVATE include src)
     foreach(_rfe_mode RANGE 0 3)
@@ -1344,6 +1345,7 @@ if(BUILD_TESTING)
         tests/test_restore_edge_irq_replay.c
         tests/restore_edge_irq_stubs.c
         src/traps.c
+        src/ram_trampoline.c
         src/interrupts.c)
     target_include_directories(restore_edge_irq_replay_test PRIVATE include src)
     add_test(NAME restore_edge_irq_replay_test COMMAND restore_edge_irq_replay_test)
@@ -1412,6 +1414,13 @@ if(BUILD_TESTING)
         src/overlay_abi_verdict.c)
     target_include_directories(overlay_abi_verdict_test PRIVATE include)
     add_test(NAME overlay_abi_verdict_test COMMAND overlay_abi_verdict_test)
+
+    # CPU-27: RAM trampoline patterns resolved by psx_unknown_dispatch.
+    add_executable(unknown_dispatch_trampolines_test
+        tests/test_unknown_dispatch_trampolines.c
+        src/ram_trampoline.c)
+    target_include_directories(unknown_dispatch_trampolines_test PRIVATE include)
+    add_test(NAME unknown_dispatch_trampolines_test COMMAND unknown_dispatch_trampolines_test)
 
     # The kernel-bless verifier must accept a body whose DECLARED patch range
     # the guest has overwritten (Psy-Q's install stubs land inside compiled

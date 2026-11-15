@@ -13,6 +13,6 @@ if __name__ == '__main__':
     with tempfile.TemporaryDirectory() as root:
         for opt in ('-O0', '-O2'):
             build_and_run(args.cc, here, args.src_root or here.parent, opt, Path(root),
-                          ['interrupts.c', 'traps.c', 'psx_bios_backend.c'],
+                          ['interrupts.c', 'traps.c', 'ram_trampoline.c', 'psx_bios_backend.c'],
                           'test_rfe_irq_context.c')
     print('PASS: exception return resumes the TCB context (O0/O2)')

@@ -19,6 +19,7 @@
 #include "psx_fiber.h"   /* cross-platform fibers (Win32 fibers / POSIX ucontext) */
 #include "psx_scheduler.h" /* deterministic TCB scheduler carve-out (scaffolding) */
 #include "parity_trace.h"  /* general two-process control-flow parity ring */
+#include "ram_trampoline.h"
 
 /* RAM reader adapter for the parity trace (cpu->read_word takes only addr). */
 static uint32_t traps_parity_rw(void* ctx, uint32_t addr) {
@@ -1453,137 +1454,21 @@ void psx_unknown_dispatch(CPUState* cpu, uint32_t addr, uint32_t phys) {
      * and re-dispatch to the computed target.
      */
     {
-        uint32_t w0 = cpu->read_word(addr);
-        uint32_t w1 = cpu->read_word(addr + 4);
-        uint32_t w2 = cpu->read_word(addr + 8);
-        uint32_t op0 = (w0 >> 26) & 0x3F;
-        uint32_t op1 = (w1 >> 26) & 0x3F;
-
-        /* Trampoline resolution: set cpu->pc so the dispatch loop re-dispatches.
-         * This avoids growing the native stack for RAM trampoline chains. */
-
-        /* Pattern 1: J target */
-        if (op0 == 2) {
-            uint32_t target = (addr & 0xF0000000u) | ((w0 & 0x03FFFFFFu) << 2);
-            cpu->pc = target;
+        uint32_t w[PSX_TRAMPOLINE_MAX_WORDS];
+        int n = 0, need = 3;
+        psx_trampoline_t t;
+        for (;;) {
+            /* Lazy, in-order reads: addr is not guaranteed to be RAM. */
+            for (; n < need; n++) w[n] = cpu->read_word(addr + 4u * (uint32_t)n);
+            if (psx_trampoline_decode(addr, w, n, cpu->gpr, &t) != PSX_TRAMP_NEED_WORDS) break;
+            need = t.need_words;
+        }
+        /* Set cpu->pc so the dispatch loop re-dispatches; keeps RAM
+         * trampoline chains off the native stack. */
+        if (t.kind != PSX_TRAMP_NONE) {
+            if (t.ds_reg >= 0) cpu->gpr[t.ds_reg] = t.ds_val;
+            cpu->pc = t.kind == PSX_TRAMP_TABLE ? cpu->read_word(t.target) : t.target;
             return;
-        }
-
-        /* Pattern 2: JR rs (single instruction) */
-        if (op0 == 0 && (w0 & 0x3F) == 0x08) {
-            uint32_t rs = (w0 >> 21) & 0x1F;
-            cpu->pc = cpu->gpr[rs];
-            return;
-        }
-
-        /* Pattern 3: addiu rN, $zero, imm / jr rN (small address trampoline) */
-        if (op0 == 0x09) { /* ADDIU */
-            uint32_t rs0 = (w0 >> 21) & 0x1F;
-            uint32_t rt0 = (w0 >> 16) & 0x1F;
-            if (rs0 == 0) { /* addiu rN, $zero, imm = li rN, imm */
-                int16_t imm = (int16_t)(w0 & 0xFFFF);
-                uint32_t target = (uint32_t)(int32_t)imm;
-                /* w1 should be jr rN */
-                if ((w1 & 0xFC1FFFFF) == 0x00000008) { /* jr rs */
-                    uint32_t jr_rs = (w1 >> 21) & 0x1F;
-                    if (jr_rs == rt0) {
-                        /* w2 is delay slot — execute it as load of $t1 */
-                        uint32_t ds_op = (w2 >> 26) & 0x3F;
-                        if (ds_op == 0x09) { /* ADDIU in delay slot */
-                            uint32_t ds_rs = (w2 >> 21) & 0x1F;
-                            uint32_t ds_rt = (w2 >> 16) & 0x1F;
-                            int16_t ds_imm = (int16_t)(w2 & 0xFFFF);
-                            if (ds_rs == 0) {
-                                cpu->gpr[ds_rt] = (uint32_t)(int32_t)ds_imm;
-                            }
-                        }
-                        cpu->pc = target;
-                        return;
-                    }
-                }
-            }
-        }
-
-        /* Pattern 4: lui rN, hi / addiu|ori rN, rN, lo / jr rN / nop
-         * All three instructions must be present. Without the jr check,
-         * any function prologue that loads a constant via lui+ori would
-         * be misidentified as a trampoline (see 0xBFC3DF90 incident). */
-        if (op0 == 0x0F) { /* LUI */
-            uint32_t rt0 = (w0 >> 16) & 0x1F;
-            uint32_t hi_val = (w0 & 0xFFFF) << 16;
-            uint32_t computed = 0;
-            int have_target = 0;
-
-            if (op1 == 0x09) { /* ADDIU */
-                uint32_t rs1 = (w1 >> 21) & 0x1F;
-                uint32_t rt1 = (w1 >> 16) & 0x1F;
-                if (rs1 == rt0 && rt1 == rt0) {
-                    int16_t lo_val = (int16_t)(w1 & 0xFFFF);
-                    computed = hi_val + (uint32_t)(int32_t)lo_val;
-                    have_target = 1;
-                }
-            }
-            if (!have_target && op1 == 0x0D) { /* ORI */
-                uint32_t rs1 = (w1 >> 21) & 0x1F;
-                uint32_t rt1 = (w1 >> 16) & 0x1F;
-                if (rs1 == rt0 && rt1 == rt0) {
-                    computed = hi_val | (w1 & 0xFFFF);
-                    have_target = 1;
-                }
-            }
-            /* Only resolve if w2 is jr rN targeting the same register. */
-            if (have_target && (w2 & 0xFC1FFFFF) == 0x00000008) {
-                uint32_t jr_rs = (w2 >> 21) & 0x1F;
-                if (jr_rs == rt0) {
-                    cpu->pc = computed;
-                    return;
-                }
-            }
-
-            /* Pattern 5: BIOS vector dispatch table.
-             * lui  rN, hi             w0
-             * addiu rN, rN, lo        w1  (base = hi|lo)
-             * sll  rM, rM, 2          w2  (index <<= 2)
-             * addu rN, rN, rM         w3  (ptr = base + index*4)
-             * lw   rN, 0(rN)          w4  (func = *ptr)
-             * jr   rN                 w5
-             * This is the A0/B0/C0 dispatch pattern the BIOS writes at
-             * 0x500+.  rM holds the function number (set by the A0/B0/C0
-             * trampoline delay slot before we get here). */
-            if (have_target) {
-                uint32_t w3 = cpu->read_word(addr + 12);
-                uint32_t w4 = cpu->read_word(addr + 16);
-                uint32_t w5 = cpu->read_word(addr + 20);
-
-                /* w2: sll rM, rM, 2  (opcode 0, func 0, sa 2) */
-                if ((w2 & 0xFC0007FF) == 0x00000080) { /* SLL with sa=2 */
-                    uint32_t idx_rt = (w2 >> 16) & 0x1F;
-                    uint32_t idx_rd = (w2 >> 11) & 0x1F;
-                    /* w3: add/addu rN, rN, rM */
-                    if ((w3 & 0xFC0007FE) == 0x00000020) { /* ADD or ADDU */
-                        uint32_t a_rs = (w3 >> 21) & 0x1F;
-                        uint32_t a_rt = (w3 >> 16) & 0x1F;
-                        uint32_t a_rd = (w3 >> 11) & 0x1F;
-                        if (a_rs == rt0 && a_rt == idx_rd && a_rd == rt0) {
-                            /* w4: lw rN, 0(rN) */
-                            if ((w4 & 0xFFFF0000) == (0x8C000000u | ((uint32_t)rt0 << 21) | ((uint32_t)rt0 << 16))) {
-                                /* w5: jr rN — or nop then jr rN (load delay slot) */
-                                uint32_t jr_word = w5;
-                                if (w5 == 0x00000000u) {
-                                    jr_word = cpu->read_word(addr + 24);
-                                }
-                                if ((jr_word & 0xFC1FFFFF) == 0x00000008 && ((jr_word >> 21) & 0x1F) == rt0) {
-                                    uint32_t index_val = cpu->gpr[idx_rt];
-                                    uint32_t table_addr = computed + (index_val << 2);
-                                    uint32_t func_ptr = cpu->read_word(table_addr);
-                                    cpu->pc = func_ptr;
-                                    return;
-                                }
-                            }
-                        }
-                    }
-                }
-            }
         }
     }
 

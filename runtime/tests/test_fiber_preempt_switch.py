@@ -17,5 +17,5 @@ if __name__ == '__main__':
     with tempfile.TemporaryDirectory() as root:
         for opt in ('-O0', '-O2'):
             build_and_run(args.cc, here, here.parent, opt, Path(root),
-                          ['traps.c', 'psx_fiber.c'], 'test_fiber_preempt_switch.c')
+                          ['traps.c', 'ram_trampoline.c', 'psx_fiber.c'], 'test_fiber_preempt_switch.c')
     print('PASS: a preempted thread resumes on its fiber with its own nesting (O0/O2)')

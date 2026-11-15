@@ -17,5 +17,5 @@ if __name__ == '__main__':
     with tempfile.TemporaryDirectory() as root:
         for opt in ('-O0', '-O2'):
             build_and_run(args.cc, here, here.parent, opt, Path(root),
-                          ['traps.c'], 'test_syscall_change_thread_result.c')
+                          ['traps.c', 'ram_trampoline.c'], 'test_syscall_change_thread_result.c')
     print('PASS: ChangeThread leaves 1 in the yielding thread saved R2 (O0/O2)')

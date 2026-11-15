@@ -17,5 +17,5 @@ if __name__ == '__main__':
     with tempfile.TemporaryDirectory() as root:
         for opt in ('-O0', '-O2'):
             build_and_run(args.cc, here, here.parent, opt, Path(root),
-                          ['traps.c'], 'test_syscall_closed_thread_context.c')
+                          ['traps.c', 'ram_trampoline.c'], 'test_syscall_closed_thread_context.c')
     print('PASS: closed outgoing thread keeps its context without reopening (O0/O2)')
