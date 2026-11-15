@@ -620,6 +620,11 @@ static int boot_state_save_buffer_ex(const CPUState* cpu, uint32_t bios_checksum
         free(o.data);
         return 0;
     }
+    /* Raw blobs live on in the rewind/netplay rings: give back the unused part of the 12 MiB cap. */
+    if (o.no_zlib) {
+        uint8_t* q = (uint8_t*)realloc(o.data, o.len ? o.len : 1u);
+        if (q) o.data = q;
+    }
     *out_data = o.data;
     *out_len = o.len;
     return 1;

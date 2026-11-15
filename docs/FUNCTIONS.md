@@ -1820,18 +1820,18 @@ Saves and loads full emulator snapshots, with sections for CPU, timers, RAM, VRA
 - `boot_state_save_to` (L420) — Writes a complete snapshot, header then sections, to an output stream.
 - `boot_state_save` (L592) — Saves a snapshot to the file at path; returns 1 on success.
 - `boot_state_save_buffer_ex` (L606) — Saves a snapshot into a newly allocated buffer, with zlib compression on or off.
-- `boot_state_save_buffer` (L628) — Saves a snapshot into a newly allocated buffer, compressing large sections.
-- `boot_state_save_buffer_raw` (L635) — Saves a snapshot into a newly allocated buffer with compression turned off.
-- `apply_section` (L644) — Applies one saved section's data to the CPU, memory or devices, chosen by its tag.
-- `timer_section_ok` (L873) — CPU-8: the timer section is fixed-size; its mode words must also be ones the timer block can hold (range check of the internal one-shot bit).
-- `validate_section` (L886) — Checks that a section's length matches what this build expects for its tag.
-- `boot_state_parse_header` (L923) — Reads and checks the file header; returns 0 for a bad or oversized file.
-- `boot_state_append_reason` (L946) — Appends a part name to the reason text, separated by a comma, if it fits.
-- `boot_state_check_buffer` (L960) — Checks whether a snapshot buffer can be loaded here, filling in a reason when it cannot.
-- `boot_state_load_buffer` (L1037) — Loads a snapshot from a buffer into the CPU and machine state, after checking it.
-- `boot_state_load` (L1193) — Loads a snapshot file from path into the CPU and machine state; returns 1 on success.
-- `boot_state_set_capture` (L1232) — Sets the file path for an automatic snapshot taken when the game's entry point is first reached.
-- `boot_state_trigger_capture` (L1240) — Called from fntrace when the game entry PC first dispatches.
+- `boot_state_save_buffer` (L633) — Saves a snapshot into a newly allocated buffer, compressing large sections.
+- `boot_state_save_buffer_raw` (L640) — Saves a snapshot into a newly allocated buffer with compression turned off.
+- `apply_section` (L649) — Applies one saved section's data to the CPU, memory or devices, chosen by its tag.
+- `timer_section_ok` (L878) — CPU-8: the timer section is fixed-size; its mode words must also be ones the timer block can hold (range check of the internal one-shot bit).
+- `validate_section` (L891) — Checks that a section's length matches what this build expects for its tag.
+- `boot_state_parse_header` (L928) — Reads and checks the file header; returns 0 for a bad or oversized file.
+- `boot_state_append_reason` (L951) — Appends a part name to the reason text, separated by a comma, if it fits.
+- `boot_state_check_buffer` (L965) — Checks whether a snapshot buffer can be loaded here, filling in a reason when it cannot.
+- `boot_state_load_buffer` (L1042) — Loads a snapshot from a buffer into the CPU and machine state, after checking it.
+- `boot_state_load` (L1198) — Loads a snapshot file from path into the CPU and machine state; returns 1 on success.
+- `boot_state_set_capture` (L1237) — Sets the file path for an automatic snapshot taken when the game's entry point is first reached.
+- `boot_state_trigger_capture` (L1245) — Called from fntrace when the game entry PC first dispatches.
 
 ### runtime/src/bug_report.c
 
