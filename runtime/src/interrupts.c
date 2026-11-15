@@ -241,6 +241,8 @@ extern int g_cosim_dirty_pump_site;
 extern uint32_t g_debug_current_func_addr;
 extern uint32_t cosim_last_block(void);
 extern uint32_t overlay_loader_get_inprogress(void);
+extern void overlay_loader_native_nesting(int *active_depth, uint32_t *inprogress);
+extern void overlay_loader_set_native_nesting(int active_depth, uint32_t inprogress);
 
 static void cosim_irq_note(CPUState *cpu,
                            uint32_t kind,
@@ -1905,6 +1907,10 @@ irq_deliver_eval:
     ModFunctionEntryContext saved_mod_callback;
     mod_runtime_function_entry_context_save(&saved_mod_callback);
     const unsigned saved_host_call_depth = psx_snapshot_host_call_depth();
+    /* RFE/RestoreState longjmps skip dispatch_seg frames that own the overlay
+     * active-candidate stack; put back this handler's entry nesting (OVL-1). */
+    int saved_ov_depth; uint32_t saved_ov_inprogress;
+    overlay_loader_native_nesting(&saved_ov_depth, &saved_ov_inprogress);
     g_exc_setjmp_epoch++;   /* new setjmp frame armed (see decl above) */
     for (;;) {
         int jmp_val = setjmp(exception_jmpbuf);
@@ -1913,6 +1919,7 @@ irq_deliver_eval:
              * Preserve callbacks below this handler; discard only its scopes. */
             mod_runtime_function_entry_context_restore(&saved_mod_callback);
             psx_snapshot_host_call_restore(saved_host_call_depth);
+            overlay_loader_set_native_nesting(saved_ov_depth, saved_ov_inprogress);
         }
         if (jmp_val == 2) {
             /* RestoreState redirect: re-dispatch to cpu->pc.

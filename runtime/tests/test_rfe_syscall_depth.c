@@ -22,6 +22,8 @@ static void g_yield(CPUState *cpu) {
         /* The return from exception: EPC + 4, with the loop's own registers. */
         FX_CHECK(cpu->gpr[29] == MAIN_STACK && cpu->gpr[16] == 0x51000010u);
         FX_CHECK(cpu->gpr[31] == entry_ra && cpu->cop0[12] == 0x00000401u);
+        /* The overlay frame the handler raised was skipped: its nesting is gone. */
+        FX_CHECK(fx_ov_depth == 0 && fx_ov_inprogress == 0u);
         resumes++;
         goto block_yield_loop; /* j YIELD_LOOP */
     }
@@ -53,6 +55,9 @@ static void g_handler(CPUState *cpu) {
     FX_CHECK(fx_read(FX_TCB_EPC) == SYSCALL_PC);
     for (int i = 1; i < 32; i++) cpu->gpr[i] = 0xDEAD0000u + (uint32_t)i;
     rounds++;
+    /* An overlay dispatch frame the return from exception never unwinds. */
+    fx_ov_depth++;
+    fx_ov_inprogress = HANDLER_PC;
     fx_write(FX_TCB_EPC, fx_read(FX_TCB_EPC) + 4u);
     cpu->gpr[31] = HANDLER_PC + 8u;
     cpu->pc = FX_K_RFE; /* ReturnFromException(); it does not come back */

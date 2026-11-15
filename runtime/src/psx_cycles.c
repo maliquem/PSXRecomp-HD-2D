@@ -1054,6 +1054,10 @@ void psx_cycles_resync_after_restore(CPUState *cpu) {
     s_idle_have_snap = 0;
     s_idle_progress_reg = -2;
     s_idle_last_cycle = psx_cycle_count;
+    /* Watchdog and PC-sampler stamps are host-only absolute cycles from the
+     * pre-load timeline (CPU-21): re-arm them at the restored clock. */
+    s_next_watchdog = 0;
+    s_next_pc_sample = 0;
     /* GTE/muldiv completion deadlines and load-absorb give-back are host-only
      * absolute cycle stamps (not in BS_SEC_CPU). After a warm load they still
      * hold the pre-load live timeline; the next psx_gte_stall / muldiv_stall

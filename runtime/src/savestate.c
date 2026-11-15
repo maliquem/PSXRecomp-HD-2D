@@ -880,6 +880,12 @@ uint32_t savestate_last_save_pc(void) {
     return s_last_save_pc;
 }
 
+/* The fast-poll flag mirrors "a save or load is still staged"; recomputed
+ * after every change so a request staged from a callback is never lost. */
+static void savestate_sync_pending(void) {
+    g_psx_savestate_pending = s_save_pending >= 0 || s_load_pending >= 0;
+}
+
 void savestate_poll(CPUState* cpu, uint32_t resume_pc) {
     if (s_save_pending < 0 && s_load_pending < 0) return;   /* hot path: nothing staged */
     extern int psx_mod_function_entry_active(void);
@@ -925,11 +931,10 @@ void savestate_poll(CPUState* cpu, uint32_t resume_pc) {
             if (now - s_save_defer_t0 < 2000.0)
                 return;
             s_save_pending = -1;
-            g_psx_savestate_pending = s_load_pending >= 0;
+            savestate_sync_pending();
             s_save_defer_slot = -1;
             s_last_save_pc = 0;
             s_save_failed = 1;
-            g_psx_savestate_pending = 0;
             s_status_last_ok = 0;
             s_status_generation++;
             fprintf(stderr,
@@ -946,7 +951,7 @@ void savestate_poll(CPUState* cpu, uint32_t resume_pc) {
             psx_frontend_on_savestate_notify(0, slot, 0);
         } else {
             s_save_pending = -1;
-            g_psx_savestate_pending = s_load_pending >= 0;
+            savestate_sync_pending();
             s_save_defer_slot = -1;
             if (pc != resume_pc && resume_pc == 0u) {
                 fprintf(stderr,
@@ -969,7 +974,7 @@ void savestate_poll(CPUState* cpu, uint32_t resume_pc) {
                     s_last_save_pc = 0;
                     s_save_failed = 1;
                 }
-                g_psx_savestate_pending = 0;
+                savestate_sync_pending();
                 s_status_last_ok = ok ? 1 : 0;
                 s_status_generation++;
                 fprintf(stderr, "savestate: %s slot %d @ pc=0x%08X -> %s\n",
@@ -978,7 +983,7 @@ void savestate_poll(CPUState* cpu, uint32_t resume_pc) {
             } else {
                 s_last_save_pc = 0;
                 s_save_failed = 1;
-                g_psx_savestate_pending = 0;
+                savestate_sync_pending();
                 s_status_last_ok = 0;
                 s_status_generation++;
                 psx_frontend_on_savestate_notify(0, slot, 0);
@@ -995,7 +1000,7 @@ void savestate_poll(CPUState* cpu, uint32_t resume_pc) {
             (s_load_blob && s_load_blob_len > 0) ? "blob" : "file";
 #endif
         s_load_pending = -1;
-        g_psx_savestate_pending = s_save_pending >= 0;
+        savestate_sync_pending();
         char path[600];
         const double t_load0 = savestate_mono_ms();
         double t_after_boot = t_load0;
@@ -1047,11 +1052,16 @@ void savestate_poll(CPUState* cpu, uint32_t resume_pc) {
                     slot, (unsigned)cpu->pc, path[0] ? "" : " [blob]");
             loaded = 0;
             s_load_failed = 1;
-            /* Restoring this build's own just-written state cannot fail short
-             * of allocation failure; s_load_failed already reports the load. */
-            if (have_rollback)
-                (void)boot_state_load_buffer(rollback, rollback_len,
-                                             s_bios_checksum, s_entry_pc, cpu);
+            /* This build's own just-written state; failing to restore it
+             * leaves a refused machine running, so it is fatal. */
+            if (have_rollback) {
+                if (!boot_state_load_buffer(rollback, rollback_len,
+                                            s_bios_checksum, s_entry_pc, cpu))
+                    abort();
+                /* Host clock/IRQ anchors were moved by the refused apply. */
+                psx_cycles_resync_after_restore(cpu);
+                interrupts_resync_after_restore();
+            }
             psx_frontend_on_savestate_notify(1, slot, 0);
         }
 #if defined(PSX_HAS_RECOMP_NET)
@@ -1061,7 +1071,7 @@ void savestate_poll(CPUState* cpu, uint32_t resume_pc) {
 #endif
         free(rollback);
         if (!loaded) {
-            g_psx_savestate_pending = 0;
+            savestate_sync_pending();
             s_status_last_ok = 0;
             s_status_generation++;
         }
@@ -1078,7 +1088,7 @@ void savestate_poll(CPUState* cpu, uint32_t resume_pc) {
             cdrom_accelerate_after_savestate();
             /* Netplay post-load barrier observes this before the longjmp. */
             s_load_completed = 1;
-            g_psx_savestate_pending = 0;
+            savestate_sync_pending();
             s_status_last_ok = 1;
             s_status_generation++;
             /* Restage FBO/present latch so the restored frame is visible

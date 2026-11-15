@@ -65,6 +65,7 @@ static void g_wait(CPUState *cpu) {
         /* Entered by dispatch: a return from exception resumed the loop. */
         FX_CHECK(interrupted_live);
         check_resumed(cpu, &interrupted, "second return", interrupted.gpr[29]);
+        FX_CHECK(fx_ov_depth == 0 && fx_ov_inprogress == 0u); /* OVL-1 */
         interrupted_live = 0;
         task_resumes++;
         goto after_poll;
@@ -91,6 +92,7 @@ block_wait_loop:
     psx_check_interrupts_at(cpu, WAIT_LOOP);
     /* The block continues here only if the interrupted context is back. */
     check_resumed(cpu, &interrupted, "interrupted block", interrupted.gpr[29]);
+    FX_CHECK(fx_ov_depth == 0 && fx_ov_inprogress == 0u); /* OVL-1 */
     interrupted_live = 0;
     if (fx_exception_entries != entries_at_poll) plain_resumes++;
 after_poll:
@@ -117,6 +119,9 @@ static void g_handler(CPUState *cpu) {
     i_stat &= ~1u; /* acknowledge */
     fx_write(VCOUNT, fx_read(VCOUNT) + 1u);
     irqs++;
+    /* Overlay nesting the handler's dispatch frames own; RFE skips them. */
+    fx_ov_depth++;
+    fx_ov_inprogress = HANDLER_PC;
     if (irqs == REDIRECT_FIRST || irqs == REDIRECT_AGAIN) {
         /* Keep the interrupted context and send the thread to the task. */
         for (uint32_t off = 0x08u; off <= 0x98u; off += 4u)

@@ -30,6 +30,7 @@
 #include <string.h>
 
 #include "boot_state.h"
+#include "cdrom.h"
 #include "cpu_state.h"
 #include "dirty_ram_interp.h"
 #include "gpu.h"
@@ -800,7 +801,14 @@ static void sc_do_load(struct CPUState *cpu, const char *via)
     /* Host-only overlay negative-lookup memo — not in the snap; a fill during
      * resim#1 made #2≡#3 while #1 forked (cold ambient). */
     overlay_loader_clear_lazy_miss();
-    spu_cd_audio_reset();
+    /* EST-14: keep the CD-audio queue the snap restored, as netplay does. */
+    {
+        extern int g_spu_cd_restored;
+        if (!g_spu_cd_restored && !cdrom_xa_stream_active() &&
+            !cdrom_fmv_stream_pending())
+            spu_cd_audio_reset();
+        g_spu_cd_restored = 0;
+    }
     psx_frontend_on_rb_snap_loaded();
     /* Mirror RB flush_resume: longjmp abandons any flush_present frame. */
     gpu_vblank_release_present_flush_guard();

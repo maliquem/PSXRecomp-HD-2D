@@ -1213,6 +1213,12 @@ Converts UTF-8 text to wide strings for Win32 dialog and path APIs, so the narro
 - `from_utf8` (L38) — UTF-8 bytes (explicit length, may contain NULs) -> UTF-16.
 - `multi_sz_from_utf8` (L57) — A double-NUL-terminated UTF-8 multi-string (OPENFILENAME lpstrFilter) -> the same shape in UTF-16, terminators included.
 
+### runtime/include/psx_write_atomic.h
+
+(what this file is for)
+
+- `psx_write_file_atomic` (L24) — Write 'data' to 'path' so a crash, a full disk or a failed flush never leaves a cut file: write a temporary next to it, sync it, then replace the target in one step.
+
 ### runtime/include/render_pass_sprite_scene.hpp
 
 Frame interpolation for the sprite scene: captures one frame's sprite packets and blends them with the next for smoother motion.
@@ -1820,9 +1826,9 @@ Saves and loads full emulator snapshots, with sections for CPU, timers, RAM, VRA
 - `boot_state_append_reason` (L907) — Appends a part name to the reason text, separated by a comma, if it fits.
 - `boot_state_check_buffer` (L921) — Checks whether a snapshot buffer can be loaded here, filling in a reason when it cannot.
 - `boot_state_load_buffer` (L998) — Loads a snapshot from a buffer into the CPU and machine state, after checking it.
-- `boot_state_load` (L1152) — Loads a snapshot file from path into the CPU and machine state; returns 1 on success.
-- `boot_state_set_capture` (L1194) — Sets the file path for an automatic snapshot taken when the game's entry point is first reached.
-- `boot_state_trigger_capture` (L1202) — Called from fntrace when the game entry PC first dispatches.
+- `boot_state_load` (L1156) — Loads a snapshot file from path into the CPU and machine state; returns 1 on success.
+- `boot_state_set_capture` (L1198) — Sets the file path for an automatic snapshot taken when the game's entry point is first reached.
+- `boot_state_trigger_capture` (L1206) — Called from fntrace when the game entry PC first dispatches.
 
 ### runtime/src/bug_report.c
 
@@ -5702,65 +5708,65 @@ Interrupt and timing core of the emulated CPU: VBlank scheduling, interrupt deli
 - `psx_irq_refresh_cause_ip2` (L165) — Mirrors the IP2 bit of the CAUSE register from the interrupt status and mask registers, setting it when any enabled source is pending.
 - `psx_irq_set_cause_ptr` (L174) — Stores the pointer to the guest CAUSE register and recomputes its IP2 bit at power-on.
 - `psx_irq_raise` (L186) — Central IRQ-raise choke point.
-- `cosim_irq_note` (L245) — Records one interrupt delivery decision (kind, PCs, SR) into the co-sim interrupt ring for later comparison.
-- `interrupts_cosim_irq_dump` (L277) — Writes the recent co-sim interrupt records as text into out, up to cap bytes.
-- `note_sio_progress_cycle` (L363) — Remembers the cycle at which the serial port's transfer sequence last advanced.
-- `should_defer_vblank_for_sio` (L371) — Returns 1 to hold back a VBlank interrupt while a memory card protocol is active and its serial transfer made recent progress.
-- `psx_set_midframe_audio_pump` (L420) — Stores the callback that renders queued audio in the middle of a frame; NULL turns the pump off.
-- `spu_sample_event_mode` (L428) — While SPU IRQ9 is enabled, expose each 44.1-kHz sample as a device deadline so guest code can acknowledge and re-arm an IRQ-address hit before the next sample.
-- `psx_spu_sample_event_cycles_to_next` (L437) — While IRQ9 is enabled, expose the next 44.1-kHz sample as a first-class device deadline so the CPU can observe and acknowledge an IRQ before the following sample.
-- `psx_spu_sample_event_service` (L466) — When sample events are on and an audio pump is set, renders the pending SPU samples through the pump and checks the IRQ state.
-- `fire_vblank_edge` (L488) — Raises one VBlank event: consumes one VBlank period from the cycle counter, resets the dispatch count and raises the VBlank interrupt.
-- `interrupts_service_scheduled_events` (L514) — Fires every VBlank that has come due, unless an exception is being handled or the VBlank must wait for serial I/O.
-- `interrupts_cycles_to_vblank` (L523) — Returns the number of PSX cycles left until the next VBlank edge.
-- `interrupts_get_cycles_since_vblank` (L527) — VBlank phase within the current frame (0 ..
-- `interrupts_set_cycles_since_vblank` (L531) — Sets the cycles elapsed since the last VBlank; used when a save state is restored.
-- `interrupts_advance_cycles` (L535) — Accumulate emitted PSX cycles toward the next VBlank trigger.
-- `psx_exception_setjmp_epoch` (L624) — Returns the current exception setjmp epoch, which identifies the target of each longjmp.
-- `psx_last_irq_check_pc` (L647) — Most recent block-leader IRQ-check guest PC / compiled resume latch.
-- `psx_compiled_irq_resume_pc` (L648) — Returns the resume PC latched by the last compiled block-leader interrupt check.
-- `psx_last_irq_check_cycle` (L649) — Returns the cycle count at the most recent interrupt check.
-- `psx_interrupt_total_checks` (L650) — Returns how many interrupt checks have run since start.
-- `psx_interrupt_fast_maintenance` (L651) — Returns how many fast-path maintenance steps ran inside interrupt checks.
-- `psx_irq_resume_context_snapshot_site` (L652) — Returns the dirty-pump site id recorded for the current snapshot, 0 when none is active.
-- `psx_snapshot_host_call_begin` (L658) — A host adapter that preserves registers outside guest RAM is not a serializable continuation.
-- `psx_snapshot_host_call_end` (L659) — Leaves one host call that keeps register state outside guest RAM, lowering the nesting depth by one.
-- `psx_snapshot_host_call_reset` (L662) — Clears the host-call nesting depth to zero.
-- `psx_snapshot_host_call_depth` (L663) — Returns the current host-call nesting depth.
-- `psx_snapshot_host_call_restore` (L664) — Sets the host-call nesting depth back to a saved value.
-- `reset_dirty_snapshot_scope` (L666) — Clears the dirty-snapshot resume PC and dirty pump site, since a restore can leave the pump's epilogue behind.
-- `psx_irq_resume_context_snapshot_pc` (L673) — Returns the safe resume PC recorded for the dirty snapshot.
-- `psx_irq_resume_context_snapshot_safe_at` (L678) — Returns 1 when a snapshot at resume_pc can be taken now: no mod function is running and no host call is in progress.
-- `psx_irq_resume_context_snapshot_safe` (L712) — True when the current IRQ poll has a materialized CPUState/register context matching its resume PC.
-- `psx_irq_clear_resume_latches` (L717) — Soft-return / netplay BYE: drop sticky resume latches so rematch dig0 snaps cannot inherit a prior-match game PC (see pick_snap_resume_pc).
-- `psx_irq_arm_compiled_resume_pc` (L728) — Publish the known resume PC before the first post-load / flush_resume dispatch.
-- `psx_irq_compiled_resume_pc` (L738) — The host-fiber thread scheduler (traps.c) keeps the compiled resume latch per thread: it is set by a frame on that thread's native stack.
-- `psx_irq_set_compiled_resume_pc` (L739) — Sets the compiled resume latch of the current thread to pc.
-- `defer_switch_enabled` (L764) — A/B toggle: PSX_DEFER_SWITCH=0 forces the legacy immediate-switch behavior (longjmp the instant a mid-exception ChangeThread is detected, regardless of nesting) so the deferred-switch fix can be compa
-- `same_guest_pc` (L770) — True when two guest PCs match in their low 29 bits, ignoring the top segment bits.
-- `psx_get_in_exception` (L774) — Query whether we are currently inside an exception handler dispatch.
-- `interrupts_cosim_hash` (L783) — Co-sim (COSIM_ORACLE.md): fold the GENUINE guest-timing interrupt statics into the state hash.
-- `interrupts_cosim_dump` (L794) — Co-sim field dump: expose the exact irqctl-timing fields so a divergence can be field-diffed (is it cycles_since_vblank = VBLANK-raise-timing, or in_exception, ...).
-- `rfe_steps_over_gte_command` (L812) — Called by the recompiled 'rfe' opcode (after it pops the COP0 SR stack).
-- `psx_rfe_mark_escape` (L821) — Flags a pending RFE escape when an RFE runs outside the exception handler window; the flag is checked later.
-- `rfe_outside_window_unwind` (L846) — Called in the dispatch trampoline after a function returns (cpu->pc holds the real resume EPC).
-- `psx_rfe_escape_check` (L864) — If an RFE escape is pending outside the handler, unwinds the return back to the interrupted code and clears the flag.
-- `psx_get_freeze_diag` (L900) — Fills the out parameters with the interrupt counters and exception state used to diagnose a frozen emulator.
-- `interrupts_init` (L918) — Resets all interrupt dispatch state, exception nesting and the check counters to zero.
-- `interrupts_resync_after_restore` (L955) — Save-state restore: re-anchor host-only IRQ pacing after psx_cycle_count is overwritten from a snapshot.
-- `interrupts_log_last_vblank_irqctx` (L1006) — Netplay diag: last VBLANK irqctx exit/restore (+ v0) for peer diff.
-- `deferred_exception_longjmp` (L1053) — Defer a longjmp to the fiber that owns the current exception setjmp.
-- `psx_exception_longjmp` (L1073) — longjmp back to psx_check_interrupts, unwinding the exception handler.
-- `psx_restore_state_escape` (L1078) — longjmp back to psx_check_interrupts for RestoreState redirection.
-- `cycles_to_next_event` (L1100) — Cycle-budgeted precise event slicing — single source of truth.
-- `psx_interrupt_delivery_diag` (L1119) — Returns the counters of interrupt delivery decisions (deferred, delivered, and each reason for skipping).
-- `psx_interrupt_check_path_diag` (L1136) — Returns the counters for each path taken through the interrupt check.
-- `psx_interrupt_delivery_needed` (L1147) — Cheap block-edge predicate for generated/native code.
-- `poll_staged_user_snapshot` (L1174) — Applies a staged user save state at a safe point in the interrupt poll, when no exception is being handled.
-- `psx_check_interrupts` (L1183) — Called from the dispatch loop after each function returns.
-- `psx_check_interrupts_at` (L2378) — Compatibility shim: the ape-flavored generated code calls psx_check_interrupts_at(cpu, resume_pc); the mmx6-fw baseline runtime delivers interrupts via psx_check_interrupts (cpu->pc / scratch sentinel
-- `psx_interrupts_checked_at_current_cycle` (L2385) — True when the interrupt check already ran at this cycle for the given resume PC.
-- `psx_check_interrupts_dispatch_entry` (L2390) — Dispatch-entry check for re-enterable compiled PCs.
+- `cosim_irq_note` (L247) — Records one interrupt delivery decision (kind, PCs, SR) into the co-sim interrupt ring for later comparison.
+- `interrupts_cosim_irq_dump` (L279) — Writes the recent co-sim interrupt records as text into out, up to cap bytes.
+- `note_sio_progress_cycle` (L365) — Remembers the cycle at which the serial port's transfer sequence last advanced.
+- `should_defer_vblank_for_sio` (L373) — Returns 1 to hold back a VBlank interrupt while a memory card protocol is active and its serial transfer made recent progress.
+- `psx_set_midframe_audio_pump` (L422) — Stores the callback that renders queued audio in the middle of a frame; NULL turns the pump off.
+- `spu_sample_event_mode` (L430) — While SPU IRQ9 is enabled, expose each 44.1-kHz sample as a device deadline so guest code can acknowledge and re-arm an IRQ-address hit before the next sample.
+- `psx_spu_sample_event_cycles_to_next` (L439) — While IRQ9 is enabled, expose the next 44.1-kHz sample as a first-class device deadline so the CPU can observe and acknowledge an IRQ before the following sample.
+- `psx_spu_sample_event_service` (L468) — When sample events are on and an audio pump is set, renders the pending SPU samples through the pump and checks the IRQ state.
+- `fire_vblank_edge` (L490) — Raises one VBlank event: consumes one VBlank period from the cycle counter, resets the dispatch count and raises the VBlank interrupt.
+- `interrupts_service_scheduled_events` (L516) — Fires every VBlank that has come due, unless an exception is being handled or the VBlank must wait for serial I/O.
+- `interrupts_cycles_to_vblank` (L525) — Returns the number of PSX cycles left until the next VBlank edge.
+- `interrupts_get_cycles_since_vblank` (L529) — VBlank phase within the current frame (0 ..
+- `interrupts_set_cycles_since_vblank` (L533) — Sets the cycles elapsed since the last VBlank; used when a save state is restored.
+- `interrupts_advance_cycles` (L537) — Accumulate emitted PSX cycles toward the next VBlank trigger.
+- `psx_exception_setjmp_epoch` (L626) — Returns the current exception setjmp epoch, which identifies the target of each longjmp.
+- `psx_last_irq_check_pc` (L649) — Most recent block-leader IRQ-check guest PC / compiled resume latch.
+- `psx_compiled_irq_resume_pc` (L650) — Returns the resume PC latched by the last compiled block-leader interrupt check.
+- `psx_last_irq_check_cycle` (L651) — Returns the cycle count at the most recent interrupt check.
+- `psx_interrupt_total_checks` (L652) — Returns how many interrupt checks have run since start.
+- `psx_interrupt_fast_maintenance` (L653) — Returns how many fast-path maintenance steps ran inside interrupt checks.
+- `psx_irq_resume_context_snapshot_site` (L654) — Returns the dirty-pump site id recorded for the current snapshot, 0 when none is active.
+- `psx_snapshot_host_call_begin` (L660) — A host adapter that preserves registers outside guest RAM is not a serializable continuation.
+- `psx_snapshot_host_call_end` (L661) — Leaves one host call that keeps register state outside guest RAM, lowering the nesting depth by one.
+- `psx_snapshot_host_call_reset` (L664) — Clears the host-call nesting depth to zero.
+- `psx_snapshot_host_call_depth` (L665) — Returns the current host-call nesting depth.
+- `psx_snapshot_host_call_restore` (L666) — Sets the host-call nesting depth back to a saved value.
+- `reset_dirty_snapshot_scope` (L668) — Clears the dirty-snapshot resume PC and dirty pump site, since a restore can leave the pump's epilogue behind.
+- `psx_irq_resume_context_snapshot_pc` (L675) — Returns the safe resume PC recorded for the dirty snapshot.
+- `psx_irq_resume_context_snapshot_safe_at` (L680) — Returns 1 when a snapshot at resume_pc can be taken now: no mod function is running and no host call is in progress.
+- `psx_irq_resume_context_snapshot_safe` (L714) — True when the current IRQ poll has a materialized CPUState/register context matching its resume PC.
+- `psx_irq_clear_resume_latches` (L719) — Soft-return / netplay BYE: drop sticky resume latches so rematch dig0 snaps cannot inherit a prior-match game PC (see pick_snap_resume_pc).
+- `psx_irq_arm_compiled_resume_pc` (L730) — Publish the known resume PC before the first post-load / flush_resume dispatch.
+- `psx_irq_compiled_resume_pc` (L740) — The host-fiber thread scheduler (traps.c) keeps the compiled resume latch per thread: it is set by a frame on that thread's native stack.
+- `psx_irq_set_compiled_resume_pc` (L741) — Sets the compiled resume latch of the current thread to pc.
+- `defer_switch_enabled` (L766) — A/B toggle: PSX_DEFER_SWITCH=0 forces the legacy immediate-switch behavior (longjmp the instant a mid-exception ChangeThread is detected, regardless of nesting) so the deferred-switch fix can be compa
+- `same_guest_pc` (L772) — True when two guest PCs match in their low 29 bits, ignoring the top segment bits.
+- `psx_get_in_exception` (L776) — Query whether we are currently inside an exception handler dispatch.
+- `interrupts_cosim_hash` (L785) — Co-sim (COSIM_ORACLE.md): fold the GENUINE guest-timing interrupt statics into the state hash.
+- `interrupts_cosim_dump` (L796) — Co-sim field dump: expose the exact irqctl-timing fields so a divergence can be field-diffed (is it cycles_since_vblank = VBLANK-raise-timing, or in_exception, ...).
+- `rfe_steps_over_gte_command` (L814) — Called by the recompiled 'rfe' opcode (after it pops the COP0 SR stack).
+- `psx_rfe_mark_escape` (L823) — Flags a pending RFE escape when an RFE runs outside the exception handler window; the flag is checked later.
+- `rfe_outside_window_unwind` (L848) — Called in the dispatch trampoline after a function returns (cpu->pc holds the real resume EPC).
+- `psx_rfe_escape_check` (L866) — If an RFE escape is pending outside the handler, unwinds the return back to the interrupted code and clears the flag.
+- `psx_get_freeze_diag` (L902) — Fills the out parameters with the interrupt counters and exception state used to diagnose a frozen emulator.
+- `interrupts_init` (L920) — Resets all interrupt dispatch state, exception nesting and the check counters to zero.
+- `interrupts_resync_after_restore` (L957) — Save-state restore: re-anchor host-only IRQ pacing after psx_cycle_count is overwritten from a snapshot.
+- `interrupts_log_last_vblank_irqctx` (L1008) — Netplay diag: last VBLANK irqctx exit/restore (+ v0) for peer diff.
+- `deferred_exception_longjmp` (L1055) — Defer a longjmp to the fiber that owns the current exception setjmp.
+- `psx_exception_longjmp` (L1075) — longjmp back to psx_check_interrupts, unwinding the exception handler.
+- `psx_restore_state_escape` (L1080) — longjmp back to psx_check_interrupts for RestoreState redirection.
+- `cycles_to_next_event` (L1102) — Cycle-budgeted precise event slicing — single source of truth.
+- `psx_interrupt_delivery_diag` (L1121) — Returns the counters of interrupt delivery decisions (deferred, delivered, and each reason for skipping).
+- `psx_interrupt_check_path_diag` (L1138) — Returns the counters for each path taken through the interrupt check.
+- `psx_interrupt_delivery_needed` (L1149) — Cheap block-edge predicate for generated/native code.
+- `poll_staged_user_snapshot` (L1176) — Applies a staged user save state at a safe point in the interrupt poll, when no exception is being handled.
+- `psx_check_interrupts` (L1185) — Called from the dispatch loop after each function returns.
+- `psx_check_interrupts_at` (L2385) — Compatibility shim: the ape-flavored generated code calls psx_check_interrupts_at(cpu, resume_pc); the mmx6-fw baseline runtime delivers interrupts via psx_check_interrupts (cpu->pc / scratch sentinel
+- `psx_interrupts_checked_at_current_cycle` (L2392) — True when the interrupt check already ran at this cycle for the given resume PC.
+- `psx_check_interrupts_dispatch_entry` (L2397) — Dispatch-entry check for re-enterable compiled PCs.
 
 ### runtime/src/iso_reader.cpp
 
@@ -7962,24 +7968,24 @@ Keeps the guest CPU cycle clock and charges device, timing and idle-skip work ag
 - `psx_idle_anchor_set` (L992) — Sets the anchor return address and idle predicate; PSX_IDLE_ANCHOR=0 or a NULL predicate turns the anchor off.
 - `psx_idle_anchor_check` (L999) — Counts idle streaks at the anchor and skips guest cycles to the next device event once the streak is long and safe.
 - `psx_cycles_resync_after_restore` (L1040) — Save-state restore: psx_cycle_count was just overwritten from the snapshot, so the deadline-model bookkeeping (synced position + next deadline) is stale and would try to replay a bogus gap.
-- `psx_cycles_reset_for_boot` (L1094) — Soft rematch / session_reboot: zero the guest clock and deadline bookkeeping.
-- `psx_clz32` (L1134) — Counts the leading zero bits of a nonzero 32-bit value, using the MSVC bit-scan intrinsic when available.
-- `psx_mult_latency_s` (L1145) — Returns the cycle latency of a signed MULT, based on the sign-folded magnitude of the operand.
-- `psx_mult_latency_u` (L1148) — Returns the cycle latency of an unsigned MULTU, based on the operand magnitude.
-- `psx_muldiv_set` (L1154) — Mult/div completion-stall timing (psx_cycles.c).
-- `psx_muldiv_stall` (L1162) — Stalls the CPU until a pending MULT or DIV finishes, flushing deferred work first and absorbing the load-delay give-back.
-- `psx_gte_read` (L1190) — MFC2/CFC2 (GTE register read → GPR): stall to the GTE command completion deadline AND hand the stall amount to the next instruction(s) as a load-delay give-back (Beetle cpu.cpp:1332-1341: LDAbsorb = g
-- `psx_gte_cmd_latency` (L1247) — Returns the cycle latency of a GTE command, looked up from its low six bits.
-- `psx_gte_set` (L1251) — Starts a GTE command: waits for the prior one, then sets its completion deadline latency cycles ahead.
-- `psx_gte_stall` (L1264) — Stalls the CPU until the current GTE command completes, flushing deferred cycles first.
-- `freeze_save` (L1274) — Copies the clock, next service, fast limit and batch state into a freeze record for a later restore.
-- `freeze_restore_deferred` (L1298) — The interrupted code's deferred-charge state, which the frozen code never owned, comes back in every case.
-- `freeze_restore_clock` (L1308) — Writes the clock, next service and fast limit from a freeze record back into the live state.
-- `psx_cycle_freeze_begin` (L1315) — Freezes guest time under a watchdog budget and saves the clock; returns 0 if already frozen or no record is given.
-- `psx_cycle_freeze_end` (L1328) — Thaws guest time and, when a record is given, restores the clock, deferred state and guest cycle scale.
-- `psx_cycle_uncharged_begin` (L1339) — Uncharged span: the same freeze without the pass's rollback.
-- `psx_cycle_uncharged_counted` (L1351) — Guest cycles the current span has executed so far, published or still batched (0 outside a span).
-- `psx_cycle_uncharged_end` (L1356) — Ends an uncharged span; returns 1 if its cycles were never charged, and restores the clock only in that case.
+- `psx_cycles_reset_for_boot` (L1098) — Soft rematch / session_reboot: zero the guest clock and deadline bookkeeping.
+- `psx_clz32` (L1138) — Counts the leading zero bits of a nonzero 32-bit value, using the MSVC bit-scan intrinsic when available.
+- `psx_mult_latency_s` (L1149) — Returns the cycle latency of a signed MULT, based on the sign-folded magnitude of the operand.
+- `psx_mult_latency_u` (L1152) — Returns the cycle latency of an unsigned MULTU, based on the operand magnitude.
+- `psx_muldiv_set` (L1158) — Mult/div completion-stall timing (psx_cycles.c).
+- `psx_muldiv_stall` (L1166) — Stalls the CPU until a pending MULT or DIV finishes, flushing deferred work first and absorbing the load-delay give-back.
+- `psx_gte_read` (L1194) — MFC2/CFC2 (GTE register read → GPR): stall to the GTE command completion deadline AND hand the stall amount to the next instruction(s) as a load-delay give-back (Beetle cpu.cpp:1332-1341: LDAbsorb = g
+- `psx_gte_cmd_latency` (L1251) — Returns the cycle latency of a GTE command, looked up from its low six bits.
+- `psx_gte_set` (L1255) — Starts a GTE command: waits for the prior one, then sets its completion deadline latency cycles ahead.
+- `psx_gte_stall` (L1268) — Stalls the CPU until the current GTE command completes, flushing deferred cycles first.
+- `freeze_save` (L1278) — Copies the clock, next service, fast limit and batch state into a freeze record for a later restore.
+- `freeze_restore_deferred` (L1302) — The interrupted code's deferred-charge state, which the frozen code never owned, comes back in every case.
+- `freeze_restore_clock` (L1312) — Writes the clock, next service and fast limit from a freeze record back into the live state.
+- `psx_cycle_freeze_begin` (L1319) — Freezes guest time under a watchdog budget and saves the clock; returns 0 if already frozen or no record is given.
+- `psx_cycle_freeze_end` (L1332) — Thaws guest time and, when a record is given, restores the clock, deferred state and guest cycle scale.
+- `psx_cycle_uncharged_begin` (L1343) — Uncharged span: the same freeze without the pass's rollback.
+- `psx_cycle_uncharged_counted` (L1355) — Guest cycles the current span has executed so far, published or still batched (0 outside a span).
+- `psx_cycle_uncharged_end` (L1360) — Ends an uncharged span; returns 1 if its cycles were never charged, and restores the clock only in that case.
 
 ### runtime/src/psx_disc_tray.c
 
@@ -8967,34 +8973,34 @@ Records accesses to code at a segment alias that has no compiled row, in a ring 
 
 Solo rollback self-check: records a window of pad input, rewinds to a snapshot, replays it and compares state digests to catch non-determinism.
 
-- `sc_free_blob` (L145) — Frees the saved snapshot blob and clears its length.
-- `sc_schedule_next` (L152) — Sets the next self-check window to the current boundary plus the interval.
-- `sc_freeze_overlays` (L157) — Freezes or unfreezes the overlay loader so areas do not load during a window.
-- `sc_cancel` (L162) — Aborts the current window with a logged reason, freeing the snapshot and clearing the overlay freeze and load state.
-- `sc_capture_digests` (L175) — Computes the core, audio/video and auxiliary state digests at the boundary, with the PC cleared first.
-- `sc_raw_pc` (L190) — Returns the CPU's current PC, or 0 when there is no CPU.
-- `sc_arm_span_end_load` (L197) — Arm span-end load: prefer flush_load after present-body RAII so every rewind happens at the same VBlank boundary (no post-span BB walk).
-- `sc_apply_rows` (L204) — Applies each present recorded row's buttons and analog axes to its pad slot.
-- `sc_diff_parts` (L221) — Append the name of each differing partition to buf.
-- `sc_env_u32` (L253) — Reads an unsigned integer from an environment variable, clamped to lo..hi, or returns def when unset.
-- `sc_mash_rng_next` (L290) — xorshift32 random generator for the button-mash mode; the state never becomes zero.
-- `sc_mash_advance` (L301) — Returns the mash button word for this boundary, holding an open chord or sitting idle by a random rate.
-- `psx_selfcheck_mash_override` (L329) — 1 when mash owns this boundary's P1 pad word (active-low).
-- `psx_selfcheck_init` (L347) — Turns the self-check on when PSX_RB_SELFCHECK is set, provided the HLE scheduler is enabled for rewind.
-- `psx_selfcheck_enabled` (L396) — 1 when the self-check is in any phase other than off.
-- `psx_selfcheck_defer_present` (L397) — 1 while a window is open (record/replay/load).
-- `psx_selfcheck_resim_active` (L404) — 1 while the resim replay is running: skip wall pacer / host audio pump / host CD boost exactly like netplay resim.
-- `psx_selfcheck_replay_input` (L412) — 1 during replay: main.cpp must skip live pad sampling entirely (the self-check republishes the recorded rows itself).
-- `psx_selfcheck_input_locked` (L414) — 1 during record or replay: main.cpp must skip the mid-frame low-latency input re-sample so pads stay boundary-latched (netplay tick semantics).
-- `sc_dump_gpr_diff` (L420) — Logs which general registers differ between two register sets, tagged for the report.
-- `psx_selfcheck_note_pad` (L443) — Stages a pad row for a slot while recording or waiting to save; ignored in other phases.
-- `sc_report` (L458) — Writes the window's outcome to stderr: restore drift counts when present, otherwise a clean result.
-- `psx_selfcheck_finish_frame` (L496) — Once per offline vblank boundary, after pad sampling (main.cpp present body).
-- `sc_do_load` (L739) — SC_LOAD_WAIT rewind. Mirrors the RB restore recipe — cycle + IRQ resync, SPU CD FIFO normalize, NO cdrom_accelerate, light frontend hook.
-- `psx_selfcheck_flush_load` (L909) — After present-body C++ RAII: if a window span just ended, rewind+resume immediately at that VBlank boundary (no post-span BB tail).
-- `sc_resume_pc_ok` (L920) — Same gate as rb_resume_pc_ok — psx_is_dispatchable still accepts 0xB0.
-- `sc_pick_snap_pc` (L937) — Picks the first resumable PC among the hint, the IRQ resume candidates and the CPU's PC or return register.
-- `psx_selfcheck_poll` (L954) — Safe BB-edge poll (beside savestate_poll in interrupts.c): performs the deferred snapshot save.
+- `sc_free_blob` (L146) — Frees the saved snapshot blob and clears its length.
+- `sc_schedule_next` (L153) — Sets the next self-check window to the current boundary plus the interval.
+- `sc_freeze_overlays` (L158) — Freezes or unfreezes the overlay loader so areas do not load during a window.
+- `sc_cancel` (L163) — Aborts the current window with a logged reason, freeing the snapshot and clearing the overlay freeze and load state.
+- `sc_capture_digests` (L176) — Computes the core, audio/video and auxiliary state digests at the boundary, with the PC cleared first.
+- `sc_raw_pc` (L191) — Returns the CPU's current PC, or 0 when there is no CPU.
+- `sc_arm_span_end_load` (L198) — Arm span-end load: prefer flush_load after present-body RAII so every rewind happens at the same VBlank boundary (no post-span BB walk).
+- `sc_apply_rows` (L205) — Applies each present recorded row's buttons and analog axes to its pad slot.
+- `sc_diff_parts` (L222) — Append the name of each differing partition to buf.
+- `sc_env_u32` (L254) — Reads an unsigned integer from an environment variable, clamped to lo..hi, or returns def when unset.
+- `sc_mash_rng_next` (L291) — xorshift32 random generator for the button-mash mode; the state never becomes zero.
+- `sc_mash_advance` (L302) — Returns the mash button word for this boundary, holding an open chord or sitting idle by a random rate.
+- `psx_selfcheck_mash_override` (L330) — 1 when mash owns this boundary's P1 pad word (active-low).
+- `psx_selfcheck_init` (L348) — Turns the self-check on when PSX_RB_SELFCHECK is set, provided the HLE scheduler is enabled for rewind.
+- `psx_selfcheck_enabled` (L397) — 1 when the self-check is in any phase other than off.
+- `psx_selfcheck_defer_present` (L398) — 1 while a window is open (record/replay/load).
+- `psx_selfcheck_resim_active` (L405) — 1 while the resim replay is running: skip wall pacer / host audio pump / host CD boost exactly like netplay resim.
+- `psx_selfcheck_replay_input` (L413) — 1 during replay: main.cpp must skip live pad sampling entirely (the self-check republishes the recorded rows itself).
+- `psx_selfcheck_input_locked` (L415) — 1 during record or replay: main.cpp must skip the mid-frame low-latency input re-sample so pads stay boundary-latched (netplay tick semantics).
+- `sc_dump_gpr_diff` (L421) — Logs which general registers differ between two register sets, tagged for the report.
+- `psx_selfcheck_note_pad` (L444) — Stages a pad row for a slot while recording or waiting to save; ignored in other phases.
+- `sc_report` (L459) — Writes the window's outcome to stderr: restore drift counts when present, otherwise a clean result.
+- `psx_selfcheck_finish_frame` (L497) — Once per offline vblank boundary, after pad sampling (main.cpp present body).
+- `sc_do_load` (L740) — SC_LOAD_WAIT rewind. Mirrors the RB restore recipe — cycle + IRQ resync, SPU CD FIFO normalize, NO cdrom_accelerate, light frontend hook.
+- `psx_selfcheck_flush_load` (L917) — After present-body C++ RAII: if a window span just ended, rewind+resume immediately at that VBlank boundary (no post-span BB tail).
+- `sc_resume_pc_ok` (L928) — Same gate as rb_resume_pc_ok — psx_is_dispatchable still accepts 0xB0.
+- `sc_pick_snap_pc` (L945) — Picks the first resumable PC among the hint, the IRQ resume candidates and the CPU's PC or return register.
+- `psx_selfcheck_poll` (L962) — Safe BB-edge poll (beside savestate_poll in interrupts.c): performs the deferred snapshot save.
 
 ### runtime/src/psx_sha256.c
 
@@ -9378,22 +9384,23 @@ User save states: stages save and load requests, writes and reads slot files and
 - `savestate_slot_compatible` (L669) — 1 if the slot .pst header matches this build's integrity key (BIOS/entry/ codegen).
 - `savestate_read_slot` (L691) — Read/write a slot file (malloc'd buffer for read).
 - `savestate_write_slot` (L720) — Writes a slot's .pst file from the data bytes; returns 1 on success.
-- `netplay_user_blocked` (L743) — User APIs during netplay: guests cannot initiate; host must use psx_netplay_request_* so peers hash-probe and sync over STATE_*.
-- `request_save_inner` (L754) — Stages a save of the slot after checking title blocks and configuration.
-- `request_load_inner` (L774) — Stages a load of the slot after checking title blocks and configuration.
-- `savestate_request_save` (L793) — Stage a save/load of slot [0..SAVESTATE_SLOTS-1].
-- `savestate_request_load` (L798) — Stages a load of a slot; refused for guests during netplay.
-- `savestate_request_save_protocol` (L803) — Netplay follow-host sync only.
-- `savestate_request_load_protocol` (L808) — Netplay follow-host sync: clears any staged blob, then stages a load of the slot.
-- `savestate_request_load_blob_protocol` (L814) — Netplay LOAD transfer: stage an in-memory .pst (no disk write).
-- `savestate_pending` (L839) — 1 while a staged save/load has not yet been consumed by savestate_poll.
-- `savestate_status_json` (L843) — Machine-readable lifecycle receipt for deterministic debug harnesses.
-- `savestate_status_get` (L854) — Copies the save state generation, pending flag, and last result and slot into the out parameters.
-- `savestate_take_load_completed` (L862) — 1 once after a successful load restore (before scheduler longjmp).
-- `savestate_take_load_failed` (L868) — 1 once after a staged load failed in savestate_poll (missing/mismatched).
-- `savestate_take_save_failed` (L874) — 1 once after a staged save failed in savestate_poll (no safe resume PC, I/O error, etc.).
-- `savestate_last_save_pc` (L880) — Resume PC stamped into the last successful slot save (0 if none / failed).
-- `savestate_poll` (L884) — Called every block from psx_check_interrupts (in_exception == 0).
+- `netplay_user_blocked` (L742) — User APIs during netplay: guests cannot initiate; host must use psx_netplay_request_* so peers hash-probe and sync over STATE_*.
+- `request_save_inner` (L753) — Stages a save of the slot after checking title blocks and configuration.
+- `request_load_inner` (L773) — Stages a load of the slot after checking title blocks and configuration.
+- `savestate_request_save` (L792) — Stage a save/load of slot [0..SAVESTATE_SLOTS-1].
+- `savestate_request_load` (L797) — Stages a load of a slot; refused for guests during netplay.
+- `savestate_request_save_protocol` (L802) — Netplay follow-host sync only.
+- `savestate_request_load_protocol` (L807) — Netplay follow-host sync: clears any staged blob, then stages a load of the slot.
+- `savestate_request_load_blob_protocol` (L813) — Netplay LOAD transfer: stage an in-memory .pst (no disk write).
+- `savestate_pending` (L838) — 1 while a staged save/load has not yet been consumed by savestate_poll.
+- `savestate_status_json` (L842) — Machine-readable lifecycle receipt for deterministic debug harnesses.
+- `savestate_status_get` (L853) — Copies the save state generation, pending flag, and last result and slot into the out parameters.
+- `savestate_take_load_completed` (L861) — 1 once after a successful load restore (before scheduler longjmp).
+- `savestate_take_load_failed` (L867) — 1 once after a staged load failed in savestate_poll (missing/mismatched).
+- `savestate_take_save_failed` (L873) — 1 once after a staged save failed in savestate_poll (no safe resume PC, I/O error, etc.).
+- `savestate_last_save_pc` (L879) — Resume PC stamped into the last successful slot save (0 if none / failed).
+- `savestate_sync_pending` (L885) — The fast-poll flag mirrors "a save or load is still staged"; recomputed after every change so a request staged from a callback is never lost.
+- `savestate_poll` (L889) — Called every block from psx_check_interrupts (in_exception == 0).
 
 ### runtime/src/sgl/sgl_gl.c
 
@@ -9883,13 +9890,13 @@ Models the PS1 Sound Processing Unit: its registers and DMA, the ADPCM voices wi
 - `spu_snapshot_bytes_v1` (L2079) — + 4: guest-clock phase (cycles since the SPU's last whole sample).
 - `spu_snapshot_bytes` (L2082) — Returns the snapshot size: the v1 layout plus four bytes for the guest-clock phase.
 - `spu_snapshot_len_ok` (L2083) — Returns 1 when a snapshot length matches one of the accepted layouts.
-- `spu_voice_wire_ok` (L2092) — Saved voice values the mixer indexes with: the sample bank bindings, the decode cursor (at most one block ahead: voice_step decodes once and the Gaussian window holds 3 + 28 samples) and the 12-bit pi
-- `spu_snapshot_validate` (L2106) — Pass-1 check for boot_state's two-pass load: walks the snapshot without touching the SPU and refuses every value spu_snapshot_read would reject halfway or the SPU would later index out of range with.
-- `spu_snapshot_write` (L2131) — Catches the SPU up to the current cycle and writes its state snapshot into the buffer.
-- `spu_snapshot_read` (L2166) — Restores the SPU state from a snapshot buffer; returns 0 on a bad length or bad data.
-- `spu_get_ram_ptr` (L2220) — Returns a pointer to the 512 KB of SPU RAM.
-- `spu_get_ram_bytes` (L2221) — Returns the size in bytes of SPU RAM.
-- `spu_snapshot_part_digests` (L2223) — Computes checksums of the separate sections of the SPU snapshot and stores them in the output struct.
+- `spu_voice_wire_ok` (L2095) — Saved voice values the mixer indexes with: the sample bank bindings, the decode cursor (at most one block ahead: voice_step decodes once and the Gaussian window holds 3 + 28 samples) and the 12-bit pi
+- `spu_snapshot_validate` (L2109) — Pass-1 check for boot_state's two-pass load: walks the snapshot without touching the SPU and refuses every value spu_snapshot_read would reject halfway or the SPU would later index out of range with.
+- `spu_snapshot_write` (L2134) — Catches the SPU up to the current cycle and writes its state snapshot into the buffer.
+- `spu_snapshot_read` (L2169) — Restores the SPU state from a snapshot buffer; returns 0 on a bad length or bad data.
+- `spu_get_ram_ptr` (L2223) — Returns a pointer to the 512 KB of SPU RAM.
+- `spu_get_ram_bytes` (L2224) — Returns the size in bytes of SPU RAM.
+- `spu_snapshot_part_digests` (L2226) — Computes checksums of the separate sections of the SPU snapshot and stores them in the output struct.
 
 ### runtime/src/spu_clone_music.c
 
@@ -10073,11 +10080,11 @@ Handles guest traps and the thread scheduler: crash and break reporting, saving 
 - `psx_scheduler_can_resume_at` (L984) — Returns 1 when the scheduler can resume at the PC: it is inside the scheduler run, the HLE scheduler is on and the PC is dispatchable.
 - `psx_scheduler_rfe_resume` (L990) — Records a resume at the given PC for the current thread in the scheduler escape, for an exception return.
 - `psx_scheduler_run` (L1000) — Runs the scheduler loop, dispatching guest code until it escapes or the run ends.
-- `psx_syscall` (L1134) — Trap trampolines — defined in runtime/src/traps.c psx_syscall returns 1 if control transfers (cpu->pc set to a dispatch target; the caller must return to the trampoline), 0 for a directly-handled "voi
-- `psx_break` (L1283) — Reports a BREAK instruction with its PC and code as a crash.
-- `psx_arith_overflow` (L1291) — Reports an arithmetic overflow at the CPU's PC as a crash.
-- `psx_unaligned_access` (L1299) — Logs an unaligned memory access, up to three times, and lets the current function return early.
-- `psx_unknown_dispatch` (L1322) — Unknown dispatch — defined in runtime/src/traps.c
+- `psx_syscall` (L1138) — Trap trampolines — defined in runtime/src/traps.c psx_syscall returns 1 if control transfers (cpu->pc set to a dispatch target; the caller must return to the trampoline), 0 for a directly-handled "voi
+- `psx_break` (L1287) — Reports a BREAK instruction with its PC and code as a crash.
+- `psx_arith_overflow` (L1295) — Reports an arithmetic overflow at the CPU's PC as a crash.
+- `psx_unaligned_access` (L1303) — Logs an unaligned memory access, up to three times, and lets the current function return early.
+- `psx_unknown_dispatch` (L1326) — Unknown dispatch — defined in runtime/src/traps.c
 
 ### runtime/src/video_telemetry.cpp
 

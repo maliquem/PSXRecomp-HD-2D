@@ -1114,6 +1114,10 @@ int boot_state_load_buffer(const uint8_t* file, size_t file_len,
      * machine untouched"; each device's invalid-state test (gpu_texture_
      * disable_status, sio_card_irq_integrity_snapshot, cdrom_sector_fifo,
      * spu_guest_clock, psx_ram_runtime_map for DMA) pins its validator. */
+    {   /* EST-14: only this load's SPUCD read may report a restored queue. */
+        extern int g_spu_cd_restored;
+        g_spu_cd_restored = 0;
+    }
     for (uint32_t i = 0; ok && i < n_sections; i++) {
         const double t_sec = boot_state_mono_ms();
         if (!apply_section(sections[i].tag, sections[i].p, sections[i].len,

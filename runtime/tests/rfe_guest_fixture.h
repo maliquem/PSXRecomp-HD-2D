@@ -167,6 +167,19 @@ void psx_rewind_poll(CPUState *cpu, uint32_t pc) { (void)cpu; (void)pc; }
 void overlay_loader_shadow_escape_fixup(uint64_t epoch) { (void)epoch; }
 void overlay_loader_shadow_scheduler_escape_fixup(void) {}
 int overlay_loader_shadow_native_thread_switch_bail(void) { return 0; }
+/* Overlay native nesting (active-candidate depth, in-progress entry): a guest
+ * function may raise it as an overlay dispatch frame would, to check that a
+ * landing which skips that frame puts it back. */
+static int fx_ov_depth;
+static uint32_t fx_ov_inprogress;
+void overlay_loader_native_nesting(int *depth, uint32_t *inprogress) {
+    if (depth) *depth = fx_ov_depth;
+    if (inprogress) *inprogress = fx_ov_inprogress;
+}
+void overlay_loader_set_native_nesting(int depth, uint32_t inprogress) {
+    fx_ov_depth = depth;
+    fx_ov_inprogress = inprogress;
+}
 void psx_bios_hle_configure(int call_hle, int boot_skip) { (void)call_hle; (void)boot_skip; }
 uint32_t sio_get_seq(void) { return 0; }
 int sio_card_protocol_active(void) { return 0; }

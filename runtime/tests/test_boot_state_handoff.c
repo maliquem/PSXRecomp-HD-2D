@@ -56,6 +56,7 @@ void gpu_vram_dirty_clear(void){}
 void gr_vram_transfer_in(int x,int y,int w,int h,const uint16_t* p){(void)x;(void)y;memcpy(vram,p,(size_t)w*h*2);}
 void gr_vram_transfer_out(int x,int y,int w,int h,uint16_t* p){(void)x;(void)y;memcpy(p,vram,(size_t)w*h*2);}
 
+int g_spu_cd_restored; /* spu.c: set by a successful SPUCD read */
 static void u32(uint8_t* p,uint32_t n){PstW w;pst_w_init(&w,p,4);assert(pst_w_u32(&w,n));}
 int main(void) {
     CPUState cpu={0};
@@ -68,7 +69,9 @@ int main(void) {
                           : boot_state_save_buffer_raw(&cpu,123,0x801b0000,&saved,&len));
         assert(saved[4]==9 && saved[len-4]==started); /* handoff is last */
         fntrace_restore_game_started(!started); ram[0x100]=0; cpu.pc=0;
+        g_spu_cd_restored=1; /* EST-14: a stale flag from an earlier load */
         assert(boot_state_load_buffer(saved,len,123,0x801b0000,&cpu));
+        assert(g_spu_cd_restored==0); /* this load restored no CD queue */
         assert(fntrace_is_game_started()==started && ram[0x100]==0xab && cpu.pc==0x80050044);
         assert(!boot_clears && !cd_handoffs);
         /* Malformed, missing and duplicate phase sections must reject before

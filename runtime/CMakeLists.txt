@@ -75,6 +75,10 @@ if(BUILD_TESTING)
         src/mod_netplay.c src/psx_sha256.c)
     target_include_directories(savestate_title_policy_test PRIVATE include)
     add_test(NAME savestate_title_policy_test COMMAND savestate_title_policy_test)
+    add_executable(savestate_poll_rollback_test tests/test_savestate_poll_rollback.c
+    src/mod_netplay.c src/psx_sha256.c)
+    target_include_directories(savestate_poll_rollback_test PRIVATE include)
+    add_test(NAME savestate_poll_rollback_test COMMAND savestate_poll_rollback_test)
     add_executable(mod_capcom_bg2d_test tests/test_mod_capcom_bg2d.c)
     target_include_directories(mod_capcom_bg2d_test PRIVATE include)
     add_test(NAME mod_capcom_bg2d_test COMMAND mod_capcom_bg2d_test)
@@ -2032,6 +2036,9 @@ if(BUILD_TESTING)
         tests/test_psx_cycle_event_boundaries.c
         src/psx_cycles.c)
     target_include_directories(psx_cycle_event_boundaries_test PRIVATE include)
+    # LTO + gc-sections drops the psx_cycles.c paths this test does not reach.
+    target_compile_options(psx_cycle_event_boundaries_test PRIVATE -O2 -flto -ffunction-sections -fdata-sections)
+    target_link_options(psx_cycle_event_boundaries_test PRIVATE -flto -Wl,--gc-sections)
     add_test(NAME psx_cycle_event_boundaries_test
              COMMAND psx_cycle_event_boundaries_test)
 
@@ -2040,6 +2047,8 @@ if(BUILD_TESTING)
         tests/test_idle_skip_store_counter.c
         src/psx_cycles.c)
     target_include_directories(idle_skip_store_counter_test PRIVATE include)
+    target_compile_options(idle_skip_store_counter_test PRIVATE -O2 -flto -ffunction-sections -fdata-sections)
+    target_link_options(idle_skip_store_counter_test PRIVATE -flto -Wl,--gc-sections)
     add_test(NAME idle_skip_store_counter_test COMMAND idle_skip_store_counter_test)
 
     add_executable(psx_vblank_clock_test

@@ -1016,6 +1016,10 @@ void psx_scheduler_run(CPUState* cpu)
             extern void overlay_loader_shadow_scheduler_escape_fixup(void);
             overlay_loader_shadow_scheduler_escape_fixup();
             g_psx_dispatch_depth = 0;
+            /* The skipped dispatch_seg frames also own the overlay active-candidate
+             * stack and the in-progress entry (OVL-1). */
+            { extern void overlay_loader_set_native_nesting(int, uint32_t);
+              overlay_loader_set_native_nesting(0, 0); }
             g_psx_call_bail      = 0;
             /* Soft-exit / yield longjmps out of vblank inside
              * psx_devices_service_to_now; without this the re-entrancy guard

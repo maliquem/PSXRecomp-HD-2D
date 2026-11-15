@@ -59,13 +59,17 @@ uint32_t psx_spu_sample_event_cycles_to_next(void) { return s_spu_next_sample; }
 void psx_spu_sample_event_service(void) {}
 int psx_get_in_exception(void) { return 0; }
 
-void starvation_watchdog_check(void) {}
-void starvation_ring_pc_sample(void) {}
+static unsigned s_watchdog_fires, s_pc_sample_fires;
+void starvation_watchdog_check(void) { s_watchdog_fires++; }
+void starvation_ring_pc_sample(void) { s_pc_sample_fires++; }
 
 int  psx_netplay_active(void) { return 0; }
 int  psx_selfcheck_enabled(void) { return 0; }
 void dirty_ram_ld_delay_discard(void) {}
 void dirty_ram_irq_ambient_resync_after_restore(void) {}
+int  g_psx_store_page_audit = 0;
+void psx_store_pages_audit(void) {}
+int  g_boot_state_cpu_timing_restored = 0;
 
 int main(void) {
     /* NULL cpu: this test pins the scheduler boundary, not the CPU-state
@@ -112,6 +116,19 @@ int main(void) {
         return 1;
     }
     s_spu_next_sample = UINT32_MAX; i_mask = 0;
+
+    /* CPU-21: a restore that moves the clock back must re-arm the watchdog
+     * and the PC sampler, not leave them waiting for the old clock. */
+    for (int i = 0; i < 64; i++) psx_advance_cycles(65536u);
+    psx_cycle_count = 10;
+    psx_cycles_resync_after_restore(NULL);
+    s_watchdog_fires = s_pc_sample_fires = 0;
+    psx_advance_cycles(1);
+    if (s_watchdog_fires != 1 || s_pc_sample_fires != 1) {
+        fprintf(stderr, "FAIL after a rewind restore: watchdog fired %u, pc sample %u (want 1, 1)\n",
+                s_watchdog_fires, s_pc_sample_fires);
+        return 1;
+    }
 
     fprintf(stderr, "PASS cross-device deadline preserves D-1 + 1 causality; "
                     "idle skip bounded by the SPU sample deadline\n");
