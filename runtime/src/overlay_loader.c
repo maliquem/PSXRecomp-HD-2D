@@ -3289,14 +3289,15 @@ void overlay_loader_rescan(void) {
 #define MAX_LOADED_DLLS 4096
 static char s_loaded_paths[MAX_LOADED_DLLS][768];
 static int  s_nloaded_paths = 0;
+static int  s_dll_path_idx[MAX_LOADED_DLLS]; /* DLL slot (Candidate.dll) -> s_loaded_paths index */
 
 #ifndef PSX_NO_DEBUG_TOOLS
 static int native_rank_allows(Candidate *c, uint32_t pc) {
     if (s_native_rank_limit == UINT32_MAX) return 1;
     if (c->native_rank == 0) {
         c->native_rank = ++s_native_rank_next;
-        const char *path = (c->dll >= 0 && c->dll < s_nloaded_paths)
-                         ? s_loaded_paths[c->dll] : "<loading>";
+        const char *path = (c->dll >= 0 && c->dll < s_ndlls)
+                         ? s_loaded_paths[s_dll_path_idx[c->dll]] : "<loading>";
         fprintf(stdout,
                 "psxrecomp: native-rank rank=%u candidate=%d owner=0x%08X "
                 "pc=0x%08X crc=0x%08X dll=%s frame=%llu cycle=%llu allow=%d\n",
@@ -3439,8 +3440,9 @@ static int load_one_dll(const char *dll_path,
      * tracking table can never silently lose a loaded DLL again. */
     strncpy(s_loaded_paths[s_nloaded_paths], dll_path, 767);
     s_loaded_paths[s_nloaded_paths][767] = '\0';
+    /* Aliases keep their path for dedup but own no DLL slot: map slot -> path. */
+    if (registered > 0) s_dll_path_idx[s_ndlls++] = s_nloaded_paths;
     s_nloaded_paths++;
-    if (registered > 0) s_ndlls++;
     return registered;
 }
 
