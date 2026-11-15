@@ -1971,6 +1971,13 @@ if(BUILD_TESTING)
         target_link_libraries(netplay_snap_ring_test PRIVATE retcomm_rbengine)
         add_test(NAME netplay_snap_ring_test COMMAND netplay_snap_ring_test)
 
+        # Rewind load gates and refused-load rollback; ring ops are stubbed in
+        # the test, so only the rbengine header is needed.
+        add_executable(rewind_load_gates_test tests/test_rewind_load_gates.c)
+        target_include_directories(rewind_load_gates_test PRIVATE include
+            "${_RBE_ROOT}/include")
+        add_test(NAME rewind_load_gates_test COMMAND rewind_load_gates_test)
+
         # Lobby chat ring. #includes psx_lobby_client.c, so it needs the same
         # guard define and include roots the runtime build uses; the two WS
         # calls that TU makes are stubbed in the test and abort if reached.

@@ -9,6 +9,7 @@
 #include "host_osd.h"
 #include "interrupts.h"
 #include "mdec.h"
+#include "psx_cycle_freeze.h"
 #include "psx_cycles.h"
 #include "psx_netplay.h"
 #include "psx_netplay_rb.h"
@@ -557,10 +558,23 @@ static int do_capture(CPUState *cpu, uint32_t resume_pc)
     return 1;
 }
 
+/* Same continuation gates as savestate_poll: a load longjmps to the
+ * scheduler, so it must not unwind a mod callback (psx_mod_call_guest
+ * restores registers after it) or a host call that restores registers and
+ * clocks (frozen guest time would leak). */
+static int rewind_load_blocked(void)
+{
+    extern int psx_mod_function_entry_active(void);
+    return psx_mod_function_entry_active() || psx_snapshot_host_call_depth() ||
+           g_psx_guest_time_frozen;
+}
+
 static int do_load(CPUState *cpu, uint32_t tick)
 {
     size_t size = 0;
     const uint8_t *data;
+    uint8_t *rollback = NULL;
+    size_t rollback_len = 0;
 
     if (!cpu || !s_ring)
         return 0;
@@ -571,10 +585,29 @@ static int do_load(CPUState *cpu, uint32_t tick)
     data = rbe_snap_ring_peek(s_ring, tick, &size);
     if (!data || !size)
         return 0;
-    if (!boot_state_load_buffer(data, size, s_bios, s_entry, cpu))
+    /* The resume-PC gate can only judge a snap AFTER it is applied
+     * (dispatchability depends on the restored RAM), so hold the pre-load
+     * machine and put it back on refusal, as savestate_poll does: a refused
+     * rewind never leaves a foreign machine running on this host stack. */
+    if (!boot_state_save_buffer_raw(cpu, s_bios, s_entry, &rollback,
+                                    &rollback_len))
         return 0;
-    if (!resume_pc_ok(cpu->pc))
+    if (!boot_state_load_buffer(data, size, s_bios, s_entry, cpu)) {
+        free(rollback); /* refuses before mutating anything */
         return 0;
+    }
+    if (!resume_pc_ok(cpu->pc)) {
+        /* Our own just-written state; failing to restore it is fatal. */
+        if (!boot_state_load_buffer(rollback, rollback_len, s_bios, s_entry,
+                                    cpu))
+            abort();
+        free(rollback);
+        /* Host clock/IRQ anchors were moved by the refused apply. */
+        psx_cycles_resync_after_restore(cpu);
+        interrupts_resync_after_restore();
+        return 0;
+    }
+    free(rollback);
     rbe_snap_ring_drop_after(s_ring, tick);
     list_drop_after(tick);
     s_frame = tick;
@@ -594,6 +627,8 @@ void psx_rewind_poll(CPUState *cpu, uint32_t resume_pc)
         return;
     if (s_load_pending) {
         uint32_t tick = s_load_tick;
+        if (rewind_load_blocked())
+            return; /* stays staged; a later poll outside the frame loads it */
         s_load_pending = 0;
         s_open = 0;
         s_anim_dir = -1;
