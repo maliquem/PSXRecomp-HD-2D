@@ -527,6 +527,8 @@ uint64_t mdec_color_age_cycles(void) {
 }
 
 void mdec_init(void) {
+    free(mdec.input);
+    free(mdec.output);
     memset(&mdec, 0, sizeof(mdec));
     memset(mdec_trace, 0, sizeof(mdec_trace));
     mdec_trace_seq = 0;
