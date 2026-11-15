@@ -5126,7 +5126,10 @@ static void gpu_reset_state(int clear_vram) {
         memset(vram, 0, sizeof(vram));
         gpu_vram_dirty_mark_all();
     }
+    /* GP1(00h) must not wipe the host's texture-filter preference (gr_init resets it in the sw backend). */
+    int saved_tex_filter = gr_texture_filter();
     gr_init(vram);
+    gr_set_texture_filter(saved_tex_filter);
 
     /* Reset GP0 state machine (+ leftover cmd/xfer crumbs that survive in
      * gpu_snapshot and fork av digests on rematch). */
