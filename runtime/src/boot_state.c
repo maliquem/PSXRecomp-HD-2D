@@ -967,7 +967,9 @@ int boot_state_check_buffer(const uint8_t* file, size_t file_len,
                             char* reason, size_t reason_cap) {
     BootStateHeader h;
     char part[96];
+    char local_reason[128];
 
+    if (!reason) { reason = local_reason; reason_cap = sizeof(local_reason); }
     if (reason && reason_cap)
         reason[0] = '\0';
 
