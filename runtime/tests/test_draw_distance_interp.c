@@ -93,7 +93,7 @@ void psx_get_freeze_diag(uint64_t *a, uint32_t *b, int *c, int *d, uint64_t *e,
 }
 int psx_get_in_exception(void) { return 0; }
 int psx_interrupts_checked_at_current_cycle(uint32_t pc) { (void)pc; return 1; }
-void psx_pgxp_alu(struct CPUState *c, uint32_t i, uint32_t r, uint32_t a, uint32_t b) {
+void psx_pgxp_alu_masked(struct CPUState *c, uint32_t i, uint32_t r, uint32_t a, uint32_t b) {
     (void)c; (void)i; (void)r; (void)a; (void)b;
 }
 void psx_pgxp_cop2(struct CPUState *c, uint32_t i, uint32_t v, uint32_t a) {

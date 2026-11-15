@@ -2757,10 +2757,11 @@ static void init_callbacks(void) {
         {
             extern void psx_pgxp_load_masked(CPUState*, uint32_t, uint32_t, uint32_t);
             extern void psx_pgxp_store_masked(CPUState*, uint32_t, uint32_t, uint32_t);
+            extern void psx_pgxp_alu_masked(CPUState*, uint32_t, uint32_t, uint32_t, uint32_t);
             static const PGXPHooks pgxp_hooks_table = {
                 psx_pgxp_load_masked,   /* [video] pgxp_mem (pgxp_session.cpp) */
                 psx_pgxp_store_masked,
-                psx_pgxp_alu,
+                psx_pgxp_alu_masked,    /* [video] pgxp_alu (pgxp_session.cpp) */
                 psx_pgxp_muldiv,
                 psx_pgxp_cop2,
             };

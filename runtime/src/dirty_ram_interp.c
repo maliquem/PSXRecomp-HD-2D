@@ -44,6 +44,9 @@
 #include <stdlib.h>
 #include <string.h>
 
+/* [video] pgxp_alu class mask applied (pgxp_session.cpp), as in compiled code. */
+void psx_pgxp_alu_masked(struct CPUState *cpu, uint32_t instr, uint32_t result, uint32_t s1, uint32_t s2);
+
 uint64_t g_dirty_ram_blocks_run = 0;
 uint64_t g_dirty_ram_insns_run  = 0;
 uint64_t g_dirty_window_dispatches = 0;  /* capture-window interp dispatches */
@@ -1660,42 +1663,42 @@ static int exec_one_fetched_inner(CPUState *cpu, uint32_t pc, uint32_t insn,
         case 0x00: { /* SLL rd, rt, sh (also nop when all fields are 0) */
             uint32_t a = cpu->gpr[rt];
             cpu->gpr[rd] = a << sh;
-            psx_pgxp_alu(cpu, insn, cpu->gpr[rd], a, sh);
+            psx_pgxp_alu_masked(cpu, insn, cpu->gpr[rd], a, sh);
             cpu->gpr[0] = 0;
             return 0;
         }
         case 0x02: { /* SRL */
             uint32_t a = cpu->gpr[rt];
             cpu->gpr[rd] = a >> sh;
-            psx_pgxp_alu(cpu, insn, cpu->gpr[rd], a, sh);
+            psx_pgxp_alu_masked(cpu, insn, cpu->gpr[rd], a, sh);
             cpu->gpr[0] = 0;
             return 0;
         }
         case 0x03: { /* SRA */
             uint32_t a = cpu->gpr[rt];
             cpu->gpr[rd] = (uint32_t)((int32_t)a >> sh);
-            psx_pgxp_alu(cpu, insn, cpu->gpr[rd], a, sh);
+            psx_pgxp_alu_masked(cpu, insn, cpu->gpr[rd], a, sh);
             cpu->gpr[0] = 0;
             return 0;
         }
         case 0x04: { /* SLLV */
             uint32_t a = cpu->gpr[rt], b = cpu->gpr[rs];
             cpu->gpr[rd] = a << (b & 31);
-            psx_pgxp_alu(cpu, insn, cpu->gpr[rd], a, b);
+            psx_pgxp_alu_masked(cpu, insn, cpu->gpr[rd], a, b);
             cpu->gpr[0] = 0;
             return 0;
         }
         case 0x06: { /* SRLV */
             uint32_t a = cpu->gpr[rt], b = cpu->gpr[rs];
             cpu->gpr[rd] = a >> (b & 31);
-            psx_pgxp_alu(cpu, insn, cpu->gpr[rd], a, b);
+            psx_pgxp_alu_masked(cpu, insn, cpu->gpr[rd], a, b);
             cpu->gpr[0] = 0;
             return 0;
         }
         case 0x07: { /* SRAV */
             uint32_t a = cpu->gpr[rt], b = cpu->gpr[rs];
             cpu->gpr[rd] = (uint32_t)((int32_t)a >> (b & 31));
-            psx_pgxp_alu(cpu, insn, cpu->gpr[rd], a, b);
+            psx_pgxp_alu_masked(cpu, insn, cpu->gpr[rd], a, b);
             cpu->gpr[0] = 0;
             return 0;
         }
@@ -1797,24 +1800,24 @@ static int exec_one_fetched_inner(CPUState *cpu, uint32_t pc, uint32_t insn,
             psx_muldiv_stall(cpu);   /* stall to mult/div completion (faithful) */
 #endif
             cpu->gpr[rd] = cpu->hi;
-            psx_pgxp_alu(cpu, insn, cpu->gpr[rd], cpu->hi, 0);
+            psx_pgxp_alu_masked(cpu, insn, cpu->gpr[rd], cpu->hi, 0);
             cpu->gpr[0] = 0;
             return 0;
         case 0x11: /* MTHI */
             cpu->hi = cpu->gpr[rs];
-            psx_pgxp_alu(cpu, insn, cpu->hi, cpu->hi, 0);
+            psx_pgxp_alu_masked(cpu, insn, cpu->hi, cpu->hi, 0);
             return 0;
         case 0x12: /* MFLO */
 #ifdef PSX_ENABLE_BLOCK_CYCLES
             psx_muldiv_stall(cpu);   /* stall to mult/div completion (faithful) */
 #endif
             cpu->gpr[rd] = cpu->lo;
-            psx_pgxp_alu(cpu, insn, cpu->gpr[rd], cpu->lo, 0);
+            psx_pgxp_alu_masked(cpu, insn, cpu->gpr[rd], cpu->lo, 0);
             cpu->gpr[0] = 0;
             return 0;
         case 0x13: /* MTLO */
             cpu->lo = cpu->gpr[rs];
-            psx_pgxp_alu(cpu, insn, cpu->lo, cpu->lo, 0);
+            psx_pgxp_alu_masked(cpu, insn, cpu->lo, cpu->lo, 0);
             return 0;
         case 0x18: { /* MULT */
             int64_t r = (int64_t)(int32_t)cpu->gpr[rs] * (int64_t)(int32_t)cpu->gpr[rt];
@@ -1874,7 +1877,7 @@ static int exec_one_fetched_inner(CPUState *cpu, uint32_t pc, uint32_t insn,
             if (fnt == 0x20 && ((a ^ (a + b)) & (b ^ (a + b))) >> 31)
                 return interp_exception(cpu, 12, cpu->cop0[8], pc);
             cpu->gpr[rd] = a + b;
-            psx_pgxp_alu(cpu, insn, cpu->gpr[rd], a, b);
+            psx_pgxp_alu_masked(cpu, insn, cpu->gpr[rd], a, b);
             cpu->gpr[0] = 0;
             return 0;
         }
@@ -1887,7 +1890,7 @@ static int exec_one_fetched_inner(CPUState *cpu, uint32_t pc, uint32_t insn,
                 cpu->gpr[rd] = 0u - b - (uint32_t)psx_ws_x_margin();
             else
                 cpu->gpr[rd] = a - b;
-            psx_pgxp_alu(cpu, insn, cpu->gpr[rd], a, b);
+            psx_pgxp_alu_masked(cpu, insn, cpu->gpr[rd], a, b);
             cpu->gpr[0] = 0;
             return 0;
         }
@@ -1902,28 +1905,28 @@ static int exec_one_fetched_inner(CPUState *cpu, uint32_t pc, uint32_t insn,
                                                    cpu->gpr[sxy_v]);
             else
                 cpu->gpr[rd] = a & b;
-            psx_pgxp_alu(cpu, insn, cpu->gpr[rd], a, b);
+            psx_pgxp_alu_masked(cpu, insn, cpu->gpr[rd], a, b);
             cpu->gpr[0] = 0;
             return 0;
         }
         case 0x25: { /* OR */
             uint32_t a = cpu->gpr[rs], b = cpu->gpr[rt];
             cpu->gpr[rd] = a | b;
-            psx_pgxp_alu(cpu, insn, cpu->gpr[rd], a, b);
+            psx_pgxp_alu_masked(cpu, insn, cpu->gpr[rd], a, b);
             cpu->gpr[0] = 0;
             return 0;
         }
         case 0x26: { /* XOR */
             uint32_t a = cpu->gpr[rs], b = cpu->gpr[rt];
             cpu->gpr[rd] = a ^ b;
-            psx_pgxp_alu(cpu, insn, cpu->gpr[rd], a, b);
+            psx_pgxp_alu_masked(cpu, insn, cpu->gpr[rd], a, b);
             cpu->gpr[0] = 0;
             return 0;
         }
         case 0x27: { /* NOR */
             uint32_t a = cpu->gpr[rs], b = cpu->gpr[rt];
             cpu->gpr[rd] = ~(a | b);
-            psx_pgxp_alu(cpu, insn, cpu->gpr[rd], a, b);
+            psx_pgxp_alu_masked(cpu, insn, cpu->gpr[rd], a, b);
             cpu->gpr[0] = 0;
             return 0;
         }
@@ -1936,7 +1939,7 @@ static int exec_one_fetched_inner(CPUState *cpu, uint32_t pc, uint32_t insn,
                 !psx_ws_aspect_cone_site(cpu, pc, insn, vanilla, &kept))
                 (void)psx_ws_cull_keep_site(pc, insn, vanilla, &kept);
             cpu->gpr[rd] = kept;
-            psx_pgxp_alu(cpu, insn, kept, 0, 0);
+            psx_pgxp_alu_masked(cpu, insn, kept, 0, 0);
             cpu->gpr[0] = 0;
             return 0;
         }
@@ -1950,7 +1953,7 @@ static int exec_one_fetched_inner(CPUState *cpu, uint32_t pc, uint32_t insn,
                 psx_ws_cull_screen_x_applies(pc, insn))
                 kept = (uint32_t)psx_ws_cull_sltu_band(cpu->gpr[rs], cpu->gpr[rt]);
             cpu->gpr[rd] = kept;
-            psx_pgxp_alu(cpu, insn, kept, 0, 0);
+            psx_pgxp_alu_masked(cpu, insn, kept, 0, 0);
             cpu->gpr[0] = 0;
             return 0;
         }
@@ -2113,7 +2116,7 @@ static int exec_one_fetched_inner(CPUState *cpu, uint32_t pc, uint32_t insn,
                                 ? 0u - (uint32_t)psx_ws_activation_margin()
                             : psx_ws_is_cull_bias_site(pc)
                                 ? (uint32_t)psx_ws_activation_margin() : 0u);
-        psx_pgxp_alu(cpu, insn, cpu->gpr[rt], a, (uint32_t)simm);
+        psx_pgxp_alu_masked(cpu, insn, cpu->gpr[rt], a, (uint32_t)simm);
         cpu->gpr[0] = 0;
         return 0;
     }
@@ -2131,7 +2134,7 @@ static int exec_one_fetched_inner(CPUState *cpu, uint32_t pc, uint32_t insn,
                                 ? 0u - (uint32_t)psx_ws_activation_margin()
                             : psx_ws_is_cull_bias_site(pc)
                                 ? (uint32_t)psx_ws_activation_margin() : 0u);
-        psx_pgxp_alu(cpu, insn, cpu->gpr[rt], a, (uint32_t)simm);
+        psx_pgxp_alu_masked(cpu, insn, cpu->gpr[rt], a, (uint32_t)simm);
         cpu->gpr[0] = 0;
         return 0;
     }
@@ -2160,7 +2163,7 @@ static int exec_one_fetched_inner(CPUState *cpu, uint32_t pc, uint32_t insn,
             cpu->gpr[rt] = (uint32_t)psx_ws_cull_slti(cpu->gpr[rs], imm);
         else
             cpu->gpr[rt] = ((int32_t)cpu->gpr[rs] < simm) ? 1u : 0u;
-        psx_pgxp_alu(cpu, insn, cpu->gpr[rt], 0, 0);
+        psx_pgxp_alu_masked(cpu, insn, cpu->gpr[rt], 0, 0);
         cpu->gpr[0] = 0;
         return 0;
     }
@@ -2194,14 +2197,14 @@ static int exec_one_fetched_inner(CPUState *cpu, uint32_t pc, uint32_t insn,
             cpu->gpr[rt] = (uint32_t)psx_ws_cull_sltiu_y(cpu->gpr[rs], imm);
         else
             cpu->gpr[rt] = (cpu->gpr[rs] < (uint32_t)simm) ? 1u : 0u;
-        psx_pgxp_alu(cpu, insn, cpu->gpr[rt], 0, 0);
+        psx_pgxp_alu_masked(cpu, insn, cpu->gpr[rt], 0, 0);
         cpu->gpr[0] = 0;
         return 0;
     }
     case 0x0C: { /* ANDI */
         uint32_t a = cpu->gpr[rs];
         cpu->gpr[rt] = a & imm;
-        psx_pgxp_alu(cpu, insn, cpu->gpr[rt], a, imm);
+        psx_pgxp_alu_masked(cpu, insn, cpu->gpr[rt], a, imm);
         cpu->gpr[0] = 0;
         return 0;
     }
@@ -2211,14 +2214,14 @@ static int exec_one_fetched_inner(CPUState *cpu, uint32_t pc, uint32_t insn,
             cpu->gpr[rt] = (uint32_t)psx_ws_screen_x_bound((int32_t)imm);
         else
             cpu->gpr[rt] = a | imm;
-        psx_pgxp_alu(cpu, insn, cpu->gpr[rt], a, imm);
+        psx_pgxp_alu_masked(cpu, insn, cpu->gpr[rt], a, imm);
         cpu->gpr[0] = 0;
         return 0;
     }
     case 0x0E: { /* XORI */
         uint32_t a = cpu->gpr[rs];
         cpu->gpr[rt] = a ^ imm;
-        psx_pgxp_alu(cpu, insn, cpu->gpr[rt], a, imm);
+        psx_pgxp_alu_masked(cpu, insn, cpu->gpr[rt], a, imm);
         cpu->gpr[0] = 0;
         return 0;
     }
@@ -2229,7 +2232,7 @@ static int exec_one_fetched_inner(CPUState *cpu, uint32_t pc, uint32_t insn,
             cpu->gpr[rt] = psx_ws_cull_lui_hi(imm);
         else
             cpu->gpr[rt] = imm << 16;
-        psx_pgxp_alu(cpu, insn, cpu->gpr[rt], 0, 0);
+        psx_pgxp_alu_masked(cpu, insn, cpu->gpr[rt], 0, 0);
         cpu->gpr[0] = 0;
         return 0;
     case 0x10: { /* COP0 */
@@ -2240,7 +2243,7 @@ static int exec_one_fetched_inner(CPUState *cpu, uint32_t pc, uint32_t insn,
             cpu->ld_which_t = (uint8_t)rt;
 #endif
             cpu->gpr[rt] = cop0_read;
-            psx_pgxp_alu(cpu, insn, cpu->gpr[rt], 0, 0);
+            psx_pgxp_alu_masked(cpu, insn, cpu->gpr[rt], 0, 0);
             cpu->gpr[0] = 0;
             return 0;
         }
@@ -2250,7 +2253,7 @@ static int exec_one_fetched_inner(CPUState *cpu, uint32_t pc, uint32_t insn,
             cpu->ld_which_t = (uint8_t)rt;
 #endif
             cpu->gpr[rt] = cop0_read;
-            psx_pgxp_alu(cpu, insn, cpu->gpr[rt], 0, 0);
+            psx_pgxp_alu_masked(cpu, insn, cpu->gpr[rt], 0, 0);
             cpu->gpr[0] = 0;
             return 0;
         }

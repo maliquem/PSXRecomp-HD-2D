@@ -21,6 +21,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+/* [video] pgxp_alu class mask applied (pgxp_session.cpp), as in compiled code. */
+void psx_pgxp_alu_masked(struct CPUState *cpu, uint32_t instr, uint32_t result, uint32_t s1, uint32_t s2);
+
 /* I_STAT and I_MASK are owned by memory.c */
 extern uint32_t i_stat;
 /* Central IRQ-raise choke point (interrupts.c) — also records the device ring. */
@@ -232,30 +235,30 @@ static void exec_one(CPUState* cpu) {
         uint32_t sa = SA(insn);
         switch (func) {
         case 0x00: set_reg(cpu, rd, rt_val << sa);
-                   psx_pgxp_alu(cpu, insn, cpu->gpr[rd], rt_val, sa); break;   /* SLL */
+                   psx_pgxp_alu_masked(cpu, insn, cpu->gpr[rd], rt_val, sa); break;   /* SLL */
         case 0x02: set_reg(cpu, rd, rt_val >> sa);
-                   psx_pgxp_alu(cpu, insn, cpu->gpr[rd], rt_val, sa); break;   /* SRL */
+                   psx_pgxp_alu_masked(cpu, insn, cpu->gpr[rd], rt_val, sa); break;   /* SRL */
         case 0x03: set_reg(cpu, rd, (uint32_t)((int32_t)rt_val >> sa));
-                   psx_pgxp_alu(cpu, insn, cpu->gpr[rd], rt_val, sa); break;   /* SRA */
+                   psx_pgxp_alu_masked(cpu, insn, cpu->gpr[rd], rt_val, sa); break;   /* SRA */
         case 0x04: set_reg(cpu, rd, rt_val << (rs_val & 31));
-                   psx_pgxp_alu(cpu, insn, cpu->gpr[rd], rt_val, rs_val); break; /* SLLV */
+                   psx_pgxp_alu_masked(cpu, insn, cpu->gpr[rd], rt_val, rs_val); break; /* SLLV */
         case 0x06: set_reg(cpu, rd, rt_val >> (rs_val & 31));
-                   psx_pgxp_alu(cpu, insn, cpu->gpr[rd], rt_val, rs_val); break; /* SRLV */
+                   psx_pgxp_alu_masked(cpu, insn, cpu->gpr[rd], rt_val, rs_val); break; /* SRLV */
         case 0x07: set_reg(cpu, rd, (uint32_t)((int32_t)rt_val >> (rs_val & 31)));
-                   psx_pgxp_alu(cpu, insn, cpu->gpr[rd], rt_val, rs_val); break; /* SRAV */
+                   psx_pgxp_alu_masked(cpu, insn, cpu->gpr[rd], rt_val, rs_val); break; /* SRAV */
         case 0x08: set_branch(1, rs_val); break;                    /* JR */
         case 0x09: set_reg(cpu, rd, pc + 8);                        /* JALR */
                    set_branch(1, rs_val); break;
         case 0x0C: raise_exception(cpu, 8, pc, in_delay); break;    /* SYSCALL */
         case 0x0D: raise_exception(cpu, 9, pc, in_delay); break;    /* BREAK */
         case 0x10: set_reg(cpu, rd, cpu->hi);
-                   psx_pgxp_alu(cpu, insn, cpu->gpr[rd], cpu->hi, 0); break;   /* MFHI */
+                   psx_pgxp_alu_masked(cpu, insn, cpu->gpr[rd], cpu->hi, 0); break;   /* MFHI */
         case 0x11: cpu->hi = rs_val;
-                   psx_pgxp_alu(cpu, insn, cpu->hi, rs_val, 0); break;         /* MTHI */
+                   psx_pgxp_alu_masked(cpu, insn, cpu->hi, rs_val, 0); break;         /* MTHI */
         case 0x12: set_reg(cpu, rd, cpu->lo);
-                   psx_pgxp_alu(cpu, insn, cpu->gpr[rd], cpu->lo, 0); break;   /* MFLO */
+                   psx_pgxp_alu_masked(cpu, insn, cpu->gpr[rd], cpu->lo, 0); break;   /* MFLO */
         case 0x13: cpu->lo = rs_val;
-                   psx_pgxp_alu(cpu, insn, cpu->lo, rs_val, 0); break;         /* MTLO */
+                   psx_pgxp_alu_masked(cpu, insn, cpu->lo, rs_val, 0); break;         /* MTLO */
         case 0x18: { /* MULT */
             int64_t r = (int64_t)(int32_t)rs_val * (int64_t)(int32_t)rt_val;
             cpu->lo = (uint32_t)r; cpu->hi = (uint32_t)(r >> 32);
@@ -281,30 +284,30 @@ static void exec_one(CPUState* cpu) {
             int64_t r = (int64_t)(int32_t)rs_val + (int64_t)(int32_t)rt_val;
             if (r < (int64_t)INT32_MIN || r > (int64_t)INT32_MAX) { raise_exception(cpu, 12, pc, in_delay); break; }
             set_reg(cpu, rd, (uint32_t)(int32_t)r);
-            psx_pgxp_alu(cpu, insn, cpu->gpr[rd], rs_val, rt_val); break;
+            psx_pgxp_alu_masked(cpu, insn, cpu->gpr[rd], rs_val, rt_val); break;
         }
         case 0x21: set_reg(cpu, rd, rs_val + rt_val);
-                   psx_pgxp_alu(cpu, insn, cpu->gpr[rd], rs_val, rt_val); break; /* ADDU */
+                   psx_pgxp_alu_masked(cpu, insn, cpu->gpr[rd], rs_val, rt_val); break; /* ADDU */
         case 0x22: { /* SUB (overflow trap) */
             int64_t r = (int64_t)(int32_t)rs_val - (int64_t)(int32_t)rt_val;
             if (r < (int64_t)INT32_MIN || r > (int64_t)INT32_MAX) { raise_exception(cpu, 12, pc, in_delay); break; }
             set_reg(cpu, rd, (uint32_t)(int32_t)r);
-            psx_pgxp_alu(cpu, insn, cpu->gpr[rd], rs_val, rt_val); break;
+            psx_pgxp_alu_masked(cpu, insn, cpu->gpr[rd], rs_val, rt_val); break;
         }
         case 0x23: set_reg(cpu, rd, rs_val - rt_val);
-                   psx_pgxp_alu(cpu, insn, cpu->gpr[rd], rs_val, rt_val); break; /* SUBU */
+                   psx_pgxp_alu_masked(cpu, insn, cpu->gpr[rd], rs_val, rt_val); break; /* SUBU */
         case 0x24: set_reg(cpu, rd, rs_val & rt_val);
-                   psx_pgxp_alu(cpu, insn, cpu->gpr[rd], rs_val, rt_val); break; /* AND */
+                   psx_pgxp_alu_masked(cpu, insn, cpu->gpr[rd], rs_val, rt_val); break; /* AND */
         case 0x25: set_reg(cpu, rd, rs_val | rt_val);
-                   psx_pgxp_alu(cpu, insn, cpu->gpr[rd], rs_val, rt_val); break; /* OR */
+                   psx_pgxp_alu_masked(cpu, insn, cpu->gpr[rd], rs_val, rt_val); break; /* OR */
         case 0x26: set_reg(cpu, rd, rs_val ^ rt_val);
-                   psx_pgxp_alu(cpu, insn, cpu->gpr[rd], rs_val, rt_val); break; /* XOR */
+                   psx_pgxp_alu_masked(cpu, insn, cpu->gpr[rd], rs_val, rt_val); break; /* XOR */
         case 0x27: set_reg(cpu, rd, ~(rs_val | rt_val));
-                   psx_pgxp_alu(cpu, insn, cpu->gpr[rd], rs_val, rt_val); break; /* NOR */
+                   psx_pgxp_alu_masked(cpu, insn, cpu->gpr[rd], rs_val, rt_val); break; /* NOR */
         case 0x2A: set_reg(cpu, rd, (int32_t)rs_val < (int32_t)rt_val ? 1 : 0);
-                   psx_pgxp_alu(cpu, insn, cpu->gpr[rd], rs_val, rt_val); break; /* SLT */
+                   psx_pgxp_alu_masked(cpu, insn, cpu->gpr[rd], rs_val, rt_val); break; /* SLT */
         case 0x2B: set_reg(cpu, rd, rs_val < rt_val ? 1 : 0);
-                   psx_pgxp_alu(cpu, insn, cpu->gpr[rd], rs_val, rt_val); break; /* SLTU */
+                   psx_pgxp_alu_masked(cpu, insn, cpu->gpr[rd], rs_val, rt_val); break; /* SLTU */
         default:
             /* R3000A ignores undefined SPECIAL encodings (no trap). */
             break;
@@ -335,22 +338,22 @@ static void exec_one(CPUState* cpu) {
         int64_t r = (int64_t)(int32_t)rs_val + (int64_t)SIMM(insn);
         if (r < (int64_t)INT32_MIN || r > (int64_t)INT32_MAX) { raise_exception(cpu, 12, pc, in_delay); break; }
         set_reg(cpu, RT(insn), (uint32_t)(int32_t)r);
-        psx_pgxp_alu(cpu, insn, cpu->gpr[RT(insn)], rs_val, (uint32_t)SIMM(insn)); break;
+        psx_pgxp_alu_masked(cpu, insn, cpu->gpr[RT(insn)], rs_val, (uint32_t)SIMM(insn)); break;
     }
     case 0x09: set_reg(cpu, RT(insn), rs_val + (uint32_t)SIMM(insn));
-               psx_pgxp_alu(cpu, insn, cpu->gpr[RT(insn)], rs_val, (uint32_t)SIMM(insn)); break; /* ADDIU */
+               psx_pgxp_alu_masked(cpu, insn, cpu->gpr[RT(insn)], rs_val, (uint32_t)SIMM(insn)); break; /* ADDIU */
     case 0x0A: set_reg(cpu, RT(insn), (int32_t)rs_val < SIMM(insn) ? 1 : 0);
-               psx_pgxp_alu(cpu, insn, cpu->gpr[RT(insn)], rs_val, (uint32_t)SIMM(insn)); break; /* SLTI */
+               psx_pgxp_alu_masked(cpu, insn, cpu->gpr[RT(insn)], rs_val, (uint32_t)SIMM(insn)); break; /* SLTI */
     case 0x0B: set_reg(cpu, RT(insn), rs_val < (uint32_t)SIMM(insn) ? 1 : 0);
-               psx_pgxp_alu(cpu, insn, cpu->gpr[RT(insn)], rs_val, (uint32_t)SIMM(insn)); break; /* SLTIU */
+               psx_pgxp_alu_masked(cpu, insn, cpu->gpr[RT(insn)], rs_val, (uint32_t)SIMM(insn)); break; /* SLTIU */
     case 0x0C: set_reg(cpu, RT(insn), rs_val & IMM16(insn));
-               psx_pgxp_alu(cpu, insn, cpu->gpr[RT(insn)], rs_val, IMM16(insn)); break; /* ANDI */
+               psx_pgxp_alu_masked(cpu, insn, cpu->gpr[RT(insn)], rs_val, IMM16(insn)); break; /* ANDI */
     case 0x0D: set_reg(cpu, RT(insn), rs_val | IMM16(insn));
-               psx_pgxp_alu(cpu, insn, cpu->gpr[RT(insn)], rs_val, IMM16(insn)); break; /* ORI */
+               psx_pgxp_alu_masked(cpu, insn, cpu->gpr[RT(insn)], rs_val, IMM16(insn)); break; /* ORI */
     case 0x0E: set_reg(cpu, RT(insn), rs_val ^ IMM16(insn));
-               psx_pgxp_alu(cpu, insn, cpu->gpr[RT(insn)], rs_val, IMM16(insn)); break; /* XORI */
+               psx_pgxp_alu_masked(cpu, insn, cpu->gpr[RT(insn)], rs_val, IMM16(insn)); break; /* XORI */
     case 0x0F: set_reg(cpu, RT(insn), (uint32_t)IMM16(insn) << 16);
-               psx_pgxp_alu(cpu, insn, cpu->gpr[RT(insn)], 0, 0); break; /* LUI */
+               psx_pgxp_alu_masked(cpu, insn, cpu->gpr[RT(insn)], 0, 0); break; /* LUI */
 
     /* --- COP0 --- */
     case 0x10: {
@@ -358,7 +361,7 @@ static void exec_one(CPUState* cpu) {
         switch (cop_op) {
         case 0x00: /* MFC0 */
             set_load_delay(RT(insn), cpu->cop0[RD(insn)]);
-            psx_pgxp_alu(cpu, insn, cpu->cop0[RD(insn)], 0, 0);
+            psx_pgxp_alu_masked(cpu, insn, cpu->cop0[RD(insn)], 0, 0);
             break;
         case 0x04: /* MTC0 */
             cpu->cop0[RD(insn)] = rt_val;

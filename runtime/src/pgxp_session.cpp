@@ -41,6 +41,36 @@ extern "C" void psx_pgxp_store_masked(struct CPUState* cpu, uint32_t instr, uint
     if (PGXP_MEM_ON(instr)) psx_pgxp_store(cpu, instr, addr, value);
 }
 
+/* The PGXP_ALU_K class pgxp_hook_emitter.cpp (alu3_kind, append_pgxp_hooks)
+ * tags an ALU hook's instruction word with. */
+static int pgxp_alu_class(uint32_t instr) {
+    const uint32_t op = instr >> 26, rs = (instr >> 21) & 31u, rt = (instr >> 16) & 31u;
+    if (op == 0x00) {
+        const uint32_t f = instr & 0x3Fu;
+        if (f <= 0x07) return PGXP_ALU_K_SHIFT;
+        if (f >= 0x10 && f <= 0x13) return PGXP_ALU_K_HILO;
+        if (f == 0x20 || f == 0x21) return (rs == 0 || rt == 0) ? PGXP_ALU_K_MOVE : PGXP_ALU_K_ADD;
+        if (f == 0x22 || f == 0x23) return rt == 0 ? PGXP_ALU_K_MOVE : PGXP_ALU_K_ADD;
+        if (f == 0x25) return (rs == 0 || rt == 0) ? PGXP_ALU_K_MOVE : PGXP_ALU_K_LOGIC;
+        if (f == 0x2A || f == 0x2B) return PGXP_ALU_K_SLT;
+        return PGXP_ALU_K_LOGIC;                 /* AND/XOR/NOR */
+    }
+    if (op == 0x08 || op == 0x09) return (instr & 0xFFFFu) ? PGXP_ALU_K_ADD : PGXP_ALU_K_MOVE;
+    if (op == 0x0A || op == 0x0B) return PGXP_ALU_K_SLT;
+    if (op == 0x0D) return PGXP_ALU_K_ORI;
+    if (op == 0x0F) return PGXP_ALU_K_LUI;
+    if (op == 0x10) return PGXP_ALU_K_COP0;
+    return PGXP_ALU_K_LOGIC;                     /* ANDI/XORI */
+}
+
+/* The ALU hook of the interpreters and the overlay DLLs: the same class mask
+ * as the generated code's PGXP_ALU_K, so a function moving between
+ * interpreted, DLL and compiled code keeps the same shadows. */
+extern "C" void psx_pgxp_alu_masked(struct CPUState* cpu, uint32_t instr, uint32_t result,
+                                    uint32_t s1, uint32_t s2) {
+    if (g_pgxp_alu_mask & (1u << pgxp_alu_class(instr))) psx_pgxp_alu(cpu, instr, result, s1, s2);
+}
+
 extern "C" void pgxp_set_mem_live(int enabled);   /* pgxp.cpp, stage C2.3 */
 
 static uint32_t pgxp_mem_skip_from(const char* e, int mem_words) {
