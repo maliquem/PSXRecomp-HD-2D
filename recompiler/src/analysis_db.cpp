@@ -1020,15 +1020,22 @@ AnalysisDb build_analysis_db(const PS1Executable& exe,
     std::sort(db.edges.begin(), db.edges.end(),
               [](const CallEdge& a, const CallEdge& b) {
                   if (a.from_func != b.from_func) return a.from_func < b.from_func;
-                  return a.site_pc < b.site_pc;
+                  if (a.site_pc != b.site_pc) return a.site_pc < b.site_pc;
+                  // One jump-table site yields several edges; order them by target.
+                  if (a.to_addr != b.to_addr) return a.to_addr < b.to_addr;
+                  return static_cast<int>(a.kind) < static_cast<int>(b.kind);
               });
     std::sort(db.data_refs.begin(), db.data_refs.end(),
               [](const DataRef& a, const DataRef& b) {
-                  return a.site_pc < b.site_pc;
+                  if (a.site_pc != b.site_pc) return a.site_pc < b.site_pc;
+                  if (a.target != b.target) return a.target < b.target;
+                  if (a.is_write != b.is_write) return !a.is_write;
+                  return a.width < b.width;
               });
     std::sort(db.indirect.begin(), db.indirect.end(),
               [](const IndirectSite& a, const IndirectSite& b) {
-                  return a.pc < b.pc;
+                  if (a.pc != b.pc) return a.pc < b.pc;
+                  return a.from_func < b.from_func;
               });
     return db;
 }
