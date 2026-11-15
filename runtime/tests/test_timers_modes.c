@@ -92,6 +92,31 @@ int main(void) {
     CHECK(timers_read(MODE(2)) & M_HIT_OVF);
     CHECK(!(timers_read(MODE(2)) & M_HIT_OVF));
 
+    /* CPU-23 (b): bit 12 and the bit-5 IRQ come at Counter=FFFFh, not on the
+     * wrap to 0000h; the next one comes a full 10000h counts later. */
+    arm(2, M_IRQ_OVF | M_REPEAT, 100);
+    CHECK(timers_cycles_to_irq(1u << 6) == 0xFFFFu);
+    timers_advance(0xFFFE);
+    CHECK(!(timers_read(MODE(2)) & M_HIT_OVF));
+    CHECK(s_raises[2] == 0);
+    timers_advance(1);
+    CHECK(timers_read(CNT(2)) == 0xFFFF);
+    CHECK(timers_read(MODE(2)) & M_HIT_OVF);
+    CHECK(s_raises[2] == 1);
+    CHECK(timers_cycles_to_irq(1u << 6) == 0x10000u);
+    timers_advance(1);
+    CHECK(timers_read(CNT(2)) == 0);
+    CHECK(!(timers_read(MODE(2)) & M_HIT_OVF));
+    CHECK(s_raises[2] == 1);
+    timers_advance(0xFFFF);
+    CHECK(s_raises[2] == 2);
+
+    /* Target = FFFFh with bit 3: reaching FFFFh sets both bit 11 and bit 12. */
+    arm(2, M_RESET_T, 0xFFFF);
+    timers_advance(0xFFFF);
+    m = timers_read(MODE(2));
+    CHECK((m & (M_HIT_T | M_HIT_OVF)) == (M_HIT_T | M_HIT_OVF));
+
     /* Bit 3 = 1: counter increments up to (including) target, then restarts at
      * 0000h (psx-spx, 1F801108h); so it never reaches FFFFh. */
     arm(2, M_RESET_T, 100);

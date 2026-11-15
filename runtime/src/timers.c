@@ -166,8 +166,9 @@ static void timer_fire_irq(int t) {
 /* Tick a single timer by one count. Returns nothing; updates flags/IRQ. */
 static void timer_tick_one(int t) {
     Timer* tm = &timers[t];
-    uint16_t old = tm->counter;
     tm->counter++;
+    /* psx-spx Timers, mode bits 5/12: the overflow event is Counter=FFFFh, not the wrap to 0. */
+    int reached_ffff = (tm->counter == 0xFFFF);
 
     if (tm->counter == tm->target) {
         tm->mode |= MODE_TARGET_FLAG;
@@ -176,7 +177,7 @@ static void timer_tick_one(int t) {
         if (tm->mode & MODE_RESET_TARGET)
             tm->counter = 0;
     }
-    if (old == 0xFFFF) {
+    if (reached_ffff) {
         tm->mode |= MODE_OVERFLOW_FLAG;
         if (tm->mode & MODE_IRQ_OVERFLOW)
             timer_fire_irq(t);
@@ -187,15 +188,15 @@ static void timer_advance_counts(int t, uint32_t ticks) {
     Timer* tm = &timers[t];
     while (ticks > 0) {
         uint32_t target_dist = ((uint32_t)tm->target - (uint32_t)tm->counter) & 0xFFFFu;
-        uint32_t overflow_dist = 0x10000u - (uint32_t)tm->counter;
+        uint32_t overflow_dist = (0xFFFFu - (uint32_t)tm->counter) & 0xFFFFu;
         if (target_dist == 0) target_dist = 0x10000u;
+        if (overflow_dist == 0) overflow_dist = 0x10000u;
 
         uint32_t step = ticks;
         if (step > target_dist) step = target_dist;
         if (step > overflow_dist) step = overflow_dist;
         if (step == 0) step = 1;
 
-        uint16_t old = tm->counter;
         tm->counter = (uint16_t)(tm->counter + step);
         ticks -= step;
 
@@ -206,7 +207,7 @@ static void timer_advance_counts(int t, uint32_t ticks) {
             if (tm->mode & MODE_RESET_TARGET)
                 tm->counter = 0;
         }
-        if (old + step > 0xFFFFu || step == overflow_dist) {
+        if (step == overflow_dist) {
             tm->mode |= MODE_OVERFLOW_FLAG;
             if (tm->mode & MODE_IRQ_OVERFLOW)
                 timer_fire_irq(t);
@@ -280,7 +281,8 @@ uint32_t timers_cycles_to_irq(uint32_t i_mask) {
             if (d < ticks) ticks = d;
         }
         if (want_overflow) {
-            uint32_t d = 0x10000u - (uint32_t)tm->counter; /* fires on 0xFFFF->0 wrap */
+            uint32_t d = (0xFFFFu - (uint32_t)tm->counter) & 0xFFFFu; /* fires at Counter=FFFFh */
+            if (d == 0) d = 0x10000u;                     /* matches timer_advance_counts */
             if (d < ticks) ticks = d;
         }
         if (ticks == 0xFFFFFFFFu) continue;
