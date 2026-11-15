@@ -15,7 +15,7 @@ static int s_count, s_selected, s_netplay, s_selects, s_reinserts, s_open_ok = 1
 int cdrom_disc_roster_count(void) { return s_count; }
 int cdrom_disc_selected(void) { return s_selected; }
 const char *cdrom_disc_roster_path(int i) { return i >= 1 && i <= s_count ? "disc.cue" : NULL; }
-int cdrom_disc_select(int i) { ++s_selects; s_selected = s_open_ok ? i : 0; return s_open_ok; }
+int cdrom_disc_select(int i) { ++s_selects; if (s_open_ok) s_selected = i; return s_open_ok; }
 void debug_force_cd_reinsert(void) { ++s_reinserts; }
 int psx_netplay_active(void) { return s_netplay; }
 uint32_t psx_rewind_discard_history(void) { return 0; }

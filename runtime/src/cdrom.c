@@ -3659,24 +3659,22 @@ const char *cdrom_disc_roster_path(int index_1based) {
  * a running session. This path swaps the handle alone, inside the lid window,
  * and drops only the state a physical disc change actually invalidates.
  *
- * Returns 0 if the index is outside the roster or the image will not open. A
- * failed open leaves the tray open with no media, which is what the guest
- * would see from an empty drive. */
+ * Returns 0 if the index is outside the roster or the image will not open.
+ * The new image is opened before anything changes: a failed open leaves the
+ * current disc mounted and the lid closed, so a missing file never ends the
+ * session in an empty drive. */
 int cdrom_disc_select(int index_1based) {
     const char *path = cdrom_disc_roster_path(index_1based);
+    void *next;
     if (!path || !path[0]) return 0;
+
+    next = iso_open(path);
+    if (!next) return 0;
 
     begin_tray_open_cycle();
 
-    if (iso_handle) {
-        iso_close(iso_handle);
-        iso_handle = NULL;
-    }
-    iso_handle = iso_open(path);
-    if (!iso_handle) {
-        s_disc_selected = 0;
-        return 0;
-    }
+    if (iso_handle) iso_close(iso_handle);
+    iso_handle = next;
 
     last_valid_subq_available = 0;
     subq_replacements_active = iso_has_subq_replacements(iso_handle);

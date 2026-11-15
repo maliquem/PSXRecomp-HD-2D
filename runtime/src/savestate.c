@@ -18,6 +18,7 @@
 #include "psx_netplay.h"
 #include "psx_netplay_rb.h"
 #include "psx_scheduler.h"
+#include "psx_write_atomic.h"
 #if defined(PSX_HAS_RECOMP_NET)
 #include "netplay_state_digest.h"
 #endif
@@ -546,11 +547,8 @@ static void savestate_write_hd_residency(int slot) {
     size_t size = 0;
     if (!savestate_hd_path(slot, path, sizeof(path))) return;
     if (!gpu_hd_textures_residency_save(&data, &size)) { remove(path); return; }
-    FILE* f = fopen(path, "wb");
-    if (f) {
-        const int ok = fwrite(data, 1, size, f) == size;
-        if (fclose(f) != 0 || !ok) remove(path);
-    }
+    /* A failed write must not leave the old slot's residency beside the new state. */
+    if (psx_write_file_atomic(path, data, size) != 0) remove(path);
     free(data);
 }
 static void savestate_read_hd_residency(int slot) {
@@ -607,9 +605,12 @@ int savestate_slot_mtime(int slot, int64_t* out_time) {
 
 int savestate_capture_thumb(int slot) {
     char path[600];
-    FILE* f;
+    static struct {
+        SavestateThumbHeader hdr;
+        uint32_t px[SAVESTATE_THUMB_W * SAVESTATE_THUMB_H];
+    } file;   /* the thumbnail file as written: header, then pixels */
     SavestateThumbHeader hdr;
-    uint32_t thumb[SAVESTATE_THUMB_W * SAVESTATE_THUMB_H];
+    uint32_t* thumb = file.px;
     GpuDisplayInfo di;
     uint32_t dw, dh, x, y;
     if (!savestate_thumb_path(slot, path, sizeof(path))) return 0;
@@ -631,17 +632,12 @@ int savestate_capture_thumb(int slot) {
     hdr.magic[3] = 'H';
     hdr.w = SAVESTATE_THUMB_W;
     hdr.h = SAVESTATE_THUMB_H;
-    f = fopen(path, "wb");
-    if (!f) return 0;
-    if (fwrite(&hdr, 1, sizeof(hdr), f) != sizeof(hdr) ||
-        fwrite(thumb, sizeof(uint32_t),
-               SAVESTATE_THUMB_W * SAVESTATE_THUMB_H, f) !=
-            SAVESTATE_THUMB_W * SAVESTATE_THUMB_H) {
-        fclose(f);
-        remove(path);
+    file.hdr = hdr;
+    if (psx_write_file_atomic(path, &file, sizeof(file)) != 0) {
+        remove(path);   /* never show the old slot's picture on the new state */
         return 0;
     }
-    return fclose(f) == 0;
+    return 1;
 }
 
 int savestate_read_thumb(int slot, uint32_t* out_argb, int out_w, int out_h) {
@@ -723,8 +719,6 @@ int savestate_read_slot(int slot, uint8_t** data_out, size_t* size_out) {
 
 int savestate_write_slot(int slot, const void* data, size_t size) {
     char path[600];
-    FILE* f;
-    size_t wrote;
     if (!data || size == 0) return 0;
     if (!savestate_slot_path(slot, path, sizeof(path))) {
         fprintf(stderr,
@@ -734,27 +728,10 @@ int savestate_write_slot(int slot, const void* data, size_t size) {
         return 0;
     }
     ensure_dir(s_dir);
-    f = fopen(path, "wb");
-    if (!f) {
-        fprintf(stderr, "savestate: write_slot fopen('%s') failed: %s\n",
+    /* Replace the slot whole: a failed write keeps the player's old state. */
+    if (psx_write_file_atomic(path, data, size) != 0) {
+        fprintf(stderr, "savestate: write_slot('%s') failed: %s\n",
                 path, strerror(errno));
-        return 0;
-    }
-    wrote = fwrite(data, 1, size, f);
-    if (wrote != size) {
-        fprintf(stderr,
-                "savestate: write_slot fwrite('%s') %zu/%zu failed: %s\n",
-                path, wrote, size, strerror(errno));
-        fclose(f);
-        remove(path);
-        return 0;
-    }
-    int flushed = fflush(f) == 0;
-    int closed = fclose(f) == 0;
-    if (!flushed || !closed) {
-        fprintf(stderr, "savestate: write_slot flush/close('%s') failed: %s\n",
-                path, strerror(errno));
-        remove(path);
         return 0;
     }
     return 1;

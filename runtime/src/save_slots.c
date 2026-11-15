@@ -9,6 +9,7 @@
 #include "psx_save_slots.h"
 #include "memcard.h"
 #include "sio.h"
+#include "psx_write_atomic.h"
 
 #include <stdarg.h>
 #include <stdio.h>
@@ -90,32 +91,6 @@ static void make_dir(const char *dir) {
             tmp[i] = c;
         }
     }
-}
-
-static int write_atomic(const char *path, const void *data, size_t len) {
-    char tmp[sizeof(s_dir) + 64];
-    FILE *f;
-    int ok;
-    if (snprintf(tmp, sizeof(tmp), "%s.tmp", path) >= (int)sizeof(tmp)) return -1;
-    f = fopen(tmp, "wb");
-    if (!f) return -1;
-    ok = fwrite(data, 1, len, f) == len && fflush(f) == 0;
-#ifdef _WIN32
-    ok = ok && _commit(_fileno(f)) == 0;
-#else
-    ok = ok && fsync(fileno(f)) == 0;
-#endif
-    ok = (fclose(f) == 0) && ok;
-    if (ok) {
-#ifdef _WIN32
-        ok = MoveFileExA(tmp, path,
-                         MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH) != 0;
-#else
-        ok = rename(tmp, path) == 0;
-#endif
-    }
-    if (!ok) remove(tmp);
-    return ok ? 0 : -1;
 }
 
 /* Whole file into a malloc'd buffer (caller frees). NULL when missing. */
@@ -343,7 +318,7 @@ static int write_info(int slot, const PSXSaveSlotInfo *in) {
         put_str(&t, key, d->extra[i].value);
     }
     slot_path(path, sizeof(path), slot, "info");
-    return write_atomic(path, t.buf, t.n);
+    return psx_write_file_atomic(path, t.buf, t.n);
 }
 
 static void parse_info(const char *text, PSXSaveSlotInfo *out) {
@@ -614,7 +589,7 @@ int psx_save_slots_commit(int slot, const PSXSaveSlotDetails *details) {
     mcs = extract_file(img, chosen, &len);
     if (!mcs) return -2;
     slot_path(path, sizeof(path), slot, "mcs");
-    if (write_atomic(path, mcs, len) != 0) { free(mcs); return -3; }
+    if (psx_write_file_atomic(path, mcs, len) != 0) { free(mcs); return -3; }
 
     lock();
     info = s_slots[slot - 1].info;          /* keeps the player's name */
@@ -693,7 +668,7 @@ int psx_save_slots_copy(int from, int to) {
     mcs = read_all(path, &len);
     if (!mcs) return -1;
     slot_path(path, sizeof(path), to, "mcs");
-    if (write_atomic(path, mcs, len) != 0) { free(mcs); return -3; }
+    if (psx_write_file_atomic(path, mcs, len) != 0) { free(mcs); return -3; }
     memset(&c, 0, sizeof(c));
     cache_from_mcs(&c, mcs, len);
     free(mcs);
@@ -729,7 +704,7 @@ int psx_save_slots_import_card(const char *mcd_path, const char *prefix) {
         mcs = extract_file(card, b, &mlen);
         if (!mcs) continue;
         slot_path(path, sizeof(path), slot, "mcs");
-        if (write_atomic(path, mcs, mlen) != 0) { free(mcs); continue; }
+        if (psx_write_file_atomic(path, mcs, mlen) != 0) { free(mcs); continue; }
         memset(&c, 0, sizeof(c));
         cache_from_mcs(&c, mcs, mlen);
         free(mcs);

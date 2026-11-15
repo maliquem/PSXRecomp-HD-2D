@@ -97,11 +97,11 @@ int psx_disc_tray_cycle(int disc_1based, int origin)
         to = cdrom_disc_selected();
         if (!ok)
             result = PSX_DISC_TRAY_ERR_OPEN_FAILED;
-        /* The image handle was replaced either way (a failed open leaves the
-         * drive empty), so rewind snaps may no longer describe what is
-         * mounted. Re-selecting the mounted disc reopens the same file and
-         * behaves as a reinsert, which keeps the history. */
-        if (changed || !ok)
+        /* A changed disc makes rewind snaps describe media no longer mounted.
+         * A failed open changes nothing (the current disc stays, lid closed),
+         * and re-selecting the mounted disc reopens the same file and behaves
+         * as a reinsert: both keep the history. */
+        if (ok && changed)
             rewind_dropped = (int)psx_rewind_discard_history();
         if (ok) {
             /* cdrom_disc_select re-scoped savestates to the new disc; the slot

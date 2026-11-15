@@ -48,7 +48,7 @@ typedef enum PsxDiscTrayResult {
     PSX_DISC_TRAY_ERR_NO_ROSTER,   /* disc change asked of a single-disc title */
     PSX_DISC_TRAY_ERR_RANGE,       /* index outside the roster */
     PSX_DISC_TRAY_ERR_NETPLAY,     /* refused: lid cycles desync peers */
-    PSX_DISC_TRAY_ERR_OPEN_FAILED  /* image would not open; lid left open, no media */
+    PSX_DISC_TRAY_ERR_OPEN_FAILED  /* image would not open; current disc kept, lid untouched */
 } PsxDiscTrayResult;
 
 /* Open the lid, optionally change the disc, and let the timed close run.
@@ -58,8 +58,9 @@ typedef enum PsxDiscTrayResult {
  *                   the disc already mounted still cycles the lid, which is
  *                   what pressing eject on a console does.
  *
- * Returns a PsxDiscTrayResult. Only PSX_DISC_TRAY_OK opened the lid, except
- * PSX_DISC_TRAY_ERR_OPEN_FAILED, which opened it and found no readable image. */
+ * Returns a PsxDiscTrayResult. Only PSX_DISC_TRAY_OK opened the lid; on
+ * PSX_DISC_TRAY_ERR_OPEN_FAILED the new image would not open and the mounted
+ * disc stays in the closed drive. */
 int psx_disc_tray_cycle(int disc_1based, int origin);
 /* Main-thread VBlank policy. requested=0 ends a request episode. Readiness
  * may change without rearming it. Returns -1 when no attempt was made, else

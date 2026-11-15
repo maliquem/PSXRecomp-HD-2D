@@ -13,6 +13,8 @@
  */
 
 #include "memcard.h"
+#include "psx_write_atomic.h"
+#include <errno.h>
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -41,38 +43,6 @@ typedef struct {
 
 static MemCard cards[MAX_CARDS];
 static char s_memcard_dir[512];
-
-/* Write a whole card image to `path` so a crash or a full disk never leaves a
- * cut file: write a sibling temporary, sync it, then replace the target in
- * one step. The old file stays whole until the replacement lands. */
-static int memcard_write_file_atomic(const char *path, const uint8_t *data) {
-    char tmp[sizeof(((MemCard *)0)->filepath) + 8];
-    FILE *f;
-    size_t n;
-    int ok;
-    if (!path || !path[0]) return -1;
-    if (snprintf(tmp, sizeof(tmp), "%s.tmp", path) >= (int)sizeof(tmp)) return -1;
-    f = fopen(tmp, "wb");
-    if (!f) return -1;
-    n = fwrite(data, 1, MEMCARD_SIZE, f);
-    ok = (n == MEMCARD_SIZE) && fflush(f) == 0;
-#ifdef _WIN32
-    ok = ok && _commit(_fileno(f)) == 0;
-#else
-    ok = ok && fsync(fileno(f)) == 0;
-#endif
-    ok = (fclose(f) == 0) && ok;
-    if (ok) {
-#ifdef _WIN32
-        ok = MoveFileExA(tmp, path,
-                         MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH) != 0;
-#else
-        ok = rename(tmp, path) == 0;
-#endif
-    }
-    if (!ok) remove(tmp);
-    return ok ? 0 : -1;
-}
 
 /* ---- background writer -------------------------------------------------
  * The game writes a card one 128-byte sector at a time and each write asks
@@ -140,7 +110,7 @@ static void writer_loop(void) {
         s_writer_busy = 1;
         wunlock();
 
-        rc = memcard_write_file_atomic(job.path, job.data);
+        rc = psx_write_file_atomic(job.path, job.data, MEMCARD_SIZE);
 
         wlock();
         s_writer_busy = 0;
@@ -326,6 +296,7 @@ void memcard_init_slots(const char* dir, const MemcardSlotConfig slots[2]) {
             continue;  /* no path and no dir: cannot resolve a file */
         }
 
+        errno = 0;
         FILE* f = fopen(cards[i].filepath, "rb");
         if (f) {
             size_t n = fread(cards[i].data, 1, MEMCARD_SIZE, f);
@@ -333,9 +304,12 @@ void memcard_init_slots(const char* dir, const MemcardSlotConfig slots[2]) {
             if (n == MEMCARD_SIZE) {
                 cards[i].present = 1;
             }
-        } else {
+        } else if (errno == ENOENT) {
+            /* Only a missing card is created blank. One that exists but cannot
+             * be read (locked, no permission) keeps its bytes: the slot stays
+             * absent instead of formatting over the player's saves. */
             memcard_format(cards[i].data);
-            if (memcard_write_file_atomic(cards[i].filepath, cards[i].data) == 0) {
+            if (psx_write_file_atomic(cards[i].filepath, cards[i].data, MEMCARD_SIZE) == 0) {
                 cards[i].present = 1;
             }
         }
@@ -352,7 +326,7 @@ int memcard_format_file(const char* path) {
     uint8_t* data = (uint8_t*)malloc(MEMCARD_SIZE);
     if (!data) return -1;
     memcard_format(data);
-    int ok = memcard_write_file_atomic(path, data) == 0;
+    int ok = psx_write_file_atomic(path, data, MEMCARD_SIZE) == 0;
     free(data);
     return ok ? 0 : -1;
 }
@@ -422,7 +396,7 @@ void memcard_flush(int card) {
     if (cards[card].filepath[0] == '\0') return;
 
     if (writer_enqueue(card) == 0 ||
-        memcard_write_file_atomic(cards[card].filepath, cards[card].data) == 0) {
+        psx_write_file_atomic(cards[card].filepath, cards[card].data, MEMCARD_SIZE) == 0) {
         cards[card].dirty = 0;
     }
 }

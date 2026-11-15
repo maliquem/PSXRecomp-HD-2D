@@ -2289,6 +2289,19 @@ if(BUILD_TESTING)
              WORKING_DIRECTORY
                  ${CMAKE_CURRENT_BINARY_DIR}/sio_card_protocol_scratch)
 
+    # The player's card file: an unreadable card is never formatted over
+    # (MEM-1) and the swap temporary is private to the process (MEM-9).
+    add_executable(memcard_file_test
+        tests/test_memcard_file.c
+        src/memcard.c)
+    target_include_directories(memcard_file_test PRIVATE include src)
+    if(WIN32)
+        target_link_libraries(memcard_file_test PRIVATE advapi32)
+    endif()
+    file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/memcard_file_scratch)
+    add_test(NAME memcard_file_test COMMAND memcard_file_test
+             WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/memcard_file_scratch)
+
     # Save slots: a slot card mounted in RAM, read and written through the
     # real SIO card protocol, with the player's card file left alone.
     add_executable(save_slots_test

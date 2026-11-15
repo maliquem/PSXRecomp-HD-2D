@@ -1794,35 +1794,35 @@ Pure decision function that picks which BIOS HLE features to enable for a given 
 
 Saves and loads full emulator snapshots, with sections for CPU, timers, RAM, VRAM and modules, in a versioned file format.
 
-- `boot_state_mono_ms` (L34) — Monotonic millisecond clock used for save timing (QueryPerformanceCounter on Windows).
-- `boot_state_ram_cookie` (L105) — Header compatibility cookie (h.reserved): enhancement-memory layout, live RAM geometry and the fixed execution implementation.
-- `boot_state_layout_cookie` (L108) — Combines the memory layout, RAM size and execution cookies into one value that is checked on load.
-- `boot_state_last_vram_dirty_rows` (L132) — §96 telemetry: after the latest save, how many VRAM scanlines were dirty and whether the incremental mirror path patched (vs full memcpy).
-- `boot_state_last_vram_incremental` (L137) — Returns 1 when the last save patched only the dirty VRAM rows, rather than copying all of VRAM.
-- `boot_state_vram_mirror_reset` (L142) — Drop the §96 VRAM mirror (RB shutdown / before re-enable).
-- `sync_vram_mirror_for_save` (L152) — Build s_vram_mirror from live CPU VRAM using dirty rows when possible.
+- `boot_state_mono_ms` (L35) — Monotonic millisecond clock used for save timing (QueryPerformanceCounter on Windows).
+- `boot_state_ram_cookie` (L106) — Header compatibility cookie (h.reserved): enhancement-memory layout, live RAM geometry and the fixed execution implementation.
+- `boot_state_layout_cookie` (L109) — Combines the memory layout, RAM size and execution cookies into one value that is checked on load.
+- `boot_state_last_vram_dirty_rows` (L133) — §96 telemetry: after the latest save, how many VRAM scanlines were dirty and whether the incremental mirror path patched (vs full memcpy).
+- `boot_state_last_vram_incremental` (L138) — Returns 1 when the last save patched only the dirty VRAM rows, rather than copying all of VRAM.
+- `boot_state_vram_mirror_reset` (L143) — Drop the §96 VRAM mirror (RB shutdown / before re-enable).
+- `sync_vram_mirror_for_save` (L153) — Build s_vram_mirror from live CPU VRAM using dirty rows when possible.
 - `bs_write` (L232) — Writes bytes to the save output, either to the file or to the growing in-memory buffer; returns 1 on success.
-- `write_header_le` (L253) — Writes the save file header in little-endian byte order.
-- `write_section_raw` (L271) — Writes a section header (tag, flags, length) followed by the data, uncompressed.
-- `write_section` (L286) — Prefer zlib for large blobs (smaller disk + faster load on slow storage).
-- `write_module_section` (L310) — Writes a module's state as one section, using callbacks for its size and its bytes.
-- `write_cpu_section` (L322) — Writes the general registers and the other CPU state as one section.
-- `write_timer_section` (L353) — Writes the three timer counters, targets, modes and IRQ lines as one section.
-- `write_vram_section_full` (L378) — Classic full VRAM section (offline / zlib / tracking off).
-- `boot_state_save_to` (L409) — Writes a complete snapshot, header then sections, to an output stream.
-- `boot_state_save` (L578) — Saves a snapshot to the file at path; returns 1 on success.
-- `boot_state_save_buffer_ex` (L593) — Saves a snapshot into a newly allocated buffer, with zlib compression on or off.
-- `boot_state_save_buffer` (L615) — Saves a snapshot into a newly allocated buffer, compressing large sections.
-- `boot_state_save_buffer_raw` (L622) — Saves a snapshot into a newly allocated buffer with compression turned off.
-- `apply_section` (L631) — Applies one saved section's data to the CPU, memory or devices, chosen by its tag.
-- `validate_section` (L856) — Checks that a section's length matches what this build expects for its tag.
-- `boot_state_parse_header` (L887) — Reads and checks the file header; returns 0 for a bad or oversized file.
-- `boot_state_append_reason` (L910) — Appends a part name to the reason text, separated by a comma, if it fits.
-- `boot_state_check_buffer` (L924) — Checks whether a snapshot buffer can be loaded here, filling in a reason when it cannot.
-- `boot_state_load_buffer` (L1001) — Loads a snapshot from a buffer into the CPU and machine state, after checking it.
-- `boot_state_load` (L1155) — Loads a snapshot file from path into the CPU and machine state; returns 1 on success.
-- `boot_state_set_capture` (L1197) — Sets the file path for an automatic snapshot taken when the game's entry point is first reached.
-- `boot_state_trigger_capture` (L1205) — Called from fntrace when the game entry PC first dispatches.
+- `write_header_le` (L251) — Writes the save file header in little-endian byte order.
+- `write_section_raw` (L269) — Writes a section header (tag, flags, length) followed by the data, uncompressed.
+- `write_section` (L284) — Prefer zlib for large blobs (smaller disk + faster load on slow storage).
+- `write_module_section` (L308) — Writes a module's state as one section, using callbacks for its size and its bytes.
+- `write_cpu_section` (L320) — Writes the general registers and the other CPU state as one section.
+- `write_timer_section` (L351) — Writes the three timer counters, targets, modes and IRQ lines as one section.
+- `write_vram_section_full` (L376) — Classic full VRAM section (offline / zlib / tracking off).
+- `boot_state_save_to` (L407) — Writes a complete snapshot, header then sections, to an output stream.
+- `boot_state_save` (L576) — Saves a snapshot to the file at path; returns 1 on success.
+- `boot_state_save_buffer_ex` (L590) — Saves a snapshot into a newly allocated buffer, with zlib compression on or off.
+- `boot_state_save_buffer` (L612) — Saves a snapshot into a newly allocated buffer, compressing large sections.
+- `boot_state_save_buffer_raw` (L619) — Saves a snapshot into a newly allocated buffer with compression turned off.
+- `apply_section` (L628) — Applies one saved section's data to the CPU, memory or devices, chosen by its tag.
+- `validate_section` (L853) — Checks that a section's length matches what this build expects for its tag.
+- `boot_state_parse_header` (L884) — Reads and checks the file header; returns 0 for a bad or oversized file.
+- `boot_state_append_reason` (L907) — Appends a part name to the reason text, separated by a comma, if it fits.
+- `boot_state_check_buffer` (L921) — Checks whether a snapshot buffer can be loaded here, filling in a reason when it cannot.
+- `boot_state_load_buffer` (L998) — Loads a snapshot from a buffer into the CPU and machine state, after checking it.
+- `boot_state_load` (L1152) — Loads a snapshot file from path into the CPU and machine state; returns 1 on success.
+- `boot_state_set_capture` (L1194) — Sets the file path for an automatic snapshot taken when the game's entry point is first reached.
+- `boot_state_trigger_capture` (L1202) — Called from fntrace when the game entry PC first dispatches.
 
 ### runtime/src/bug_report.c
 
@@ -2130,7 +2130,7 @@ PS1 CD-ROM controller: register interface, command handling, sector reads, CD-DA
 - `cdrom_mounted_track_count` (L3644) — Returns the number of tracks in the mounted image, 0 when the drive is empty.
 - `cdrom_disc_selected` (L3648) — Returns the 1-based number of the selected disc.
 - `cdrom_disc_roster_path` (L3650) — Returns the path of a disc in the roster by 1-based index, or NULL if out of range.
-- `cdrom_disc_select` (L3665) — Change the mounted image mid-session, the way a player changes a disc.
+- `cdrom_disc_select` (L3666) — Change the mounted image mid-session, the way a player changes a disc.
 
 ### runtime/src/cdrom_irq.h
 
@@ -6466,43 +6466,42 @@ Core MDEC math: dequantisation, inverse DCT, block decode and YCbCr to RGB colou
 
 Memory card emulation: keeps the card images in RAM, saves them to files on a background writer thread, and formats, imports and exports card data.
 
-- `memcard_write_file_atomic` (L48) — Write a whole card image to 'path' so a crash or a full disk never leaves a cut file: write a sibling temporary, sync it, then replace the target in one step.
-- `wlock` (L100) — Takes the writer lock that guards the pending card writes.
-- `wunlock` (L101) — Releases the writer lock.
-- `wsignal` (L102) — Wakes every thread waiting on the given condition variable.
-- `wwait` (L104) — 0 when woken, -1 on timeout.
-- `wsleep` (L107) — Sleeps the calling thread for the given number of milliseconds.
-- `writer_loop` (L127) — Background thread loop: waits for a card with a pending write, then writes its image to disk.
-- `writer_main` (L159) — Thread entry point that runs writer_loop.
-- `writer_start_locked` (L165) — Called with s_wlock held.
-- `writer_enqueue` (L185) — Hand the card's current image to the writer.
-- `memcard_write_failing` (L200) — 1 while the card's background write keeps failing (disk full, no write access): the game already said "saved", so the host tells the player.
-- `memcard_flush_wait` (L202) — Wait until every queued card write is on disk.
-- `frame_checksum` (L221) — XOR checksum of bytes 0x00-0x7E, stored at 0x7F.
-- `memcard_format` (L230) — Format a 128KB card image to match a real PS1 blank card.
-- `memcard_ensure_dir` (L272) — mkdir -p: create each path component (guest sandbox is <memcard>/netplay).
-- `memcard_init_slots` (L305) — Initialize memcard subsystem with per-slot paths + enable flags.
-- `memcard_init` (L345) — Initialize memcard subsystem.
-- `memcard_format_file` (L350) — Write a freshly formatted (blank) 128KB card image to 'path', creating or overwriting it.
-- `memcard_summary_path` (L360) — Parse 'path' into 'out'.
-- `memcard_read_sector` (L399) — Read/write 128-byte sectors
-- `memcard_write_sector` (L408) — Writes one 128-byte sector into the card's RAM image and marks the card dirty; returns 0, or -1 for a bad card or sector.
-- `memcard_flush` (L418) — Flush pending writes to disk.
-- `memcard_flush_all` (L430) — Flushes every card, then waits up to 10 seconds for queued writes to reach the disk.
-- `memcard_is_present` (L437) — Check if card is present
-- `memcard_debug_info` (L442) — Reports a card's file path, first two bytes, presence and dirty flag; returns -1 for a bad card index.
-- `memcard_debug_read_buffer` (L454) — Copies up to len bytes of a present card's image, from offset, into dst; returns the number of bytes copied.
-- `memcard_export_raw` (L466) — Export / import a full 128KB card image (present cards only for export).
-- `memcard_import_raw` (L473) — Replaces a card's image with a 128KB raw copy and writes it to its file; returns -1 if the card has no path.
-- `memcard_rebind_dir` (L483) — Redirect on-disk paths for both slots (e.g.
-- `memcard_rebind_paths` (L500) — Restore explicit per-slot filepaths (from a prior snapshot).
-- `memcard_rebind_path` (L510) — Rebind ONE slot's on-disk path without touching RAM.
-- `memcard_reload_bound` (L535) — Reload in-memory images from the currently bound filepaths (0 = ok).
-- `memcard_dir` (L563) — Directory given to memcard_init/memcard_init_slots ("" when none).
-- `memcard_format_image` (L567) — Fill dst (MEMCARD_SIZE bytes) with a blank formatted card.
-- `memcard_mount_image` (L573) — Put a RAM-only image in a present slot (save slots): the slot's file is flushed first and then left alone; writes stay in RAM until unmount.
-- `memcard_unmount_image` (L584) — Leave the RAM-only image and put 'restore' back as the slot's contents (normally the image the slot held before the mount).
-- `memcard_image_mounted` (L593) — 1 while a RAM-only image is mounted in the slot.
+- `wlock` (L70) — Takes the writer lock that guards the pending card writes.
+- `wunlock` (L71) — Releases the writer lock.
+- `wsignal` (L72) — Wakes every thread waiting on the given condition variable.
+- `wwait` (L74) — 0 when woken, -1 on timeout.
+- `wsleep` (L77) — Sleeps the calling thread for the given number of milliseconds.
+- `writer_loop` (L97) — Background thread loop: waits for a card with a pending write, then writes its image to disk.
+- `writer_main` (L129) — Thread entry point that runs writer_loop.
+- `writer_start_locked` (L135) — Called with s_wlock held.
+- `writer_enqueue` (L155) — Hand the card's current image to the writer.
+- `memcard_write_failing` (L170) — 1 while the card's background write keeps failing (disk full, no write access): the game already said "saved", so the host tells the player.
+- `memcard_flush_wait` (L172) — Wait until every queued card write is on disk.
+- `frame_checksum` (L191) — XOR checksum of bytes 0x00-0x7E, stored at 0x7F.
+- `memcard_format` (L200) — Format a 128KB card image to match a real PS1 blank card.
+- `memcard_ensure_dir` (L242) — mkdir -p: create each path component (guest sandbox is <memcard>/netplay).
+- `memcard_init_slots` (L275) — Initialize memcard subsystem with per-slot paths + enable flags.
+- `memcard_init` (L319) — Initialize memcard subsystem.
+- `memcard_format_file` (L324) — Write a freshly formatted (blank) 128KB card image to 'path', creating or overwriting it.
+- `memcard_summary_path` (L334) — Parse 'path' into 'out'.
+- `memcard_read_sector` (L373) — Read/write 128-byte sectors
+- `memcard_write_sector` (L382) — Writes one 128-byte sector into the card's RAM image and marks the card dirty; returns 0, or -1 for a bad card or sector.
+- `memcard_flush` (L392) — Flush pending writes to disk.
+- `memcard_flush_all` (L404) — Flushes every card, then waits up to 10 seconds for queued writes to reach the disk.
+- `memcard_is_present` (L411) — Check if card is present
+- `memcard_debug_info` (L416) — Reports a card's file path, first two bytes, presence and dirty flag; returns -1 for a bad card index.
+- `memcard_debug_read_buffer` (L428) — Copies up to len bytes of a present card's image, from offset, into dst; returns the number of bytes copied.
+- `memcard_export_raw` (L440) — Export / import a full 128KB card image (present cards only for export).
+- `memcard_import_raw` (L447) — Replaces a card's image with a 128KB raw copy and writes it to its file; returns -1 if the card has no path.
+- `memcard_rebind_dir` (L457) — Redirect on-disk paths for both slots (e.g.
+- `memcard_rebind_paths` (L474) — Restore explicit per-slot filepaths (from a prior snapshot).
+- `memcard_rebind_path` (L484) — Rebind ONE slot's on-disk path without touching RAM.
+- `memcard_reload_bound` (L509) — Reload in-memory images from the currently bound filepaths (0 = ok).
+- `memcard_dir` (L537) — Directory given to memcard_init/memcard_init_slots ("" when none).
+- `memcard_format_image` (L541) — Fill dst (MEMCARD_SIZE bytes) with a blank formatted card.
+- `memcard_mount_image` (L547) — Put a RAM-only image in a present slot (save slots): the slot's file is flushed first and then left alone; writes stay in RAM until unmount.
+- `memcard_unmount_image` (L558) — Leave the RAM-only image and put 'restore' back as the slot's contents (normally the image the slot held before the mount).
+- `memcard_image_mounted` (L567) — 1 while a RAM-only image is mounted in the slot.
 
 ### runtime/src/memory.c
 
@@ -9300,102 +9299,101 @@ Render thread core: a single-producer ring that hands draw records from the emul
 
 Many save slots in place of one memory card: keeps each save as a card image on disk and mounts one slot at a time on the player's port.
 
-- `lock` (L43) — Takes the slot store's lock.
-- `unlock` (L44) — Releases the slot store's lock.
-- `make_dir` (L73) — Creates each folder along a path, like mkdir -p.
-- `write_atomic` (L95) — Writes data to path through a temporary file, so the file is not left half written.
-- `read_all` (L122) — Whole file into a malloc'd buffer (caller frees).
-- `slot_path` (L140) — Builds the file path for a slot with the given extension.
-- `frame_at` (L146) — Returns the card image's directory frame for a block.
-- `block_at` (L147) — Returns the card image's 8 KB data block for a block number.
-- `rd32` (L149) — Reads a little-endian 32-bit value.
-- `wr32` (L152) — Writes a little-endian 32-bit value.
-- `frame_seal` (L156) — Sets the frame's last byte to the XOR checksum of the rest of the frame.
-- `frame_name` (L163) — Copies a frame's 20-byte save name into out, terminated.
-- `is_kept` (L168) — 1 when a file name starts with a kept prefix, so it stays on every card.
-- `file_chain` (L177) — Blocks of the file starting at 'first', in order.
-- `extract_file` (L196) — One save as .mcs bytes: its first frame (next cleared) then its blocks.
-- `place_file` (L215) — Place a .mcs save on the card under 'name' (NULL = its own).
-- `remove_file` (L247) — Frees every block in a file's chain, clearing its directory frames.
-- `find_file` (L258) — Returns the first block of the file with the given name, or -1 when absent.
-- `text_add` (L277) — Appends a formatted string to the text buffer, if room remains.
-- `put_str` (L287) — Appends a key and its escaped string value as one text line.
-- `get_str` (L298) — Copies an escaped string value into dst, unescaping it and stopping at capacity.
-- `write_info` (L311) — Writes the slot's info text with its format, details and name.
-- `parse_info` (L349) — Parses the slot's info text lines into the save info and details.
-- `cache_from_mcs` (L407) — Fill a cache entry from a .mcs buffer (header and icon).
-- `cache_load` (L421) — Loads a slot's card image and info from disk into its cache entry.
-- `slot_ok` (L442) — 1 when a slot number is open and in range.
-- `psx_save_slots_open` (L446) — Open the slot store for 'count' slots (1..PSX_SAVE_SLOTS_MAX) in <memcard_dir>/slots (or 'dir' when not NULL) and read what is there.
-- `psx_save_slots_count` (L465) — Returns how many save slots are open.
-- `psx_save_slots_get` (L467) — Copy slot 'slot''s summary into out.
-- `psx_save_slots_icon` (L476) — Decode frame 'frame' of the save's icon into 16x16 RGBA (1024 bytes), transparent where the game's palette says so.
-- `psx_save_slots_keep_files` (L501) — Files whose card name starts with 'prefix' stay on every mounted card and are written back to the player's card (a title's settings file, say).
-- `psx_save_slots_mount` (L511) — Mount on card port 'card' (0 or 1) a RAM card with the kept files and the save in 'slot' (0 = no save: a card ready for a new one).
-- `psx_save_slots_commit` (L561) — Store into 'slot' the save the game wrote on the mounted card, with 'details' (may be NULL), and record the time.
-- `psx_save_slots_unmount` (L638) — Put the player's card back on the port (reported as freshly inserted).
-- `psx_save_slots_mounted` (L651) — The slot whose card is mounted (0 for the empty card), or -1.
-- `psx_save_slots_rename` (L653) — Name a save ("" or NULL clears it).
-- `psx_save_slots_delete` (L667) — Remove a save. 0 = ok, -1 bad slot, -3 the files could not be removed.
-- `psx_save_slots_copy` (L681) — Copy a save with its details and name.
-- `psx_save_slots_import_card` (L710) — Put each save of a .mcd card whose name starts with 'prefix' (NULL = all saves) into the first free slots.
+- `lock` (L44) — Takes the slot store's lock.
+- `unlock` (L45) — Releases the slot store's lock.
+- `make_dir` (L74) — Creates each folder along a path, like mkdir -p.
+- `read_all` (L97) — Whole file into a malloc'd buffer (caller frees).
+- `slot_path` (L115) — Builds the file path for a slot with the given extension.
+- `frame_at` (L121) — Returns the card image's directory frame for a block.
+- `block_at` (L122) — Returns the card image's 8 KB data block for a block number.
+- `rd32` (L124) — Reads a little-endian 32-bit value.
+- `wr32` (L127) — Writes a little-endian 32-bit value.
+- `frame_seal` (L131) — Sets the frame's last byte to the XOR checksum of the rest of the frame.
+- `frame_name` (L138) — Copies a frame's 20-byte save name into out, terminated.
+- `is_kept` (L143) — 1 when a file name starts with a kept prefix, so it stays on every card.
+- `file_chain` (L152) — Blocks of the file starting at 'first', in order.
+- `extract_file` (L171) — One save as .mcs bytes: its first frame (next cleared) then its blocks.
+- `place_file` (L190) — Place a .mcs save on the card under 'name' (NULL = its own).
+- `remove_file` (L222) — Frees every block in a file's chain, clearing its directory frames.
+- `find_file` (L233) — Returns the first block of the file with the given name, or -1 when absent.
+- `text_add` (L252) — Appends a formatted string to the text buffer, if room remains.
+- `put_str` (L262) — Appends a key and its escaped string value as one text line.
+- `get_str` (L273) — Copies an escaped string value into dst, unescaping it and stopping at capacity.
+- `write_info` (L286) — Writes the slot's info text with its format, details and name.
+- `parse_info` (L324) — Parses the slot's info text lines into the save info and details.
+- `cache_from_mcs` (L382) — Fill a cache entry from a .mcs buffer (header and icon).
+- `cache_load` (L396) — Loads a slot's card image and info from disk into its cache entry.
+- `slot_ok` (L417) — 1 when a slot number is open and in range.
+- `psx_save_slots_open` (L421) — Open the slot store for 'count' slots (1..PSX_SAVE_SLOTS_MAX) in <memcard_dir>/slots (or 'dir' when not NULL) and read what is there.
+- `psx_save_slots_count` (L440) — Returns how many save slots are open.
+- `psx_save_slots_get` (L442) — Copy slot 'slot''s summary into out.
+- `psx_save_slots_icon` (L451) — Decode frame 'frame' of the save's icon into 16x16 RGBA (1024 bytes), transparent where the game's palette says so.
+- `psx_save_slots_keep_files` (L476) — Files whose card name starts with 'prefix' stay on every mounted card and are written back to the player's card (a title's settings file, say).
+- `psx_save_slots_mount` (L486) — Mount on card port 'card' (0 or 1) a RAM card with the kept files and the save in 'slot' (0 = no save: a card ready for a new one).
+- `psx_save_slots_commit` (L536) — Store into 'slot' the save the game wrote on the mounted card, with 'details' (may be NULL), and record the time.
+- `psx_save_slots_unmount` (L613) — Put the player's card back on the port (reported as freshly inserted).
+- `psx_save_slots_mounted` (L626) — The slot whose card is mounted (0 for the empty card), or -1.
+- `psx_save_slots_rename` (L628) — Name a save ("" or NULL clears it).
+- `psx_save_slots_delete` (L642) — Remove a save. 0 = ok, -1 bad slot, -3 the files could not be removed.
+- `psx_save_slots_copy` (L656) — Copy a save with its details and name.
+- `psx_save_slots_import_card` (L685) — Put each save of a .mcd card whose name starts with 'prefix' (NULL = all saves) into the first free slots.
 
 ### runtime/src/savestate.c
 
 User save states: stages save and load requests, writes and reads slot files and thumbnails, and reports the result to the frontend.
 
-- `savestate_mono_ms` (L39) — Monotonic clock in milliseconds, used for load timing.
-- `savestate_load_trace_enabled` (L82) — 1 when PSX_NETPLAY_LOAD_TRACE is set to 1; the answer is cached.
-- `savestate_load_trace` (L92) — Prints one netplay load-trace line for a stage when tracing is on.
-- `savestate_resolve_resume_pc` (L125) — Mid-FMV / present-edge IRQ fast paths often pass resume_pc=0 (cpu->pc is parked).
-- `savestate_resume_pc_ok` (L152) — 1 when a PC is word-aligned, dispatchable and not an exception or reset vector.
-- `ensure_dir` (L160) — Create each path component (mkdir -p).
-- `clear_load_blob` (L194) — Frees the staged load blob and clears its length.
-- `savestate_title_blocked` (L200) — 1 when the running title blocks save states.
-- `savestate_set_title_blocked` (L201) — Session-only trusted-title policy.
-- `savestate_title_load_blocked` (L212) — 1 when the running title blocks loads only.
-- `savestate_set_title_load_blocked` (L213) — Same policy for loads only (saving stays available), e.g.
-- `title_save_request_blocked` (L221) — Refuses a save or load under a title block, telling the frontend why; returns 1 when refused.
-- `pst_peek_bios_checksum` (L238) — Peek .pst header bios_checksum (BOOT_STATE wire: magic, version, checksum).
-- `is_legacy_pst_name` (L263) — 1 when a file name has the legacy state_ hex-and-slot form.
-- `path_exists` (L281) — 1 when the path exists.
-- `migrate_legacy_pst_by_bios` (L292) — One-shot: move loose <root>/state_*_slot*.pst into openbios/ or scph1001/ by header bios_checksum.
-- `savestate_set_disc_scope` (L406) — Scope savestates to one disc of a multi-image set.
-- `note_unscoped_legacy_states` (L419) — Count state_*.pst sitting directly in the BIOS directory once per-disc scoping is active.
-- `savestate_configure` (L454) — Sets the save folder and the BIOS and entry identity, creating the folder as needed.
-- `savestate_dir` (L492) — Current slot directory (empty if not configured).
-- `savestate_root_dir` (L496) — Memcard/save root remembered from the last bios-scoped configure (empty until a non-empty bios_token was passed).
-- `savestate_bios_token` (L500) — Last bios_token / openbios_wordsum from a bios-scoped configure (token empty when never scoped; used to restore after netplay sandbox).
-- `savestate_openbios_wordsum` (L504) — Returns the OpenBIOS word checksum from the last configure.
-- `savestate_get_integrity` (L508) — Integrity key last passed to savestate_configure (for sandbox rebind).
-- `savestate_slot_path` (L513) — Build the on-disk path for slot [0..SAVESTATE_SLOTS-1].
-- `savestate_thumb_path` (L524) — Builds the thumbnail file path for a slot; returns 0 when unconfigured or out of range.
-- `savestate_hd_path` (L535) — HD texture-pack residency sidecar (gpu_hd_textures.h): host metadata next to the slot, never part of the .pst, so states stay renderer-independent.
-- `savestate_write_hd_residency` (L543) — Writes the slot's HD texture residency sidecar, or removes it when there is none to save.
-- `savestate_read_hd_residency` (L556) — Reads the slot's HD texture residency sidecar and restores it, when the file is present.
-- `savestate_slot_exists` (L574) — 1 if the slot file exists and is non-empty.
-- `savestate_slot_mtime` (L587) — Slot file modified time, seconds since the Unix epoch.
-- `savestate_capture_thumb` (L608) — Per-slot screenshot thumbnails captured after a successful save.
-- `savestate_read_thumb` (L647) — Reads a slot's thumbnail into out_argb; returns 1 when the size matches and the file is valid.
-- `savestate_slot_compatible` (L673) — 1 if the slot .pst header matches this build's integrity key (BIOS/entry/ codegen).
-- `savestate_read_slot` (L695) — Read/write a slot file (malloc'd buffer for read).
-- `savestate_write_slot` (L724) — Writes a slot's .pst file from the data bytes; returns 1 on success.
-- `netplay_user_blocked` (L765) — User APIs during netplay: guests cannot initiate; host must use psx_netplay_request_* so peers hash-probe and sync over STATE_*.
-- `request_save_inner` (L776) — Stages a save of the slot after checking title blocks and configuration.
-- `request_load_inner` (L796) — Stages a load of the slot after checking title blocks and configuration.
-- `savestate_request_save` (L815) — Stage a save/load of slot [0..SAVESTATE_SLOTS-1].
-- `savestate_request_load` (L820) — Stages a load of a slot; refused for guests during netplay.
-- `savestate_request_save_protocol` (L825) — Netplay follow-host sync only.
-- `savestate_request_load_protocol` (L830) — Netplay follow-host sync: clears any staged blob, then stages a load of the slot.
-- `savestate_request_load_blob_protocol` (L836) — Netplay LOAD transfer: stage an in-memory .pst (no disk write).
-- `savestate_pending` (L861) — 1 while a staged save/load has not yet been consumed by savestate_poll.
-- `savestate_status_json` (L865) — Machine-readable lifecycle receipt for deterministic debug harnesses.
-- `savestate_status_get` (L876) — Copies the save state generation, pending flag, and last result and slot into the out parameters.
-- `savestate_take_load_completed` (L884) — 1 once after a successful load restore (before scheduler longjmp).
-- `savestate_take_load_failed` (L890) — 1 once after a staged load failed in savestate_poll (missing/mismatched).
-- `savestate_take_save_failed` (L896) — 1 once after a staged save failed in savestate_poll (no safe resume PC, I/O error, etc.).
-- `savestate_last_save_pc` (L902) — Resume PC stamped into the last successful slot save (0 if none / failed).
-- `savestate_poll` (L906) — Called every block from psx_check_interrupts (in_exception == 0).
+- `savestate_mono_ms` (L40) — Monotonic clock in milliseconds, used for load timing.
+- `savestate_load_trace_enabled` (L83) — 1 when PSX_NETPLAY_LOAD_TRACE is set to 1; the answer is cached.
+- `savestate_load_trace` (L93) — Prints one netplay load-trace line for a stage when tracing is on.
+- `savestate_resolve_resume_pc` (L126) — Mid-FMV / present-edge IRQ fast paths often pass resume_pc=0 (cpu->pc is parked).
+- `savestate_resume_pc_ok` (L153) — 1 when a PC is word-aligned, dispatchable and not an exception or reset vector.
+- `ensure_dir` (L161) — Create each path component (mkdir -p).
+- `clear_load_blob` (L195) — Frees the staged load blob and clears its length.
+- `savestate_title_blocked` (L201) — 1 when the running title blocks save states.
+- `savestate_set_title_blocked` (L202) — Session-only trusted-title policy.
+- `savestate_title_load_blocked` (L213) — 1 when the running title blocks loads only.
+- `savestate_set_title_load_blocked` (L214) — Same policy for loads only (saving stays available), e.g.
+- `title_save_request_blocked` (L222) — Refuses a save or load under a title block, telling the frontend why; returns 1 when refused.
+- `pst_peek_bios_checksum` (L239) — Peek .pst header bios_checksum (BOOT_STATE wire: magic, version, checksum).
+- `is_legacy_pst_name` (L264) — 1 when a file name has the legacy state_ hex-and-slot form.
+- `path_exists` (L282) — 1 when the path exists.
+- `migrate_legacy_pst_by_bios` (L293) — One-shot: move loose <root>/state_*_slot*.pst into openbios/ or scph1001/ by header bios_checksum.
+- `savestate_set_disc_scope` (L407) — Scope savestates to one disc of a multi-image set.
+- `note_unscoped_legacy_states` (L420) — Count state_*.pst sitting directly in the BIOS directory once per-disc scoping is active.
+- `savestate_configure` (L455) — Sets the save folder and the BIOS and entry identity, creating the folder as needed.
+- `savestate_dir` (L493) — Current slot directory (empty if not configured).
+- `savestate_root_dir` (L497) — Memcard/save root remembered from the last bios-scoped configure (empty until a non-empty bios_token was passed).
+- `savestate_bios_token` (L501) — Last bios_token / openbios_wordsum from a bios-scoped configure (token empty when never scoped; used to restore after netplay sandbox).
+- `savestate_openbios_wordsum` (L505) — Returns the OpenBIOS word checksum from the last configure.
+- `savestate_get_integrity` (L509) — Integrity key last passed to savestate_configure (for sandbox rebind).
+- `savestate_slot_path` (L514) — Build the on-disk path for slot [0..SAVESTATE_SLOTS-1].
+- `savestate_thumb_path` (L525) — Builds the thumbnail file path for a slot; returns 0 when unconfigured or out of range.
+- `savestate_hd_path` (L536) — HD texture-pack residency sidecar (gpu_hd_textures.h): host metadata next to the slot, never part of the .pst, so states stay renderer-independent.
+- `savestate_write_hd_residency` (L544) — Writes the slot's HD texture residency sidecar, or removes it when there is none to save.
+- `savestate_read_hd_residency` (L554) — Reads the slot's HD texture residency sidecar and restores it, when the file is present.
+- `savestate_slot_exists` (L572) — 1 if the slot file exists and is non-empty.
+- `savestate_slot_mtime` (L585) — Slot file modified time, seconds since the Unix epoch.
+- `savestate_capture_thumb` (L606) — Per-slot screenshot thumbnails captured after a successful save.
+- `savestate_read_thumb` (L643) — Reads a slot's thumbnail into out_argb; returns 1 when the size matches and the file is valid.
+- `savestate_slot_compatible` (L669) — 1 if the slot .pst header matches this build's integrity key (BIOS/entry/ codegen).
+- `savestate_read_slot` (L691) — Read/write a slot file (malloc'd buffer for read).
+- `savestate_write_slot` (L720) — Writes a slot's .pst file from the data bytes; returns 1 on success.
+- `netplay_user_blocked` (L743) — User APIs during netplay: guests cannot initiate; host must use psx_netplay_request_* so peers hash-probe and sync over STATE_*.
+- `request_save_inner` (L754) — Stages a save of the slot after checking title blocks and configuration.
+- `request_load_inner` (L774) — Stages a load of the slot after checking title blocks and configuration.
+- `savestate_request_save` (L793) — Stage a save/load of slot [0..SAVESTATE_SLOTS-1].
+- `savestate_request_load` (L798) — Stages a load of a slot; refused for guests during netplay.
+- `savestate_request_save_protocol` (L803) — Netplay follow-host sync only.
+- `savestate_request_load_protocol` (L808) — Netplay follow-host sync: clears any staged blob, then stages a load of the slot.
+- `savestate_request_load_blob_protocol` (L814) — Netplay LOAD transfer: stage an in-memory .pst (no disk write).
+- `savestate_pending` (L839) — 1 while a staged save/load has not yet been consumed by savestate_poll.
+- `savestate_status_json` (L843) — Machine-readable lifecycle receipt for deterministic debug harnesses.
+- `savestate_status_get` (L854) — Copies the save state generation, pending flag, and last result and slot into the out parameters.
+- `savestate_take_load_completed` (L862) — 1 once after a successful load restore (before scheduler longjmp).
+- `savestate_take_load_failed` (L868) — 1 once after a staged load failed in savestate_poll (missing/mismatched).
+- `savestate_take_save_failed` (L874) — 1 once after a staged save failed in savestate_poll (no safe resume PC, I/O error, etc.).
+- `savestate_last_save_pc` (L880) — Resume PC stamped into the last successful slot save (0 if none / failed).
+- `savestate_poll` (L884) — Called every block from psx_check_interrupts (in_exception == 0).
 
 ### runtime/src/sgl/sgl_gl.c
 

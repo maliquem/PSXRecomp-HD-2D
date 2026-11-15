@@ -27,6 +27,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#ifdef _WIN32
+#include <windows.h>
+#else
+#include <unistd.h>
+#endif
 
 extern uint32_t psx_read_word(uint32_t addr);
 extern uint16_t psx_read_half(uint32_t addr);
@@ -349,6 +354,60 @@ static void check_dma_snapshot_ranges(void) {
     set_geometry(0);
 }
 
+/* EST-3: a .pst save replaces the old file in one step instead of writing
+ * over it. The target is a hard link to a second name: a writer that opens the
+ * target "wb" truncates and rewrites the shared bytes, so the second name
+ * changes; a temporary + rename only repoints the target name. */
+static void check_state_file_replaced_whole(void) {
+    static const char old_bytes[] = "OLD-PLAYER-STATE";
+    const char *path = "ram_map_atomic.pst";
+    const char *other = "ram_map_atomic_other.pst";
+    char got[sizeof old_bytes] = {0};
+    uint8_t *saved;
+    long n;
+    CPUState cpu;
+    FILE *f;
+
+    remove(path);
+    remove(other);
+    f = fopen(other, "wb");
+    if (!check(f != NULL, "state file test: create the old save")) return;
+    fwrite(old_bytes, 1, sizeof old_bytes, f);
+    fclose(f);
+#ifdef _WIN32
+    if (!check(CreateHardLinkA(path, other, NULL) != 0, "state file test: hard link")) return;
+#else
+    if (!check(link(other, path) == 0, "state file test: hard link")) return;
+#endif
+    set_geometry(0);
+    fill_cpu(&cpu, 0x5Au);
+    check(boot_state_save(&cpu, 0x12345678u, 0x80010000u, path) == 1,
+          "state file test: save succeeds");
+
+    f = fopen(other, "rb");
+    if (check(f != NULL, "state file test: other name still readable")) {
+        (void)fread(got, 1, sizeof got, f);
+        fclose(f);
+    }
+    check(memcmp(got, old_bytes, sizeof old_bytes) == 0,
+          "EST-3: save replaces the file whole (old bytes not overwritten in place)");
+
+    f = fopen(path, "rb");
+    if (check(f != NULL, "state file test: new save readable")) {
+        fseek(f, 0, SEEK_END);
+        n = ftell(f);
+        fseek(f, 0, SEEK_SET);
+        saved = (uint8_t *)malloc((size_t)n);
+        check(saved && fread(saved, 1, (size_t)n, f) == (size_t)n, "state file test: read new save");
+        fclose(f);
+        check(saved && boot_state_check_buffer(saved, (size_t)n, 0x12345678u, 0x80010000u, NULL, 0),
+              "state file test: new save is a valid state");
+        free(saved);
+    }
+    remove(path);
+    remove(other);
+}
+
 int main(void) {
     /* Process start and memory_init() without the mod: retail. */
     check_helpers_everywhere(0, "default geometry is retail 2 MiB mirroring");
@@ -372,6 +431,7 @@ int main(void) {
     }
     check_savestates();
     check_dma_snapshot_ranges();
+    check_state_file_replaced_whole();
 
     if (failures == 0) printf("PASS  psx_ram_runtime_map (2 and 8 MiB, real memory/DMA/savestate paths)\n");
     return failures ? 1 : 0;

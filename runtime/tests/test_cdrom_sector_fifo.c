@@ -5,6 +5,7 @@
 uint32_t i_stat, g_debug_current_func_addr, g_debug_last_store_pc;
 uint64_t s_frame_count, psx_cycle_count;
 static int test_dma_active;
+static int test_iso_closes;
 int dma_cdrom_transfer_active(void) { return test_dma_active; }
 void psx_irq_raise(uint32_t bit, uint32_t detail) { (void)detail; i_stat |= bit; }
 int iso_read_raw_sector(void* h, uint32_t lba, uint8_t* out, int size) {
@@ -262,7 +263,30 @@ static void snapshot_setloc_and_paused_head(void) {
     CHECK(msf_to_lba(read_min,read_sec,read_sect)==151);
     free(wire);
 }
+/* CDS-6: a disc change whose image will not open keeps the disc that is in
+ * the drive: no lid cycle, the old handle stays open and selected. */
+static void failed_disc_change_keeps_current_disc(void) {
+    static const char *const roster[2] = { "disc1.cue", "missing.cue" };
+    CdromLidState lid_before;
+    uint8_t stat_before;
+    void *handle_before;
+    int closes_before;
+    setup();
+    cdrom_disc_roster_set(roster, 2, 1);
+    handle_before = iso_handle;
+    closes_before = test_iso_closes;
+    lid_before = s_lid;
+    stat_before = stat_reg;
+    CHECK(cdrom_disc_select(2) == 0);
+    CHECK(iso_handle == handle_before && iso_handle != NULL);
+    CHECK(test_iso_closes == closes_before);
+    CHECK(cdrom_disc_selected() == 1);
+    CHECK(memcmp(&s_lid, &lid_before, sizeof lid_before) == 0);
+    CHECK(stat_reg == stat_before && !s_lid_irq_pending);
+}
+
 int main(void) {
+    failed_disc_change_keeps_current_disc();
     pause_read_resumes_position();
     snapshot_setloc_and_paused_head();
     invalid_setloc_preserves_target();
@@ -279,8 +303,9 @@ int main(void) {
 
 void spu_cd_audio_reset(void) {}
 void spu_cd_audio_push(const int16_t* stereo,int frames) {(void)stereo;(void)frames;}
-void* iso_open(const char* p) {(void)p;return (void*)1;}
-void iso_close(void* h) {(void)h;}
+/* A roster entry named "missing" stands for an image that will not open. */
+void* iso_open(const char* p) {return (p && strstr(p,"missing")) ? NULL : (void*)1;}
+void iso_close(void* h) {(void)h;++test_iso_closes;}
 int iso_has_subq_replacements(void* h) {(void)h;return 0;}
 int iso_read_subq(void* h,uint32_t lba,uint8_t* b,int n,int* v) {(void)h;(void)lba;(void)b;(void)n;*v=0;return 0;}
 int iso_read_cdda_sector(void* h,uint32_t lba,uint8_t* b,int n) {(void)h;(void)lba;memset(b,0,n);return 0;}

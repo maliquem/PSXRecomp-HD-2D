@@ -20,6 +20,7 @@
 #include "psx_icache.h"    /* g_psx_icache_tv — fetch-cost tags in BS_SEC_ICACHE */
 #include "psx_memory.h"
 #include "pst_wire.h"
+#include "psx_write_atomic.h"
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -220,9 +221,8 @@ static int sync_vram_mirror_for_save(void)
     return 1;
 }
 
-/* File or growable memory sink — both save paths share one serializer. */
+/* Growable memory sink — every save serializes here first. */
 typedef struct BsOut {
-    FILE*    f;       /* non-NULL => write to file */
     uint8_t* data;    /* memory sink (owned by caller / save_buffer) */
     size_t   len;
     size_t   cap;
@@ -231,8 +231,6 @@ typedef struct BsOut {
 
 static int bs_write(BsOut* o, const void* p, size_t n) {
     if (!n) return 1;
-    if (o->f)
-        return fwrite(p, 1, n, o->f) == n;
     if (o->len + n > o->cap) {
         size_t nc = o->cap ? o->cap * 2u : (256u * 1024u);
         uint8_t* nd;
@@ -577,16 +575,15 @@ static int boot_state_save_to(BsOut* o, const CPUState* cpu,
 
 int boot_state_save(const CPUState* cpu, uint32_t bios_checksum,
                     uint32_t entry_pc, const char* path) {
-    BsOut o;
-    FILE* f = fopen(path, "wb");
+    uint8_t* data = NULL;
+    size_t len = 0;
     int ok;
-    if (!f) return 0;
-    memset(&o, 0, sizeof o);
-    o.f = f;
-    ok = boot_state_save_to(&o, cpu, bios_checksum, entry_pc);
-    fclose(f);
-    if (!ok)
-        remove(path);
+    /* Serialize in memory, then replace the file whole: a crash or a full
+     * disk mid-save leaves the player's previous state intact. */
+    if (!boot_state_save_buffer(cpu, bios_checksum, entry_pc, &data, &len))
+        return 0;
+    ok = psx_write_file_atomic(path, data, len) == 0;
+    free(data);
     return ok;
 }
 
