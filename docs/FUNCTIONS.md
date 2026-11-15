@@ -572,11 +572,11 @@ Static scan that finds widescreen-related code sites in a PS1 executable and wri
 - `uimm_of` (L54) — Returns the 16-bit immediate of an instruction word, zero-extended.
 - `dis1` (L56) — Disassembles the single instruction at a pc into text, or returns an empty string when there is none.
 - `scan_widescreen` (L75) — Scans the executable's code for widescreen candidates, using the analysis database and options, and returns the results.
-- `of_kind` (L371) — Returns the candidates of one kind that meet a minimum confidence.
-- `imm_list` (L381) — Formats a list of immediates as comma-separated hex values.
-- `write_ws_sites_toml` (L390) — Writes the widescreen sites found by the scan as a TOML file, keeping candidates at or above the minimum confidence.
-- `write_ws_sites_json` (L444) — Writes the widescreen scan results to a JSON file, returning false with an error when that fails.
-- `print_ws_report` (L487) — Prints a text report of the widescreen scan results, showing the top candidates.
+- `of_kind` (L372) — Returns the candidates of one kind that meet a minimum confidence.
+- `imm_list` (L382) — Formats a list of immediates as comma-separated hex values.
+- `write_ws_sites_toml` (L391) — Writes the widescreen sites found by the scan as a TOML file, keeping candidates at or above the minimum confidence.
+- `write_ws_sites_json` (L445) — Writes the widescreen scan results to a JSON file, returning false with an error when that fails.
+- `print_ws_report` (L488) — Prints a text report of the widescreen scan results, showing the top candidates.
 
 ### recompiler/src/write_if_changed.h
 
@@ -5003,54 +5003,54 @@ Front door of the GPU layer: selects the active renderer backend (software, Open
 - `hd_invalidate_draw` (L103) — Residency describes guest native words, so any draw/copy which can touch an upload ends its identity.
 - `hd_invalidate_triangle` (L114) — Ends the residency identity of any uploaded texture that a triangle or line bounding box may touch.
 - `gr_set_backend` (L123) — Selects OpenGL, Vulkan or software rendering, falling back to software when the requested backend is unavailable.
-- `gr_backend` (L149) — Returns the backend actually in use, which can differ from the one requested after a fallback.
-- `gr_refresh_backend` (L154) — Re-fetch the OpenGL table after the render thread starts or stops (gl_backend_get then returns the recording table, or the direct one).
-- `gr_init` (L162) — ---- Dispatch wrappers (one line each; forward to the active backend) ----
-- `gr_set_scale` (L163) — Sets the internal resolution scale factor on the active backend.
-- `gr_scale` (L164) — Returns the internal resolution scale factor of the active backend.
-- `gr_set_texture_filter` (L165) — Sets texture filtering on the active backend: 0 nearest, 1 bilinear.
-- `gr_texture_filter` (L166) — Returns the active backend's texture filter mode (0 nearest, 1 bilinear).
-- `gr_set_semi_transparency` (L167) — Per-primitive draw state
-- `gr_set_mask_bits` (L168) — Sets the set-mask and check-mask bits for the next primitives on the active backend.
-- `gr_set_texture_window` (L169) — Sets the texture window from its raw GP0 value and remembers it for HD texture lookup.
-- `gr_set_color_modulation` (L170) — Sets the per-primitive color modulation values and the raw color word on the active backend.
-- `gr_set_precise_triangle` (L171) — Passes sub-pixel vertex positions for the next triangle to a backend that supports them.
-- `gr_set_perspective_triangle` (L176) — Perspective-correct UV weights for the NEXT triangle ([video] perspective_texturing).
-- `gr_set_dither` (L181) — GP0(E1h) bit 9 (dither enable).
-- `gr_set_depth_triangle` (L184) — PGXP depth for the NEXT triangle (docs/ENHANCEMENTS.md G1.14): the GTE SZ of each vertex (1..65535), taken from validated dataflow shadows.
-- `gr_fill_rect` (L188) — Primitives
-- `gr_copy_rect` (L189) — Copies a VRAM rectangle, first noting the copy for HD texture tracking when HD textures are active.
-- `gr_draw_flat_triangle` (L204) — Draws a flat-shaded triangle on the active backend, then invalidates HD texture residency it may touch.
-- `gr_draw_gouraud_triangle` (L209) — Draws a triangle with per-vertex colors on the active backend, then invalidates HD texture residency it may touch.
-- `gr_draw_textured_triangle` (L215) — Draws a textured triangle, first noting it for HD texture dumps and passing CLUT and texpage to the backend.
-- `gr_draw_shaded_textured_triangle` (L224) — Draws a textured triangle with per-vertex colors and CLUT, texpage and raw flags, forwarded to the backend.
-- `gr_draw_flat_rect` (L235) — Draws a flat-colored rectangle on the active backend, then invalidates HD texture residency it covers.
-- `gr_draw_textured_rect` (L236) — Draws a textured rectangle, first noting it for HD texture dumps, then invalidates the covered residency.
-- `gr_draw_textured_rect_scaled` (L242) — Draws a textured rectangle whose texture spans from u0,v0 to u1,v1, with the same HD texture hooks.
-- `gr_draw_line` (L248) — Draws a flat-colored line on the active backend and invalidates HD texture residency along its box.
-- `gr_draw_shaded_line` (L249) — Draws a line with two vertex colors on the active backend and invalidates HD texture residency along its box.
-- `gr_render_display` (L253) — Renders the displayed VRAM area into a 32-bit buffer for the CPU readout path; returns the backend's result.
-- `gr_render_display_hires` (L256) — Renders the displayed area at the high-resolution scale into a 32-bit buffer; returns the backend's result.
-- `gr_vram_upload_begin` (L259) — VRAM transfers A0 header invalidation precedes payload writes; an interrupted transfer cannot leave a prior immutable texture identity resident.
-- `gr_vram_upload_commit` (L263) — The A0 payload is complete: hand the staged words to the renderer and end the open upload.
-- `gr_vram_upload_set_open` (L267) — gpu.c's GP0 state says whether an A0 payload is still streaming into its array: GP1(01h) aborts one, a savestate load can restore one.
-- `gr_vram_write` (L268) — Writes one 15-bit pixel into VRAM at x,y and invalidates HD texture residency for that pixel.
-- `gr_vram_read` (L269) — Reads one 15-bit pixel from VRAM at x,y.
-- `gr_vram_transfer_in` (L270) — Copies a CPU-supplied block of pixels into VRAM and notes the upload for HD texture tracking.
-- `gr_vram_transfer_out` (L271) — Copies a block of VRAM pixels out to a CPU buffer.
-- `gr_set_draw_area` (L272) — Draw area / offset
-- `gr_get_draw_area` (L273) — Returns the current draw area corners through the four output pointers.
-- `gr_set_draw_offset` (L274) — Sets the draw offset on the active backend and remembers it for HD texture lookup.
-- `gr_wide_supported` (L277) — Native-wide compositor — present only on backends that supply it.
-- `gr_wide_configure` (L278) — Configures native-wide rendering with a wide width and offset, when the backend supports it.
-- `gr_wide_set_view` (L281) — Presentation-only origin and padding, independent of the symmetric budget.
-- `gr_wide_set_target` (L284) — Selects which native-wide surface receives mirrored draws for the back buffer at base_x.
-- `gr_wide_disable_target` (L287) — Stops mirroring draws into a native-wide surface, for offscreen draws without a framebuffer target.
-- `gr_wide_clear` (L290) — Clears a band of the native-wide surface for base_x across the full wide width, when the backend supports it.
-- `gr_wide_clear_margins` (L293) — sides: bit 0 = left synthetic margin, bit 1 = right.
-- `gr_wide_feedback_rect` (L297) — Copies a rectangle inside the native-wide surface with a color and flags, used for blending trails, when supported.
-- `gr_render_wide_display` (L303) — Converts the native-wide surface for the displayed buffer into an output pixel buffer; returns 0 if unsupported.
-- `gr_wide_dump_full` (L309) — Dumps the entire native-wide surface for base_x into an output buffer for diagnostics; returns 0 if unsupported.
+- `gr_backend` (L143) — Returns the backend actually in use, which can differ from the one requested after a fallback.
+- `gr_refresh_backend` (L148) — Re-fetch the OpenGL table after the render thread starts or stops (gl_backend_get then returns the recording table, or the direct one).
+- `gr_init` (L156) — ---- Dispatch wrappers (one line each; forward to the active backend) ----
+- `gr_set_scale` (L157) — Sets the internal resolution scale factor on the active backend.
+- `gr_scale` (L158) — Returns the internal resolution scale factor of the active backend.
+- `gr_set_texture_filter` (L159) — Sets texture filtering on the active backend: 0 nearest, 1 bilinear.
+- `gr_texture_filter` (L160) — Returns the active backend's texture filter mode (0 nearest, 1 bilinear).
+- `gr_set_semi_transparency` (L161) — Per-primitive draw state
+- `gr_set_mask_bits` (L162) — Sets the set-mask and check-mask bits for the next primitives on the active backend.
+- `gr_set_texture_window` (L163) — Sets the texture window from its raw GP0 value and remembers it for HD texture lookup.
+- `gr_set_color_modulation` (L164) — Sets the per-primitive color modulation values and the raw color word on the active backend.
+- `gr_set_precise_triangle` (L165) — Passes sub-pixel vertex positions for the next triangle to a backend that supports them.
+- `gr_set_perspective_triangle` (L170) — Perspective-correct UV weights for the NEXT triangle ([video] perspective_texturing).
+- `gr_set_dither` (L175) — GP0(E1h) bit 9 (dither enable).
+- `gr_set_depth_triangle` (L178) — PGXP depth for the NEXT triangle (docs/ENHANCEMENTS.md G1.14): the GTE SZ of each vertex (1..65535), taken from validated dataflow shadows.
+- `gr_fill_rect` (L182) — Primitives
+- `gr_copy_rect` (L183) — Copies a VRAM rectangle, first noting the copy for HD texture tracking when HD textures are active.
+- `gr_draw_flat_triangle` (L198) — Draws a flat-shaded triangle on the active backend, then invalidates HD texture residency it may touch.
+- `gr_draw_gouraud_triangle` (L203) — Draws a triangle with per-vertex colors on the active backend, then invalidates HD texture residency it may touch.
+- `gr_draw_textured_triangle` (L209) — Draws a textured triangle, first noting it for HD texture dumps and passing CLUT and texpage to the backend.
+- `gr_draw_shaded_textured_triangle` (L218) — Draws a textured triangle with per-vertex colors and CLUT, texpage and raw flags, forwarded to the backend.
+- `gr_draw_flat_rect` (L229) — Draws a flat-colored rectangle on the active backend, then invalidates HD texture residency it covers.
+- `gr_draw_textured_rect` (L230) — Draws a textured rectangle, first noting it for HD texture dumps, then invalidates the covered residency.
+- `gr_draw_textured_rect_scaled` (L236) — Draws a textured rectangle whose texture spans from u0,v0 to u1,v1, with the same HD texture hooks.
+- `gr_draw_line` (L242) — Draws a flat-colored line on the active backend and invalidates HD texture residency along its box.
+- `gr_draw_shaded_line` (L243) — Draws a line with two vertex colors on the active backend and invalidates HD texture residency along its box.
+- `gr_render_display` (L247) — Renders the displayed VRAM area into a 32-bit buffer for the CPU readout path; returns the backend's result.
+- `gr_render_display_hires` (L250) — Renders the displayed area at the high-resolution scale into a 32-bit buffer; returns the backend's result.
+- `gr_vram_upload_begin` (L253) — VRAM transfers A0 header invalidation precedes payload writes; an interrupted transfer cannot leave a prior immutable texture identity resident.
+- `gr_vram_upload_commit` (L257) — The A0 payload is complete: hand the staged words to the renderer and end the open upload.
+- `gr_vram_upload_set_open` (L261) — gpu.c's GP0 state says whether an A0 payload is still streaming into its array: GP1(01h) aborts one, a savestate load can restore one.
+- `gr_vram_write` (L262) — Writes one 15-bit pixel into VRAM at x,y and invalidates HD texture residency for that pixel.
+- `gr_vram_read` (L263) — Reads one 15-bit pixel from VRAM at x,y.
+- `gr_vram_transfer_in` (L264) — Copies a CPU-supplied block of pixels into VRAM and notes the upload for HD texture tracking.
+- `gr_vram_transfer_out` (L265) — Copies a block of VRAM pixels out to a CPU buffer.
+- `gr_set_draw_area` (L266) — Draw area / offset
+- `gr_get_draw_area` (L267) — Returns the current draw area corners through the four output pointers.
+- `gr_set_draw_offset` (L268) — Sets the draw offset on the active backend and remembers it for HD texture lookup.
+- `gr_wide_supported` (L271) — Native-wide compositor — present only on backends that supply it.
+- `gr_wide_configure` (L272) — Configures native-wide rendering with a wide width and offset, when the backend supports it.
+- `gr_wide_set_view` (L275) — Presentation-only origin and padding, independent of the symmetric budget.
+- `gr_wide_set_target` (L278) — Selects which native-wide surface receives mirrored draws for the back buffer at base_x.
+- `gr_wide_disable_target` (L281) — Stops mirroring draws into a native-wide surface, for offscreen draws without a framebuffer target.
+- `gr_wide_clear` (L284) — Clears a band of the native-wide surface for base_x across the full wide width, when the backend supports it.
+- `gr_wide_clear_margins` (L287) — sides: bit 0 = left synthetic margin, bit 1 = right.
+- `gr_wide_feedback_rect` (L291) — Copies a rectangle inside the native-wide surface with a color and flags, used for blending trails, when supported.
+- `gr_render_wide_display` (L297) — Converts the native-wide surface for the displayed buffer into an output pixel buffer; returns 0 if unsupported.
+- `gr_wide_dump_full` (L303) — Dumps the entire native-wide surface for base_x into an output buffer for diagnostics; returns 0 if unsupported.
 
 ### runtime/src/gpu_sw_edges.h
 
@@ -8871,92 +8871,92 @@ Holds the live main-RAM size: retail 2 MiB by default, with an opt-in 8 MiB expa
 
 Rewind feature: a ring of recent machine snapshots with thumbnails, plus the on-screen filmstrip panel for stepping back in time.
 
-- `psx_rewind_title_blocked` (L108) — 1 while the running title has blocked rewind, so no history is captured and Rewind will not open.
-- `psx_rewind_set_title_blocked` (L115) — Title block (mod API psx_mod_set_rewind_blocked): while set, Rewind refuses to open and captures no history (the ring keeps what it has).
-- `psx_rewind_snap_count` (L116) — Snapshots in the ring (debug/status).
-- `psx_rewind_set_depth` (L117) — Snap count kept in the local rewind ring.
-- `psx_rewind_set_interval` (L118) — Sets the preferred capture interval in frames, snapped to the nearest offered value (1, 4, 8, 12 or 15).
-- `psx_rewind_set_enabled` (L119) — Settings/launcher preference.
-- `psx_rewind_configure` (L120) — Builds the snapshot ring and thumbnail and tick buffers for this BIOS and entry point when rewind is wanted; disables it on allocation failure.
-- `psx_rewind_shutdown` (L125) — Frees the ring and buffers and resets the panel, slide and any pending load or capture.
-- `psx_rewind_discard_history` (L126) — A different mounted disc invalidates every earlier rewind snapshot.
-- `psx_rewind_enabled` (L127) — 1 when rewind is wanted and configured with a live snapshot ring.
-- `psx_rewind_is_open` (L128) — 1 while the rewind panel is open.
-- `psx_rewind_needs_present` (L129) — 1 while open or slide animation still visible.
-- `psx_rewind_note_frame` (L130) — Guest vblank: bump frame counter / schedule capture when not paused.
-- `psx_rewind_poll` (L131) — Safe BB-edge (beside savestate_poll): capture due snap / apply load.
-- `psx_rewind_toggle` (L136) — Opens or closes the panel; refuses with an on-screen message when rewind is off, in netplay or title-blocked; returns 1 when the state changed.
-- `psx_rewind_cancel` (L137) — Closes the open panel without loading anything; returns 1 if it was open.
-- `psx_rewind_accept` (L138) — Schedules a load of the selected snapshot for the next poll and closes the panel; returns 0 when nothing is selected.
-- `psx_rewind_move` (L139) — Moves the panel selection by delta, clamped to the stored snapshots.
-- `psx_rewind_nav_held` (L140) — Turns held left/right, accept and cancel input into edges, moving the selection with key repeat while open.
-- `psx_rewind_present_tick` (L146) — Advances the panel slide animation toward open or closed using now_ms.
-- `psx_rewind_overlay_image` (L147) — Bottom-panel ARGB8888 (little-endian).
-- `psx_rewind_slide` (L154) — 0..1 slide (0 = off-screen below, 1 = docked).
-- `env_u32` (L201) — Reads a non-negative integer from an environment variable, clamped to lo..hi, or returns def when unset.
-- `normalize_rewind_depth` (L216) — UI offers 50/100/150/200; nearest match keeps hand-edited toml values sane.
-- `normalize_rewind_interval` (L233) — UI offers 1/4/8/12/15.
-- `rewind_wanted` (L277) — Resolves on/off, capture interval, FMV interval and depth once from environment variables and preferences; returns whether rewind is enabled.
-- `rewind_fmv_media_active` (L312) — Same heuristic as netplay rb_fmv_media_active — denser snaps while media runs.
-- `rewind_capture_interval` (L323) — Returns the capture interval in frames, denser while FMV media is running.
-- `resume_pc_ok` (L331) — 1 when a PC is word-aligned, dispatchable and not an exception or reset vector.
-- `rewind_resolve_resume_pc` (L339) — Mid-FMV / present-edge IRQ paths often pass hint=0 — same latch walk as savestate_resolve_resume_pc / selfcheck sc_pick_snap_pc.
-- `capture_thumb` (L361) — Fills a 128 by 96 thumbnail from the current display, black when the display is off.
-- `list_drop_after` (L382) — Removes list entries newer than tick and keeps the selection in range.
-- `list_push` (L402) — Adds a tick and its thumbnail to the list, replacing the same tick or dropping the oldest when full.
-- `do_capture` (L531) — Saves a machine snapshot at a safe resume point into the ring, with its thumbnail; returns 1 on success.
-- `rewind_load_blocked` (L565) — Same continuation gates as savestate_poll: a load longjmps to the scheduler, so it must not unwind a mod callback (psx_mod_call_guest restores registers after it) or a host call that restores register
-- `do_load` (L572) — Restores the snapshot at tick, drops newer snapshots, resyncs timing and resumes; returns 0 on failure.
-- `blit_thumb` (L801) — Draws a thumbnail scaled into a panel cell, with a border highlighted when selected.
-- `glyph_fill_rect` (L834) — Fills a clipped rectangle in the panel buffer with a colour.
-- `glyph_fill_disc` (L848) — Fills a clipped solid disc of radius r in the panel buffer.
-- `glyph_line` (L861) — Draws a thick line into the panel buffer by stepping pixels from one end to the other.
-- `draw_psx_button` (L890) — Draws a PSX pad button glyph (x, o or square) at a position on the panel.
-- `draw_char` (L908) — Draws one 8 by 8 font glyph into the panel buffer, clipped to its bounds.
-- `draw_text` (L932) — Draws a string in the panel font, uppercased, advancing 8 pixels per character.
-- `rasterize_panel` (L947) — Redraws the whole filmstrip panel: title, counter, snapshot cards, selection and key hints.
+- `psx_rewind_title_blocked` (L47) — 1 while the running title has blocked rewind, so no history is captured and Rewind will not open.
+- `psx_rewind_set_title_blocked` (L54) — Title block (mod API psx_mod_set_rewind_blocked): while set, Rewind refuses to open and captures no history (the ring keeps what it has).
+- `psx_rewind_snap_count` (L55) — Snapshots in the ring (debug/status).
+- `psx_rewind_set_depth` (L56) — Snap count kept in the local rewind ring.
+- `psx_rewind_set_interval` (L57) — Sets the preferred capture interval in frames, snapped to the nearest offered value (1, 4, 8, 12 or 15).
+- `psx_rewind_set_enabled` (L58) — Settings/launcher preference.
+- `psx_rewind_configure` (L59) — Builds the snapshot ring and thumbnail and tick buffers for this BIOS and entry point when rewind is wanted; disables it on allocation failure.
+- `psx_rewind_shutdown` (L64) — Frees the ring and buffers and resets the panel, slide and any pending load or capture.
+- `psx_rewind_discard_history` (L65) — A different mounted disc invalidates every earlier rewind snapshot.
+- `psx_rewind_enabled` (L66) — 1 when rewind is wanted and configured with a live snapshot ring.
+- `psx_rewind_is_open` (L67) — 1 while the rewind panel is open.
+- `psx_rewind_needs_present` (L68) — 1 while open or slide animation still visible.
+- `psx_rewind_note_frame` (L69) — Guest vblank: bump frame counter / schedule capture when not paused.
+- `psx_rewind_poll` (L70) — Safe BB-edge (beside savestate_poll): capture due snap / apply load.
+- `psx_rewind_toggle` (L75) — Opens or closes the panel; refuses with an on-screen message when rewind is off, in netplay or title-blocked; returns 1 when the state changed.
+- `psx_rewind_cancel` (L76) — Closes the open panel without loading anything; returns 1 if it was open.
+- `psx_rewind_accept` (L77) — Schedules a load of the selected snapshot for the next poll and closes the panel; returns 0 when nothing is selected.
+- `psx_rewind_move` (L78) — Moves the panel selection by delta, clamped to the stored snapshots.
+- `psx_rewind_nav_held` (L79) — Turns held left/right, accept and cancel input into edges, moving the selection with key repeat while open.
+- `psx_rewind_present_tick` (L85) — Advances the panel slide animation toward open or closed using now_ms.
+- `psx_rewind_overlay_image` (L86) — Bottom-panel ARGB8888 (little-endian).
+- `psx_rewind_slide` (L93) — 0..1 slide (0 = off-screen below, 1 = docked).
+- `env_u32` (L140) — Reads a non-negative integer from an environment variable, clamped to lo..hi, or returns def when unset.
+- `normalize_rewind_depth` (L155) — UI offers 50/100/150/200; nearest match keeps hand-edited toml values sane.
+- `normalize_rewind_interval` (L172) — UI offers 1/4/8/12/15.
+- `rewind_wanted` (L216) — Resolves on/off, capture interval, FMV interval and depth once from environment variables and preferences; returns whether rewind is enabled.
+- `rewind_fmv_media_active` (L251) — Same heuristic as netplay rb_fmv_media_active — denser snaps while media runs.
+- `rewind_capture_interval` (L262) — Returns the capture interval in frames, denser while FMV media is running.
+- `resume_pc_ok` (L270) — 1 when a PC is word-aligned, dispatchable and not an exception or reset vector.
+- `rewind_resolve_resume_pc` (L278) — Mid-FMV / present-edge IRQ paths often pass hint=0 — same latch walk as savestate_resolve_resume_pc / selfcheck sc_pick_snap_pc.
+- `capture_thumb` (L300) — Fills a 128 by 96 thumbnail from the current display, black when the display is off.
+- `list_drop_after` (L321) — Removes list entries newer than tick and keeps the selection in range.
+- `list_push` (L341) — Adds a tick and its thumbnail to the list, replacing the same tick or dropping the oldest when full.
+- `do_capture` (L470) — Saves a machine snapshot at a safe resume point into the ring, with its thumbnail; returns 1 on success.
+- `rewind_load_blocked` (L504) — Same continuation gates as savestate_poll: a load longjmps to the scheduler, so it must not unwind a mod callback (psx_mod_call_guest restores registers after it) or a host call that restores register
+- `do_load` (L511) — Restores the snapshot at tick, drops newer snapshots, resyncs timing and resumes; returns 0 on failure.
+- `blit_thumb` (L740) — Draws a thumbnail scaled into a panel cell, with a border highlighted when selected.
+- `glyph_fill_rect` (L773) — Fills a clipped rectangle in the panel buffer with a colour.
+- `glyph_fill_disc` (L787) — Fills a clipped solid disc of radius r in the panel buffer.
+- `glyph_line` (L800) — Draws a thick line into the panel buffer by stepping pixels from one end to the other.
+- `draw_psx_button` (L829) — Draws a PSX pad button glyph (x, o or square) at a position on the panel.
+- `draw_char` (L847) — Draws one 8 by 8 font glyph into the panel buffer, clipped to its bounds.
+- `draw_text` (L871) — Draws a string in the panel font, uppercased, advancing 8 pixels per character.
+- `rasterize_panel` (L886) — Redraws the whole filmstrip panel: title, counter, snapshot cards, selection and key hints.
 
 ### runtime/src/psx_savestate_menu.c
 
 Full-screen save-state slot browser drawn into a software panel, with optional title canvases, HUD and toast notices.
 
-- `fill_rect` (L92) — Fills a clipped rectangle of the menu panel with a colour.
-- `stroke_rect` (L105) — Draws a one-pixel outline rectangle on the menu panel.
-- `fill_disc` (L113) — Fills a clipped solid disc of radius r on the menu panel.
-- `draw_line` (L125) — Draws a thick line into a buffer by stepping pixels from one end to the other.
-- `draw_psx_button` (L153) — Draws a PSX pad button glyph (x, square or circle) at a position on the menu panel.
-- `draw_char` (L175) — Draws one 8 by 8 font glyph at a scale factor, uppercased, with '?' for unknown characters.
-- `draw_text` (L198) — Draws a string at a scale factor, advancing 8 times the scale per character.
-- `psx_ui_text` (L208) — Draws text into any ARGB buffer with the menu font and scale; returns the x position after the text.
-- `blit_thumb` (L231) — Scales a save thumbnail into a rectangle of the panel, forcing it opaque.
-- `format_slot_status` (L245) — Writes a slot's status line: NEW SLOT when empty, otherwise the save's date and time.
-- `refresh_thumbs` (L264) — Reloads every slot's thumbnail from its save file.
-- `rasterize_panel` (L279) — Redraws the whole slot browser panel: header, slot cards, selection and key hints.
-- `psx_savestate_menu_set_state` (L351) — Sets whether the menu is open and which slot is selected (clamped), marking it for redraw when changed.
-- `psx_savestate_menu_note_slots_changed` (L363) — Marks the menu for redraw after the save slots changed.
-- `psx_savestate_menu_needs_present` (L369) — 1 while the menu, page or a notice is visible, so the frame must be presented.
-- `psx_savestate_menu_set_renderer` (L374) — Sets the renderer that paints the selected slot's title canvas and marks the menu for redraw.
-- `all_dirty` (L380) — Marks the menu, page, HUD and notices for redraw.
-- `psx_savestate_menu_set_window` (L388) — The window's size, for the canvas' aspect (redrawn when it changes).
-- `psx_savestate_menu_set_scale` (L396) — Every title canvas (this menu's, the page's, the HUD's, the notices') is 240 x scale lines and 320..1024 x scale columns (1 or 2; 1 by default): a title drawing the PSX picture's pixels as scale x sca
-- `psx_savestate_menu_scale` (L405) — Returns the canvas scale factor (1 or 2).
-- `psx_savestate_menu_set_page` (L410) — Sets the title's full-screen page drawn behind the menu; marks the menu and HUD for redraw.
-- `psx_savestate_menu_page_redraw` (L418) — Asks for the title page to be drawn again at the next present.
-- `psx_savestate_menu_set_hud` (L423) — Sets the title's HUD renderer; clearing it turns the HUD off.
-- `psx_savestate_menu_hud_redraw` (L430) — Asks for the HUD to be drawn again at the next present.
-- `psx_savestate_menu_set_toast` (L435) — A title's notices over all of it (psx_mod_set_title_toast): blended over the menu's or page's canvas or the HUD, or shown alone; a renderer that returns 2 is drawn again at the next present.
-- `psx_savestate_menu_toast_redraw` (L442) — Asks for the notices to be drawn again at the next present.
-- `psx_savestate_menu_overlay_blend` (L447) — The current image has transparency (a title's canvas): blend it.
-- `canvas_height` (L453) — Canvas height in pixels: 240 lines times the scale.
-- `canvas_width` (L458) — Canvas width in pixels matching the window aspect, clamped between 320 and the maximum times the scale.
-- `canvas_buffer` (L466) — Allocates the canvas buffer on first use at maximum size and returns it.
-- `render_canvas` (L475) — The title's canvas, when it has a renderer and draws this time.
-- `title_canvas` (L485) — Draws the title's canvas with its renderer into the buffer; returns 1 when it drew.
-- `give` (L495) — Returns an image pointer and its size through the out parameters; reports whether pixels exist.
-- `base_image` (L504) — The menu's, page's or HUD's image, without the notices.
-- `toast_update` (L542) — The notices' canvas, drawn when asked or while moving (renderer 2).
-- `blend_over` (L559) — Straight-alpha "over": the notices on top of the canvas under them.
-- `psx_savestate_menu_overlay_image` (L579) — Returns the final overlay image: the base image, with the notices blended on top when they are shown.
+- `fill_rect` (L60) — Fills a clipped rectangle of the menu panel with a colour.
+- `stroke_rect` (L73) — Draws a one-pixel outline rectangle on the menu panel.
+- `fill_disc` (L81) — Fills a clipped solid disc of radius r on the menu panel.
+- `draw_line` (L93) — Draws a thick line into a buffer by stepping pixels from one end to the other.
+- `draw_psx_button` (L121) — Draws a PSX pad button glyph (x, square or circle) at a position on the menu panel.
+- `draw_char` (L143) — Draws one 8 by 8 font glyph at a scale factor, uppercased, with '?' for unknown characters.
+- `draw_text` (L166) — Draws a string at a scale factor, advancing 8 times the scale per character.
+- `psx_ui_text` (L176) — Draws text into any ARGB buffer with the menu font and scale; returns the x position after the text.
+- `blit_thumb` (L199) — Scales a save thumbnail into a rectangle of the panel, forcing it opaque.
+- `format_slot_status` (L213) — Writes a slot's status line: NEW SLOT when empty, otherwise the save's date and time.
+- `refresh_thumbs` (L232) — Reloads every slot's thumbnail from its save file.
+- `rasterize_panel` (L247) — Redraws the whole slot browser panel: header, slot cards, selection and key hints.
+- `psx_savestate_menu_set_state` (L319) — Sets whether the menu is open and which slot is selected (clamped), marking it for redraw when changed.
+- `psx_savestate_menu_note_slots_changed` (L331) — Marks the menu for redraw after the save slots changed.
+- `psx_savestate_menu_needs_present` (L337) — 1 while the menu, page or a notice is visible, so the frame must be presented.
+- `psx_savestate_menu_set_renderer` (L342) — Sets the renderer that paints the selected slot's title canvas and marks the menu for redraw.
+- `all_dirty` (L348) — Marks the menu, page, HUD and notices for redraw.
+- `psx_savestate_menu_set_window` (L356) — The window's size, for the canvas' aspect (redrawn when it changes).
+- `psx_savestate_menu_set_scale` (L364) — Every title canvas (this menu's, the page's, the HUD's, the notices') is 240 x scale lines and 320..1024 x scale columns (1 or 2; 1 by default): a title drawing the PSX picture's pixels as scale x sca
+- `psx_savestate_menu_scale` (L373) — Returns the canvas scale factor (1 or 2).
+- `psx_savestate_menu_set_page` (L378) — Sets the title's full-screen page drawn behind the menu; marks the menu and HUD for redraw.
+- `psx_savestate_menu_page_redraw` (L386) — Asks for the title page to be drawn again at the next present.
+- `psx_savestate_menu_set_hud` (L391) — Sets the title's HUD renderer; clearing it turns the HUD off.
+- `psx_savestate_menu_hud_redraw` (L398) — Asks for the HUD to be drawn again at the next present.
+- `psx_savestate_menu_set_toast` (L403) — A title's notices over all of it (psx_mod_set_title_toast): blended over the menu's or page's canvas or the HUD, or shown alone; a renderer that returns 2 is drawn again at the next present.
+- `psx_savestate_menu_toast_redraw` (L410) — Asks for the notices to be drawn again at the next present.
+- `psx_savestate_menu_overlay_blend` (L415) — The current image has transparency (a title's canvas): blend it.
+- `canvas_height` (L421) — Canvas height in pixels: 240 lines times the scale.
+- `canvas_width` (L426) — Canvas width in pixels matching the window aspect, clamped between 320 and the maximum times the scale.
+- `canvas_buffer` (L434) — Allocates the canvas buffer on first use at maximum size and returns it.
+- `render_canvas` (L443) — The title's canvas, when it has a renderer and draws this time.
+- `title_canvas` (L453) — Draws the title's canvas with its renderer into the buffer; returns 1 when it drew.
+- `give` (L463) — Returns an image pointer and its size through the out parameters; reports whether pixels exist.
+- `base_image` (L472) — The menu's, page's or HUD's image, without the notices.
+- `toast_update` (L510) — The notices' canvas, drawn when asked or while moving (renderer 2).
+- `blend_over` (L527) — Straight-alpha "over": the notices on top of the canvas under them.
+- `psx_savestate_menu_overlay_image` (L547) — Returns the final overlay image: the base image, with the notices blended on top when they are shown.
 
 ### runtime/src/psx_sdl_audio.cpp
 
