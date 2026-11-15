@@ -1853,6 +1853,12 @@ BiosConfig load_bios_config(const fs::path& config_path_in) {
             : load_address;
     const uint32_t text_size =
         parse_hex(toml::find<std::string>(prog, "text_size"), "program.text_size");
+    // Discovery and emission use the fixed ROM window (main_bios.cpp kBiosBase/kBiosSize).
+    if (load_address != 0xBFC00000u || text_size != 0x80000u)
+        throw std::runtime_error(fmt::format(
+            "{}: [program] load_address must be \"0xBFC00000\" and text_size \"0x80000\" "
+            "(got 0x{:08X} and 0x{:X})",
+            config_path.string(), load_address, text_size));
 
     // [program.image] — declared identity (optional)
     std::string image_sha256;
@@ -1890,9 +1896,12 @@ BiosConfig load_bios_config(const fs::path& config_path_in) {
             : std::string{"generated"};
     const fs::path out_dir = PSXRecompV4::host_resolve(root, out_dir_field);
 
-    const bool strict = recomp.contains("strict")
-                            ? toml::find<bool>(recomp, "strict")
-                            : true;
+    // Nothing reads strict; the key stays so existing files load, but false would be a no-op.
+    if (recomp.contains("strict") && !toml::find<bool>(recomp, "strict"))
+        throw std::runtime_error(fmt::format(
+            "{}: [recompiler] strict = false is no longer supported (remove the key or set it to true)",
+            config_path.string()));
+    const bool strict = true;
 
     std::string out_stem;
     if (recomp.contains("out_stem")) {
@@ -2098,9 +2107,14 @@ GameConfig load_game_config(const fs::path& config_path_in) {
     const std::string region = game.contains("region")
                                 ? toml::find<std::string>(game, "region")
                                 : std::string{};
-    const int players = game.contains("players")
-                                ? (int)toml::find<int64_t>(game, "players")
-                                : 1;
+    const int players = [&]() -> int {
+        if (!game.contains("players")) return 1;
+        const auto n = toml::find<int64_t>(game, "players");
+        if (n < 1 || n > INT32_MAX)
+            throw std::runtime_error(fmt::format(
+                "[game] players out of range (1..{}): {}", INT32_MAX, n));
+        return static_cast<int>(n);
+    }();
 
     std::string exe_field;
     if (game.contains("exe")) {
@@ -2396,9 +2410,12 @@ GameConfig load_game_config(const fs::path& config_path_in) {
             : std::string{"generated"};
     const fs::path out_dir = PSXRecompV4::host_resolve(root, out_dir_field);
 
-    const bool strict = recomp.contains("strict")
-                            ? toml::find<bool>(recomp, "strict")
-                            : true;
+    // Nothing reads strict; the key stays so existing files load, but false would be a no-op.
+    if (recomp.contains("strict") && !toml::find<bool>(recomp, "strict"))
+        throw std::runtime_error(fmt::format(
+            "{}: [recompiler] strict = false is no longer supported (remove the key or set it to true)",
+            config_path.string()));
+    const bool strict = true;
 
     const std::string discovery =
         recomp.contains("discovery")
@@ -3441,8 +3458,15 @@ GameConfig load_game_config(const fs::path& config_path_in) {
                                 toml::find<bool>(recomp, "overlay_perf_modes");
     loaded.gpr_locals = recomp.contains("gpr_locals") &&
                         toml::find<bool>(recomp, "gpr_locals");
-    if (recomp.contains("gpr_locals_flush_max"))
-        loaded.gpr_locals_flush_max = toml::find<int>(recomp, "gpr_locals_flush_max");
+    if (recomp.contains("gpr_locals_flush_max")) {
+        // Compared with the popcount of a 32-bit register set (gpr_locals.cpp): 32 already never flushes.
+        const auto n = toml::find<int64_t>(recomp, "gpr_locals_flush_max");
+        if (n < 0 || n > 32)
+            throw std::runtime_error(fmt::format(
+                "{}: [recompiler] gpr_locals_flush_max out of range (0..32): {}",
+                config_path.string(), n));
+        loaded.gpr_locals_flush_max = static_cast<int>(n);
+    }
     loaded.lean = recomp.contains("lean") && toml::find<bool>(recomp, "lean");
     loaded.lean_no_locals = recomp.contains("lean_no_locals") &&
                             toml::find<bool>(recomp, "lean_no_locals");
@@ -3450,6 +3474,9 @@ GameConfig load_game_config(const fs::path& config_path_in) {
         throw std::runtime_error(fmt::format(
             "{}: [recompiler].lean needs gpr_locals = true and cpu_timing = 'block'",
             config_path.string()));
+    if (loaded.lean_no_locals && !loaded.lean)
+        throw std::runtime_error(fmt::format(
+            "{}: [recompiler].lean_no_locals needs lean = true", config_path.string()));
     loaded.quality_presets = parse_quality_presets(cfg, root, config_path);
     return loaded;
 }

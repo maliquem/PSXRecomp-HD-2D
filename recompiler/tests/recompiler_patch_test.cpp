@@ -1383,6 +1383,28 @@ void config_range_test(const fs::path& root) {
     }
 }
 
+// ANA-15: [recompiler] options that were silently inert or unchecked.
+void config_dead_options_test(const fs::path& root) {
+    const auto ok = write_config(root, "dead-ok", "strict = true\ngpr_locals_flush_max = 32\n");
+    check(PSXRecompV4::load_game_config(ok).gpr_locals_flush_max == 32, "strict = true and flush_max 32 load");
+    const struct { const char* name; const char* body; const char* msg; } bad[] = {
+        {"strict-off", "strict = false\n", "strict = false is no longer supported"},
+        {"flush-neg", "gpr_locals_flush_max = -5\n", "gpr_locals_flush_max out of range"},
+        {"flush-big", "gpr_locals_flush_max = 33\n", "gpr_locals_flush_max out of range"},
+        {"nolocals-nolean", "lean_no_locals = true\n", "lean_no_locals needs lean = true"},
+    };
+    for (const auto& b : bad) {
+        const auto cfg = write_config(root, b.name, b.body);
+        check_throws([&] { (void)PSXRecompV4::load_game_config(cfg); }, b.msg, b.name);
+    }
+    std::string zero = base_config();
+    zero.insert(zero.find("[recompiler]"), "players = 0\n\n");
+    const fs::path players0 = root / "game-players0.toml";
+    std::ofstream(players0, std::ios::binary) << zero;
+    check_throws([&] { (void)PSXRecompV4::load_game_config(players0); },
+                 "[game] players out of range", "players-zero");
+}
+
 } // namespace
 
 int main() {
@@ -1402,6 +1424,7 @@ int main() {
         mod_instruction_codegen_test(root);
         unknown_key_test(root);
         config_range_test(root);
+        config_dead_options_test(root);
         local_viewport_tests(root);
         bg2d_address_default_test(root);
         cfg_fallthrough_reachability_test();
