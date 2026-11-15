@@ -42,6 +42,7 @@
 #include "pad_external_input.h"
 #include "host_keymap.h"
 #include "psx_disc_tray.h"
+#include "psx_disc_saves.h"
 #include "png_write.h"       /* png_write_rgb — present_shot readback */
 #include "overlay_capture.h"
 #include "overlay_loader.h"
@@ -203,7 +204,10 @@ extern "C" void psx_game_codegen_forward_if_built(int argc, char** argv);
 #include <cstdlib>
 #include <exception>
 #include <array>
+#include <chrono>
+#include <ctime>
 #include <filesystem>
+#include <map>
 #include "psx_path_utf8.h"
 #include <fstream>
 #include <iterator>
@@ -9736,6 +9740,209 @@ static void disc_tray_toast(int rc, int disc) {
     host_osd_push(msg, 2000);
 }
 
+/* ---- Multi-disc: the disc of each save (psx_disc_saves.h) ----------------
+ * For the player a multi-disc game is one game: the launch picks the disc of
+ * the newest save (memory card or savestate), the card registry learns each
+ * save's disc when the game writes it, and loading a card save made on the
+ * other disc swaps the image quietly before the drive is next positioned.
+ * Host bookkeeping only: nothing here runs for a single-disc game, and the
+ * guest never sees it except through the mounted image. */
+static bool        g_md_active   = false;   /* roster > 1, registry open */
+static bool        g_md_quiet_ok = false;   /* discs share their file layout */
+static std::string g_md_dir;                /* registry keys are relative to it */
+static uint32_t    g_md_writes[2], g_md_reads[2], g_md_binds[2];
+static int         g_md_settle[2];
+static int         g_md_missing_disc = 0;   /* launch wanted this disc; its file is missing */
+/* VBlanks a card stays quiet after a write before the save is recorded: one
+ * save is many sector writes, and the game may read back what it wrote. */
+static constexpr int kMdSettleVblanks = 30;
+
+static std::filesystem::path md_registry_path(const std::filesystem::path& dir) {
+    return dir / "discos.ini";
+}
+
+/* A card's registry key: its file relative to the memory-card directory, so
+ * moving the whole directory keeps the records. */
+static std::string md_card_key(const std::filesystem::path& dir, const std::filesystem::path& card) {
+    std::filesystem::path rel = card.lexically_normal().lexically_relative(dir.lexically_normal());
+    if (rel.empty() || *rel.begin() == "..") rel = card.filename();
+    return rel.generic_string();
+}
+
+/* Tell the registry what is in slot `c` now (nothing while a slot image is
+ * mounted over the player's card, or the slot is empty). */
+static void md_see_card(int c) {
+    const char *path = nullptr;
+    uint8_t magic[2] = {0, 0};
+    int present = 0, dirty = 0;
+    std::vector<uint8_t> img(MEMCARD_SIZE);
+    if (memcard_image_mounted(c) ||
+        memcard_debug_info(c, &path, magic, &present, &dirty) != 0 || !present ||
+        !path || !path[0] || memcard_export_raw(c, img.data()) != 0) {
+        psx_disc_saves_card_seen(c, nullptr, nullptr);
+        return;
+    }
+    psx_disc_saves_card_seen(c, md_card_key(g_md_dir, path).c_str(), img.data());
+}
+
+/* The game finished writing card `c`: the saves it changed were made on the
+ * disc in the drive now. */
+static void md_record(int c) {
+    std::vector<uint8_t> img(MEMCARD_SIZE);
+    if (memcard_export_raw(c, img.data()) != 0) return;
+    if (psx_disc_saves_card_written(c, img.data(), cdrom_disc_selected(),
+                                    (int64_t)std::time(nullptr)) > 0)
+        (void)psx_disc_saves_flush();
+}
+
+/* Once per VBlank on the emulation thread, next to disc_request_poll. */
+static void multidisc_poll() {
+    if (!g_md_active || psx_netplay_active()) return;
+    for (int c = 0; c < 2; c++) {
+        uint32_t w = 0, r = 0, b = 0;
+        int last = -1;
+        memcard_activity(c, &w, &r, &last, &b);
+        if (b != g_md_binds[c]) {          /* card replaced whole: look again */
+            g_md_binds[c] = b; g_md_writes[c] = w; g_md_reads[c] = r; g_md_settle[c] = 0;
+            md_see_card(c);
+            (void)psx_disc_saves_flush();
+            continue;
+        }
+        if (memcard_image_mounted(c)) { g_md_writes[c] = w; g_md_reads[c] = r; continue; }
+        if (w != g_md_writes[c]) {         /* saving: no swap from its read-back */
+            g_md_writes[c] = w; g_md_reads[c] = r; g_md_settle[c] = kMdSettleVblanks;
+            cdrom_disc_set_pending_quiet(0);
+            continue;
+        }
+        if (g_md_settle[c] > 0) {
+            g_md_reads[c] = r;
+            if (--g_md_settle[c] == 0) md_record(c);
+            continue;
+        }
+        if (r == g_md_reads[c]) continue;
+        g_md_reads[c] = r;
+        /* A data frame read loads that save (frames 0-3 of a block are its
+         * title and icons, which a load list reads for every save). */
+        if (g_md_quiet_ok && last >= 0 && last % 64 >= 4) {
+            const int disc = psx_disc_saves_disc_of_block(c, last / 64 - 1);
+            if (disc > 0) cdrom_disc_set_pending_quiet(disc);
+        }
+    }
+}
+
+/* At each session start, after the cards are loaded: open the registry and
+ * take the cards as they are now as the baseline. */
+static void multidisc_session_open(bool multi, const std::filesystem::path& dir) {
+    g_md_active = multi;
+    if (!multi) return;
+    g_md_dir = dir.string();
+    (void)psx_disc_saves_open(md_registry_path(dir).string().c_str());
+    for (int c = 0; c < 2; c++) {
+        int last = -1;
+        memcard_activity(c, &g_md_writes[c], &g_md_reads[c], &last, &g_md_binds[c]);
+        g_md_settle[c] = 0;
+        md_see_card(c);
+    }
+    (void)psx_disc_saves_flush();
+    if (g_md_missing_disc > 0) {
+        char msg[96];
+        std::snprintf(msg, sizeof msg, "The file for disc %d of this game is missing",
+                      g_md_missing_disc);
+        host_osd_push(msg, 5000);
+        g_md_missing_disc = 0;
+    }
+}
+
+/* Disc of this game's newest save, 0 when there is none: the card registry
+ * (its record time) against the savestates (file time; the disc is in the
+ * file name). Read before the launcher, so it preselects the same disc. */
+static int multidisc_boot_disc(const std::filesystem::path& dir,
+                               const std::filesystem::path cards[2],
+                               const bool enabled[2], uint32_t entry_pc, int disc_count) {
+    namespace fs = std::filesystem;
+    (void)psx_disc_saves_open(md_registry_path(dir).string().c_str());
+    std::vector<uint8_t> img(MEMCARD_SIZE);
+    for (int c = 0; c < 2; c++) {
+        if (!enabled[c]) continue;
+        const fs::path p = cards[c].empty() ? dir / ("card" + std::to_string(c + 1) + ".mcd")
+                                            : cards[c];
+        FILE *f = std::fopen(p.string().c_str(), "rb");
+        if (!f) continue;
+        const size_t n = std::fread(img.data(), 1, img.size(), f);
+        std::fclose(f);
+        if (n == img.size()) psx_disc_saves_card_seen(c, md_card_key(dir, p).c_str(), img.data());
+    }
+    int64_t best_when = 0;
+    int best = psx_disc_saves_newest(&best_when);
+    (void)psx_disc_saves_flush();   /* records pruned on sight stay pruned */
+
+    std::error_code ec;
+    for (const auto& sub : fs::directory_iterator(dir, ec)) {
+        std::error_code ec2;
+        if (!sub.is_directory(ec2)) continue;
+        for (const auto& e : fs::directory_iterator(sub.path(), ec2)) {
+            const std::string name = e.path().filename().string();
+            unsigned pc = 0;
+            int disc = 0, slot = -1, used = 0;
+            if (std::sscanf(name.c_str(), "state_%8X_disc%d_slot%d.pst%n",
+                            &pc, &disc, &slot, &used) != 3 ||
+                used != (int)name.size() || pc != entry_pc || disc < 1 || disc > disc_count ||
+                slot < 0 || slot > SAVESTATE_QUIT_SLOT)
+                continue;
+            std::error_code ec3;
+            const auto ft = fs::last_write_time(e.path(), ec3);
+            if (ec3) continue;
+            /* C++17 has no clock_cast: carry the file time over by "now". */
+            const auto sys = std::chrono::system_clock::now() +
+                std::chrono::duration_cast<std::chrono::system_clock::duration>(
+                    ft - fs::file_time_type::clock::now());
+            const int64_t when = (int64_t)std::chrono::duration_cast<std::chrono::seconds>(
+                sys.time_since_epoch()).count();
+            if (!best || when > best_when) { best = disc; best_when = when; }
+        }
+    }
+    return best;
+}
+
+/* The discs of a set may be swapped without the lid only when the guest
+ * cannot tell: same region, each disc's own serial, and every file two discs
+ * both carry at one path sits at the same LBA with the same size. */
+static void md_list_tree(PS1::ISOReader& iso, const PS1::ISOFileEntry* dir,
+                         const std::string& prefix, int depth,
+                         std::map<std::string, std::pair<uint32_t, uint32_t>>& out) {
+    if (depth > 8) return;
+    const auto entries = dir ? iso.ListDirectory(*dir) : iso.ListFiles();
+    for (const auto& e : entries) {
+        const std::string path = prefix + uppercase_ascii(e.name);
+        if (e.is_directory) md_list_tree(iso, &e, path + "/", depth + 1, out);
+        else out[path] = { e.lba, e.size };
+    }
+}
+
+static bool multidisc_layout_matches(const std::vector<std::filesystem::path>& discs) {
+    std::map<std::string, std::pair<uint32_t, uint32_t>> first;
+    std::string region;
+    for (size_t i = 0; i < discs.size(); i++) {
+        const auto p = normalize_disc_path_for_launch(discs[i]);
+        const auto id = PSXRecompV4::identify_disc(p, expected_serial_for_disc(p, std::string()),
+                                                   0, false, false);
+        if (!id.opened || id.region.empty() || (i && id.region != region)) return false;
+        if (id.expected_serial_given && !id.serial_matches) return false;
+        region = id.region;
+        PS1::ISOReader iso;
+        if (!iso.Open(p.string())) return false;
+        std::map<std::string, std::pair<uint32_t, uint32_t>> files;
+        md_list_tree(iso, nullptr, "", 0, files);
+        if (files.empty()) return false;
+        if (i == 0) { first = std::move(files); continue; }
+        for (const auto& [path, loc] : files) {
+            const auto it = first.find(path);
+            if (it != first.end() && it->second != loc) return false;
+        }
+    }
+    return true;
+}
+
 /* game.toml [[game.disc_requests]]: once per VBlank, on the emulation
  * thread, put in the disc the title is asking for. One attempt per request
  * (psx_disc_tray_auto_poll), none when that disc is already in. */
@@ -10183,6 +10390,7 @@ static NetplayVblankEpilogue sdl_vblank_present_body(void) {
      * sample this frame (no-op unless a title allowed a direct shortcut). */
     direct_shortcut_claim_update();
     disc_request_poll();
+    multidisc_poll();
     if (!g_headless) {
         /* Pump SDL events to prevent window freeze. */
         psx_local_mouse_begin(sdl_window, local_mouse_live(override));
@@ -19953,6 +20161,28 @@ int main(int argc, char** argv) {
      * by the runtime below. */
     if (memcard_dir.empty()) memcard_dir = default_memcard_dir(argv[0]);
 
+    /* A multi-disc game starts on the disc of its newest save (card or
+     * savestate). This replaces the remembered [disc] selected, so the
+     * launcher opens on it too; a disc picked there, or --disc, still wins
+     * for that launch. A missing image keeps the old choice and says so once
+     * the game runs. */
+    if (!disc_override_path && game_discs.size() > 1) {
+        const std::filesystem::path cards[2] = { memcard1_path, memcard2_path };
+        const bool enabled[2] = { memcard1_enabled, memcard2_enabled };
+        const int d = multidisc_boot_disc(memcard_dir, cards, enabled, game_entry_pc,
+                                          (int)game_discs.size());
+        if (d > 0) {
+            const auto p = normalize_disc_path_for_launch(game_discs[(size_t)d - 1]);
+            std::error_code md_ec;
+            if (std::filesystem::exists(p, md_ec)) {
+                selected_disc_index = d;
+                resolved_disc = p;
+            } else if (d != selected_disc_index) {
+                g_md_missing_disc = d;
+            }
+        }
+    }
+
     /* The game's OWN native OPTION settings (game_options.toml, next to
      * game.toml) — persisted across launches, kept separate from game.toml
      * (recomp config) and settings.toml (launcher). Values are saved to
@@ -21919,6 +22149,11 @@ session_reboot:
          * 1. That put the savestate disc token at _disc1 whatever was mounted,
          * which is the mix-up savestate_set_disc_scope() exists to prevent. */
         if (mounted >= 0) selected_disc_index = mounted + 1;
+        /* Proven once per session: a save made on the other disc then loads
+         * with a quiet image swap instead of the game's disc-change screen. */
+        g_md_quiet_ok = multidisc_layout_matches(game_discs);
+    } else {
+        g_md_quiet_ok = false;
     }
     for (const auto& route : warm_cd_routes) {
         cdrom_register_warm_route(route.arm_lba, route.lbas.data(),
@@ -22000,6 +22235,7 @@ session_reboot:
         };
         memcard_init_slots(memcard_dir_str.c_str(), slots);
     }
+    multidisc_session_open(game_discs.size() > 1, memcard_dir);
     if (!rematch_session) {
         std::atexit(memcard_flush_all);
         /* Persist the game's native OPTION settings on any exit path (belt-and-
@@ -23154,7 +23390,9 @@ soft_return_lobby:
         RecompLauncherCSettings ls{};
         ls.output_method = 2;
         ls.window_scale = std::max(1, std::min(4, g_video_win_w / 320));
-        ls.disc_index = selected_disc_index;
+        /* A quiet swap (multi-disc save load) may have changed the disc. */
+        ls.disc_index = cdrom_disc_roster_count() > 1 ? cdrom_disc_selected()
+                                                      : selected_disc_index;
         ls.fullscreen = g_fullscreen;
         ls.ignore_aspect = 0;
         ls.linear_filter = (g_video_texfilter != 0) ? 1 : 0;

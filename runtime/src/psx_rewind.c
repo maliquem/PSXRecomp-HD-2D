@@ -244,6 +244,10 @@ static int rewind_wanted(void)
                 env_u32("PSX_REWIND_DEPTH", depth_def, 4u, RW_MAX_DEPTH));
         }
     }
+    /* Multi-disc titles swap discs under the player (save loads, states);
+     * rewind across a swap is not proven yet, so it stays off there. */
+    if (cdrom_disc_roster_count() > 1)
+        return 0;
     return s_enabled;
 }
 

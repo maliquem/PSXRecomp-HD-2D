@@ -513,35 +513,84 @@ void savestate_get_integrity(uint32_t* bios_checksum, uint32_t* entry_pc) {
     if (entry_pc) *entry_pc = s_entry_pc;
 }
 
-int savestate_slot_path(int slot, char* out, size_t cap) {
-    if (!s_configured || !out || cap == 0) return 0;
-    if (slot < 0 || slot >= SAVESTATE_ALL_SLOTS) return 0;
+/* Multi-disc: to the player a slot is one slot, whichever disc its state
+ * was taken on. Reads use the slot's newest file across the discs' names;
+ * a save (s_slot_write) goes to the mounted disc's name and then removes the
+ * other discs' files of that slot. Single-disc titles have no token and keep
+ * the historical names. */
+#define SAVESTATE_DISC_TOKENS_MAX 8
+static int s_slot_write;
+
+static int64_t file_mtime(const char* path) {
+#ifdef _WIN32
+    struct _stat64 st;
+    if (_stat64(path, &st) != 0 || st.st_size <= 0) return -1;
+#else
+    struct stat st;
+    if (stat(path, &st) != 0 || st.st_size <= 0) return -1;
+#endif
+    return (int64_t)st.st_mtime;
+}
+
+static void slot_file(int slot, const char* token, const char* ext,
+                      char* out, size_t cap) {
     /* Keyed by entry_pc so slots from different games in a shared dir never
      * collide; boot_state_load also rejects a mismatched entry_pc internally. */
-    snprintf(out, cap, "%s%sstate_%08X%s_slot%02d.pst",
+    snprintf(out, cap, "%s%sstate_%08X%s_slot%02d.%s",
              s_dir, (s_dir[0] ? "/" : ""), (unsigned)s_entry_pc,
-             s_disc_token, slot);
+             token, slot, ext);
+}
+
+static void slot_token(int slot, char token[16]) {
+    snprintf(token, 16, "%s", s_disc_token);
+    if (!s_disc_token[0] || s_slot_write) return;
+    int64_t best = -1;
+    for (int d = 1; d <= SAVESTATE_DISC_TOKENS_MAX; d++) {
+        char t[16], path[600];
+        snprintf(t, sizeof t, "_disc%d", d);
+        slot_file(slot, t, "pst", path, sizeof path);
+        const int64_t m = file_mtime(path);
+        if (m > best) { best = m; memcpy(token, t, sizeof t); }
+    }
+}
+
+static int slot_path_ext(int slot, const char* ext, char* out, size_t cap) {
+    char token[16];
+    if (!s_configured || !out || cap == 0) return 0;
+    if (slot < 0 || slot >= SAVESTATE_ALL_SLOTS) return 0;
+    slot_token(slot, token);
+    slot_file(slot, token, ext, out, cap);
     return 1;
 }
 
+/* After a save on a multi-disc title: the slot's files under the other
+ * discs' names are the state this save replaced. */
+static void remove_other_disc_files(int slot) {
+    static const char* const exts[] = { "pst", "thumb", "hdres" };
+    if (!s_disc_token[0]) return;
+    for (int d = 1; d <= SAVESTATE_DISC_TOKENS_MAX; d++) {
+        char t[16], path[600];
+        snprintf(t, sizeof t, "_disc%d", d);
+        if (!strcmp(t, s_disc_token)) continue;
+        for (size_t e = 0; e < sizeof exts / sizeof exts[0]; e++) {
+            slot_file(slot, t, exts[e], path, sizeof path);
+            remove(path);
+        }
+    }
+}
+
+int savestate_slot_path(int slot, char* out, size_t cap) {
+    return slot_path_ext(slot, "pst", out, cap);
+}
+
 static int savestate_thumb_path(int slot, char* out, size_t cap) {
-    if (!s_configured || !out || cap == 0) return 0;
-    if (slot < 0 || slot >= SAVESTATE_ALL_SLOTS) return 0;
-    snprintf(out, cap, "%s%sstate_%08X%s_slot%02d.thumb",
-             s_dir, (s_dir[0] ? "/" : ""), (unsigned)s_entry_pc,
-             s_disc_token, slot);
-    return 1;
+    return slot_path_ext(slot, "thumb", out, cap);
 }
 
 /* HD texture-pack residency sidecar (gpu_hd_textures.h): host metadata next
  * to the slot, never part of the .pst, so states stay renderer-independent. */
 static int savestate_hd_path(int slot, char* out, size_t cap) {
-    if (!s_configured || !out || cap == 0) return 0;
-    if (slot < 0 || slot >= SAVESTATE_ALL_SLOTS) return 0;
-    snprintf(out, cap, "%s%sstate_%08X%s_slot%02d.hdres",
-             s_dir, (s_dir[0] ? "/" : ""), (unsigned)s_entry_pc,
-             s_disc_token, slot);
-    return 1;
+    return slot_path_ext(slot, "hdres", out, cap);
 }
 static void savestate_write_hd_residency(int slot) {
     char path[600];
@@ -730,13 +779,18 @@ int savestate_write_slot(int slot, const void* data, size_t size) {
         return 0;
     }
     ensure_dir(s_dir);
-    /* Replace the slot whole: a failed write keeps the player's old state. */
-    if (psx_write_file_atomic(path, data, size) != 0) {
-        fprintf(stderr, "savestate: write_slot('%s') failed: %s\n",
-                path, strerror(errno));
-        return 0;
+    /* Replace the slot whole: a failed write keeps the player's old state.
+     * Multi-disc: under the mounted disc's name, then the other names go. */
+    s_slot_write = 1;
+    (void)savestate_slot_path(slot, path, sizeof(path));
+    s_slot_write = 0;
+    if (psx_write_file_atomic(path, data, size) == 0) {
+        remove_other_disc_files(slot);
+        return 1;
     }
-    return 1;
+    fprintf(stderr, "savestate: write_slot('%s') failed: %s\n",
+            path, strerror(errno));
+    return 0;
 }
 
 /* User APIs during netplay: guests cannot initiate; host must use
@@ -961,6 +1015,7 @@ void savestate_poll(CPUState* cpu, uint32_t resume_pc) {
                         "pc=0x%08X\n",
                         slot, (unsigned)pc);
             }
+            s_slot_write = 1;   /* the mounted disc's name, for every file */
             if (savestate_slot_path(slot, path, sizeof(path))) {
                 /* Save the exact resume PC (cpu->pc is 0 mid-block; resume_pc is
                  * the block leader the interrupt path would resume at). */
@@ -972,6 +1027,8 @@ void savestate_poll(CPUState* cpu, uint32_t resume_pc) {
                     s_save_failed = 0;
                     (void)savestate_capture_thumb(slot);
                     savestate_write_hd_residency(slot);
+                    s_slot_write = 0;
+                    remove_other_disc_files(slot);
                 } else {
                     s_last_save_pc = 0;
                     s_save_failed = 1;
@@ -990,6 +1047,7 @@ void savestate_poll(CPUState* cpu, uint32_t resume_pc) {
                 s_status_generation++;
                 psx_frontend_on_savestate_notify(0, slot, 0);
             }
+            s_slot_write = 0;
         }
     }
 

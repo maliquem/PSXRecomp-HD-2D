@@ -772,6 +772,10 @@ static void* iso_handle = NULL;
 static char s_disc_roster[CDROM_MAX_DISCS][CDROM_DISC_PATH_MAX];
 static int  s_disc_roster_count;
 static int  s_disc_selected;  /* 1-based roster entry mounted; 0 = none */
+static int  s_disc_pending_quiet;  /* disc to mount before the next seek; 0 = none */
+static void *s_snap_next;          /* other disc opened for a state being loaded */
+static int  s_snap_next_disc;
+static void swap_image(void *next, int index_1based);
 
 static uint8_t last_valid_subq[12];
 static int last_valid_subq_available;
@@ -2141,6 +2145,16 @@ static void exec_command(uint8_t cmd) {
     if (cmd_param_count > PARAM_FIFO_SIZE) cmd_param_count = PARAM_FIFO_SIZE;
     memcpy(cmd_params, param_fifo, (size_t)cmd_param_count);
     response_clear();
+
+    /* A save of the other disc was loaded: its disc goes in, quietly, before
+     * the game positions the drive for what that save needs. */
+    if (s_disc_pending_quiet &&
+        (cmd == 0x02 || cmd == 0x03 || cmd == 0x06 || cmd == 0x15 ||
+         cmd == 0x16 || cmd == 0x1B)) {
+        const int disc = s_disc_pending_quiet;
+        s_disc_pending_quiet = 0;
+        if (disc != s_disc_selected) (void)cdrom_disc_mount_quiet(disc);
+    }
 
     switch (cmd) {
     case 0x01: /* GetStat */
@@ -3627,7 +3641,30 @@ int cdrom_snapshot_validate(const uint8_t *p, uint32_t len) {
         if (!pst_r_u32(&r, &magic) || magic != 0x36464443u ||
             !pst_r_u8(&r, &disc) || disc > CDROM_MAX_DISCS) return 0;
     }
-    return r.p == r.end && cdrom_snapshot_disc_matches(p, len);
+    return r.p == r.end && (cdrom_snapshot_disc_matches(p, len) ||
+                            (s_snap_next && s_snap_next_disc == p[len - 1u]));
+}
+
+/* A state taken on another disc of the roster: open that disc's image now,
+ * while the load can still be refused, so applying it cannot fail. 0 = the
+ * image is missing (the load must be refused). */
+int cdrom_snapshot_prepare_disc(const uint8_t *p, uint32_t len) {
+    if (cdrom_snapshot_disc_matches(p, len)) return 1;
+    const int disc = p[len - 1u];
+    if (s_snap_next && s_snap_next_disc == disc) return 1;
+    cdrom_snapshot_drop_prepared();
+    const char *path = cdrom_disc_roster_path(disc);
+    void *next = (path && path[0]) ? iso_open(path) : NULL;
+    if (!next) return 0;
+    s_snap_next = next;
+    s_snap_next_disc = disc;
+    return 1;
+}
+
+void cdrom_snapshot_drop_prepared(void) {
+    if (s_snap_next) iso_close(s_snap_next);
+    s_snap_next = NULL;
+    s_snap_next_disc = 0;
 }
 
 /* 0 when the state was taken on another disc of this game's roster than the
@@ -3653,6 +3690,13 @@ void cdrom_snapshot_write(uint8_t *p) {
 int cdrom_snapshot_read(const uint8_t *p, uint32_t len) {
     PstR r;
     if (!cdrom_snapshot_validate(p, len)) return 0;
+    s_disc_pending_quiet = 0;
+    /* The state's disc goes in first, quietly: its positions are on it. */
+    if (s_snap_next && !cdrom_snapshot_disc_matches(p, len)) {
+        swap_image(s_snap_next, s_snap_next_disc);
+        s_snap_next = NULL;
+        s_snap_next_disc = 0;
+    }
     pst_r_init(&r, p, len);
     if (!cdrom_snap_parse(&r, cdrom_snapshot_level(len)))
         return 0;
@@ -3702,14 +3746,14 @@ void cdrom_disc_roster_set(const char *const *paths, int count,
     s_disc_selected = 0;
     if (!paths || count <= 0) return;
     if (count > CDROM_MAX_DISCS) count = CDROM_MAX_DISCS;
+    s_disc_pending_quiet = 0;
     for (int i = 0; i < count; i++) {
-        if (!paths[i]) continue;
-        /* Drop a path that does not fit rather than storing a truncated one:
-         * a truncated path still opens something, or opens nothing, and both
-         * are worse than the entry being absent from the roster. */
-        if (strlen(paths[i]) >= CDROM_DISC_PATH_MAX) continue;
+        /* A missing or too-long path stays as an empty entry rather than a
+         * truncated one (which would open something else, or nothing), so
+         * disc N is still roster entry N; selecting it fails to open. */
+        const int fits = paths[i] && strlen(paths[i]) < CDROM_DISC_PATH_MAX;
         snprintf(s_disc_roster[s_disc_roster_count], CDROM_DISC_PATH_MAX,
-                 "%s", paths[i]);
+                 "%s", fits ? paths[i] : "");
         s_disc_roster_count++;
     }
     if (selected_1based >= 1 && selected_1based <= s_disc_roster_count)
@@ -3744,6 +3788,26 @@ const char *cdrom_disc_roster_path(int index_1based) {
  * The new image is opened before anything changes: a failed open leaves the
  * current disc mounted and the lid closed, so a missing file never ends the
  * session in an empty drive. */
+/* The image swap both disc changes share: handle, subchannel replacements,
+ * the selected index and the savestate scope. */
+static void swap_image(void *next, int index_1based) {
+    if (iso_handle) iso_close(iso_handle);
+    iso_handle = next;
+
+    last_valid_subq_available = 0;
+    subq_replacements_active = iso_has_subq_replacements(iso_handle);
+    if (subq_replacements_active) update_last_valid_subq(0);
+
+    s_disc_selected = index_1based;
+
+    /* Savestates carry a disc token so a state taken on one disc is not
+     * restored under another. main() sets that scope once, from the boot
+     * disc, so a mid-session change has to update it. Without this a state
+     * saved after a swap is filed under the disc the game booted from, which
+     * is the exact mix-up the scoping exists to prevent. */
+    savestate_set_disc_scope(s_disc_roster_count > 1 ? index_1based : 0);
+}
+
 int cdrom_disc_select(int index_1based) {
     const char *path = cdrom_disc_roster_path(index_1based);
     void *next;
@@ -3753,13 +3817,7 @@ int cdrom_disc_select(int index_1based) {
     if (!next) return 0;
 
     begin_tray_open_cycle();
-
-    if (iso_handle) iso_close(iso_handle);
-    iso_handle = next;
-
-    last_valid_subq_available = 0;
-    subq_replacements_active = iso_has_subq_replacements(iso_handle);
-    if (subq_replacements_active) update_last_valid_subq(0);
+    swap_image(next, index_1based);
 
     /* Buffered sectors and the seek position describe the old disc. */
     clear_sector_buffer();
@@ -3777,15 +3835,24 @@ int cdrom_disc_select(int index_1based) {
     s_warm_route_next = 0;
     s_warm_route_last_lba = -1;
 
-    s_disc_selected = index_1based;
-
-    /* Savestates carry a disc token so a state taken on one disc is not
-     * restored under another. main() sets that scope once, from the boot
-     * disc, so a mid-session change has to update it. Without this a state
-     * saved after a swap is filed under the disc the game booted from, which
-     * is the exact mix-up the scoping exists to prevent. */
-    savestate_set_disc_scope(s_disc_roster_count > 1 ? index_1based : 0);
-
     trace_cdrom('M', (uint32_t)index_1based, 1u, 0);
     return 1;
 }
+
+int cdrom_disc_mount_quiet(int index_1based) {
+    const char *path = cdrom_disc_roster_path(index_1based);
+    void *next;
+    if (!path || !path[0]) return 0;
+    next = iso_open(path);
+    if (!next) return 0;
+    swap_image(next, index_1based);
+    trace_cdrom('M', (uint32_t)index_1based, 2u, 0);
+    return 1;
+}
+
+void cdrom_disc_set_pending_quiet(int index_1based) {
+    s_disc_pending_quiet =
+        (index_1based >= 1 && index_1based <= s_disc_roster_count) ? index_1based : 0;
+}
+
+int cdrom_disc_pending_quiet(void) { return s_disc_pending_quiet; }

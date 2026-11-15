@@ -1033,6 +1033,13 @@ if(BUILD_TESTING)
     target_include_directories(psx_disc_tray_test PRIVATE include src)
     add_test(NAME psx_disc_tray_test COMMAND psx_disc_tray_test)
 
+    add_executable(psx_disc_saves_test tests/test_psx_disc_saves.c
+        src/psx_disc_saves.c src/psx_sha256.c)
+    target_include_directories(psx_disc_saves_test PRIVATE include src)
+    file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/disc_saves_scratch)
+    add_test(NAME psx_disc_saves_test COMMAND psx_disc_saves_test
+             WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/disc_saves_scratch)
+
     add_executable(gte_register_access_test
         tests/test_gte_register_access.cpp
         src/gte.cpp

@@ -42,6 +42,8 @@ MODULE(gpu) MODULE(spu) MODULE(cdrom) MODULE(dma) MODULE(sio) MODULE(mdec) MODUL
 #define VALIDATE(name) int name##_snapshot_validate(const uint8_t* p,uint32_t n){(void)p;return n==4;}
 VALIDATE(gpu) VALIDATE(spu) VALIDATE(cdrom) VALIDATE(dma) VALIDATE(sio) VALIDATE(mdec) VALIDATE(spu_cd) VALIDATE(memory_ctrl)
 int cdrom_snapshot_disc_matches(const uint8_t* p,uint32_t n){(void)p;(void)n;return 1;}
+int cdrom_snapshot_prepare_disc(const uint8_t* p,uint32_t n){(void)p;(void)n;return 0;}
+void cdrom_snapshot_drop_prepared(void){}
 void spu_catch_up(void){}
 void psx_devices_service_to_now(void){}
 uint8_t* spu_get_ram_ptr(void){return spuram;}

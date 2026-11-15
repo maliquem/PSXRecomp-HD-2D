@@ -50,6 +50,12 @@ int memcard_format_file(const char* path);
 /* Read/write 128-byte sectors */
 int memcard_read_sector(int card, int sector, uint8_t* buf);
 int memcard_write_sector(int card, int sector, const uint8_t* buf);
+/* Sectors the game wrote and read on a card since launch, the last one read
+ * (-1 none), and how many times the card's bytes or file were replaced whole
+ * (init, rebind, reload, import, slot image). Host bookkeeping only, for the
+ * multi-disc save registry; any pointer may be NULL. */
+void memcard_activity(int card, uint32_t *writes, uint32_t *reads, int *last_read_sector,
+                      uint32_t *binds);
 
 /* Flush pending writes to disk. memcard_flush hands the image to a writer
  * thread (synced, atomic replace of the file) and returns at once;
