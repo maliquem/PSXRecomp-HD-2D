@@ -14,19 +14,20 @@ extern "C" {
 enum {
     PSX_TRAMP_NEED_WORDS = -1, /* read words up to out->need_words, call again */
     PSX_TRAMP_NONE       = 0,
-    PSX_TRAMP_J          = 1,  /* j target */
-    PSX_TRAMP_JR         = 2,  /* jr rs */
-    PSX_TRAMP_LI_JR      = 3,  /* addiu rN,$zero,imm / jr rN / [addiu rT,$zero,imm2] */
-    PSX_TRAMP_LUI_JR     = 4,  /* lui rN / addiu|ori rN,rN / jr rN */
-    PSX_TRAMP_TABLE      = 5   /* lui/addiu|ori/sll/add|addu/lw/[nop]/jr: target is the table slot */
+    /* Every shape ends in a delay slot that must be nop or addiu rT,$zero,imm. */
+    PSX_TRAMP_J          = 1,  /* j target / slot */
+    PSX_TRAMP_JR         = 2,  /* jr rs / slot */
+    PSX_TRAMP_LI_JR      = 3,  /* addiu rN,$zero,imm / jr rN / slot */
+    PSX_TRAMP_LUI_JR     = 4,  /* lui rN / addiu|ori rN,rN / jr rN / slot */
+    PSX_TRAMP_TABLE      = 5   /* lui/addiu|ori/sll/add|addu/lw/[nop]/jr/slot: target is the table slot */
 };
 
-#define PSX_TRAMPOLINE_MAX_WORDS 7
+#define PSX_TRAMPOLINE_MAX_WORDS 8
 
 typedef struct {
     int      kind;       /* PSX_TRAMP_*; same value the decoder returns */
     uint32_t target;     /* final PC; for PSX_TRAMP_TABLE the slot address to read the PC from */
-    int      ds_reg;     /* delay-slot register write (LI_JR only), -1 if none */
+    int      ds_reg;     /* delay-slot register write, -1 if none */
     uint32_t ds_val;
     int      need_words; /* with PSX_TRAMP_NEED_WORDS: total words required */
 } psx_trampoline_t;

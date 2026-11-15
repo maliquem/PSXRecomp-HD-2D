@@ -7,7 +7,7 @@
 #include <stdio.h>
 #include <string.h>
 
-enum { T0 = 8, T1 = 9, RA = 31 };
+enum { A0 = 4, T0 = 8, T1 = 9, RA = 31 };
 
 static int failures, known;
 
@@ -59,15 +59,36 @@ static const tcase_t cases[] = {
     {"LI/JR negative imm, nop slot", 0x80001000u, {0x24088000u, 0x01000008u, 0}, 0, 0,
      PSX_TRAMP_LI_JR, 0xFFFF8000u, -1, 0, 3},
     {"LUI/ADDIU/JR", 0x80001000u, {0x3C088001u, 0x25082340u, 0x01000008u}, 0, 0,
-     PSX_TRAMP_LUI_JR, 0x80012340u, -1, 0, 3},
+     PSX_TRAMP_LUI_JR, 0x80012340u, -1, 0, 4},
     {"LUI/ADDIU carry", 0x80001000u, {0x3C088002u, 0x25088000u, 0x01000008u}, 0, 0,
-     PSX_TRAMP_LUI_JR, 0x80018000u, -1, 0, 3},
+     PSX_TRAMP_LUI_JR, 0x80018000u, -1, 0, 4},
     {"LUI/ORI/JR", 0x80001000u, {0x3C088002u, 0x35088000u, 0x01000008u}, 0, 0,
-     PSX_TRAMP_LUI_JR, 0x80028000u, -1, 0, 3},
+     PSX_TRAMP_LUI_JR, 0x80028000u, -1, 0, 4},
     {"table", 0x80000500u, {TABLE_W, 0x8D080000u, 0x01000008u, 0}, T1, 0x3Fu,
-     PSX_TRAMP_TABLE, 0x800002FCu, -1, 0, 6},
-    {"table with nop", 0x80000500u, {TABLE_W, 0x8D080000u, 0, 0x01000008u}, T1, 0x3Fu,
      PSX_TRAMP_TABLE, 0x800002FCu, -1, 0, 7},
+    {"table with nop", 0x80000500u, {TABLE_W, 0x8D080000u, 0, 0x01000008u}, T1, 0x3Fu,
+     PSX_TRAMP_TABLE, 0x800002FCu, -1, 0, 8},
+    /* CPU-15: the delay slot runs before the jump lands. */
+    {"J + addiu slot", 0x800000A0u, {0x08000170u, 0x2409003Bu}, 0, 0,
+     PSX_TRAMP_J, 0x800005C0u, T1, 0x3Bu, 3},
+    {"JR + addiu slot", 0x80001000u, {0x01000008u, 0x2409003Bu}, T0, 0x80012340u,
+     PSX_TRAMP_JR, 0x80012340u, T1, 0x3Bu, 3},
+    {"LUI/ADDIU/JR + addiu slot", 0x80001000u, {0x3C088001u, 0x25082340u, 0x01000008u, 0x2409003Bu},
+     0, 0, PSX_TRAMP_LUI_JR, 0x80012340u, T1, 0x3Bu, 4},
+    {"table + addiu slot", 0x80000500u, {TABLE_W, 0x8D080000u, 0x01000008u, 0x2409003Bu}, T1, 0x3Fu,
+     PSX_TRAMP_TABLE, 0x800002FCu, T1, 0x3Bu, 7},
+    {"LI/JR + addiu $zero slot is a nop", 0x80001000u, {0x240805C0u, 0x01000008u, 0x24000005u}, 0, 0,
+     PSX_TRAMP_LI_JR, 0x000005C0u, -1, 0, 3},
+    {"neg J + addiu a0,a0,4 slot", 0x800000A0u, {0x08000170u, 0x24840004u}, A0, 0x100u,
+     PSX_TRAMP_NONE, 0, -1, 0, 3},
+    {"neg JR + lw slot", 0x80001000u, {0x01000008u, 0x8D090000u}, T0, 0x80012340u,
+     PSX_TRAMP_NONE, 0, -1, 0, 3},
+    {"neg LI/JR + addiu a0,a0,4 slot", 0x80001000u, {0x240805C0u, 0x01000008u, 0x24840004u}, 0, 0,
+     PSX_TRAMP_NONE, 0, -1, 0, 3},
+    {"neg LUI/ADDIU/JR + addu slot", 0x80001000u, {0x3C088001u, 0x25082340u, 0x01000008u, 0x01284821u},
+     0, 0, PSX_TRAMP_NONE, 0, -1, 0, 4},
+    {"neg table with nop + addiu a0,a0,4 slot", 0x80000500u,
+     {TABLE_W, 0x8D080000u, 0, 0x01000008u, 0x24840004u}, T1, 0x3Fu, PSX_TRAMP_NONE, 0, -1, 0, 8},
     {"neg LI/JR other reg", 0x80001000u, {0x240805C0u, 0x01200008u}, 0, 0,
      PSX_TRAMP_NONE, 0, -1, 0, 3},
     {"neg ADDIU rt != rN", 0x80001000u, {0x3C088001u, 0x25092340u, 0x01000008u}, 0, 0,
@@ -106,43 +127,31 @@ int main(void) {
     /* Known divergences: pinned at today's behaviour, reported, never failing. */
     memset(gpr, 0, sizeof(gpr));
     {
-        const uint32_t m[7] = {0x240805C0u, 0x01000008u, 0x24000005u};
-        run(0x80001000u, m, gpr, &t, &reads);
-        check(t.kind == PSX_TRAMP_LI_JR && t.ds_reg == 0 && t.ds_val == 5u,
-              "li/jr slot addiu $zero decoded as today");
-        note_known("li/jr delay slot 'addiu $zero,$zero,5' writes gpr[0]=5; hardware leaves $zero at 0");
-    }
-    {
-        const uint32_t m[7] = {0x3C008001u, 0x24002340u, 0x00000008u};
+        const uint32_t m[PSX_TRAMPOLINE_MAX_WORDS] = {0x3C008001u, 0x24002340u, 0x00000008u};
         run(0x80001000u, m, gpr, &t, &reads);
         check(t.kind == PSX_TRAMP_LUI_JR && t.target == 0x80012340u,
               "lui/addiu/jr on $zero decoded as today");
         note_known("lui/addiu/jr through $zero jumps to 0x80012340; hardware jumps to 0");
     }
     {
-        const uint32_t m[7] = {0x24000123u, 0x00000008u, 0};
+        const uint32_t m[PSX_TRAMPOLINE_MAX_WORDS] = {0x24000123u, 0x00000008u, 0};
         run(0x80001000u, m, gpr, &t, &reads);
         check(t.kind == PSX_TRAMP_LI_JR && t.target == 0x123u,
               "li/jr on $zero decoded as today");
         note_known("li/jr through $zero jumps to 0x123; hardware jumps to 0");
     }
-    {
-        const uint32_t m[7] = {0x08000170u, 0x2409003Bu};
-        run(0x800000A0u, m, gpr, &t, &reads);
-        check(t.kind == PSX_TRAMP_J && t.ds_reg == -1, "j delay slot dropped as today");
-        note_known("delay slots of j/jr/lui-jr/table are not executed and the jump register "
-                   "(and the table's shifted index) is never written back");
-    }
+    note_known("the jump register of li/lui-jr/table (and the table's shifted index) is never "
+               "written back");
     note_known("trampoline instructions are not charged to the cycle count");
     {
-        const uint32_t m[7] = {0x08000000u};
+        const uint32_t m[PSX_TRAMPOLINE_MAX_WORDS] = {0x08000000u};
         run(0x1F800000u, m, gpr, &t, &reads);
         check(t.kind == PSX_TRAMP_J && t.target == 0x10000000u,
               "target outside mapped memory accepted as today");
         note_known("resolved target is not checked against a mapped region (0x10000000 accepted)");
     }
     {
-        const uint32_t m[7] = {0x01000808u};
+        const uint32_t m[PSX_TRAMPOLINE_MAX_WORDS] = {0x01000808u};
         gpr[T0] = 0x80012340u;
         run(0x80001000u, m, gpr, &t, &reads);
         check(t.kind == PSX_TRAMP_JR && t.target == 0x80012340u,
