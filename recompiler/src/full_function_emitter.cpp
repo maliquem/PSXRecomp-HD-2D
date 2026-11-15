@@ -1111,10 +1111,10 @@ bool FullFunctionEmitter::emit_function(
                                 /* jr never falls through, so a slot we cannot
                                  * inline is a LOST side effect (the bug class
                                  * this path exists to fix) — never silent. */
-                                std::fprintf(stderr,
-                                    "[delay-slot] LOST: orphaned jr slot 0x%08X "
-                                    "(%08X) not inlinable (unsupported/terminator)\n",
-                                    ds_addr, ds_raw);
+                                throw std::runtime_error(fmt::format(
+                                    "orphaned jr delay slot 0x{:08X} ({:08X}) not inlinable "
+                                    "(unsupported/terminator): its side effect would be lost",
+                                    ds_addr, ds_raw));
                             }
                         }
                     }
