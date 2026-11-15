@@ -3398,6 +3398,13 @@ static int cdrom_snap_emit(PstW *w, int extended) {
             W8(setloc_pending);
             if (extended >= 3) W8(last_sector_header_stale);
         }
+        if (extended >= 4) {
+            /* CDF5: the CD->SPU volume matrix, both the latched (0x1F801802/3
+             * index 2/3) values and the ones applied by the 0x1F801803 index 3
+             * bit 5 strobe. Every byte value is a legal register value. */
+            WU(0x35464443u);
+            WB(cd_pending_vol); WB(cd_decode_vol);
+        }
     }
 
 #undef W8
@@ -3473,6 +3480,12 @@ static int cdrom_snap_parse(PstR *r, int extended) {
             R8(setloc_pending);
             if (extended >= 3) R8(last_sector_header_stale);
         }
+        /* Older states never carried the volume matrix; their load keeps the
+         * live one, which is what it did before CDF5 existed. */
+        if (extended >= 4) {
+            RU(u); /* validated CDF5 marker */
+            RB(cd_pending_vol); RB(cd_decode_vol);
+        }
     }
 
 #undef R8
@@ -3488,11 +3501,25 @@ static int cdrom_snap_parse(PstR *r, int extended) {
     return 1;
 }
 
-static uint32_t cdrom_snapshot_legacy_bytes(void) {
+/* Wire levels: 0 legacy, 1 CDF2, 2 CDF3, 3 CDF4, 4 CDF5. Each level only
+ * appends, so every level has its own length and the length names it. */
+#define CDROM_SNAP_LEVEL_CURRENT 4
+
+static uint32_t cdrom_snapshot_level_bytes(int level) {
     PstW w;
     pst_w_init(&w, NULL, 0);
-    (void)cdrom_snap_emit(&w, 0);
+    (void)cdrom_snap_emit(&w, level);
     return (uint32_t)w.written;
+}
+
+static int cdrom_snapshot_level(uint32_t len) {
+    for (int level = 0; level <= CDROM_SNAP_LEVEL_CURRENT; level++)
+        if (len == cdrom_snapshot_level_bytes(level)) return level;
+    return -1;
+}
+
+static uint32_t cdrom_snapshot_legacy_bytes(void) {
+    return cdrom_snapshot_level_bytes(0);
 }
 
 /* The parameter and response FIFO cursors index param_fifo / response_fifo;
@@ -3509,11 +3536,9 @@ static int cdrom_snapshot_fifos_ok(const uint8_t *p, uint32_t len) {
 
 int cdrom_snapshot_validate(const uint8_t *p, uint32_t len) {
     const uint32_t legacy = cdrom_snapshot_legacy_bytes();
-    const uint32_t current = cdrom_snapshot_bytes();
-    if (!p || !cdrom_snapshot_fifos_ok(p, len)) return 0;
-    if (len == legacy) return 1;
-    if (len != current && len != current - 1u && len != current - 6u)
-        return 0; /* CDF4, CDF3 or CDF2 */
+    const int level = cdrom_snapshot_level(len);
+    if (!p || level < 0 || !cdrom_snapshot_fifos_ok(p, len)) return 0;
+    if (level == 0) return 1;
     PstR r;
     uint32_t magic;
     int32_t index, pos, size, delay;
@@ -3531,37 +3556,35 @@ int cdrom_snapshot_validate(const uint8_t *p, uint32_t len) {
             size < 0 || size > SECTOR_BUFFER_SIZE || pos < 0 || pos > size)
             return 0;
     }
-    if (len != current - 6u) {
+    if (level >= 2) {
         uint8_t pending_loc, stale_header = 0;
         if (!pst_r_u32(&r, &magic) ||
-            magic != (len == current ? 0x34464443u : 0x33464443u) ||
+            magic != (level >= 3 ? 0x34464443u : 0x33464443u) ||
             !pst_r_u8(&r, &pending_loc) || pending_loc > 1) return 0;
-        if (len == current &&
+        if (level >= 3 &&
             (!pst_r_u8(&r, &stale_header) || stale_header > 1)) return 0;
     }
+    if (level >= 4 &&
+        (!pst_r_u32(&r, &magic) || magic != 0x35464443u ||
+         !pst_r_bytes(&r, NULL, sizeof cd_pending_vol + sizeof cd_decode_vol)))
+        return 0;
     return r.p == r.end;
 }
 
 uint32_t cdrom_snapshot_bytes(void) {
-    PstW w;
-    pst_w_init(&w, NULL, 0);
-    (void)cdrom_snap_emit(&w, 3);
-    return (uint32_t)w.written;
+    return cdrom_snapshot_level_bytes(CDROM_SNAP_LEVEL_CURRENT);
 }
 void cdrom_snapshot_write(uint8_t *p) {
     PstW w;
     uint32_t n = cdrom_snapshot_bytes();
     pst_w_init(&w, p, n);
-    (void)cdrom_snap_emit(&w, 3);
+    (void)cdrom_snap_emit(&w, CDROM_SNAP_LEVEL_CURRENT);
 }
 int cdrom_snapshot_read(const uint8_t *p, uint32_t len) {
     PstR r;
     if (!cdrom_snapshot_validate(p, len)) return 0;
     pst_r_init(&r, p, len);
-    const uint32_t current = cdrom_snapshot_bytes();
-    const int extended = len == cdrom_snapshot_legacy_bytes() ? 0 :
-                         len == current ? 3 : len == current - 1u ? 2 : 1;
-    if (!cdrom_snap_parse(&r, extended))
+    if (!cdrom_snap_parse(&r, cdrom_snapshot_level(len)))
         return 0;
     /* Absolute host deadlines are not on the wire — rebuild from restored
      * relative read_delay (psx_cycle_count is resynced by the load caller). */

@@ -285,6 +285,43 @@ static void failed_disc_change_keeps_current_disc(void) {
     CHECK(stat_reg == stat_before && !s_lid_irq_pending);
 }
 
+/* EST-6: the CD->SPU volume matrix round-trips (CDF5); a CDF4 state, which
+ * has no matrix, loads and keeps the live matrix exactly as before CDF5. */
+static uint8_t *emit_level(int level, uint32_t *len) {
+    PstW w;
+    *len = cdrom_snapshot_level_bytes(level);
+    uint8_t *p = malloc(*len);
+    CHECK(p);
+    pst_w_init(&w, p, *len);
+    CHECK(cdrom_snap_emit(&w, level));
+    return p;
+}
+static void snapshot_volume_matrix(void) {
+    static const uint8_t pend[2][2] = { { 0x11, 0x22 }, { 0x33, 0x44 } };
+    static const uint8_t dec[2][2]  = { { 0x7e, 0x01 }, { 0x02, 0xff } };
+    setup();
+    memcpy(cd_pending_vol, pend, 4); memcpy(cd_decode_vol, dec, 4);
+    const uint32_t size = cdrom_snapshot_bytes();
+    uint8_t *wire = malloc(size);
+    CHECK(wire);
+    cdrom_snapshot_write(wire);
+    uint32_t old_len;
+    uint8_t *old = emit_level(3, &old_len);
+    CHECK(old_len + 4u + 8u == size);
+    memset(cd_pending_vol, 0x80, 4); memset(cd_decode_vol, 0x80, 4);
+    CHECK(cdrom_snapshot_read(wire, size));
+    CHECK(!memcmp(cd_pending_vol, pend, 4) && !memcmp(cd_decode_vol, dec, 4));
+    memset(cd_pending_vol, 0x55, 4); memset(cd_decode_vol, 0x66, 4);
+    CHECK(cdrom_snapshot_validate(old, old_len));
+    CHECK(cdrom_snapshot_read(old, old_len));
+    for (int i = 0; i < 4; i++)
+        CHECK(((uint8_t *)cd_pending_vol)[i] == 0x55 && ((uint8_t *)cd_decode_vol)[i] == 0x66);
+    wire[old_len] ^= 1; /* CDF5 marker */
+    CHECK(!cdrom_snapshot_validate(wire, size));
+    CHECK(!cdrom_snapshot_validate(wire, size - 1u));
+    free(wire); free(old);
+}
+
 int main(void) {
     failed_disc_change_keeps_current_disc();
     pause_read_resumes_position();
@@ -297,6 +334,7 @@ int main(void) {
     snapshot_between_request_and_dma();
     snapshot_pending_deadline();
     snapshot_rejects_fifo_cursors();
+    snapshot_volume_matrix();
     puts("PASS: CD FIFO latching, pending IRQ, DMA continuation, and state compatibility");
     return 0;
 }

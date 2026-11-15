@@ -2123,22 +2123,24 @@ PS1 CD-ROM controller: register interface, command handling, sector reads, CD-DA
 - `cdrom_savestate_cd_wait_active` (L3325) — Non-zero while boost is armed AND a CD wait is outstanding (pending second response or non-XA read).
 - `cdrom_savestate_boost_vblanks_remaining` (L3332) — Remaining boost vblanks (0 when idle).
 - `cdrom_snap_emit` (L3346) — Writes the CD-ROM controller state into a snapshot writer, in the legacy or extended layout.
-- `cdrom_snap_parse` (L3411) — Reads the CD-ROM controller state from a snapshot reader, in the legacy or extended layout.
-- `cdrom_snapshot_legacy_bytes` (L3491) — Returns the size of the legacy snapshot layout.
-- `cdrom_snapshot_fifos_ok` (L3500) — The parameter and response FIFO cursors index param_fifo / response_fifo; every layout starts with the legacy prefix, so this applies to all of them.
-- `cdrom_snapshot_validate` (L3510) — Checks that a snapshot block has a length matching the legacy or current layout.
-- `cdrom_snapshot_bytes` (L3545) — boot_state / netplay digest — full controller FSM (sector FIFOs included).
-- `cdrom_snapshot_write` (L3551) — Writes the current CD-ROM snapshot block into a buffer.
-- `cdrom_snapshot_read` (L3557) — Reads a CD-ROM snapshot block, checking its length first; returns 1 on success.
-- `begin_tray_open_cycle` (L3586) — Open the tray: stop every transfer in flight, hide the media, and arm the timed close.
-- `debug_force_cd_reinsert` (L3602) — Simulates a disc swap by opening the tray, which hides the media until the timed close. — Notify the guest that the mounted disc was reinserted.
-- `cdrom_disc_roster_set` (L3606) — Sets the list of disc image paths the player can switch between, and which one is selected.
-- `cdrom_disc_roster_count` (L3626) — Returns how many discs are in the roster.
-- `cdrom_mounted_sector_count` (L3628) — TOC of the image currently mounted; 0 when the drive is empty.
-- `cdrom_mounted_track_count` (L3632) — Returns the number of tracks in the mounted image, 0 when the drive is empty.
-- `cdrom_disc_selected` (L3636) — Returns the 1-based number of the selected disc.
-- `cdrom_disc_roster_path` (L3638) — Returns the path of a disc in the roster by 1-based index, or NULL if out of range.
-- `cdrom_disc_select` (L3654) — Change the mounted image mid-session, the way a player changes a disc.
+- `cdrom_snap_parse` (L3418) — Reads the CD-ROM controller state from a snapshot reader, in the legacy or extended layout.
+- `cdrom_snapshot_level_bytes` (L3508) — Returns the wire size of the snapshot layout at a given level (0 = legacy, CDROM_SNAP_LEVEL_CURRENT = newest).
+- `cdrom_snapshot_level` (L3515) — Maps a snapshot block length to its layout level; -1 when no level has that size.
+- `cdrom_snapshot_legacy_bytes` (L3521) — Returns the size of the legacy snapshot layout.
+- `cdrom_snapshot_fifos_ok` (L3527) — The parameter and response FIFO cursors index param_fifo / response_fifo; every layout starts with the legacy prefix, so this applies to all of them.
+- `cdrom_snapshot_validate` (L3537) — Checks that a snapshot block has a length matching the legacy or current layout.
+- `cdrom_snapshot_bytes` (L3574) — boot_state / netplay digest — full controller FSM (sector FIFOs included).
+- `cdrom_snapshot_write` (L3577) — Writes the current CD-ROM snapshot block into a buffer.
+- `cdrom_snapshot_read` (L3583) — Reads a CD-ROM snapshot block, checking its length first; returns 1 on success.
+- `begin_tray_open_cycle` (L3609) — Open the tray: stop every transfer in flight, hide the media, and arm the timed close.
+- `debug_force_cd_reinsert` (L3625) — Simulates a disc swap by opening the tray, which hides the media until the timed close. — Notify the guest that the mounted disc was reinserted.
+- `cdrom_disc_roster_set` (L3629) — Sets the list of disc image paths the player can switch between, and which one is selected.
+- `cdrom_disc_roster_count` (L3649) — Returns how many discs are in the roster.
+- `cdrom_mounted_sector_count` (L3651) — TOC of the image currently mounted; 0 when the drive is empty.
+- `cdrom_mounted_track_count` (L3655) — Returns the number of tracks in the mounted image, 0 when the drive is empty.
+- `cdrom_disc_selected` (L3659) — Returns the 1-based number of the selected disc.
+- `cdrom_disc_roster_path` (L3661) — Returns the path of a disc in the roster by 1-based index, or NULL if out of range.
+- `cdrom_disc_select` (L3677) — Change the mounted image mid-session, the way a player changes a disc.
 
 ### runtime/src/cdrom_irq.h
 
@@ -5333,148 +5335,148 @@ Tracks which VRAM scanlines changed since the last checkpoint, as a 512-bit mask
 
 Emulates the PS1 Geometry Transform Engine (COP2): matrix, lighting, color and projection commands, plus host-side precision and debug recording for them.
 
-- `gte_init_div_table` (L43) — Builds the reciprocal lookup table used by the GTE division unit, once.
-- `gte_calc_recip` (L54) — Computes the reciprocal of a 16-bit divisor using the GTE lookup table, returning a fixed-point value.
-- `gte_clz16` (L61) — count leading zeros of a 16-bit value (0 -> 16)
-- `gte_divide` (L66) — Divides H by SZ3 the way the GTE division unit does, saturating and setting the overflow flag when H is too large.
-- `gte_instr_lm` (L89) — lm (bit 10) selects the lower clamp bound of every IR write in the lighting/depth-cue ops: 0 → -0x8000, 1 → 0.
-- `gte_instr_sf` (L90) — Returns the fraction shift of a GTE instruction: 12 when its sf bit is set, else 0.
-- `gte_mac44_stage` (L92) — Wraps a 64-bit MAC value to the 44-bit GTE accumulator, sign-extends it, and reports overflow.
-- `gte_store_mac_ir` (L101) — Stores a shifted MAC value into its MAC register and the matching saturated IR register.
-- `light_transform` (L111) — Transform a vertex by Light matrix → IR1/IR2/IR3 (step 1 of lighting)
-- `light_color` (L124) — Apply light color matrix + background color to IR → IR (step 2 of lighting)
-- `push_rgb_from_mac` (L139) — Pushes a new color FIFO entry built from the MAC1 to MAC3 values, saturated to 8 bits per channel.
-- `color_multiply` (L147) — Multiply IR by RGBC color (step 3 of NCCS/CC color output).
-- `color_output` (L159) — Multiplies IR by the vertex color and pushes the result to the color FIFO.
-- `depth_cue_from_mac` (L166) — Interpolate an unshifted MAC input toward far color using IR0.
-- `depth_cue_from_ir` (L181) — Applies depth cueing to the IR values using the far color and IR0, scaled from the IR inputs.
-- `gte_geom_generation_advance` (L250) — Advances the geometry cache generation so earlier cached vertex positions are no longer used.
-- `gte_precision_timeline_invalidate` (L259) — Drop host-only projection/geometry provenance after a raw machine-state rewind or discarded speculative pass.
-- `gte_precision_speculative_begin` (L272) — Isolate a speculative native validation pass from host-only projection caches while preserving the preceding authoritative interpreter result.
-- `gte_precision_speculative_end` (L281) — Ends a speculative precision pass started by gte_precision_speculative_begin, restoring the tracking state.
-- `gte_precision_tracking_set` (L292) — Turns host-side precise position tracking on or off.
-- `gte_precision_store_word` (L300) — v14 ABI emit surface: every swc2 site (all backends, overlay DLLs) calls this.
-- `gte_precision_invalidate_word` (L308) — Retired: plain-store invalidation is unnecessary under validate-on-read (the GPU compares the tracked word against the actual packet word).
-- `gte_precision_load_word` (L312) — Looks up a precise sub-pixel position for a packed screen word; returns 0 during speculative passes or when none is known.
-- `geom_slot` (L321) — Exact slot for a packed SXY pair, or -1 if it is outside the representable screen range.
-- `gte_geometry_correction_set` (L331) — Sub-pixel vertex precision ([video] geometry_correction).
-- `gte_geometry_correction_stats` (L349) — Lookup census for the debug server: attempted, hit, and the two miss classes.
-- `gte_geometry_correction_enabled` (L358) — Returns 1 when sub-pixel geometry correction is enabled.
-- `gte_geometry_correction_hits` (L362) — Corrected vertices consumed since the last gte_geometry_correction_set — the "is this actually doing anything on this title" counter.
-- `gte_geometry_correction_lookup_impl` (L366) — Finds the corrected vertex for a packed screen word, optionally counting the lookup in the statistics.
-- `gte_geometry_correction_lookup` (L392) — Looks up the corrected sub-pixel position for a packed screen word and counts the attempt; returns 1 on a hit.
-- `gte_geometry_correction_lookup_probe` (L399) — Read-only variant used by instrumentation probes.
-- `gte_fg_source_set` (L429) — Frame generation's vertex sources (gte.cpp): 0 = unknown.
-- `gte_fg_source_enabled` (L441) — Returns 1 when frame generation vertex source tracking is enabled.
-- `fgsrc_frame` (L443) — Returns the current frame number used to age frame generation vertex source records.
-- `fgsrc_note` (L445) — Records which vertex source produced a packed screen word, for frame generation.
-- `fgsrc_record` (L484) — Records the vertex sources of the points projected by a GTE command for frame generation.
-- `gte_fg_source_lookup` (L498) — The sources of the vertices last projected to a packed screen word this frame (or a few frames ago): 0 when none, ambiguous or stale, else 1 or 2 (two different points on that pixel).
-- `geom_ck_note` (L534) — Notes a geometry cache slot change in the active checkpoint so a rollback can restore it.
-- `gte_precision_checkpoint_begin` (L554) — Starts a checkpoint of the precise and geometry caches, nesting if one is already open.
-- `gte_precision_checkpoint_rollback` (L566) — Restores the caches to the state at the matching checkpoint when the outermost checkpoint ends.
-- `geom_note` (L588) — Stores the precise position of a projected vertex in the geometry cache, unless speculation or replay is active.
-- `gte_ws_set_suppress` (L631) — static int32_t s_ws_far_threshold = 900; /* SZ split: near props squashed, far backdrop un-squashed (8C, tunable via ws_far_threshold)
-- `gte_ws_set_far_threshold` (L632) — Sets the SZ value above which a primitive counts as far backdrop for the widescreen split.
-- `gte_ws_get_far_threshold` (L633) — Returns the SZ threshold used to split near and far primitives for widescreen.
-- `gte_ws_get_sz_stats` (L637) — Returns the minimum, maximum, count and far count of SZ values seen since the last read, then clears them.
-- `gte_ws_set_dome_expand` (L657) — Enables or disables widening of far dome draws for widescreen, using the display aspect ratio.
-- `gte_ws_configure_dome_sites` (L675) — extern void gte_ws_set_suppress(int on); /* 8C: un-squash far backdrop draws
-- `ws_dome_call_matches` (L682) — Returns true when the current GTE call comes from one of the configured dome call sites.
-- `gte_dome_probe` (L693) — Turns the dome probe on or off with a minimum SZ threshold, clearing its table when enabled.
-- `dome_probe_note` (L698) — Counts a projection of at least the probe threshold under its calling game function.
-- `gte_dome_probe_dump` (L715) — Copies the dome probe table into the given arrays and returns how many entries were written.
-- `gte_sxx` (L764) — Returns the signed X half of a packed screen word.
-- `gte_syy` (L765) — Returns the signed Y half of a packed screen word.
-- `gte_render_pose_get` (L771) — Copies the current render pose (rotation, translation and view) into the output.
-- `gte_render_pose_set` (L772) — Sets the render pose from a view; marks rotation as used when it is not the identity.
-- `gte_render_view_get` (L782) — Host enhancement ambient, checkpointed by render transactions.
-- `gte_render_view_set` (L785) — Sets the view translation from three values, used for both the view and the pose translation.
-- `gte_rtp_record` (L789) — Appends one perspective transform record to the always-on ring, unless a replay sandbox is active.
-- `gte_rtp_ring_total` (L845) — Returns how many perspective transform records have been recorded in total.
-- `gte_latch_total` (L846) — Returns how many degenerate projection latches have been recorded in total.
-- `gte_intpl_record` (L868) — Appends one INTPL interpolation record with its inputs to the ring, unless a replay sandbox is active.
-- `gte_intpl_ring_total` (L912) — Returns how many INTPL interpolation records have been recorded in total.
-- `gte_intpl_ring_dump_json` (L917) — Dump INTPL ring entries as JSON array body.
-- `gte_fstat_dump_json` (L947) — Emit per-frame stats (newest first) as JSON array body.
-- `gte_latch_dump_json` (L966) — Dump latched degenerate projections (newest first).
-- `gte_rtp_ring_dump_json` (L994) — Format up to max_count recent entries as a JSON array body (no outer braces).
-- `gte_set_display_aspect` (L1030) — Widescreen X-squash: display aspect num:den (4,3 = identity/off).
-- `gte_set_fov_scale` (L1054) — Sets the horizontal field of view scale as a ratio; non-positive values reset it to 1 to 1.
-- `gte_h_scaled` (L1060) — Returns the projection distance H scaled by the field of view ratio, or the raw H when no scale is set.
-- `gte_rtps_internal` (L1088) — --------------------------------------------------------------------------- RTPS — Perspective Transformation (internal, operates on given vertex V) Matches DuckStation/Beetle (psx-spx): MAC1/2/3 = (T
-- `gte_rtps` (L1279) — RTPS (0x01) — single vertex, always sets MAC0
-- `gte_rtpt` (L1286) — RTPT (0x30) — triple vertex, only last sets MAC0
-- `gte_nclip_precision_invalidate` (L1310) — Clears the saved precise-sign state used by the normal-clip checks.
-- `gte_nclip_precise_stats` (L1314) — Returns the counts of precise normal-clip hits, fallbacks and disagreements.
-- `nclip_slot` (L1326) — Hashes a key to a starting slot in the normal-clip statistics table.
-- `nclip_find` (L1330) — Finds or creates the statistics entry for a key by probing the table; counts a drop when it is full.
-- `gte_nclip_func_stats` (L1341) — Copies normal-clip statistics per calling function into the output array, up to max entries.
-- `gte_nclip_site_stats` (L1347) — Copies normal-clip statistics per call site into the output array, up to max entries.
-- `gte_nclip_stats_reset` (L1353) — Clears all normal-clip function and site statistics.
-- `gte_nclip_exact_set_enabled` (L1359) — Kill switch for the exact-site consumer (default on): off makes every exact site test the native sign, for same-build/same-state A/B and diagnosis.
-- `gte_nclip_exact_enabled` (L1360) — Returns 1 when the exact normal-clip sign consumer is enabled.
-- `gte_nclip_exact_sign` (L1361) — Title-scoped widescreen cull consumer ([widescreen.cull] nclip_exact_sites).
-- `gte_nclip_native_wide_sign` (L1378) — Returns the precise normal-clip sign for a widescreen primitive when the saved state is still valid; returns 0 otherwise.
-- `gte_nclip_native_wide_previous_sign` (L1389) — Some guarded quad consumers save two MAC0 values before branching.
-- `gte_nclip` (L1397) — Runs the NCLIP command: computes the signed area of the three screen points into MAC0 and sets the flags.
-- `gte_avsz3` (L1515) — --------------------------------------------------------------------------- AVSZ3 (0x2D) — Average Z (3 points) --------------------------------------------------------------------------- Hardware (ps
-- `gte_avsz4` (L1530) — --------------------------------------------------------------------------- AVSZ4 (0x2E) — Average Z (4 points) ---------------------------------------------------------------------------
-- `gte_nccs_internal` (L1545) — --------------------------------------------------------------------------- NCCS (0x1B) — Normal Color Color Single ---------------------------------------------------------------------------
-- `gte_nccs` (L1551) — Runs the NCCS command: normal color with color multiply on the vertex V0, then clears and checks the error flag.
-- `gte_ncct` (L1560) — --------------------------------------------------------------------------- NCCT (0x3F) — Normal Color Color Triple ---------------------------------------------------------------------------
-- `gte_ncds_internal` (L1571) — --------------------------------------------------------------------------- NCDS (0x13) — Normal Color Depth Cue Single ---------------------------------------------------------------------------
-- `gte_ncds` (L1585) — Runs the NCDS command: normal color with depth cueing on the vertex V0, then checks the error flag.
-- `gte_ncdt` (L1594) — --------------------------------------------------------------------------- NCDT (0x16) — Normal Color Depth Cue Triple ---------------------------------------------------------------------------
-- `gte_ncs_internal` (L1605) — --------------------------------------------------------------------------- NCS (0x1E) — Normal Color Single (no vertex color multiply) ----------------------------------------------------------------
-- `gte_ncs` (L1615) — Runs the NCS command: normal color on the vertex V0 without color multiply, then checks the error flag.
-- `gte_nct` (L1624) — --------------------------------------------------------------------------- NCT (0x20) — Normal Color Triple ---------------------------------------------------------------------------
-- `gte_dpcs` (L1635) — --------------------------------------------------------------------------- DPCS (0x10) — Depth Cueing Single (from RGBC color) ------------------------------------------------------------------------
-- `gte_dpct` (L1649) — --------------------------------------------------------------------------- DPCT (0x2A) — Depth Cueing Triple (from RGB FIFO entries) ------------------------------------------------------------------
-- `gte_dpcl` (L1665) — --------------------------------------------------------------------------- DPCL (0x29) — Depth Cueing Light (from IR, uses existing lighting result) --------------------------------------------------
-- `gte_intpl` (L1683) — --------------------------------------------------------------------------- INTPL (0x11) — Interpolation (IR toward far color using IR0) ---------------------------------------------------------------
-- `gte_cdp` (L1693) — --------------------------------------------------------------------------- CDP (0x14) — Color Depth Cue (light color + depth cue, no normal transform) ------------------------------------------------
-- `gte_cc` (L1712) — --------------------------------------------------------------------------- CC (0x1C) — Color Color (light color + vertex color, no depth cue) ---------------------------------------------------------
-- `gte_mvmva` (L1723) — --------------------------------------------------------------------------- MVMVA (0x12) — Matrix Vector Multiply Add Highly configurable: matrix, vector, and translation selected by bits ------------
-- `gte_op` (L1823) — --------------------------------------------------------------------------- OP (0x0C) — Outer Product of two vectors (cross product) -------------------------------------------------------------------
-- `gte_sqr` (L1852) — --------------------------------------------------------------------------- SQR (0x28) — Square of IR vector ---------------------------------------------------------------------------
-- `gte_gpf` (L1877) — --------------------------------------------------------------------------- GPF (0x3D) — General Purpose Interpolation (IR0 * IR) ----------------------------------------------------------------------
-- `gte_gpl` (L1907) — --------------------------------------------------------------------------- GPL (0x3E) — General Purpose Interpolation (MAC + IR0 * IR) ----------------------------------------------------------------
-- `gte_mtc2` (L1937) — --------------------------------------------------------------------------- MTC2 — Move To Coprocessor 2 (write GTE data register) ---------------------------------------------------------------------
-- `gte_mfc2` (L1994) — --------------------------------------------------------------------------- MFC2 — Move From Coprocessor 2 (read GTE data register) --------------------------------------------------------------------
-- `gte_ctc2` (L2039) — --------------------------------------------------------------------------- CTC2 — Move To Coprocessor 2 Control (write GTE control register) ----------------------------------------------------------
-- `gte_cfc2` (L2083) — --------------------------------------------------------------------------- CFC2 — Move From Coprocessor 2 Control (read GTE control register) ---------------------------------------------------------
-- `gte_get_exec_count` (L2129) — Returns how many GTE commands have been executed since start.
-- `gte_replay_side_effects_begin` (L2131) — Starts a replay sandbox that suppresses GTE side effects; returns 0 when one is already active.
-- `gte_replay_side_effects_end` (L2139) — Ends the replay sandbox and restores the saved caller return address.
-- `gte_unpack_s16` (L2149) — Extracts a signed 16-bit value from the low half of a word.
-- `gte_pack_s16_pair` (L2153) — Packs two signed 16-bit values into one 32-bit word, low half first.
-- `gte_import_cpu_state` (L2161) — Exact full marshaling for GTE commands.
-- `gte_state_pack_irgb` (L2238) — Packs the IR1 to IR3 values into a 15-bit color word, clamped to 0 to 31 per channel.
-- `gte_export_cpu_state` (L2248) — Copies the GTE registers from the emulator state into the CPU state arrays.
-- `gte_run_command` (L2309) — Dispatches one GTE command code to its handler.
-- `gte_execute_impl` (L2338) — Executes one GTE command with its cycle accounting, recording projection data when the probes are on.
-- `gte_execute` (L2394) — GTE (COP2) — defined in runtime/src/gte.cpp
-- `psx_hle_gte_execute` (L2398) — For a build-selected native service which owns operation-level timing.
-- `gte_test_execute_reference` (L2404) — Preserved pre-optimization bridge: test oracle for full command marshaling.
-- `gte_cpu_lzcr` (L2454) — Counts the leading bits that match the sign bit, as the LZCR register does; returns 32 for zero.
-- `gte_cpu_irgb_component` (L2465) — Converts one IR value to a 5-bit color component, clamped between 0 and 31.
-- `gte_cpu_pack_irgb` (L2472) — Packs the three IR color components of the CPU state into a 15-bit color word.
-- `gte_sign_extend_16` (L2479) — Sign-extends the low 16 bits of a value to 32 bits.
-- `gte_cpu_canonicalize_backing` (L2487) — Normalize only the guest-visible backing words.
-- `gte_read_data` (L2503) — Reads a GTE data register for MFC2 and returns its value with the correct width and sign.
-- `gte_read_ctrl` (L2521) — Reads a GTE control register for CFC2 and returns its value with the correct width and sign.
-- `gte_write_data` (L2531) — Writes a GTE data register for MTC2, applying the register's width and read-only rules.
-- `gte_write_ctrl` (L2597) — Writes a GTE control register for CTC2, applying the register's width and read-only rules.
-- `gte_canonicalize_cpu_state` (L2615) — Normalize raw save-state/imported backing arrays to the architectural form expected by generated direct-register fast paths.
-- `gte_test_set_precise_valid_mask` (L2628) — The precise-projection FIFO is the pgxp GTE register shadow (regs 12..15); these keep the historical test entry points working over it.
-- `gte_test_get_precise_valid_mask` (L2633) — Test helper: returns a bit mask of which precise projection entries are valid.
-- `gte_test_set_timeline_generations` (L2643) — Test helper: sets the precision and geometry generation counters.
-- `gte_test_get_precision_generation` (L2649) — Test helper: returns the current precision generation counter.
-- `gte_test_get_geometry_generation` (L2653) — Test helper: returns the current geometry generation counter.
-- `gte_test_seed_precise_projection` (L2657) — Test helper: writes one precise projection entry with its packed word, position and depth.
-- `gte_test_get_precise_projection` (L2665) — Test helper: reads back one precise projection entry into the output pointers.
-- `gte_test_seed_geometry` (L2674) — Test helper: writes a corrected position into the geometry cache for a packed screen word, creating the cache if needed.
+- `gte_init_div_table` (L44) — Builds the reciprocal lookup table used by the GTE division unit, once.
+- `gte_calc_recip` (L55) — Computes the reciprocal of a 16-bit divisor using the GTE lookup table, returning a fixed-point value.
+- `gte_clz16` (L62) — count leading zeros of a 16-bit value (0 -> 16)
+- `gte_divide` (L67) — Divides H by SZ3 the way the GTE division unit does, saturating and setting the overflow flag when H is too large.
+- `gte_instr_lm` (L90) — lm (bit 10) selects the lower clamp bound of every IR write in the lighting/depth-cue ops: 0 → -0x8000, 1 → 0.
+- `gte_instr_sf` (L91) — Returns the fraction shift of a GTE instruction: 12 when its sf bit is set, else 0.
+- `gte_mac44_stage` (L93) — Wraps a 64-bit MAC value to the 44-bit GTE accumulator, sign-extends it, and reports overflow.
+- `gte_store_mac_ir` (L102) — Stores a shifted MAC value into its MAC register and the matching saturated IR register.
+- `light_transform` (L112) — Transform a vertex by Light matrix → IR1/IR2/IR3 (step 1 of lighting)
+- `light_color` (L125) — Apply light color matrix + background color to IR → IR (step 2 of lighting)
+- `push_rgb_from_mac` (L140) — Pushes a new color FIFO entry built from the MAC1 to MAC3 values, saturated to 8 bits per channel.
+- `color_multiply` (L148) — Multiply IR by RGBC color (step 3 of NCCS/CC color output).
+- `color_output` (L160) — Multiplies IR by the vertex color and pushes the result to the color FIFO.
+- `depth_cue_from_mac` (L167) — Interpolate an unshifted MAC input toward far color using IR0.
+- `depth_cue_from_ir` (L182) — Applies depth cueing to the IR values using the far color and IR0, scaled from the IR inputs.
+- `gte_geom_generation_advance` (L251) — Advances the geometry cache generation so earlier cached vertex positions are no longer used.
+- `gte_precision_timeline_invalidate` (L260) — Drop host-only projection/geometry provenance after a raw machine-state rewind or discarded speculative pass.
+- `gte_precision_speculative_begin` (L273) — Isolate a speculative native validation pass from host-only projection caches while preserving the preceding authoritative interpreter result.
+- `gte_precision_speculative_end` (L282) — Ends a speculative precision pass started by gte_precision_speculative_begin, restoring the tracking state.
+- `gte_precision_tracking_set` (L293) — Turns host-side precise position tracking on or off.
+- `gte_precision_store_word` (L301) — v14 ABI emit surface: every swc2 site (all backends, overlay DLLs) calls this.
+- `gte_precision_invalidate_word` (L309) — Retired: plain-store invalidation is unnecessary under validate-on-read (the GPU compares the tracked word against the actual packet word).
+- `gte_precision_load_word` (L313) — Looks up a precise sub-pixel position for a packed screen word; returns 0 during speculative passes or when none is known.
+- `geom_slot` (L322) — Exact slot for a packed SXY pair, or -1 if it is outside the representable screen range.
+- `gte_geometry_correction_set` (L332) — Sub-pixel vertex precision ([video] geometry_correction).
+- `gte_geometry_correction_stats` (L350) — Lookup census for the debug server: attempted, hit, and the two miss classes.
+- `gte_geometry_correction_enabled` (L359) — Returns 1 when sub-pixel geometry correction is enabled.
+- `gte_geometry_correction_hits` (L363) — Corrected vertices consumed since the last gte_geometry_correction_set — the "is this actually doing anything on this title" counter.
+- `gte_geometry_correction_lookup_impl` (L367) — Finds the corrected vertex for a packed screen word, optionally counting the lookup in the statistics.
+- `gte_geometry_correction_lookup` (L393) — Looks up the corrected sub-pixel position for a packed screen word and counts the attempt; returns 1 on a hit.
+- `gte_geometry_correction_lookup_probe` (L400) — Read-only variant used by instrumentation probes.
+- `gte_fg_source_set` (L430) — Frame generation's vertex sources (gte.cpp): 0 = unknown.
+- `gte_fg_source_enabled` (L442) — Returns 1 when frame generation vertex source tracking is enabled.
+- `fgsrc_frame` (L444) — Returns the current frame number used to age frame generation vertex source records.
+- `fgsrc_note` (L446) — Records which vertex source produced a packed screen word, for frame generation.
+- `fgsrc_record` (L485) — Records the vertex sources of the points projected by a GTE command for frame generation.
+- `gte_fg_source_lookup` (L499) — The sources of the vertices last projected to a packed screen word this frame (or a few frames ago): 0 when none, ambiguous or stale, else 1 or 2 (two different points on that pixel).
+- `geom_ck_note` (L535) — Notes a geometry cache slot change in the active checkpoint so a rollback can restore it.
+- `gte_precision_checkpoint_begin` (L555) — Starts a checkpoint of the precise and geometry caches, nesting if one is already open.
+- `gte_precision_checkpoint_rollback` (L567) — Restores the caches to the state at the matching checkpoint when the outermost checkpoint ends.
+- `geom_note` (L589) — Stores the precise position of a projected vertex in the geometry cache, unless speculation or replay is active.
+- `gte_ws_set_suppress` (L632) — static int32_t s_ws_far_threshold = 900; /* SZ split: near props squashed, far backdrop un-squashed (8C, tunable via ws_far_threshold)
+- `gte_ws_set_far_threshold` (L633) — Sets the SZ value above which a primitive counts as far backdrop for the widescreen split.
+- `gte_ws_get_far_threshold` (L634) — Returns the SZ threshold used to split near and far primitives for widescreen.
+- `gte_ws_get_sz_stats` (L638) — Returns the minimum, maximum, count and far count of SZ values seen since the last read, then clears them.
+- `gte_ws_set_dome_expand` (L658) — Enables or disables widening of far dome draws for widescreen, using the display aspect ratio.
+- `gte_ws_configure_dome_sites` (L676) — extern void gte_ws_set_suppress(int on); /* 8C: un-squash far backdrop draws
+- `ws_dome_call_matches` (L683) — Returns true when the current GTE call comes from one of the configured dome call sites.
+- `gte_dome_probe` (L694) — Turns the dome probe on or off with a minimum SZ threshold, clearing its table when enabled.
+- `dome_probe_note` (L699) — Counts a projection of at least the probe threshold under its calling game function.
+- `gte_dome_probe_dump` (L716) — Copies the dome probe table into the given arrays and returns how many entries were written.
+- `gte_sxx` (L765) — Returns the signed X half of a packed screen word.
+- `gte_syy` (L766) — Returns the signed Y half of a packed screen word.
+- `gte_render_pose_get` (L772) — Copies the current render pose (rotation, translation and view) into the output.
+- `gte_render_pose_set` (L773) — Sets the render pose from a view; marks rotation as used when it is not the identity.
+- `gte_render_view_get` (L783) — Host enhancement ambient, checkpointed by render transactions.
+- `gte_render_view_set` (L786) — Sets the view translation from three values, used for both the view and the pose translation.
+- `gte_rtp_record` (L790) — Appends one perspective transform record to the always-on ring, unless a replay sandbox is active.
+- `gte_rtp_ring_total` (L846) — Returns how many perspective transform records have been recorded in total.
+- `gte_latch_total` (L847) — Returns how many degenerate projection latches have been recorded in total.
+- `gte_intpl_record` (L869) — Appends one INTPL interpolation record with its inputs to the ring, unless a replay sandbox is active.
+- `gte_intpl_ring_total` (L913) — Returns how many INTPL interpolation records have been recorded in total.
+- `gte_intpl_ring_dump_json` (L918) — Dump INTPL ring entries as JSON array body.
+- `gte_fstat_dump_json` (L948) — Emit per-frame stats (newest first) as JSON array body.
+- `gte_latch_dump_json` (L967) — Dump latched degenerate projections (newest first).
+- `gte_rtp_ring_dump_json` (L995) — Format up to max_count recent entries as a JSON array body (no outer braces).
+- `gte_set_display_aspect` (L1031) — Widescreen X-squash: display aspect num:den (4,3 = identity/off).
+- `gte_set_fov_scale` (L1055) — Sets the horizontal field of view scale as a ratio; non-positive values reset it to 1 to 1.
+- `gte_h_scaled` (L1061) — Returns the projection distance H scaled by the field of view ratio, or the raw H when no scale is set.
+- `gte_rtps_internal` (L1089) — --------------------------------------------------------------------------- RTPS — Perspective Transformation (internal, operates on given vertex V) Matches DuckStation/Beetle (psx-spx): MAC1/2/3 = (T
+- `gte_rtps` (L1280) — RTPS (0x01) — single vertex, always sets MAC0
+- `gte_rtpt` (L1287) — RTPT (0x30) — triple vertex, only last sets MAC0
+- `gte_nclip_precision_invalidate` (L1311) — Clears the saved precise-sign state used by the normal-clip checks.
+- `gte_nclip_precise_stats` (L1315) — Returns the counts of precise normal-clip hits, fallbacks and disagreements.
+- `nclip_slot` (L1327) — Hashes a key to a starting slot in the normal-clip statistics table.
+- `nclip_find` (L1331) — Finds or creates the statistics entry for a key by probing the table; counts a drop when it is full.
+- `gte_nclip_func_stats` (L1342) — Copies normal-clip statistics per calling function into the output array, up to max entries.
+- `gte_nclip_site_stats` (L1348) — Copies normal-clip statistics per call site into the output array, up to max entries.
+- `gte_nclip_stats_reset` (L1354) — Clears all normal-clip function and site statistics.
+- `gte_nclip_exact_set_enabled` (L1360) — Kill switch for the exact-site consumer (default on): off makes every exact site test the native sign, for same-build/same-state A/B and diagnosis.
+- `gte_nclip_exact_enabled` (L1361) — Returns 1 when the exact normal-clip sign consumer is enabled.
+- `gte_nclip_exact_sign` (L1362) — Title-scoped widescreen cull consumer ([widescreen.cull] nclip_exact_sites).
+- `gte_nclip_native_wide_sign` (L1379) — Returns the precise normal-clip sign for a widescreen primitive when the saved state is still valid; returns 0 otherwise.
+- `gte_nclip_native_wide_previous_sign` (L1390) — Some guarded quad consumers save two MAC0 values before branching.
+- `gte_nclip` (L1398) — Runs the NCLIP command: computes the signed area of the three screen points into MAC0 and sets the flags.
+- `gte_avsz3` (L1516) — --------------------------------------------------------------------------- AVSZ3 (0x2D) — Average Z (3 points) --------------------------------------------------------------------------- Hardware (ps
+- `gte_avsz4` (L1531) — --------------------------------------------------------------------------- AVSZ4 (0x2E) — Average Z (4 points) ---------------------------------------------------------------------------
+- `gte_nccs_internal` (L1546) — --------------------------------------------------------------------------- NCCS (0x1B) — Normal Color Color Single ---------------------------------------------------------------------------
+- `gte_nccs` (L1552) — Runs the NCCS command: normal color with color multiply on the vertex V0, then clears and checks the error flag.
+- `gte_ncct` (L1561) — --------------------------------------------------------------------------- NCCT (0x3F) — Normal Color Color Triple ---------------------------------------------------------------------------
+- `gte_ncds_internal` (L1572) — --------------------------------------------------------------------------- NCDS (0x13) — Normal Color Depth Cue Single ---------------------------------------------------------------------------
+- `gte_ncds` (L1586) — Runs the NCDS command: normal color with depth cueing on the vertex V0, then checks the error flag.
+- `gte_ncdt` (L1595) — --------------------------------------------------------------------------- NCDT (0x16) — Normal Color Depth Cue Triple ---------------------------------------------------------------------------
+- `gte_ncs_internal` (L1606) — --------------------------------------------------------------------------- NCS (0x1E) — Normal Color Single (no vertex color multiply) ----------------------------------------------------------------
+- `gte_ncs` (L1616) — Runs the NCS command: normal color on the vertex V0 without color multiply, then checks the error flag.
+- `gte_nct` (L1625) — --------------------------------------------------------------------------- NCT (0x20) — Normal Color Triple ---------------------------------------------------------------------------
+- `gte_dpcs` (L1636) — --------------------------------------------------------------------------- DPCS (0x10) — Depth Cueing Single (from RGBC color) ------------------------------------------------------------------------
+- `gte_dpct` (L1650) — --------------------------------------------------------------------------- DPCT (0x2A) — Depth Cueing Triple (from RGB FIFO entries) ------------------------------------------------------------------
+- `gte_dpcl` (L1666) — --------------------------------------------------------------------------- DPCL (0x29) — Depth Cueing Light (from IR, uses existing lighting result) --------------------------------------------------
+- `gte_intpl` (L1684) — --------------------------------------------------------------------------- INTPL (0x11) — Interpolation (IR toward far color using IR0) ---------------------------------------------------------------
+- `gte_cdp` (L1694) — --------------------------------------------------------------------------- CDP (0x14) — Color Depth Cue (light color + depth cue, no normal transform) ------------------------------------------------
+- `gte_cc` (L1713) — --------------------------------------------------------------------------- CC (0x1C) — Color Color (light color + vertex color, no depth cue) ---------------------------------------------------------
+- `gte_mvmva` (L1724) — --------------------------------------------------------------------------- MVMVA (0x12) — Matrix Vector Multiply Add Highly configurable: matrix, vector, and translation selected by bits ------------
+- `gte_op` (L1824) — --------------------------------------------------------------------------- OP (0x0C) — Outer Product of two vectors (cross product) -------------------------------------------------------------------
+- `gte_sqr` (L1853) — --------------------------------------------------------------------------- SQR (0x28) — Square of IR vector ---------------------------------------------------------------------------
+- `gte_gpf` (L1878) — --------------------------------------------------------------------------- GPF (0x3D) — General Purpose Interpolation (IR0 * IR) ----------------------------------------------------------------------
+- `gte_gpl` (L1908) — --------------------------------------------------------------------------- GPL (0x3E) — General Purpose Interpolation (MAC + IR0 * IR) ----------------------------------------------------------------
+- `gte_mtc2` (L1938) — --------------------------------------------------------------------------- MTC2 — Move To Coprocessor 2 (write GTE data register) ---------------------------------------------------------------------
+- `gte_mfc2` (L1995) — --------------------------------------------------------------------------- MFC2 — Move From Coprocessor 2 (read GTE data register) --------------------------------------------------------------------
+- `gte_ctc2` (L2040) — --------------------------------------------------------------------------- CTC2 — Move To Coprocessor 2 Control (write GTE control register) ----------------------------------------------------------
+- `gte_cfc2` (L2084) — --------------------------------------------------------------------------- CFC2 — Move From Coprocessor 2 Control (read GTE control register) ---------------------------------------------------------
+- `gte_get_exec_count` (L2130) — Returns how many GTE commands have been executed since start.
+- `gte_replay_side_effects_begin` (L2132) — Starts a replay sandbox that suppresses GTE side effects; returns 0 when one is already active.
+- `gte_replay_side_effects_end` (L2140) — Ends the replay sandbox and restores the saved caller return address.
+- `gte_unpack_s16` (L2150) — Extracts a signed 16-bit value from the low half of a word.
+- `gte_pack_s16_pair` (L2154) — Packs two signed 16-bit values into one 32-bit word, low half first.
+- `gte_import_cpu_state` (L2162) — Exact full marshaling for GTE commands.
+- `gte_state_pack_irgb` (L2239) — Packs the IR1 to IR3 values into a 15-bit color word, clamped to 0 to 31 per channel.
+- `gte_export_cpu_state` (L2249) — Copies the GTE registers from the emulator state into the CPU state arrays.
+- `gte_run_command` (L2310) — Dispatches one GTE command code to its handler.
+- `gte_execute_impl` (L2339) — Executes one GTE command with its cycle accounting, recording projection data when the probes are on.
+- `gte_execute` (L2463) — GTE (COP2) — defined in runtime/src/gte.cpp
+- `psx_hle_gte_execute` (L2467) — For a build-selected native service which owns operation-level timing.
+- `gte_test_execute_reference` (L2473) — Preserved pre-optimization bridge: test oracle for full command marshaling.
+- `gte_cpu_lzcr` (L2523) — Counts the leading bits that match the sign bit, as the LZCR register does; returns 32 for zero.
+- `gte_cpu_irgb_component` (L2534) — Converts one IR value to a 5-bit color component, clamped between 0 and 31.
+- `gte_cpu_pack_irgb` (L2541) — Packs the three IR color components of the CPU state into a 15-bit color word.
+- `gte_sign_extend_16` (L2548) — Sign-extends the low 16 bits of a value to 32 bits.
+- `gte_cpu_canonicalize_backing` (L2556) — Normalize only the guest-visible backing words.
+- `gte_read_data` (L2572) — Reads a GTE data register for MFC2 and returns its value with the correct width and sign.
+- `gte_read_ctrl` (L2590) — Reads a GTE control register for CFC2 and returns its value with the correct width and sign.
+- `gte_write_data` (L2600) — Writes a GTE data register for MTC2, applying the register's width and read-only rules.
+- `gte_write_ctrl` (L2666) — Writes a GTE control register for CTC2, applying the register's width and read-only rules.
+- `gte_canonicalize_cpu_state` (L2684) — Normalize raw save-state/imported backing arrays to the architectural form expected by generated direct-register fast paths.
+- `gte_test_set_precise_valid_mask` (L2697) — The precise-projection FIFO is the pgxp GTE register shadow (regs 12..15); these keep the historical test entry points working over it.
+- `gte_test_get_precise_valid_mask` (L2702) — Test helper: returns a bit mask of which precise projection entries are valid.
+- `gte_test_set_timeline_generations` (L2712) — Test helper: sets the precision and geometry generation counters.
+- `gte_test_get_precision_generation` (L2718) — Test helper: returns the current precision generation counter.
+- `gte_test_get_geometry_generation` (L2722) — Test helper: returns the current geometry generation counter.
+- `gte_test_seed_precise_projection` (L2726) — Test helper: writes one precise projection entry with its packed word, position and depth.
+- `gte_test_get_precise_projection` (L2734) — Test helper: reads back one precise projection entry into the output pointers.
+- `gte_test_seed_geometry` (L2743) — Test helper: writes a corrected position into the geometry cache for a packed screen word, creating the cache if needed.
 
 ### runtime/src/guest_cycle_profile.c
 
