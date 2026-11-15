@@ -2934,7 +2934,7 @@ std::string CodeGenerator::translate_basic_block(
                      * stack get the plain `return;`. */
                     bool ra_loaded_from_non_sp = false;
                     for (const auto& [baddr, blk] : cfg.blocks) {
-                        for (uint32_t ia = blk.start_addr; ia < blk.end_addr; ia += 4) {
+                        for (uint32_t ia = blk.start_addr; ia <= blk.end_addr; ia += 4) {  // end_addr is inclusive
                             auto wopt = exe_.read_word(ia);
                             if (!wopt) continue;
                             uint32_t w = *wopt;
