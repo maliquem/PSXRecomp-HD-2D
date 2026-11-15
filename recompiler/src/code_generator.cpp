@@ -4439,8 +4439,9 @@ std::string CodeGenerator::generate_file(
                        total_new, functions_mut.size());
         }
         if (!converged) {
-            fmt::print("WARNING: mid-function split pre-pass did NOT converge after {} passes; "
-                       "remaining targets will dispatch-miss at runtime\n", MAX_PASSES);
+            fmt::print(stderr, "ERROR: mid-function split pre-pass did not converge after {} passes; "
+                       "remaining targets would dispatch-miss at runtime\n", MAX_PASSES);
+            std::exit(1);
         }
     }
 
