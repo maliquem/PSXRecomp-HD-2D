@@ -223,56 +223,56 @@ Static recompiler core that turns MIPS instructions and functions into generated
 - `ram_fast_rewrite` (L1059) — [recompiler] ram_fast_path (docs/PERFORMANCE_MODES.md): the plain-RAM entries (psx_store_* in memory.c, psx_cyc_load_byte_fast in psx_cyc.h) in place of the CPUState store pointers and the out-of-line
 - `CodeGenerator::translate_instruction` (L1073) — Translates one instruction, adding the draw-distance clamp prefix and any mod hook call before its core translation.
 - `CodeGenerator::translate_instruction_core` (L1088) — Translates one instruction's opcode into C statements, dispatching on the opcode and funct fields.
-- `CodeGenerator::translate_basic_block` (L2162) — Emits the C code for one basic block, including its label, cycle charges and each of its instructions.
-- `CodeGenerator::func_has_screen_extent_cull` (L3233) — True when a function has both a width and a height compare against the widescreen sets, the signature of a screen-extent cull.
-- `CodeGenerator::detect_cull_bltz_sites` (L3259) — Finds the left-edge bltz branch addresses of a screen-extent cull and records them for the function.
-- `CodeGenerator::detect_backdrop_windows` (L3284) — Detects backdrop window sites in a function and records them, when automatic backdrop preload is enabled.
-- `CodeGenerator::generate_function` (L3310) — Generates the C function for one recompiled function from its blocks and fallthrough target.
-- `CodeGenerator::scan_jr_tables` (L3605) — Scans the blocks of a function for jr jump tables and adds their target addresses to the output edge map.
-- `CodeGenerator::generate_alias_group` (L3642) — Generates C functions for a group of alias entries that share the same code.
-- `CodeGenerator::generate_all_functions` (L3867) — Generates C code for every function in the list using its control flow graph, returning all generated functions.
-- `CodeGenerator::emit_runtime_externs` (L4003) — Writes extern declarations for the runtime helpers the generated C needs, with debug tool externs guarded by a macro.
-- `CodeGenerator::emit_unaligned_helpers` (L4073) — Writes the helper functions for unaligned loads and stores, using the block or full timing helper for LWL and LWR.
-- `CodeGenerator::build_shared_decls_header` (L4158) — Builds the shared declarations header used by split full.c shards, listing the generated functions and extra declarations.
-- `CodeGenerator::generate_file` (L4178) — Generates the complete C source file for all functions, including runtime externs, helpers and function bodies.
-- `CodeGenerator::generate_ranges_manifest` (L4434) — Generates a text manifest listing the address ranges of the generated functions.
+- `CodeGenerator::translate_basic_block` (L2165) — Emits the C code for one basic block, including its label, cycle charges and each of its instructions.
+- `CodeGenerator::func_has_screen_extent_cull` (L3277) — True when a function has both a width and a height compare against the widescreen sets, the signature of a screen-extent cull.
+- `CodeGenerator::detect_cull_bltz_sites` (L3303) — Finds the left-edge bltz branch addresses of a screen-extent cull and records them for the function.
+- `CodeGenerator::detect_backdrop_windows` (L3328) — Detects backdrop window sites in a function and records them, when automatic backdrop preload is enabled.
+- `CodeGenerator::generate_function` (L3354) — Generates the C function for one recompiled function from its blocks and fallthrough target.
+- `CodeGenerator::scan_jr_tables` (L3649) — Scans the blocks of a function for jr jump tables and adds their target addresses to the output edge map.
+- `CodeGenerator::generate_alias_group` (L3686) — Generates C functions for a group of alias entries that share the same code.
+- `CodeGenerator::generate_all_functions` (L3911) — Generates C code for every function in the list using its control flow graph, returning all generated functions.
+- `CodeGenerator::emit_runtime_externs` (L4049) — Writes extern declarations for the runtime helpers the generated C needs, with debug tool externs guarded by a macro.
+- `CodeGenerator::emit_unaligned_helpers` (L4119) — Writes the helper functions for unaligned loads and stores, using the block or full timing helper for LWL and LWR.
+- `CodeGenerator::build_shared_decls_header` (L4204) — Builds the shared declarations header used by split full.c shards, listing the generated functions and extra declarations.
+- `CodeGenerator::generate_file` (L4224) — Generates the complete C source file for all functions, including runtime externs, helpers and function bodies.
+- `CodeGenerator::generate_ranges_manifest` (L4480) — Generates a text manifest listing the address ranges of the generated functions.
 
 ### recompiler/src/config_loader.cpp
 
 Loads and validates the BIOS, game, options and user settings TOML files, and writes the user settings back to disk.
 
 - `overlay_codegen_config_hash` (L65) — Hash exactly the per-game settings that can change generated overlay code.
-- `pad_mode_from_string` (L278) — Pad mode <-> string. Accepts "hybrid"/"analog"/"digital" (case-insensitive); returns 'fallback' for anything unrecognised so a typo never silently flips the pad type.
-- `pad_mode_from_settings_string` (L299) — Settings-file variant: a user's settings.toml may still carry a persisted "hybrid" from before the mode was removed from the selector.
-- `pad_mode_to_string` (L309) — Returns the settings name for a pad mode; it never returns hybrid, which is a runtime-only request and not a saved preference.
-- `toml_number` (L321) — Parse a hex string ("0x...") to uint32_t.
-- `parse_hex` (L326) — Parses a hex string into a 32-bit value, throwing an error that names the field when the text is not valid hex.
-- `parse_u32_auto` (L350) — Whole-string unsigned 32-bit number, base auto-detected like std::stoul(s, 0, 0) ("0x1F", "31", "017"), but a bad value names its key and trailing junk, a sign or leading blanks are errors instead of
-- `parse_float_strict` (L363) — Whole-string finite float; a bad value throws naming its key.
-- `strict_pad_mode` (L374) — game.toml [controller] mode: unlike the settings file, a typo is an error, not "analog".
-- `toml_finite` (L384) — A TOML number key that must be finite (nan/inf parse as valid TOML floats).
-- `parse_sxy_cull_site` (L398) — One [[widescreen.cull.sxy]] entry.
-- `parse_aspect_ratio` (L499) — Parse a display aspect "W:H" string (e.g.
-- `validate_project_relative` (L529) — Reject a config path that is not confined to the project directory.
-- `reject_unknown_keys` (L557) — A key outside a closed list is a typo: the option would silently keep its default.
-- `parse_runtime_block` (L572) — Parse the optional [runtime] block.
-- `find_project_root` (L1593) — Locate the project root by walking upward from 'config_path' until a directory containing '.gitignore', '.git', or 'CMakeLists.txt' is found.
-- `draw_distance_clamp_reads` (L1614) — True when 'instr' is an ALU instruction (I-type or SPECIAL R-type, not a load, store, branch or jump) that reads GPR 'reg'.
-- `parse_draw_distance_clamps` (L1634) — [[draw_distance.clamp]] (docs/config_schema.md "Draw-distance clamps").
-- `quality_key_player_editable` (L1694) — True when a quality setting key may be changed by the player.
-- `quality_key_supported` (L1699) — [quality.<name>] -- a named graphics preset (docs/QUALITY_PRESETS.md).
-- `parse_quality_presets` (L1705) — Parses the quality presets of a game config into a list, checking each key against the supported set.
-- `derive_out_stem` (L1758) — Derives an output name stem from a ROM file name by removing its extension, matched without regard to case.
-- `load_bios_config` (L1775) — Load a BIOS config TOML.
-- `load_game_config` (L2076) — Load a game config TOML.
-- `load_game_options` (L3491) — Load game_options.toml ([[option]] array of {name, addr, size}).
-- `valid_user_audio_freq` (L3528) — True when an audio frequency is one of the allowed user values: 32040, 32000, 44100 or 48000.
-- `load_user_settings` (L3532) — Load settings.toml. Returns an all-defaults (all has_*=false) struct if the file is missing or unreadable.
-- `relative_to_folder` (L3991) — Returns a path relative to a folder when the path is absolute, or the path unchanged when it is not.
-- `toml_escape` (L4005) — A basic TOML string must not carry a raw quote, backslash or control char.
-- `write_text_atomic` (L4021) — Write to a sibling temp file then rename, so a crash never leaves a cut file.
-- `save_user_settings` (L4036) — Write settings.toml deterministically.
-- `upsert_game_toml_controller_bool` (L4280) — Sets a boolean key in the controller section of a game TOML file, adding or updating it, and returns whether the write succeeded.
+- `pad_mode_from_string` (L269) — Pad mode <-> string. Accepts "hybrid"/"analog"/"digital" (case-insensitive); returns 'fallback' for anything unrecognised so a typo never silently flips the pad type.
+- `pad_mode_from_settings_string` (L290) — Settings-file variant: a user's settings.toml may still carry a persisted "hybrid" from before the mode was removed from the selector.
+- `pad_mode_to_string` (L300) — Returns the settings name for a pad mode; it never returns hybrid, which is a runtime-only request and not a saved preference.
+- `toml_number` (L312) — Parse a hex string ("0x...") to uint32_t.
+- `parse_hex` (L317) — Parses a hex string into a 32-bit value, throwing an error that names the field when the text is not valid hex.
+- `parse_u32_auto` (L341) — Whole-string unsigned 32-bit number, base auto-detected like std::stoul(s, 0, 0) ("0x1F", "31", "017"), but a bad value names its key and trailing junk, a sign or leading blanks are errors instead of
+- `parse_float_strict` (L354) — Whole-string finite float; a bad value throws naming its key.
+- `strict_pad_mode` (L365) — game.toml [controller] mode: unlike the settings file, a typo is an error, not "analog".
+- `toml_finite` (L375) — A TOML number key that must be finite (nan/inf parse as valid TOML floats).
+- `parse_sxy_cull_site` (L389) — One [[widescreen.cull.sxy]] entry.
+- `parse_aspect_ratio` (L490) — Parse a display aspect "W:H" string (e.g.
+- `validate_project_relative` (L520) — Reject a config path that is not confined to the project directory.
+- `reject_unknown_keys` (L548) — A key outside a closed list is a typo: the option would silently keep its default.
+- `parse_runtime_block` (L563) — Parse the optional [runtime] block.
+- `find_project_root` (L1584) — Locate the project root by walking upward from 'config_path' until a directory containing '.gitignore', '.git', or 'CMakeLists.txt' is found.
+- `draw_distance_clamp_reads` (L1605) — True when 'instr' is an ALU instruction (I-type or SPECIAL R-type, not a load, store, branch or jump) that reads GPR 'reg'.
+- `parse_draw_distance_clamps` (L1625) — [[draw_distance.clamp]] (docs/config_schema.md "Draw-distance clamps").
+- `quality_key_player_editable` (L1685) — True when a quality setting key may be changed by the player.
+- `quality_key_supported` (L1690) — [quality.<name>] -- a named graphics preset (docs/QUALITY_PRESETS.md).
+- `parse_quality_presets` (L1696) — Parses the quality presets of a game config into a list, checking each key against the supported set.
+- `derive_out_stem` (L1749) — Derives an output name stem from a ROM file name by removing its extension, matched without regard to case.
+- `load_bios_config` (L1766) — Load a BIOS config TOML.
+- `load_game_config` (L2067) — Load a game config TOML.
+- `load_game_options` (L3482) — Load game_options.toml ([[option]] array of {name, addr, size}).
+- `valid_user_audio_freq` (L3519) — True when an audio frequency is one of the allowed user values: 32040, 32000, 44100 or 48000.
+- `load_user_settings` (L3523) — Load settings.toml. Returns an all-defaults (all has_*=false) struct if the file is missing or unreadable.
+- `relative_to_folder` (L3982) — Returns a path relative to a folder when the path is absolute, or the path unchanged when it is not.
+- `toml_escape` (L3996) — A basic TOML string must not carry a raw quote, backslash or control char.
+- `write_text_atomic` (L4012) — Write to a sibling temp file then rename, so a crash never leaves a cut file.
+- `save_user_settings` (L4027) — Write settings.toml deterministically.
+- `upsert_game_toml_controller_bool` (L4271) — Sets a boolean key in the controller section of a game TOML file, adding or updating it, and returns whether the write succeeded.
 
 ### recompiler/src/config_loader.h
 
@@ -326,39 +326,39 @@ Emits full C functions for BIOS code, handling address normalization, the BIOS p
 
 Finds function starts and boundaries in a PS1 executable from prologues, return instructions, jump tables and exact control flow rules.
 
-- `FunctionAnalyzer::FunctionAnalyzer` (L10) — Creates a function analyzer over the given executable.
-- `FunctionAnalyzer::add_forced_entry` (L12) — Adds an address as a forced function entry point when it lies inside the executable's analysis range.
-- `FunctionAnalyzer::is_jr_ra` (L19) — True when an instruction is jr $ra, the usual function return.
-- `FunctionAnalyzer::is_prologue` (L26) — True when an instruction is addiu $sp, $sp, -N, a stack frame setup, and returns the frame size.
-- `FunctionAnalyzer::is_epilogue` (L42) — True when an instruction is addiu $sp, $sp, +N, a stack frame teardown, and returns the size.
-- `FunctionAnalyzer::is_valid_mips_word` (L56) — True when a 32-bit word decodes as a plausible MIPS instruction; all-ones words are rejected.
-- `FunctionAnalyzer::is_branch_or_jump` (L99) — True when an instruction is a branch or jump, including J, JAL and the conditional branch opcodes.
-- `is_load_imm_zero_u16` (L117) — True when an instruction loads a 16-bit immediate into a register from zero using addiu or ori, returning the register and value.
-- `FunctionAnalyzer::is_bios_dispatch_thunk` (L128) — True when the code at an address is a three-word BIOS dispatch thunk ending in a jr, returning the address of that jr.
-- `is_sw_reg_base` (L162) — True when an instruction stores value_reg with a store word to the offset of base_reg.
-- `is_sw_reg_sp` (L169) — True when an instruction stores value_reg to the stack pointer with a store word.
-- `is_lui` (L173) — True when an instruction is LUI, returning the register it loads.
-- `is_nop` (L180) — True when an instruction word is zero, which is the MIPS nop.
-- `skip_leading_padding_nops` (L184) — Skips zero padding words at the start of a function, within a 32-byte limit, and returns the first address that is not padding.
-- `is_load_from_reg_base` (L203) — True when an instruction loads a word from the offset of base_reg, returning the destination register.
-- `is_load_imm_zero` (L224) — True when an instruction loads a 16-bit immediate from zero into a register, returning that register.
-- `preprologue_window_is_valid` (L232) — Checks that the words before a prologue form a valid setup window that does not start before the function start.
-- `find_preprologue_setup_start` (L285) — Finds where the setup code before a prologue begins, returning that address through setup_start_out when found.
-- `pointer_target_has_near_prologue` (L308) — True when a pointer target address has a prologue close by inside the executable's range.
-- `FunctionAnalyzer::find_function_start` (L338) — Scans backward from a return address to the start of its function, using prologues and 16-byte alignment as guides.
-- `FunctionAnalyzer::is_likely_data_section` (L414) — Heuristically decides whether an address range is data rather than code, for ranges of at least 100 bytes.
-- `exact_is_jr_ra_word` (L505) — True when the word is exactly jr $ra (0x03E00008).
-- `exact_is_addiu_sp_neg` (L509) — True when the word is addiu $sp, $sp with a negative immediate, which is a frame setup.
-- `exact_is_valid_mips_word` (L517) — Forwards to the analyzer's valid MIPS word check.
-- `exact_branch_target` (L521) — Returns the target address of a branch at pc, from its sign-extended offset relative to pc plus 4.
-- `exact_jump_target` (L526) — Returns the target address of a J or JAL at pc, built from the top bits of pc plus 4 and the 26-bit index.
-- `exact_instruction_writes_gpr` (L530) — True when an instruction writes the given general register; register zero is never written.
-- `exact_resolve_constant_transfer` (L575) — Resolve the common absolute indirect-transfer idiom within one basic block: lui rN, hi(target) addiu/ori rN, rN, lo(target) jr/jalr rN The backward scan stops at control flow or any intervening write
-- `exact_classify_cf` (L658) — Classifies the instruction at pc into a control flow kind with its targets, for the exact analysis.
-- `resolve_computed_stride_jump` (L1138) — Tries to resolve a computed jump with a fixed stride from an entry point, bounded by a hard cap; true when the targets are found.
-- `resolve_self_limited_jump_table` (L1294) — Tries to resolve a jump table whose bounds come from the table itself, bounded by a hard cap; true when resolved.
-- `FunctionAnalyzer::analyze_exact_entries` (L1418) — Runs the exact analysis from the given entry points, using producer ranges and allowed cross-function calls, and returns the result.
-- `FunctionAnalyzer::analyze` (L1792) — Runs the full function analysis over the executable and returns the discovered functions and counts.
+- `FunctionAnalyzer::FunctionAnalyzer` (L11) — Creates a function analyzer over the given executable.
+- `FunctionAnalyzer::add_forced_entry` (L13) — Adds an address as a forced function entry point when it lies inside the executable's analysis range.
+- `FunctionAnalyzer::is_jr_ra` (L20) — True when an instruction is jr $ra, the usual function return.
+- `FunctionAnalyzer::is_prologue` (L27) — True when an instruction is addiu $sp, $sp, -N, a stack frame setup, and returns the frame size.
+- `FunctionAnalyzer::is_epilogue` (L43) — True when an instruction is addiu $sp, $sp, +N, a stack frame teardown, and returns the size.
+- `FunctionAnalyzer::is_valid_mips_word` (L57) — True when a 32-bit word decodes as a plausible MIPS instruction; all-ones words are rejected.
+- `FunctionAnalyzer::is_branch_or_jump` (L100) — True when an instruction is a branch or jump, including J, JAL and the conditional branch opcodes.
+- `is_load_imm_zero_u16` (L118) — True when an instruction loads a 16-bit immediate into a register from zero using addiu or ori, returning the register and value.
+- `FunctionAnalyzer::is_bios_dispatch_thunk` (L129) — True when the code at an address is a three-word BIOS dispatch thunk ending in a jr, returning the address of that jr.
+- `is_sw_reg_base` (L163) — True when an instruction stores value_reg with a store word to the offset of base_reg.
+- `is_sw_reg_sp` (L170) — True when an instruction stores value_reg to the stack pointer with a store word.
+- `is_lui` (L174) — True when an instruction is LUI, returning the register it loads.
+- `is_nop` (L181) — True when an instruction word is zero, which is the MIPS nop.
+- `skip_leading_padding_nops` (L185) — Skips zero padding words at the start of a function, within a 32-byte limit, and returns the first address that is not padding.
+- `is_load_from_reg_base` (L204) — True when an instruction loads a word from the offset of base_reg, returning the destination register.
+- `is_load_imm_zero` (L225) — True when an instruction loads a 16-bit immediate from zero into a register, returning that register.
+- `preprologue_window_is_valid` (L233) — Checks that the words before a prologue form a valid setup window that does not start before the function start.
+- `find_preprologue_setup_start` (L286) — Finds where the setup code before a prologue begins, returning that address through setup_start_out when found.
+- `pointer_target_has_near_prologue` (L309) — True when a pointer target address has a prologue close by inside the executable's range.
+- `FunctionAnalyzer::find_function_start` (L339) — Scans backward from a return address to the start of its function, using prologues and 16-byte alignment as guides.
+- `FunctionAnalyzer::is_likely_data_section` (L415) — Heuristically decides whether an address range is data rather than code, for ranges of at least 100 bytes.
+- `exact_is_jr_ra_word` (L506) — True when the word is exactly jr $ra (0x03E00008).
+- `exact_is_addiu_sp_neg` (L510) — True when the word is addiu $sp, $sp with a negative immediate, which is a frame setup.
+- `exact_is_valid_mips_word` (L518) — Forwards to the analyzer's valid MIPS word check.
+- `exact_branch_target` (L522) — Returns the target address of a branch at pc, from its sign-extended offset relative to pc plus 4.
+- `exact_jump_target` (L527) — Returns the target address of a J or JAL at pc, built from the top bits of pc plus 4 and the 26-bit index.
+- `exact_instruction_writes_gpr` (L531) — True when an instruction writes the given general register; register zero is never written.
+- `exact_resolve_constant_transfer` (L576) — Resolve the common absolute indirect-transfer idiom within one basic block: lui rN, hi(target) addiu/ori rN, rN, lo(target) jr/jalr rN The backward scan stops at control flow or any intervening write
+- `exact_classify_cf` (L659) — Classifies the instruction at pc into a control flow kind with its targets, for the exact analysis.
+- `resolve_computed_stride_jump` (L1139) — Tries to resolve a computed jump with a fixed stride from an entry point, bounded by a hard cap; true when the targets are found.
+- `resolve_self_limited_jump_table` (L1295) — Tries to resolve a jump table whose bounds come from the table itself, bounded by a hard cap; true when resolved.
+- `FunctionAnalyzer::analyze_exact_entries` (L1419) — Runs the exact analysis from the given entry points, using producer ranges and allowed cross-function calls, and returns the result.
+- `FunctionAnalyzer::analyze` (L1791) — Runs the full function analysis over the executable and returns the discovered functions and counts.
 
 ### recompiler/src/function_discovery.cpp
 
