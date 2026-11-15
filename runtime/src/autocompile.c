@@ -113,15 +113,16 @@ static void autocompile_report_broken_once(void);
  * rescans the cache, so stop for the session and say why. */
 #define AC_EXIT_STALE_TOOLCHAIN 77
 static int s_stale_toolchain = 0;
+static void autocompile_set_degraded(const char *fmt, ...);
 
 static void autocompile_note_failure(void) {
     s_fails++;
     if (s_exit_code == AC_EXIT_STALE_TOOLCHAIN) {
         if (!s_stale_toolchain)
-            fprintf(stderr, "psxrecomp: overlay_toolchain/ does not match this exe (generator hash "
+            autocompile_set_degraded("overlay_toolchain/ does not match this exe (generator hash "
                     "%08x): autocompile is OFF for this session and new overlays run interpreted. "
                     "Refresh it: tools/ci/build_emitters.sh, then copy psxrecomp-game and "
-                    "overlay_codegen_hash.h there.\n", (unsigned)PSX_OVERLAY_CODEGEN_HASH);
+                    "overlay_codegen_hash.h there.", (unsigned)PSX_OVERLAY_CODEGEN_HASH);
         s_stale_toolchain = 1;
         s_retry_not_before_ms = UINT64_MAX;
         return;
@@ -977,12 +978,12 @@ static void autocompile_check_path_args(void) {
 
 void autocompile_configure(const char *cmd, const char *cwd) {
     if (cmd && strlen(cmd) >= sizeof(s_cmd)) {
-        /* Loud, and off: a truncated command line fails argparse on every retry
+        /* Off, and recorded: a truncated command line fails argparse on every retry
          * with an error that never mentions the real cause. */
-        fprintf(stderr,
-                "psxrecomp: overlay autocompile command is %zu chars, over the %zu-char "
+        autocompile_set_degraded(
+                "overlay autocompile command is %zu chars, over the %zu-char "
                 "limit; autocompile DISABLED. Shorten the command (an @file for long "
-                "--force-interior lists) instead of relying on truncation.\n",
+                "--force-interior lists) instead of relying on truncation.",
                 strlen(cmd), sizeof(s_cmd) - 1);
         s_cmd[0] = '\0';
         snprintf(s_cwd, sizeof(s_cwd), "%s", cwd ? cwd : "");
