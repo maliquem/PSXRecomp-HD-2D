@@ -459,7 +459,7 @@ size_t add_bios_vector_target_seeds(
     for (const auto& bvt : bios_vectors) {
         const uint32_t table_phys = bvt.table_rom_addr & 0x1FFFFFFFu;
         if (table_phys < base_phys ||
-            table_phys + bvt.table_count * 4u > base_phys + rom_size) {
+            uint64_t(table_phys) + uint64_t(bvt.table_count) * 4u > uint64_t(base_phys) + rom_size) {
             std::fprintf(stderr,
                 "psxrecomp-bios: WARNING: vector table 0x%08X out of ROM range; "
                 "not augmenting seeds from it\n",
