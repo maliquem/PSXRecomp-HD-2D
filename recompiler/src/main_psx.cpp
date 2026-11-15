@@ -128,7 +128,7 @@ static int psxrecomp_game_main(int argc, char** argv) {
     }
     if (argc < 2) {
         print_usage();
-        return 0;
+        return 1;
     }
 
     /* --codegen-hash: print the baked emitter-source hash and exit. Handled
@@ -472,9 +472,13 @@ static int psxrecomp_game_main(int argc, char** argv) {
         ws_auto_backdrop_preload = ws_auto_backdrop_preload || wscfg.ws_auto_backdrop_preload;
         PSXRecompV4::merge_recompiler_patches(
             instruction_patches, wscfg.recompiler_patches);
-        ws_signed_x_bound_sites.insert(ws_signed_x_bound_sites.end(),
-                                       wscfg.ws_signed_x_bound_sites.begin(),
-                                       wscfg.ws_signed_x_bound_sites.end());
+        // Same TOML via --config and --ws-config: skip sites already present.
+        for (const auto& s : wscfg.ws_signed_x_bound_sites) {
+            const bool dup = std::any_of(
+                ws_signed_x_bound_sites.begin(), ws_signed_x_bound_sites.end(),
+                [&](const auto& o) { return o.address == s.address && o.expected == s.expected; });
+            if (!dup) ws_signed_x_bound_sites.push_back(s);
+        }
         if (wscfg.ws_bg2d_init_func) ws_bg2d_init_func = wscfg.ws_bg2d_init_func;
         fmt::print("ws-config:      {} (backdrop_x sites={}, unsquash funcs={})\n",
                    ws_config_path.string(), ws_backdrop_x.size(), ws_backdrop_unsquash.size());
@@ -1436,12 +1440,11 @@ static int psxrecomp_game_main(int argc, char** argv) {
         if (func.has_prologue && func.has_epilogue) with_both++;
     }
 
-    fmt::print("With Prologue:   {} ({:.1f}%)\n", with_prologue,
-               100.0 * with_prologue / analysis_result.functions.size());
-    fmt::print("With Epilogue:   {} ({:.1f}%)\n", with_epilogue,
-               100.0 * with_epilogue / analysis_result.functions.size());
-    fmt::print("Complete:        {} ({:.1f}%)\n\n", with_both,
-               100.0 * with_both / analysis_result.functions.size());
+    const double fn_total = analysis_result.functions.empty()
+        ? 1.0 : (double)analysis_result.functions.size();
+    fmt::print("With Prologue:   {} ({:.1f}%)\n", with_prologue, 100.0 * with_prologue / fn_total);
+    fmt::print("With Epilogue:   {} ({:.1f}%)\n", with_epilogue, 100.0 * with_epilogue / fn_total);
+    fmt::print("Complete:        {} ({:.1f}%)\n\n", with_both, 100.0 * with_both / fn_total);
 
     // Print first 20 functions
     fmt::print("First 20 Functions:\n");
@@ -1489,7 +1492,7 @@ static int psxrecomp_game_main(int argc, char** argv) {
     fmt::print("Loops Detected:     {}\n", total_loops);
     fmt::print("Branch Instructions: {}\n", total_branches);
     fmt::print("Avg Blocks/Function: {:.1f}\n\n",
-               static_cast<double>(total_basic_blocks) / all_cfgs.size());
+               static_cast<double>(total_basic_blocks) / (all_cfgs.empty() ? 1 : all_cfgs.size()));
 
     // Show detailed CFG for first function (as an example)
     if (!analysis_result.functions.empty() && !all_cfgs.empty()) {
