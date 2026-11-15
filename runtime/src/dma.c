@@ -1102,36 +1102,6 @@ static void execute_ch6_otc(void) {
     complete_transfer(6);
 }
 
-static void execute_ch5_pio(void) {
-    /* PIO (Parallel I/O) — used for expansion port / parallel port transfers.
-     * Very simple: just move words directly to/from RAM with no device interaction.
-     * Direction: 0 = to RAM (read from device), 1 = from RAM (write to device).
-     * For now, we just complete the transfer immediately as PIO devices are
-     * typically slow and the game handles timing via busy-wait on the port. */
-    uint32_t chcr = channels[5].chcr;
-    uint32_t direction = chcr & 1u;
-    uint32_t step = (chcr >> 1) & 1u;
-    uint32_t total_words = transfer_word_count(5);
-    uint32_t addr = DMA_RAM_ADDR(channels[5].madr);
-    int32_t addr_step = step ? -4 : 4;
-
-    if (direction == 1) {
-        /* from RAM to device: just read and discard */
-        for (uint32_t i = 0; i < total_words; i++) {
-            (void)psx_read_word(addr);
-            addr = DMA_RAM_ADDR((addr + addr_step));
-        }
-    } else {
-        /* to RAM from device: write zeros (device not emulated) */
-        for (uint32_t i = 0; i < total_words; i++) {
-            psx_write_word(addr, 0);
-            addr = DMA_RAM_ADDR((addr + addr_step));
-        }
-    }
-    channels[5].madr = addr;
-    complete_transfer(5);
-}
-
 static void try_execute(int ch) {
     uint32_t chcr = channels[ch].chcr;
 
@@ -1187,7 +1157,7 @@ static void try_execute(int ch) {
                                       DMA_SPU_CYCLES_PER_WORD);
             break;
         case 5:
-            execute_ch5_pio();
+            /* No PIO device is emulated: without DRQ the transfer never moves data nor completes. */
             break;
         case 6:
             execute_ch6_otc();
