@@ -475,6 +475,20 @@ static int g_offline_pad_count = 2;
 /* Set when [controller] lock_mode pins every seat to digital — blocks the
  * DualShock-on-tap hack from settings.toml / Lobby Settings / match_caps. */
 static int g_force_digital_pads = 0;
+/* Quote one argument for system()/cmd.exe: POSIX single quotes block $, backtick and \;
+ * on Windows a trailing run of backslashes is doubled so it cannot swallow the closing quote
+ * (shortcut: a literal %VAR% in a path is still expanded by cmd.exe). */
+static std::string shell_quote_arg(const std::string& s) {
+#if defined(_WIN32)
+    size_t n = 0;
+    while (n < s.size() && s[s.size() - 1 - n] == '\\') ++n;
+    return "\"" + s + std::string(n, '\\') + "\"";
+#else
+    std::string r = "'";
+    for (char c : s) { if (c == '\'') r += "'\\''"; else r += c; }
+    return r + "'";
+#endif
+}
 /* Offline seat ceiling from game.toml players, optionally capped at 2 when
  * the launcher Multitap toggle is off (3+ player titles). Netplay ignores
  * this and arms multitap whenever session slot_count > 2. */
@@ -12343,14 +12357,14 @@ namespace {
         /* On Windows `python` is the usual launcher; python3 may be absent. */
         py = "python";
 #endif
-        std::string cmd = std::string(py) + " \"" + script.string() + "\" \"" +
-                          source_path + "\" --out-dir \"" + out_dir.string() + "\"";
+        std::string cmd = std::string(py) + " " + shell_quote_arg(script.string()) + " " +
+                          shell_quote_arg(source_path) + " --out-dir " + shell_quote_arg(out_dir.string());
 #if !defined(_WIN32)
         /* If python3 missing, retry with python. */
         int rc = std::system(cmd.c_str());
         if (rc != 0) {
-            cmd = std::string("python \"") + script.string() + "\" \"" + source_path +
-                  "\" --out-dir \"" + out_dir.string() + "\"";
+            cmd = "python " + shell_quote_arg(script.string()) + " " + shell_quote_arg(source_path) +
+                  " --out-dir " + shell_quote_arg(out_dir.string());
             rc = std::system(cmd.c_str());
         }
 #else
@@ -20096,9 +20110,7 @@ int main(int argc, char** argv) {
             }
         }
         auto build_toolchain_cmd = [&](const char *compiler) {
-            auto cmd_quote = [](const std::string& s) {
-                return std::string("\"") + s + "\"";
-            };
+            auto cmd_quote = [](const std::string& s) { return shell_quote_arg(s); };
             std::string c =
                 cmd_quote(tk_py.string()) + " " +
                 cmd_quote((tk_dir / "compile_overlays.py").string()) +
