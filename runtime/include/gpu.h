@@ -145,6 +145,9 @@ int  gpu_get_shaded_quad_capture(const GpuSqCapEntry** out);
  * client can pull all commands for any frame in the ring window.
  * PSX_NO_DEBUG_TOOLS builds report zero total/capacity and empty dumps/spans. */
 #define GPU_GP0_RING_MAX_WORDS 12
+/* Bytes at the end of the GPU snapshot holding host-only depth-24 present
+ * helpers (upload span, present hold, prev display height). */
+#define GPU_SNAPSHOT_PRESENT_TAIL_BYTES 12u
 typedef struct {
     uint32_t frame;
     uint32_t seq;

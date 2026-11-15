@@ -10270,6 +10270,10 @@ static int gpu_snap_emit(PstW *w) {
     /* Depth24 present helpers (MotK FMV) — must resume with upload span. */
     WU(s_d24_upload_x1); WI(s_d24_present_hold | 0x200 | (s_d24_present_skip ? 0x100 : 0));
     WU(s_d24_prev_disp_h);
+    /* The netplay av digest zeroes exactly this tail: the three fields above. */
+    _Static_assert(sizeof(s_d24_upload_x1) + sizeof(uint32_t) + sizeof(s_d24_prev_disp_h)
+                       == GPU_SNAPSHOT_PRESENT_TAIL_BYTES,
+                   "GPU snapshot present tail size changed");
 #undef WU
 #undef WI
 #undef WH
