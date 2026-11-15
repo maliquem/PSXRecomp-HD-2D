@@ -1,5 +1,6 @@
 #include <cstdio>
 #include <exception>
+#include <cctype>
 #include <cerrno>
 #include <filesystem>
 #include <fstream>
@@ -904,17 +905,31 @@ static int psxrecomp_game_main(int argc, char** argv) {
                     "addresses as:{}\n", exe->link_segment(), text, fixed);
                 return true;
             };
+            // A hex field must end at end-of-text or whitespace; "80012G40" is an error, not 0x80012.
+            auto parse_seed_hex = [](const char* text, uint32_t& value) -> bool {
+                char* end = nullptr;
+                errno = 0;
+                unsigned long long v = std::strtoull(text, &end, 16);
+                if (errno != 0 || end == text || v > 0xFFFFFFFFull ||
+                    (*end != '\0' && !std::isspace(static_cast<unsigned char>(*end))))
+                    return false;
+                value = static_cast<uint32_t>(v);
+                return true;
+            };
             std::string line;
             while (std::getline(ef, line)) {
-                if (line.empty() || line[0] == '#') continue;
+                // Blank lines (a lone CR in a CRLF file included) are not seeds.
+                if (line.find_first_not_of(" \t\r") == std::string::npos || line[0] == '#') continue;
                 if (line.rfind("producer_range", 0) == 0) {
                     std::istringstream in(line);
                     std::string tag, lo_text, hi_text;
                     in >> tag >> lo_text >> hi_text;
-                    uint32_t lo = static_cast<uint32_t>(
-                        std::strtoul(lo_text.c_str(), nullptr, 16));
-                    uint32_t hi = static_cast<uint32_t>(
-                        std::strtoul(hi_text.c_str(), nullptr, 16));
+                    uint32_t lo = 0, hi = 0;
+                    if (!parse_seed_hex(lo_text.c_str(), lo) ||
+                        !parse_seed_hex(hi_text.c_str(), hi)) {
+                        fmt::print(stderr, "ERROR: invalid producer_range: {}\n", line);
+                        return 1;
+                    }
                     if (!lo_text.empty() && !hi_text.empty() &&
                         foreign_directive(line, {lo, hi}, /*end_exclusive=*/true))
                         return 1;
@@ -928,8 +943,11 @@ static int psxrecomp_game_main(int argc, char** argv) {
                 }
                 if (line.rfind("cross_call_allow", 0) == 0) {
                     const char* p = line.c_str() + 16;
-                    uint32_t addr = static_cast<uint32_t>(
-                        std::strtoul(p, nullptr, 16));
+                    uint32_t addr = 0;
+                    if (!parse_seed_hex(p, addr) || (addr & 3u) != 0u) {
+                        fmt::print(stderr, "ERROR: invalid cross_call_allow: {}\n", line);
+                        return 1;
+                    }
                     if (foreign_directive(line, {addr})) return 1;
                     if (addr < seed_lo || addr >= seed_hi) {
                         fmt::print(stderr, "ERROR: invalid cross_call_allow: {}\n", line);
@@ -1011,7 +1029,11 @@ static int psxrecomp_game_main(int argc, char** argv) {
                     trusted_call_root = true;
                     p += 9;
                 }
-                uint32_t addr = (uint32_t)std::strtoul(p, nullptr, 16);
+                uint32_t addr = 0;
+                if (!parse_seed_hex(p, addr) || (addr & 3u) != 0u) {
+                    fmt::print(stderr, "ERROR: invalid seed line: {}\n", line);
+                    return 1;
+                }
                 const uint32_t phys = addr & PSXRecomp::kPhysMask;
                 if (phys < (seed_lo & PSXRecomp::kPhysMask) ||
                     phys >= (seed_lo & PSXRecomp::kPhysMask) + (seed_hi - seed_lo)) {
@@ -1107,7 +1129,8 @@ static int psxrecomp_game_main(int argc, char** argv) {
                 }
             }
         } else {
-            fmt::print("WARNING: Cannot open extra-funcs file: {}\n", extra_funcs_path);
+            fmt::print(stderr, "ERROR: Cannot open extra-funcs file: {}\n", extra_funcs_path);
+            return 1;
         }
     }
 
