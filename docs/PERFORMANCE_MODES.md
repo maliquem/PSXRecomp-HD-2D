@@ -59,7 +59,12 @@ skipped class wrote keeps its old shadow; the value check on later use drops it
 unless the new word equals the old one, in which case the old fraction rides
 along on an equal integer (at most a sub-pixel difference). This is how a
 memory-only PGXP behaves. CPU mode always takes every class. `PSX_PGXP_ALU`
-(`full`, `moves` or a class mask) overrides the key for a run.
+(`full`, `moves` or a class mask) overrides the key for a run. The interpreters
+(`dirty_ram_interp.c`, `psx_interpreter.c`) and the overlay DLLs' hook table call
+`psx_pgxp_alu_masked` (`pgxp_session.cpp`), which applies the same mask: a function
+that moves from interpreted to DLL or compiled code keeps the same shadows. Before
+that the interpreters took every class, so the first compile of an area changed
+the PGXP shadows (Wild Arms 2, 2026-11-15).
 
 ## `[recompiler] cpu_timing = "block"` (exact inside a block)
 

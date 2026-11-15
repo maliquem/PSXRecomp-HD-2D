@@ -30,7 +30,7 @@ void gte_execute(CPUState *c, uint32_t cmd) { (void)c; (void)cmd; }
 void gte_precision_store_word(uint32_t a, uint8_t r) { (void)a; (void)r; }
 void psx_pgxp_load(struct CPUState *c, uint32_t i, uint32_t a, uint32_t v) { (void)c; (void)i; (void)a; (void)v; }
 void psx_pgxp_store(struct CPUState *c, uint32_t i, uint32_t a, uint32_t v) { (void)c; (void)i; (void)a; (void)v; }
-void psx_pgxp_alu(struct CPUState *c, uint32_t i, uint32_t r, uint32_t a, uint32_t b) { (void)c; (void)i; (void)r; (void)a; (void)b; }
+void psx_pgxp_alu_masked(struct CPUState *c, uint32_t i, uint32_t r, uint32_t a, uint32_t b) { (void)c; (void)i; (void)r; (void)a; (void)b; }
 void psx_pgxp_muldiv(struct CPUState *c, uint32_t i, uint32_t h, uint32_t l, uint32_t a, uint32_t b) { (void)c; (void)i; (void)h; (void)l; (void)a; (void)b; }
 void psx_pgxp_cop2(struct CPUState *c, uint32_t i, uint32_t v, uint32_t a) { (void)c; (void)i; (void)v; (void)a; }
 

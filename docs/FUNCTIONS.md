@@ -2909,115 +2909,115 @@ Keeps a large ring of device interrupt events (cycle, frame and source) for debu
 
 Small MIPS interpreter that runs code written into RAM after boot, one basic block at a time, with debug and trace hooks.
 
-- `interp_cyc_step` (L99) — Charges one cycle for an interpreted instruction, unless a pending load result is still absorbing it or a replay is active.
-- `interp_exception` (L131) — ===== Minimal exception delivery from the interpreter path ===== Sets COP0 registers (BadVAddr, Cause, EPC, Status) and redirects PC to the hardware exception vector.
-- `cosim_exec_one_begin` (L149) — Clears the co-simulation hook flag before an instruction runs; does nothing unless co-simulation is built.
-- `cosim_exec_one_did_hook` (L150) — Returns 1 if the co-simulation hook ran during the current instruction, otherwise 0.
-- `cosim_exec_one_transfer_hook` (L151) — Runs the co-simulation check for the instruction at the given PC and marks that it ran.
-- `pc_table_get_or_insert_in` (L250) — Linear-probed insert/lookup keyed on entry PC.
-- `pc_table_get_or_insert` (L261) — Returns the entry for a PC in the global PC table, inserting it if it is not there yet.
-- `exec_pc_table_record` (L269) — Record every PC the interpreter executes (not just block entries) so overlay_capture can report execution-verified seeds for the region.
-- `dirty_ram_interp_is_active` (L294) — Returns 1 while the interpreter is active for the current dispatch, otherwise 0.
-- `psx_exec_phase` (L311) — Returns the current execution phase code, used by the wall-time sampler.
-- `dirty_ram_ld_delay_flush` (L351) — Retire a deferred load writeback.
-- `dirty_ram_ld_delay_discard` (L359) — Drop a deferred load-delay writeback WITHOUT applying it.
-- `dirty_ram_ld_delay_save` (L366) — Copies the pending delayed load (register, value, age, armed flag) into the given structure so it can be restored later.
-- `dirty_ram_ld_delay_restore` (L374) — Restores a pending delayed load from a structure saved earlier.
-- `dirty_ram_irq_ambient_resync_after_restore` (L382) — Re-anchor host-only dirty IRQ pump ambient (entry-poll stride + 4096-insn gap) after snap restore.
-- `callret_armed` (L444) — Returns 1 when the call-resolution watch range is set, otherwise 0.
-- `callret_begin` (L470) — Records the start of a call in the call-resolution ring when its PC is in the watched range; returns the entry index or an invalid marker.
-- `callret_end` (L488) — Completes the call-resolution record at the given index with its path code and the CPU state after the call.
-- `interp_refused_game_text` (L530) — Game text that dispatch refuses because its live bytes differ from the boot EXE.
-- `span_forced` (L546) — Returns 1 when a physical address lies inside the forced span range.
-- `op_field` (L555) — MIPS instruction field decoders.
-- `rs_field` (L556) — Returns the rs register field (bits 21 to 25) of a MIPS instruction word.
-- `rt_field` (L557) — Returns the rt register field (bits 16 to 20) of a MIPS instruction word.
-- `rd_field` (L558) — Returns the rd register field (bits 11 to 15) of a MIPS instruction word.
-- `shamt_field` (L559) — Returns the shift amount field (bits 6 to 10) of a MIPS instruction word.
-- `funct_field` (L560) — Returns the 6-bit function field (bits 0 to 5) of a MIPS instruction word.
-- `imm16_field` (L561) — Returns the unsigned 16-bit immediate field of a MIPS instruction word.
-- `simm16_field` (L562) — Returns the 16-bit immediate field sign-extended to 32 bits.
-- `target26` (L563) — Returns the 26-bit jump target field of a MIPS instruction word.
-- `fetch_word` (L569) — Read a 32-bit instruction word from main RAM at the given physical addr.
-- `sxy_fold_word` (L583) — Word reader for the [[widescreen.cull.sxy]] whole-fold check: the fold words around an interpreted PC are in main RAM like the PC itself.
-- `ws_cull_site` (L603) — Classifies a PC as a widescreen cull site, using a small cache keyed on the PC and its instruction word.
-- `ws_cull_bltz_site` (L634) — Widescreen LEFT-edge funnel-bltz classification (auto_screen_x, signed min/max + center±halfwidth idioms — ws_cull_detect.h).
-- `ws_branch_keep` (L661) — Explicit [widescreen.cull] branch_keep_sites: the reject branch is forced not-taken only while a widened view is configured, exactly like the native emit (code_generator.cpp keep_branch_if_wide).
-- `ws_clip_edge_load` (L669) — Explicit [widescreen.cull] clip_edge_x_load_sites (lh/lhu/lw): the loaded screen-X clip bound moves out by the live margin when it equals a screen edge (gpu.c psx_ws_clip_edge_x).
-- `ws_backdrop_site_kind` (L682) — Widescreen far-backdrop column-PRELOAD site classification for the interpreter ([widescreen.cull] auto_backdrop).
-- `dirty_ram_log_instruction` (L712) — Records one interpreted instruction in the instruction log when its PC is in the recorded range, and freezes the log when the watched target is reached.
-- `dirty_ram_log_marker` (L778) — Marker entries delimit NATIVE candidate executions in the insn ring (native code emits no per-insn entries; markers keep the two runs' timelines alignable).
-- `lwl_merge` (L793) — LWL/LWR are merge-only here; the timed aligned-word read is done by the caller via psx_cyc_load_word (Beetle reads the aligned word; GPR_DEP rs only, arms LDWhich=rt).
-- `lwr_merge` (L802) — Merges the aligned memory word with the register value for an LWR (load word right) at the given byte offset.
-- `interp_swl` (L811) — Interprets SWL (store word left): writes the upper bytes of a value into the aligned word in memory.
-- `interp_swr` (L823) — Interprets SWR (store word right): writes the lower bytes of a value into the aligned word in memory.
-- `abort_unsupported` (L855) — Records an unsupported instruction (its PC, word and reason) as an abort and returns 1 so the caller stops.
-- `phys_is_overlay_flow_region` (L880) — A dirty page that should run as a locally-chained overlay: anything ABOVE the kernel window.
-- `is_local_dirty_target` (L884) — Returns 1 when a jump target lies in an overlay flow region and its RAM page is dirty, so it should be interpreted locally.
-- `dirty_ram_word_looks_decodable` (L902) — A dirty-RAM target only deserves interpretation if its first word decodes as a plausible MIPS instruction.
-- `dirty_ram_same_pc` (L945) — Returns 1 when two PCs refer to the same physical address, ignoring the segment bits.
-- `dirty_ram_pump_boundary` (L949) — Runs the interrupt check at a block boundary and records the safe resume PC; returns 1 when control was transferred.
-- `dirty_ram_finish_call_return` (L975) — Finishes a call by moving the PC to the return address and running the boundary check; returns 1 if control was transferred, else sets the next PC.
-- `dispatch_nonlocal_call` (L987) — Sends a call to a target outside the interpreted block through the compiled dispatcher and returns the next PC through an output parameter.
-- `psx_mixed_owner_enabled` (L1029) — ── Mixed interp<->compiled dispatch owner (host-stack recursion fix) ────── The dirty interpreter nests psx_dispatch_game_compiled when an interpreted block transfers into compiled code.
-- `interp_host_stack_used` (L1037) — #include <intrin.h> /* __readgsqword — fiber TEB StackBase
-- `psx_mixed_stack_watermark` (L1047) — Returns the host stack limit in bytes at which nesting of compiled calls stops, from PSX_MIXED_STACK_KB (default 700 KB, minimum 64 KB).
-- `xprobe_env_init` (L1127) — Reads the flight-recorder limits from environment variables, once.
-- `dirty_ram_xprobe_arm` (L1134) — Sets the flight-recorder trip limits (frame, stack KB, warmup) and re-arms the trip.
-- `xprobe_flush_frame` (L1139) — Stores the current frame's flight-recorder summary (crossings, depth, stack, cycles) into the summary ring.
-- `xprobe_watch_parse` (L1173) — Parses a comma or space separated list of watched physical addresses into the watch table.
-- `g_xprobe_watch` (L1191) — Env seeding is lazy so it works no matter which subsystem touches the ring first, and costs one branch after the first call.
-- `dirty_ram_xprobe_watch_set` (L1207) — Control plane for the 'xprobe_watch' TCP command.
-- `dirty_ram_xprobe_watch_get` (L1213) — Returns the watched address at an index through phys_out; returns 1 when the index is valid, otherwise 0.
-- `dirty_ram_xprobe_watch_count` (L1220) — Returns how many addresses are in the flight-recorder watch list.
-- `dirty_ram_xprobe_call_note` (L1227) — Watched-target call note for NON-interp call sites (overlay shard call-outs via dispatch_call).
-- `xprobe_event` (L1232) — Records one control-flow crossing in the flight recorder, flushing the previous frame's summary when the frame changes.
-- `dirty_ram_xprobe_json` (L1272) — Emit the flight-recorder rings as JSON (called by crash_trace).
-- `interp_enter_compiled` (L1368) — Hands a jump target to compiled code when its game text is native-ok and the host stack is not too deep; returns 0 so the interpreter runs it instead.
-- `exec_one` (L1399) — Fetches the instruction at a PC and executes it, returning the next PC through an output parameter.
-- `interp_reserved_primary` (L1405) — psx-spx "Illegal Opcodes": N/A primary opcodes raise RI; LWC0/SWC0 raise CpU.
-- `exec_delay_slot` (L1412) — Forward: helper for delay-slot execution on jumps/branches.
-- `exec_one_fetched` (L1452) — Executes one already-fetched instruction, first retiring any pending delayed load writeback.
-- `exec_one_fetched_inner` (L1555) — Decodes and executes one fetched MIPS instruction, updating registers, memory and the next PC.
-- `dirty_ram_dispatch` (L2541) — Public entry point. Caller (psx_dispatch) has translated 'addr' to a KSEG-stripped form already in some cases, so accept any address and mask.
-- `dirty_ram_span_get` (L2655) — The open span (0,0 = none), for landings that longjmp past its exit.
-- `dirty_ram_span_set` (L2660) — Sets the physical address range that the span-forced check tests against.
-- `dirty_ram_span_last_failure` (L2667) — Copies the reason and details of the last failed span run into the given structure.
-- `dirty_ram_run_span` (L2671) — Runs guest code from a start PC to a stop PC through the interpreter, up to a maximum instruction count; returns 1 on success and records a failure otherwise.
-- `precise_irq_deliverable` (L2728) — Is a hardware interrupt deliverable to the guest at this exact instruction boundary?
-- `precise_pc_dispatchable` (L2754) — Is 'pc' a point the TOP-LEVEL dispatcher can re-enter?
-- `psx_run_precise` (L2774) — Run the guest per-instruction from cpu->pc through the interpreter, taking any deliverable interrupt at the EXACT instruction boundary, until a safe resume point.
-- `psx_precise_slice_init_from_env` (L2935) — Reads PSX_PRECISE_SLICE from the environment to turn precise per-instruction slicing on or off.
-- `psx_slice_block_impl` (L2946) — Block-leader slice guard impl.
-- `dirty_ram_dispatch_inner` (L2983) — Dispatches a PC in dirty RAM: classifies its page and interprets the basic block there.
-- `ls_set_window` (L3764) — Arm the comparator over a guest-frame window [lo,hi].
-- `ls_set_record_only` (L3765) — Diagnostic: record blocks but skip the inline replay (to test whether the inline replay, not recording, is what perturbs the run).
-- `ls_func_set_window` (L3766) — Arms the dispatch-segment lockstep comparator over a frame window.
-- `ls_func_set_record_only` (L3767) — Turns record-only mode on or off for the dispatch-segment lockstep comparator.
-- `ls_note_exception_entry` (L3769) — Called at real IRQ exception entry.
-- `ls_shadow_record_begin` (L3774) — Side-effect-free whole-call trace used by the overlay differential gate.
-- `ls_shadow_record_end` (L3791) — Ends a shadow recording: returns 1 when it can be replayed, and reports the operation count and whether an exception was seen.
-- `ls_shadow_record_unreplayable` (L3800) — A recorded effect the replay cannot reproduce fails the record closed (the comparison is skipped, as for a device touch).
-- `ls_shadow_replay_begin` (L3804) — Starts replaying a recorded shadow trace; returns 0 when another owner or a replay is already active.
-- `ls_shadow_replay_end` (L3819) — Ends a shadow replay and reports whether it completed, plus any mismatch details; returns 0 when this is not the replay owner.
-- `ls_shadow_abort` (L3838) — Cancels any shadow record or replay and restores the normal memory-operation mode.
-- `ls_suppress_begin` (L3846) — Suppress lockstep memory recording while runtime/debug observers read guest RAM for diagnostics.
-- `ls_suppress_end` (L3850) — Ends one suppression of lockstep memory recording.
-- `ls_read_hook` (L3854) — Memory chokepoint hooks, called from the psx_read_ and psx_write_ funcs.
-- `ls_write_hook` (L3875) — Memory write hook for lockstep: during replay it checks the write against the trace, otherwise it records the write.
-- `ls_latch` (L3899) — Stores the first divergence found by the lockstep comparator; later divergences are ignored.
-- `ls_replay_and_compare` (L3909) — Re-interpret the just-recorded block from the entry snapshot, comparing the interp result to native (cpu == post-block native state).
-- `ls_same_phys` (L3969) — Returns 1 when two addresses are the same physical address, ignoring the segment bits.
-- `lsf_copy_div_trace` (L3973) — Copies up to 48 trace entries around a divergence into the dispatch-segment comparator record.
-- `lsf_latch` (L3981) — Stores the first divergence of the dispatch-segment comparator with its kind, frame, entry and details; later ones are ignored.
-- `lsf_compare_regs` (L4000) — Compares the replayed and native CPU states (PC and general registers) and records the first mismatch.
-- `lsf_replay_and_compare` (L4022) — Replays one dispatch segment through the interpreter from its entry and compares the result with the native state.
-- `ls_func_enter` (L4111) — Dispatch-segment comparator: wraps one clean psx_dispatch_game_compiled() invocation and replays the same callable through exec_one until it reaches the same returned cpu->pc.
-- `ls_func_exit` (L4137) — Ends a dispatch-segment comparison at the segment exit, comparing the result or skipping it on a conflict.
-- `ls_leader_armed` (L4174) — Whether ls_at_leader can act (debug_server.c: the block observer's gate).
-- `ls_at_leader` (L4176) — Per-basic-block-leader entry, called from debug_server_cyc_observe.
-- `ls_get_diverge_json` (L4224) — Drain the first-divergence record as JSON into buf.
-- `ls_get_func_json` (L4245) — Writes the dispatch-segment divergence record as JSON into a buffer and returns its length.
+- `interp_cyc_step` (L102) — Charges one cycle for an interpreted instruction, unless a pending load result is still absorbing it or a replay is active.
+- `interp_exception` (L134) — ===== Minimal exception delivery from the interpreter path ===== Sets COP0 registers (BadVAddr, Cause, EPC, Status) and redirects PC to the hardware exception vector.
+- `cosim_exec_one_begin` (L152) — Clears the co-simulation hook flag before an instruction runs; does nothing unless co-simulation is built.
+- `cosim_exec_one_did_hook` (L153) — Returns 1 if the co-simulation hook ran during the current instruction, otherwise 0.
+- `cosim_exec_one_transfer_hook` (L154) — Runs the co-simulation check for the instruction at the given PC and marks that it ran.
+- `pc_table_get_or_insert_in` (L253) — Linear-probed insert/lookup keyed on entry PC.
+- `pc_table_get_or_insert` (L264) — Returns the entry for a PC in the global PC table, inserting it if it is not there yet.
+- `exec_pc_table_record` (L272) — Record every PC the interpreter executes (not just block entries) so overlay_capture can report execution-verified seeds for the region.
+- `dirty_ram_interp_is_active` (L297) — Returns 1 while the interpreter is active for the current dispatch, otherwise 0.
+- `psx_exec_phase` (L314) — Returns the current execution phase code, used by the wall-time sampler.
+- `dirty_ram_ld_delay_flush` (L354) — Retire a deferred load writeback.
+- `dirty_ram_ld_delay_discard` (L362) — Drop a deferred load-delay writeback WITHOUT applying it.
+- `dirty_ram_ld_delay_save` (L369) — Copies the pending delayed load (register, value, age, armed flag) into the given structure so it can be restored later.
+- `dirty_ram_ld_delay_restore` (L377) — Restores a pending delayed load from a structure saved earlier.
+- `dirty_ram_irq_ambient_resync_after_restore` (L385) — Re-anchor host-only dirty IRQ pump ambient (entry-poll stride + 4096-insn gap) after snap restore.
+- `callret_armed` (L447) — Returns 1 when the call-resolution watch range is set, otherwise 0.
+- `callret_begin` (L473) — Records the start of a call in the call-resolution ring when its PC is in the watched range; returns the entry index or an invalid marker.
+- `callret_end` (L491) — Completes the call-resolution record at the given index with its path code and the CPU state after the call.
+- `interp_refused_game_text` (L533) — Game text that dispatch refuses because its live bytes differ from the boot EXE.
+- `span_forced` (L549) — Returns 1 when a physical address lies inside the forced span range.
+- `op_field` (L558) — MIPS instruction field decoders.
+- `rs_field` (L559) — Returns the rs register field (bits 21 to 25) of a MIPS instruction word.
+- `rt_field` (L560) — Returns the rt register field (bits 16 to 20) of a MIPS instruction word.
+- `rd_field` (L561) — Returns the rd register field (bits 11 to 15) of a MIPS instruction word.
+- `shamt_field` (L562) — Returns the shift amount field (bits 6 to 10) of a MIPS instruction word.
+- `funct_field` (L563) — Returns the 6-bit function field (bits 0 to 5) of a MIPS instruction word.
+- `imm16_field` (L564) — Returns the unsigned 16-bit immediate field of a MIPS instruction word.
+- `simm16_field` (L565) — Returns the 16-bit immediate field sign-extended to 32 bits.
+- `target26` (L566) — Returns the 26-bit jump target field of a MIPS instruction word.
+- `fetch_word` (L572) — Read a 32-bit instruction word from main RAM at the given physical addr.
+- `sxy_fold_word` (L586) — Word reader for the [[widescreen.cull.sxy]] whole-fold check: the fold words around an interpreted PC are in main RAM like the PC itself.
+- `ws_cull_site` (L606) — Classifies a PC as a widescreen cull site, using a small cache keyed on the PC and its instruction word.
+- `ws_cull_bltz_site` (L637) — Widescreen LEFT-edge funnel-bltz classification (auto_screen_x, signed min/max + center±halfwidth idioms — ws_cull_detect.h).
+- `ws_branch_keep` (L664) — Explicit [widescreen.cull] branch_keep_sites: the reject branch is forced not-taken only while a widened view is configured, exactly like the native emit (code_generator.cpp keep_branch_if_wide).
+- `ws_clip_edge_load` (L672) — Explicit [widescreen.cull] clip_edge_x_load_sites (lh/lhu/lw): the loaded screen-X clip bound moves out by the live margin when it equals a screen edge (gpu.c psx_ws_clip_edge_x).
+- `ws_backdrop_site_kind` (L685) — Widescreen far-backdrop column-PRELOAD site classification for the interpreter ([widescreen.cull] auto_backdrop).
+- `dirty_ram_log_instruction` (L715) — Records one interpreted instruction in the instruction log when its PC is in the recorded range, and freezes the log when the watched target is reached.
+- `dirty_ram_log_marker` (L781) — Marker entries delimit NATIVE candidate executions in the insn ring (native code emits no per-insn entries; markers keep the two runs' timelines alignable).
+- `lwl_merge` (L796) — LWL/LWR are merge-only here; the timed aligned-word read is done by the caller via psx_cyc_load_word (Beetle reads the aligned word; GPR_DEP rs only, arms LDWhich=rt).
+- `lwr_merge` (L805) — Merges the aligned memory word with the register value for an LWR (load word right) at the given byte offset.
+- `interp_swl` (L814) — Interprets SWL (store word left): writes the upper bytes of a value into the aligned word in memory.
+- `interp_swr` (L826) — Interprets SWR (store word right): writes the lower bytes of a value into the aligned word in memory.
+- `abort_unsupported` (L858) — Records an unsupported instruction (its PC, word and reason) as an abort and returns 1 so the caller stops.
+- `phys_is_overlay_flow_region` (L883) — A dirty page that should run as a locally-chained overlay: anything ABOVE the kernel window.
+- `is_local_dirty_target` (L887) — Returns 1 when a jump target lies in an overlay flow region and its RAM page is dirty, so it should be interpreted locally.
+- `dirty_ram_word_looks_decodable` (L905) — A dirty-RAM target only deserves interpretation if its first word decodes as a plausible MIPS instruction.
+- `dirty_ram_same_pc` (L948) — Returns 1 when two PCs refer to the same physical address, ignoring the segment bits.
+- `dirty_ram_pump_boundary` (L952) — Runs the interrupt check at a block boundary and records the safe resume PC; returns 1 when control was transferred.
+- `dirty_ram_finish_call_return` (L978) — Finishes a call by moving the PC to the return address and running the boundary check; returns 1 if control was transferred, else sets the next PC.
+- `dispatch_nonlocal_call` (L990) — Sends a call to a target outside the interpreted block through the compiled dispatcher and returns the next PC through an output parameter.
+- `psx_mixed_owner_enabled` (L1032) — ── Mixed interp<->compiled dispatch owner (host-stack recursion fix) ────── The dirty interpreter nests psx_dispatch_game_compiled when an interpreted block transfers into compiled code.
+- `interp_host_stack_used` (L1040) — #include <intrin.h> /* __readgsqword — fiber TEB StackBase
+- `psx_mixed_stack_watermark` (L1050) — Returns the host stack limit in bytes at which nesting of compiled calls stops, from PSX_MIXED_STACK_KB (default 700 KB, minimum 64 KB).
+- `xprobe_env_init` (L1130) — Reads the flight-recorder limits from environment variables, once.
+- `dirty_ram_xprobe_arm` (L1137) — Sets the flight-recorder trip limits (frame, stack KB, warmup) and re-arms the trip.
+- `xprobe_flush_frame` (L1142) — Stores the current frame's flight-recorder summary (crossings, depth, stack, cycles) into the summary ring.
+- `xprobe_watch_parse` (L1176) — Parses a comma or space separated list of watched physical addresses into the watch table.
+- `g_xprobe_watch` (L1194) — Env seeding is lazy so it works no matter which subsystem touches the ring first, and costs one branch after the first call.
+- `dirty_ram_xprobe_watch_set` (L1210) — Control plane for the 'xprobe_watch' TCP command.
+- `dirty_ram_xprobe_watch_get` (L1216) — Returns the watched address at an index through phys_out; returns 1 when the index is valid, otherwise 0.
+- `dirty_ram_xprobe_watch_count` (L1223) — Returns how many addresses are in the flight-recorder watch list.
+- `dirty_ram_xprobe_call_note` (L1230) — Watched-target call note for NON-interp call sites (overlay shard call-outs via dispatch_call).
+- `xprobe_event` (L1235) — Records one control-flow crossing in the flight recorder, flushing the previous frame's summary when the frame changes.
+- `dirty_ram_xprobe_json` (L1275) — Emit the flight-recorder rings as JSON (called by crash_trace).
+- `interp_enter_compiled` (L1371) — Hands a jump target to compiled code when its game text is native-ok and the host stack is not too deep; returns 0 so the interpreter runs it instead.
+- `exec_one` (L1402) — Fetches the instruction at a PC and executes it, returning the next PC through an output parameter.
+- `interp_reserved_primary` (L1408) — psx-spx "Illegal Opcodes": N/A primary opcodes raise RI; LWC0/SWC0 raise CpU.
+- `exec_delay_slot` (L1415) — Forward: helper for delay-slot execution on jumps/branches.
+- `exec_one_fetched` (L1455) — Executes one already-fetched instruction, first retiring any pending delayed load writeback.
+- `exec_one_fetched_inner` (L1558) — Decodes and executes one fetched MIPS instruction, updating registers, memory and the next PC.
+- `dirty_ram_dispatch` (L2544) — Public entry point. Caller (psx_dispatch) has translated 'addr' to a KSEG-stripped form already in some cases, so accept any address and mask.
+- `dirty_ram_span_get` (L2658) — The open span (0,0 = none), for landings that longjmp past its exit.
+- `dirty_ram_span_set` (L2663) — Sets the physical address range that the span-forced check tests against.
+- `dirty_ram_span_last_failure` (L2670) — Copies the reason and details of the last failed span run into the given structure.
+- `dirty_ram_run_span` (L2674) — Runs guest code from a start PC to a stop PC through the interpreter, up to a maximum instruction count; returns 1 on success and records a failure otherwise.
+- `precise_irq_deliverable` (L2731) — Is a hardware interrupt deliverable to the guest at this exact instruction boundary?
+- `precise_pc_dispatchable` (L2757) — Is 'pc' a point the TOP-LEVEL dispatcher can re-enter?
+- `psx_run_precise` (L2777) — Run the guest per-instruction from cpu->pc through the interpreter, taking any deliverable interrupt at the EXACT instruction boundary, until a safe resume point.
+- `psx_precise_slice_init_from_env` (L2938) — Reads PSX_PRECISE_SLICE from the environment to turn precise per-instruction slicing on or off.
+- `psx_slice_block_impl` (L2949) — Block-leader slice guard impl.
+- `dirty_ram_dispatch_inner` (L2986) — Dispatches a PC in dirty RAM: classifies its page and interprets the basic block there.
+- `ls_set_window` (L3767) — Arm the comparator over a guest-frame window [lo,hi].
+- `ls_set_record_only` (L3768) — Diagnostic: record blocks but skip the inline replay (to test whether the inline replay, not recording, is what perturbs the run).
+- `ls_func_set_window` (L3769) — Arms the dispatch-segment lockstep comparator over a frame window.
+- `ls_func_set_record_only` (L3770) — Turns record-only mode on or off for the dispatch-segment lockstep comparator.
+- `ls_note_exception_entry` (L3772) — Called at real IRQ exception entry.
+- `ls_shadow_record_begin` (L3777) — Side-effect-free whole-call trace used by the overlay differential gate.
+- `ls_shadow_record_end` (L3794) — Ends a shadow recording: returns 1 when it can be replayed, and reports the operation count and whether an exception was seen.
+- `ls_shadow_record_unreplayable` (L3803) — A recorded effect the replay cannot reproduce fails the record closed (the comparison is skipped, as for a device touch).
+- `ls_shadow_replay_begin` (L3807) — Starts replaying a recorded shadow trace; returns 0 when another owner or a replay is already active.
+- `ls_shadow_replay_end` (L3822) — Ends a shadow replay and reports whether it completed, plus any mismatch details; returns 0 when this is not the replay owner.
+- `ls_shadow_abort` (L3841) — Cancels any shadow record or replay and restores the normal memory-operation mode.
+- `ls_suppress_begin` (L3849) — Suppress lockstep memory recording while runtime/debug observers read guest RAM for diagnostics.
+- `ls_suppress_end` (L3853) — Ends one suppression of lockstep memory recording.
+- `ls_read_hook` (L3857) — Memory chokepoint hooks, called from the psx_read_ and psx_write_ funcs.
+- `ls_write_hook` (L3878) — Memory write hook for lockstep: during replay it checks the write against the trace, otherwise it records the write.
+- `ls_latch` (L3902) — Stores the first divergence found by the lockstep comparator; later divergences are ignored.
+- `ls_replay_and_compare` (L3912) — Re-interpret the just-recorded block from the entry snapshot, comparing the interp result to native (cpu == post-block native state).
+- `ls_same_phys` (L3972) — Returns 1 when two addresses are the same physical address, ignoring the segment bits.
+- `lsf_copy_div_trace` (L3976) — Copies up to 48 trace entries around a divergence into the dispatch-segment comparator record.
+- `lsf_latch` (L3984) — Stores the first divergence of the dispatch-segment comparator with its kind, frame, entry and details; later ones are ignored.
+- `lsf_compare_regs` (L4003) — Compares the replayed and native CPU states (PC and general registers) and records the first mismatch.
+- `lsf_replay_and_compare` (L4025) — Replays one dispatch segment through the interpreter from its entry and compares the result with the native state.
+- `ls_func_enter` (L4114) — Dispatch-segment comparator: wraps one clean psx_dispatch_game_compiled() invocation and replays the same callable through exec_one until it reaches the same returned cpu->pc.
+- `ls_func_exit` (L4140) — Ends a dispatch-segment comparison at the segment exit, comparing the result or skipping it on a conflict.
+- `ls_leader_armed` (L4177) — Whether ls_at_leader can act (debug_server.c: the block observer's gate).
+- `ls_at_leader` (L4179) — Per-basic-block-leader entry, called from debug_server_cyc_observe.
+- `ls_get_diverge_json` (L4227) — Drain the first-divergence record as JSON into buf.
+- `ls_get_func_json` (L4248) — Writes the dispatch-segment divergence record as JSON into a buffer and returns its length.
 
 ### runtime/src/disasm_shim.cpp
 
@@ -7489,83 +7489,83 @@ Loads native overlay code (compiled DLL shards of the game's own functions) on d
 - `overlay_post_dispatch_irq_pump` (L2553) — After a dispatch, delivers a pending interrupt, but never inside a shadow run.
 - `overlay_dispatch_call_probed` (L2570) — extern int g_exec_phase; /* wall-time sampler phase (dirty_ram_interp.c)
 - `init_callbacks` (L2579) — Fills the host callback table with the dispatch, interrupt-check and escape functions the overlay DLLs call.
-- `load_overlay_dll` (L2786) — Loads one cache DLL from its path, resolves its entries and registers them as candidates.
-- `load_bios_resident_shards` (L3059) — Loads every complete BIOS-resident shard that is not loaded yet.
-- `overlay_loader_callbacks` (L3081) — The host callback table, for a consumer that loads overlay-style modules before (or without) overlay_loader_init: the BIOS module host activates a player's retail backend during BIOS selection, ahead
-- `overlay_loader_init` (L3086) — Sets up the overlay loader for a cache folder, game id and config hash, resetting the page index and scanning the cache.
-- `overlay_loader_check_cache` (L3159) — Does nothing at load time: DLL loading is deferred to the first dispatch miss.
-- `already_checked` (L3174) — 1 when this region has already been checked against the cache.
-- `mark_checked` (L3179) — Remembers that a region has been checked against the cache.
-- `overlay_loader_clear_lazy_miss` (L3183) — Drop the negative lazy-lookup memo (host-only).
-- `overlay_loader_resync_validation_after_restore` (L3189) — After RAM restore: bust overlay candidate gen fast-path + static-match cache so native vs interp is re-decided against restored bytes.
-- `overlay_loader_rescan` (L3209) — Re-scan the cache dir for DLLs compiled after init (step 2.8 autocompile) and clear the checked-regions memo so the next dispatch into a window region reconsiders the cache.
-- `native_rank_allows` (L3234) — 1 when this candidate is within the native rank limit; gives it a rank on first use and logs it.
-- `dll_already_loaded` (L3254) — 1 when a DLL with this path is already loaded.
-- `cache_entry_already_loaded` (L3265) — A lazy manifest chain may have hundreds of functions from the same DLL.
-- `overlay_library_close` (L3274) — Closes an overlay library handle with FreeLibrary or dlclose; ignores NULL.
-- `load_one_dll` (L3285) — Consumes prepared on every path.
-- `load_one_dll_prepared` (L3388) — Publishes a prepared library by passing it to the normal single-DLL loader.
-- `published_root_canonical` (L3395) — Resolves the cache root to its canonical path once; returns 0 while it cannot be resolved, so the publish is refused.
-- `published_path_valid` (L3412) — Validates dll_path and writes its CANONICAL form into canon; every later consumer (LoadLibrary, .ranges derivation, loaded-path tracking) uses the canonical string, never the raw pipe text.
-- `overlay_loader_prepare_published` (L3435) — Checks a published DLL path and loads it into a prepared image that can be committed later; NULL when the path is invalid.
-- `overlay_loader_commit_published` (L3476) — Commits a prepared image into the loader when loads are allowed, otherwise discards it; returns 1 when committed.
-- `overlay_loader_discard_prepared` (L3497) — Closes and frees a prepared image that will not be committed.
-- `lazy_man_contains` (L3504) — 1 when a lazy manifest's entries or code ranges cover this physical address in the same segment.
-- `lazy_man_crc` (L3515) — 1 and *crc = CRC of the manifest's live bytes, 0 when it has none.
-- `lazy_man_gensum` (L3519) — Generation sum over the code ranges of a lazy manifest.
-- `lazy_man_matches` (L3523) — 1 when the live bytes of a lazy manifest still match its CRC; records the result as valid or invalid.
-- `lazy_bundle_matches` (L3545) — A CPS DLL can directly own internal tail targets, so one matching entry does not prove the rest of that captured snapshot is current.
-- `lazy_candidate_preferred` (L3567) — Same-tier artifacts that both pass the live-byte gate compute the same thing, but their block edges differ (where a page cut or another capture's branch targets end a block), so under cpu_timing = "bl
-- `lazy_choose_complete_or_fallback` (L3579) — Prefer GCC over TCC even when the TCC option happens to be a broader bundle.
-- `overlay_image_warm_seed_boot_text` (L3593) — A streamed variant is not byte-coherent until immediately before its first call, too late to hide Windows' first image-map cost.
-- `lazy_is_loadable` (L3607) — 1 when a lazy manifest entry can be loaded now for this region and segment.
-- `lazy_better_bundle` (L3624) — Chooses between two lazy bundles by manifest index order only, never by size or timestamp.
-- `lazy_load_selected` (L3634) — Loads the cache entry of a selected lazy manifest, unless it has failed, is suppressed or is already loaded.
-- `try_load_region` (L3656) — Load the cached shard of 'seg' (§5.7) that serves phys.
-- `lazy_has_exact_entry` (L3757) — O(1)-bucket discriminator between a real manifested function entry and an interior CPS continuation.
-- `range_candidate_matches` (L3781) — CPS (§25): find a non-blacklisted candidate whose code range CONTAINS phys — i.e.
-- `range_candidate_preferred` (L3834) — 1 when candidate should replace current: a higher tier wins, and among equal tiers the newer candidate wins.
-- `overlay_find_by_range` (L3841) — Finds the candidate whose code range holds this physical address in the given segment; -1 when none or the loader is off.
-- `overlay_loader_dispatch` (L3884) — Called from dirty_ram_dispatch before the interpreter.
-- `overlay_loader_dispatch_seg` (L3918) — A shard's body bakes the PCs of the segment it was compiled for: the $ra a jal/jalr writes, its jump and exception-resume PCs, its I-cache fetch tags and store-PC stamps (docs/SEGMENT_AWARE_CODE.md §5
-- `overlay_loader_active_write_check` (L4273) — ---- Self-modification of an actively-executing entry (§8.5) ------------ Lazy re-hash on the NEXT dispatch is too late if a native function modifies its own code and continues executing the modified
-- `overlay_loader_get_counters` (L4300) — Reports the loader counters: loads, invalidations, native and interpreted dispatches, and details of the last write.
-- `overlay_loader_get_load_timing` (L4321) — Reports the total, maximum and last DLL load times, in microseconds.
-- `overlay_loader_take_hot_native` (L4328) — Opt-in PSX_RUNTIME_PERF_DIAG sampler: returns and clears the hottest native owner since the preceding call.
-- `overlay_loader_get_reload_debug` (L4353) — Reload diagnostics. Repurposed for the per-entry model: r0_valid -> candidates currently VALID r0_writes...
-- `overlay_loader_registered_count` (L4369) — Returns number of functions currently registered in the dynamic table.
-- `overlay_loader_gen_fastpath` (L4374) — Dispatches that ran native via the unchanged-page-generation fast path, i.e.
-- `overlay_loader_range_link_count` (L4375) — Number of range index links in use.
-- `overlay_loader_range_index_overflow` (L4376) — 1 when the range index ran out of space.
-- `overlay_loader_lazy_manifest_count` (L4377) — Number of lazy manifest entries indexed.
-- `overlay_loader_lazy_manifest_overflow` (L4378) — 1 when the lazy manifest table overflowed.
-- `overlay_loader_candidate_overflow` (L4379) — Number of candidates refused because the candidate table was full.
-- `overlay_loader_pair_aliases` (L4380) — Number of shard pairs that aliased an already loaded pair.
-- `overlay_loader_segment_alias_interp` (L4381) — KUSEG/KSEG1 (and unmapped-segment) dispatches the loader left to the interpreter: no shard compiled for their segment is cached or valid yet (docs/SEGMENT_AWARE_CODE.md §5.7).
-- `overlay_loader_segment_native` (L4382) — KUSEG/KSEG1 dispatches run natively by a shard compiled for their segment.
-- `overlay_loader_is_candidate` (L4409) — 1 when the physical address is a known exact function entry and the loader is active.
-- `overlay_fp_enabled` (L4414) — 1 when the fingerprint log is on, set by the PSX_OVERLAY_FP_LOG variable.
-- `overlay_loader_get_shadow_summary` (L4460) — Reports the shadow-diff call and divergence counts and the first divergent PC.
-- `overlay_loader_set_diff_mode` (L4468) — Turns shadow diff mode on or off.
-- `shadow_cpu_diff` (L4479) — Compares two CPU states field by field; returns the kind of the first difference, with its index and both values.
-- `run_shadow_diff` (L4522) — Authoritative interpreter RECORD + side-effect-free native REPLAY.
-- `shadow_escape_cleanup` (L4701) — A nonlocal scheduler bail during the speculative native replay pass (see overlay_loader_shadow_native_thread_switch_bail) means the interpreter pass — authoritative and already complete by the time th
-- `shadow_escape_flush_cycles` (L4732) — Commits pending cycles and clears the cycle-flush hook after a host unwind skipped a candidate's epilogue.
-- `overlay_loader_shadow_escape_fixup` (L4752) — Called by deferred_exception_longjmp() (interrupts.c) before it unwinds.
-- `overlay_loader_shadow_scheduler_escape_fixup` (L4762) — The deterministic HLE scheduler uses a different jmp_buf and therefore has no exception-setjmp epoch.
-- `overlay_loader_dump_shadow_detail` (L4767) — Writes the captured shadow-diff detail (address and registers) as JSON into out; returns the length.
-- `overlay_loader_dump_shadow` (L4788) — Writes the shadow-diff summary and its records as JSON into out; returns the length.
-- `overlay_regs_crc` (L4827) — Fingerprint over the general registers (r1..r31) + hi/lo.
-- `overlay_regs_snap` (L4836) — Snapshot r0..r31 + hi/lo into a 34-word buffer (entry-state capture).
-- `regs34_crc` (L4843) — CRC over words 1..33 (r0 excluded — always 0), matching overlay_regs_crc.
-- `overlay_fp_log` (L4849) — Records one fingerprint entry (address, cycle, registers, native or interpreted) in the ring.
-- `overlay_loader_call_native` (L4873) — Execute 'addr' natively if a validated overlay candidate exists, keeping the §5-E fingerprint record (same as the dirty_ram_dispatch chokepoint).
-- `overlay_loader_write_fp_file` (L4905) — Write the whole fingerprint log to a file (no TCP size limit).
-- `overlay_loader_dump_native_ring` (L4936) — Dump the native-call ring (most-recent first) + the in-progress entry.
-- `overlay_loader_dump_candidates` (L4962) — Diagnostic: dump every candidate with its stored vs live hash and generation state, so reload behaviour can be inspected directly (Rule 3 — visibility via the debug server, not logs).
-- `overlay_loader_dump_candidates_at` (L4985) — Focused form for live miss diagnosis.
-- `overlay_loader_dump_lazy_at` (L5012) — Focused view of manifest-only candidates that have not been loaded yet.
-- `overlay_loader_get_status` (L5062) — Reports the loader status: active flag, registered count, regions checked, cache folder, game id and last CRC.
+- `load_overlay_dll` (L2787) — Loads one cache DLL from its path, resolves its entries and registers them as candidates.
+- `load_bios_resident_shards` (L3060) — Loads every complete BIOS-resident shard that is not loaded yet.
+- `overlay_loader_callbacks` (L3082) — The host callback table, for a consumer that loads overlay-style modules before (or without) overlay_loader_init: the BIOS module host activates a player's retail backend during BIOS selection, ahead
+- `overlay_loader_init` (L3087) — Sets up the overlay loader for a cache folder, game id and config hash, resetting the page index and scanning the cache.
+- `overlay_loader_check_cache` (L3160) — Does nothing at load time: DLL loading is deferred to the first dispatch miss.
+- `already_checked` (L3175) — 1 when this region has already been checked against the cache.
+- `mark_checked` (L3180) — Remembers that a region has been checked against the cache.
+- `overlay_loader_clear_lazy_miss` (L3184) — Drop the negative lazy-lookup memo (host-only).
+- `overlay_loader_resync_validation_after_restore` (L3190) — After RAM restore: bust overlay candidate gen fast-path + static-match cache so native vs interp is re-decided against restored bytes.
+- `overlay_loader_rescan` (L3210) — Re-scan the cache dir for DLLs compiled after init (step 2.8 autocompile) and clear the checked-regions memo so the next dispatch into a window region reconsiders the cache.
+- `native_rank_allows` (L3235) — 1 when this candidate is within the native rank limit; gives it a rank on first use and logs it.
+- `dll_already_loaded` (L3255) — 1 when a DLL with this path is already loaded.
+- `cache_entry_already_loaded` (L3266) — A lazy manifest chain may have hundreds of functions from the same DLL.
+- `overlay_library_close` (L3275) — Closes an overlay library handle with FreeLibrary or dlclose; ignores NULL.
+- `load_one_dll` (L3286) — Consumes prepared on every path.
+- `load_one_dll_prepared` (L3389) — Publishes a prepared library by passing it to the normal single-DLL loader.
+- `published_root_canonical` (L3396) — Resolves the cache root to its canonical path once; returns 0 while it cannot be resolved, so the publish is refused.
+- `published_path_valid` (L3413) — Validates dll_path and writes its CANONICAL form into canon; every later consumer (LoadLibrary, .ranges derivation, loaded-path tracking) uses the canonical string, never the raw pipe text.
+- `overlay_loader_prepare_published` (L3436) — Checks a published DLL path and loads it into a prepared image that can be committed later; NULL when the path is invalid.
+- `overlay_loader_commit_published` (L3477) — Commits a prepared image into the loader when loads are allowed, otherwise discards it; returns 1 when committed.
+- `overlay_loader_discard_prepared` (L3498) — Closes and frees a prepared image that will not be committed.
+- `lazy_man_contains` (L3505) — 1 when a lazy manifest's entries or code ranges cover this physical address in the same segment.
+- `lazy_man_crc` (L3516) — 1 and *crc = CRC of the manifest's live bytes, 0 when it has none.
+- `lazy_man_gensum` (L3520) — Generation sum over the code ranges of a lazy manifest.
+- `lazy_man_matches` (L3524) — 1 when the live bytes of a lazy manifest still match its CRC; records the result as valid or invalid.
+- `lazy_bundle_matches` (L3546) — A CPS DLL can directly own internal tail targets, so one matching entry does not prove the rest of that captured snapshot is current.
+- `lazy_candidate_preferred` (L3568) — Same-tier artifacts that both pass the live-byte gate compute the same thing, but their block edges differ (where a page cut or another capture's branch targets end a block), so under cpu_timing = "bl
+- `lazy_choose_complete_or_fallback` (L3580) — Prefer GCC over TCC even when the TCC option happens to be a broader bundle.
+- `overlay_image_warm_seed_boot_text` (L3594) — A streamed variant is not byte-coherent until immediately before its first call, too late to hide Windows' first image-map cost.
+- `lazy_is_loadable` (L3608) — 1 when a lazy manifest entry can be loaded now for this region and segment.
+- `lazy_better_bundle` (L3625) — Chooses between two lazy bundles by manifest index order only, never by size or timestamp.
+- `lazy_load_selected` (L3635) — Loads the cache entry of a selected lazy manifest, unless it has failed, is suppressed or is already loaded.
+- `try_load_region` (L3657) — Load the cached shard of 'seg' (§5.7) that serves phys.
+- `lazy_has_exact_entry` (L3758) — O(1)-bucket discriminator between a real manifested function entry and an interior CPS continuation.
+- `range_candidate_matches` (L3782) — CPS (§25): find a non-blacklisted candidate whose code range CONTAINS phys — i.e.
+- `range_candidate_preferred` (L3835) — 1 when candidate should replace current: a higher tier wins, and among equal tiers the newer candidate wins.
+- `overlay_find_by_range` (L3842) — Finds the candidate whose code range holds this physical address in the given segment; -1 when none or the loader is off.
+- `overlay_loader_dispatch` (L3885) — Called from dirty_ram_dispatch before the interpreter.
+- `overlay_loader_dispatch_seg` (L3919) — A shard's body bakes the PCs of the segment it was compiled for: the $ra a jal/jalr writes, its jump and exception-resume PCs, its I-cache fetch tags and store-PC stamps (docs/SEGMENT_AWARE_CODE.md §5
+- `overlay_loader_active_write_check` (L4274) — ---- Self-modification of an actively-executing entry (§8.5) ------------ Lazy re-hash on the NEXT dispatch is too late if a native function modifies its own code and continues executing the modified
+- `overlay_loader_get_counters` (L4301) — Reports the loader counters: loads, invalidations, native and interpreted dispatches, and details of the last write.
+- `overlay_loader_get_load_timing` (L4322) — Reports the total, maximum and last DLL load times, in microseconds.
+- `overlay_loader_take_hot_native` (L4329) — Opt-in PSX_RUNTIME_PERF_DIAG sampler: returns and clears the hottest native owner since the preceding call.
+- `overlay_loader_get_reload_debug` (L4354) — Reload diagnostics. Repurposed for the per-entry model: r0_valid -> candidates currently VALID r0_writes...
+- `overlay_loader_registered_count` (L4370) — Returns number of functions currently registered in the dynamic table.
+- `overlay_loader_gen_fastpath` (L4375) — Dispatches that ran native via the unchanged-page-generation fast path, i.e.
+- `overlay_loader_range_link_count` (L4376) — Number of range index links in use.
+- `overlay_loader_range_index_overflow` (L4377) — 1 when the range index ran out of space.
+- `overlay_loader_lazy_manifest_count` (L4378) — Number of lazy manifest entries indexed.
+- `overlay_loader_lazy_manifest_overflow` (L4379) — 1 when the lazy manifest table overflowed.
+- `overlay_loader_candidate_overflow` (L4380) — Number of candidates refused because the candidate table was full.
+- `overlay_loader_pair_aliases` (L4381) — Number of shard pairs that aliased an already loaded pair.
+- `overlay_loader_segment_alias_interp` (L4382) — KUSEG/KSEG1 (and unmapped-segment) dispatches the loader left to the interpreter: no shard compiled for their segment is cached or valid yet (docs/SEGMENT_AWARE_CODE.md §5.7).
+- `overlay_loader_segment_native` (L4383) — KUSEG/KSEG1 dispatches run natively by a shard compiled for their segment.
+- `overlay_loader_is_candidate` (L4410) — 1 when the physical address is a known exact function entry and the loader is active.
+- `overlay_fp_enabled` (L4415) — 1 when the fingerprint log is on, set by the PSX_OVERLAY_FP_LOG variable.
+- `overlay_loader_get_shadow_summary` (L4461) — Reports the shadow-diff call and divergence counts and the first divergent PC.
+- `overlay_loader_set_diff_mode` (L4469) — Turns shadow diff mode on or off.
+- `shadow_cpu_diff` (L4480) — Compares two CPU states field by field; returns the kind of the first difference, with its index and both values.
+- `run_shadow_diff` (L4523) — Authoritative interpreter RECORD + side-effect-free native REPLAY.
+- `shadow_escape_cleanup` (L4702) — A nonlocal scheduler bail during the speculative native replay pass (see overlay_loader_shadow_native_thread_switch_bail) means the interpreter pass — authoritative and already complete by the time th
+- `shadow_escape_flush_cycles` (L4733) — Commits pending cycles and clears the cycle-flush hook after a host unwind skipped a candidate's epilogue.
+- `overlay_loader_shadow_escape_fixup` (L4753) — Called by deferred_exception_longjmp() (interrupts.c) before it unwinds.
+- `overlay_loader_shadow_scheduler_escape_fixup` (L4763) — The deterministic HLE scheduler uses a different jmp_buf and therefore has no exception-setjmp epoch.
+- `overlay_loader_dump_shadow_detail` (L4768) — Writes the captured shadow-diff detail (address and registers) as JSON into out; returns the length.
+- `overlay_loader_dump_shadow` (L4789) — Writes the shadow-diff summary and its records as JSON into out; returns the length.
+- `overlay_regs_crc` (L4828) — Fingerprint over the general registers (r1..r31) + hi/lo.
+- `overlay_regs_snap` (L4837) — Snapshot r0..r31 + hi/lo into a 34-word buffer (entry-state capture).
+- `regs34_crc` (L4844) — CRC over words 1..33 (r0 excluded — always 0), matching overlay_regs_crc.
+- `overlay_fp_log` (L4850) — Records one fingerprint entry (address, cycle, registers, native or interpreted) in the ring.
+- `overlay_loader_call_native` (L4874) — Execute 'addr' natively if a validated overlay candidate exists, keeping the §5-E fingerprint record (same as the dirty_ram_dispatch chokepoint).
+- `overlay_loader_write_fp_file` (L4906) — Write the whole fingerprint log to a file (no TCP size limit).
+- `overlay_loader_dump_native_ring` (L4937) — Dump the native-call ring (most-recent first) + the in-progress entry.
+- `overlay_loader_dump_candidates` (L4963) — Diagnostic: dump every candidate with its stored vs live hash and generation state, so reload behaviour can be inspected directly (Rule 3 — visibility via the debug server, not logs).
+- `overlay_loader_dump_candidates_at` (L4986) — Focused form for live miss diagnosis.
+- `overlay_loader_dump_lazy_at` (L5013) — Focused view of manifest-only candidates that have not been loaded yet.
+- `overlay_loader_get_status` (L5063) — Reports the loader status: active flag, registered count, regions checked, cache folder, game id and last CRC.
 
 ### runtime/src/overlay_path_canon.c
 
@@ -7779,9 +7779,11 @@ Sets the PGXP session switches from the environment and the mod plan, and turns 
 - `psx_pgxp_alu_cpu_mode` (L30) — The ALU hook class mask in force (pgxp_hooks.h g_pgxp_alu_mask): the configured one, or every class while CPU mode is on.
 - `psx_pgxp_load_masked` (L37) — The overlay DLLs' load/store hooks (overlay_loader.c hook table): the same mask as the generated code's PGXP_LOAD / PGXP_STORE.
 - `psx_pgxp_store_masked` (L40) — Store hook for overlay DLLs: calls the PGXP store path only when the memory mask allows this instruction.
-- `pgxp_mem_skip_from` (L46) — Turns the memory setting (all, words, live or a number) into the memory skip mask; the default depends on mem_words.
-- `pgxp_alu_mask_from` (L56) — Turns the ALU setting (full, moves or a number) into the ALU hook mask, defaulting to moves when alu_light is set.
-- `psx_pgxp_session_arm` (L65) — Arms PGXP for the session from the config, environment and plan inputs; returns the arm state and the inputs used.
+- `pgxp_alu_class` (L46) — Returns the PGXP_ALU_K class of an ALU instruction word, the same class the hook emitter tags compiled code with.
+- `psx_pgxp_alu_masked` (L69) — ALU hook used by the interpreters and the overlay DLL hook table: calls psx_pgxp_alu only when g_pgxp_alu_mask takes the instruction's class, as compiled code does.
+- `pgxp_mem_skip_from` (L76) — Turns the memory setting (all, words, live or a number) into the memory skip mask; the default depends on mem_words.
+- `pgxp_alu_mask_from` (L86) — Turns the ALU setting (full, moves or a number) into the ALU hook mask, defaulting to moves when alu_light is set.
+- `psx_pgxp_session_arm` (L95) — Arms PGXP for the session from the config, environment and plan inputs; returns the arm state and the inputs used.
 
 ### runtime/src/playtest_diagnostics.cpp
 
@@ -8093,26 +8095,26 @@ The R3000A instruction cache tag store, used only for timing.
 
 A minimal R3000A interpreter for oracle builds, with PC breakpoints and an instruction trace ring.
 
-- `interp_init` (L81) — Initialize interpreter state.
-- `interp_ld_delay_discard` (L97) — Drop host-static pending load-delay (not in boot_state).
-- `interp_break_add` (L105) — Adds a PC breakpoint to the table and returns its slot, or -1 when the table is full.
-- `interp_break_remove` (L111) — Removes a PC breakpoint; returns 1 if it was found and removed, otherwise 0.
-- `interp_break_clear_all` (L121) — --- PC breakpoints --- int interp_break_add(uint32_t pc); /* returns slot, or -1 int interp_break_remove(uint32_t pc); /* returns 1 if removed
-- `interp_hit_breakpoint` (L122) — Check if interpreter hit a breakpoint on the last run.
-- `interp_trace_enable` (L126) — Turns the instruction trace ring on or off.
-- `interp_trace_count` (L127) — Returns how many instructions have been traced since the start.
-- `interp_trace_get` (L129) — Get entry by index into ring (0 = oldest available).
-- `interp_faults` (L138) — Copy of the interpreter fault counters (NULL jump, unknown COP0/COP2, last PC).
-- `trace_record` (L140) — Stores the current PC, instruction word, registers and HI/LO into the next trace ring slot.
-- `set_reg` (L156) — Writes a general register, ignoring writes to register zero.
-- `set_load_delay` (L162) — Queues a delayed load so its register and value take effect after the next instruction.
-- `set_branch` (L169) — Records a branch decision so the next instruction runs as its delay slot and then transfers to the target if taken.
-- `raise_exception` (L178) — Raises a CPU exception with the given code: pushes the status stack and updates the cause register.
-- `exec_one` (L197) — Executes one MIPS instruction at the current PC; prints a message and halts if the PC is zero.
-- `interp_tick_devices` (L568) — Ticks the SIO and schedules VBlank, timer and CD-ROM events on the legacy instruction-count clock.
-- `interp_check_interrupts` (L585) — Delivers a pending hardware or software interrupt at an instruction boundary, with EPC and BD set for a delay slot.
-- `interp_step` (L625) — Execute exactly 'count' instructions.
-- `interp_run` (L650) — Run until breakpoint, halt, or max_instructions reached.
+- `interp_init` (L84) — Initialize interpreter state.
+- `interp_ld_delay_discard` (L100) — Drop host-static pending load-delay (not in boot_state).
+- `interp_break_add` (L108) — Adds a PC breakpoint to the table and returns its slot, or -1 when the table is full.
+- `interp_break_remove` (L114) — Removes a PC breakpoint; returns 1 if it was found and removed, otherwise 0.
+- `interp_break_clear_all` (L124) — --- PC breakpoints --- int interp_break_add(uint32_t pc); /* returns slot, or -1 int interp_break_remove(uint32_t pc); /* returns 1 if removed
+- `interp_hit_breakpoint` (L125) — Check if interpreter hit a breakpoint on the last run.
+- `interp_trace_enable` (L129) — Turns the instruction trace ring on or off.
+- `interp_trace_count` (L130) — Returns how many instructions have been traced since the start.
+- `interp_trace_get` (L132) — Get entry by index into ring (0 = oldest available).
+- `interp_faults` (L141) — Copy of the interpreter fault counters (NULL jump, unknown COP0/COP2, last PC).
+- `trace_record` (L143) — Stores the current PC, instruction word, registers and HI/LO into the next trace ring slot.
+- `set_reg` (L159) — Writes a general register, ignoring writes to register zero.
+- `set_load_delay` (L165) — Queues a delayed load so its register and value take effect after the next instruction.
+- `set_branch` (L172) — Records a branch decision so the next instruction runs as its delay slot and then transfers to the target if taken.
+- `raise_exception` (L181) — Raises a CPU exception with the given code: pushes the status stack and updates the cause register.
+- `exec_one` (L200) — Executes one MIPS instruction at the current PC; prints a message and halts if the PC is zero.
+- `interp_tick_devices` (L571) — Ticks the SIO and schedules VBlank, timer and CD-ROM events on the legacy instruction-count clock.
+- `interp_check_interrupts` (L588) — Delivers a pending hardware or software interrupt at an instruction boundary, with EPC and BD set for a delay slot.
+- `interp_step` (L628) — Execute exactly 'count' instructions.
+- `interp_run` (L653) — Run until breakpoint, halt, or max_instructions reached.
 
 ### runtime/src/psx_jogcon_ffb_sdl.cpp
 
