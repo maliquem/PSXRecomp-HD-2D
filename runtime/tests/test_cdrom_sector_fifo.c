@@ -6,10 +6,13 @@ uint32_t i_stat, g_debug_current_func_addr, g_debug_last_store_pc;
 uint64_t s_frame_count, psx_cycle_count;
 static int test_dma_active;
 static int test_iso_closes;
+static int test_xa_audio; /* serve real-time XA audio sectors (mono, 37.8 kHz, 4-bit) */
+static int pushed_frames, pushed_nonzero;
 int dma_cdrom_transfer_active(void) { return test_dma_active; }
 void psx_irq_raise(uint32_t bit, uint32_t detail) { (void)detail; i_stat |= bit; }
 int iso_read_raw_sector(void* h, uint32_t lba, uint8_t* out, int size) {
     (void)h; memset(out, 0, size); out[15]=2; out[16]=out[20]=9; out[17]=out[21]=7; out[18]=out[22]=8;
+    if (test_xa_audio) { out[18]=out[22]=0x64; memset(out+24, 0x11, 2324); return 1; }
     memset(out+24, (unsigned char)lba, 2048); return 1;
 }
 int iso_read_sector(void* h,uint32_t lba,uint8_t* out,int size) {(void)h;memset(out,(unsigned char)lba,size);return 1;}
@@ -358,7 +361,31 @@ static void snapshot_disc_identity(void) {
     free(wire); free(old);
 }
 
+/* CDS-11: Mute only silences XA output. The real-time audio sector is still
+ * decoded (ADPCM history advances as when unmuted) and never becomes data/INT1. */
+static void xa_sector(int muted, int32_t hist[2]) {
+    setup();
+    memset(cd_decode_vol, 0, 4); cd_decode_vol[0][0] = cd_decode_vol[1][1] = 0x80;
+    mode_reg = 0x80 | 0x40; /* double speed, XA-ADPCM on, no filter */
+    exec_command(muted ? 0x0B : 0x0C); ack();
+    test_xa_audio = 1; pushed_frames = pushed_nonzero = 0;
+    sector();
+    test_xa_audio = 0;
+    CHECK(pushed_frames > 0);
+    CHECK(irq_flag != CDIRQ_DATA_READY && !pending_dataready && !cdrom_dma_ready());
+    hist[0] = xa_hist_l[0]; hist[1] = xa_hist_l[1];
+}
+static void xa_mute_keeps_decoding(void) {
+    int32_t on[2], off[2];
+    xa_sector(0, on);
+    CHECK(pushed_nonzero > 0);
+    xa_sector(1, off);
+    CHECK(pushed_nonzero == 0);
+    CHECK(on[0] == off[0] && on[1] == off[1]);
+}
+
 int main(void) {
+    xa_mute_keeps_decoding();
     failed_disc_change_keeps_current_disc();
     pause_read_resumes_position();
     snapshot_setloc_and_paused_head();
@@ -377,7 +404,10 @@ int main(void) {
 }
 
 void spu_cd_audio_reset(void) {}
-void spu_cd_audio_push(const int16_t* stereo,int frames) {(void)stereo;(void)frames;}
+void spu_cd_audio_push(const int16_t* stereo,int frames) {
+    pushed_frames += frames;
+    for (int i = 0; i < frames * 2; i++) pushed_nonzero += stereo[i] != 0;
+}
 /* A roster entry named "missing" stands for an image that will not open. */
 void* iso_open(const char* p) {return (p && strstr(p,"missing")) ? NULL : (void*)1;}
 void iso_close(void* h) {(void)h;++test_iso_closes;}

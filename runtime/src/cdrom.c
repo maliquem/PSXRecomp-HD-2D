@@ -1401,7 +1401,7 @@ static void xa_zero_scan(const int16_t *stereo, int frames, int lba,
 
 static int maybe_deliver_xa_audio(const uint8_t* raw_data, int lba,
                                   const CDROMSectorDelivery *delivery) {
-    if (!(mode_reg & 0x40u) || !raw_data || !delivery || cd_muted) return 0;
+    if (!(mode_reg & 0x40u) || !raw_data || !delivery) return 0;
     if (!xa_is_audio_realtime(delivery)) return 0;
 
     uint8_t file = delivery->xa_file;
@@ -1442,6 +1442,8 @@ static int maybe_deliver_xa_audio(const uint8_t* raw_data, int lba,
     xa_zero_scan(native, native_frames, lba, 0);
     int out_frames = xa_resample_to_44100(native, native_frames, sample_rate,
                                           pcm_44100, XA_MAX_44100_FRAMES);
+    /* Mute only zeroes the output; the sector is still decoded and consumed (psx-spx Mute). */
+    if (cd_muted) memset(pcm_44100, 0, sizeof(int16_t) * 2u * (size_t)out_frames);
     /* Volume is applied after resampling, per PS1 hardware tests (Beetle
      * cdc.cpp GetCDAudio comment). */
     cd_apply_decode_volume(pcm_44100, out_frames);
