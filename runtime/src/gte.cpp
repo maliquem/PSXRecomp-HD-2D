@@ -3,6 +3,7 @@
 #include "cpu_state.h"
 #include "execution_profile.h"
 #include "hle_gte.h"
+#include "nd_intro_ot.h"
 #include "pgxp.h"
 #include "gte_nclip_stats.h"
 #include "render_pass_projection.h"
@@ -2381,6 +2382,74 @@ static void gte_execute_impl(CPUState* cpu, uint32_t cmd, bool charge_latency) {
 
     gte_export_cpu_state(cpu, &gte);
     if (intermediate) std::memcpy(cpu->gte_ctrl, original_transform, sizeof original_transform);
+
+#ifndef PSX_NO_DEBUG_TOOLS
+    /* ND digit-rain: NdIntroSiblingFaceLoop (jal 0x80069CC4; $ra stays 69C3C..
+     * while FaceLoop runs). face_hi=0 → AddPrim at a3 (main OT last slot).
+     * WoodEmit/glow: model+228 base + (MAC0>>17)*4 via 0x8006AD88.
+     *
+     * Frame order on rain: WoodBatchSetup (all models, incl. CODE/GLOW) →
+     * sibling → WoodEmit. CODE model is stable at 0x800FF390.
+     *
+     * PSX_ND_SIB_OT_BATCH=1: $s2 = CODE/GLOW batch OT + index*4.
+     * PSX_ND_SIB_OT_IDX=N: force index (else OTZ>>5 + PSX_ND_SIB_OT_BIAS).
+     * Same-bucket as digits still loses: DMA walks flaps then 0x36 (digits on
+     * top). Prefer correct AVSZ MAC0 OT indices; FLAP_LAST is opt-in only. */
+    if (func == 0x30 && !s_gte_replay_sandbox) {
+        static int s_sib_batch = -1;
+        static int s_sib_avsz = -1;
+        static int s_sib_bias = 0;
+        static int s_sib_force_idx = -1;
+        if (s_sib_batch < 0) {
+            const char *e = std::getenv("PSX_ND_SIB_OT_BATCH");
+            s_sib_batch = (e && *e && *e != '0') ? 1 : 0;
+            const char *a = std::getenv("PSX_ND_SIB_OT_AVSZ");
+            s_sib_avsz = (a && *a && *a != '0') ? 1 : 0;
+            const char *b = std::getenv("PSX_ND_SIB_OT_BIAS");
+            s_sib_bias = (b && *b) ? std::atoi(b) : 0;
+            const char *ix = std::getenv("PSX_ND_SIB_OT_IDX");
+            s_sib_force_idx = (ix && *ix) ? std::atoi(ix) : -1;
+            if (s_sib_batch)
+                std::fprintf(stdout,
+                    "psxrecomp: PSX_ND_SIB_OT_BATCH enabled (bias=%d idx=%d)\n",
+                    s_sib_bias, s_sib_force_idx);
+            else if (s_sib_avsz)
+                std::fprintf(stdout,
+                    "psxrecomp: PSX_ND_SIB_OT_AVSZ enabled (main OTZ>>5, bias=%d)\n",
+                    s_sib_bias);
+        }
+        if (s_sib_batch || s_sib_avsz) {
+            const uint32_t ra = s_gte_caller_ra;
+            if (ra == 0x80069C3Cu || ra == 0x80069C60u ||
+                ra == 0x80069C84u || ra == 0x80069CA8u) {
+                const uint32_t a3 = cpu->gpr[7];
+                uint32_t ot_base = 0;
+                if (s_sib_batch) {
+                    /* CODE model+228 preferred (digit rain); noted at 6AAF0
+                     * and refreshed at sibling entry from 0x800FF390. */
+                    ot_base = psx_nd_wood_batch_ot();
+                    if (!ot_base)
+                        ot_base = psx_nd_sibling_ot_hint();
+                } else if (a3 >= 4092u) {
+                    ot_base = a3 - 4092u;
+                }
+                if (ot_base) {
+                    int32_t idx;
+                    if (s_sib_force_idx >= 0) {
+                        idx = s_sib_force_idx;
+                    } else {
+                        const int64_t mac0 = (int64_t)gte.ZSF3 *
+                            ((int64_t)gte.SZ[1] + gte.SZ[2] + gte.SZ[3]);
+                        idx = (int32_t)(mac0 >> 17) + s_sib_bias;
+                    }
+                    if (idx < 0) idx = 0;
+                    if (idx > 2047) idx = 2047;
+                    cpu->gpr[18] = ot_base + ((uint32_t)idx << 2); /* $s2 */
+                }
+            }
+        }
+    }
+#endif
 
 #ifdef PSX_ENABLE_BLOCK_CYCLES
     /* Faithful GTE command completion-stall: arm the per-command deadline
