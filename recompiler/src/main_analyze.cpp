@@ -7,6 +7,8 @@
 // is reported as a gap, never filled in silently.
 
 #include <algorithm>
+#include <cctype>
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <filesystem>
@@ -89,21 +91,42 @@ bool parse_addr(const std::string& s, uint32_t& out) {
     }
 }
 
+bool parse_int(const std::string& s, int& out) {
+    try {
+        size_t idx = 0;
+        long v = std::stol(s, &idx, 10);
+        if (idx != s.size() || v < INT32_MIN || v > INT32_MAX) return false;
+        out = static_cast<int>(v);
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
+
 bool load_seed_file(const fs::path& p, std::vector<uint32_t>& out,
                     std::string& err) {
     std::ifstream in(p);
     if (!in) { err = fmt::format("cannot read {}", p.string()); return false; }
     std::string line;
+    int lineno = 0;
     while (std::getline(in, line)) {
+        ++lineno;
         auto hash = line.find('#');
         if (hash != std::string::npos) line.resize(hash);
         // Seed files in the wild carry a trailing label; take the first token.
         std::istringstream ls(line);
         std::string tok;
         if (!(ls >> tok)) continue;
+        // psxrecomp-game directive lines (interior, call_root, ...) are not entry seeds here.
+        if (!std::isdigit(static_cast<unsigned char>(tok[0]))) continue;
         uint32_t a = 0;
-        if (parse_addr(tok, a)) out.push_back(a);
+        if (!parse_addr(tok, a)) {
+            err = fmt::format("{}:{}: bad address '{}'", p.string(), lineno, tok);
+            return false;
+        }
+        out.push_back(a);
     }
+    if (in.bad()) { err = fmt::format("cannot read {}", p.string()); return false; }
     return true;
 }
 
@@ -145,11 +168,13 @@ private:
     int  saved_ = -1;
 };
 
-Confidence parse_confidence(const std::string& s) {
-    if (s == "verified") return Confidence::Verified;
-    if (s == "high")     return Confidence::High;
-    if (s == "medium")   return Confidence::Medium;
-    return Confidence::Low;
+bool parse_confidence(const std::string& s, Confidence& out) {
+    if (s == "verified")     out = Confidence::Verified;
+    else if (s == "high")    out = Confidence::High;
+    else if (s == "medium")  out = Confidence::Medium;
+    else if (s == "low")     out = Confidence::Low;
+    else return false;
+    return true;
 }
 
 } // namespace
@@ -184,7 +209,13 @@ int main(int argc, char** argv) {
         else if (a == "--no-refs")   no_refs = true;
         else if (a == "--exact")     opts.exact_entries = true;
         else if (a == "--emit-symbols") emit_symbols = true;
-        else if (a == "--min-confidence") min_conf = parse_confidence(need("--min-confidence"));
+        else if (a == "--min-confidence") {
+            std::string s = need("--min-confidence");
+            if (!parse_confidence(s, min_conf)) {
+                fmt::print(stderr, "error: bad confidence '{}' (verified|high|medium|low)\n", s);
+                return 1;
+            }
+        }
         else if (a == "--emit-symbol-addrs") symbol_addrs = need("--emit-symbol-addrs");
         else if (a == "--emit-ghidra") ghidra = need("--emit-ghidra");
         else if (a == "--emit-tsv")  tsv = need("--emit-tsv");
@@ -193,7 +224,13 @@ int main(int argc, char** argv) {
         else if (a == "--quiet")     quiet = true;
         else if (a == "--scan-widescreen") scan_ws = true;
         else if (a == "--emit-ws-sites") { ws_sites = need("--emit-ws-sites"); scan_ws = true; }
-        else if (a == "--ws-min-confidence") ws_min_conf = std::atoi(need("--ws-min-confidence").c_str());
+        else if (a == "--ws-min-confidence") {
+            std::string s = need("--ws-min-confidence");
+            if (!parse_int(s, ws_min_conf)) {
+                fmt::print(stderr, "error: bad integer '{}' for --ws-min-confidence\n", s);
+                return 1;
+            }
+        }
         else if (a == "--ws-w-imms" || a == "--ws-h-imms") {
             const bool width = (a == "--ws-w-imms");
             std::string list = need(a.c_str());
@@ -206,7 +243,13 @@ int main(int argc, char** argv) {
             }
             scan_ws = true;
         }
-        else if (a == "--top")       top_n = std::atoi(need("--top").c_str());
+        else if (a == "--top") {
+            std::string s = need("--top");
+            if (!parse_int(s, top_n)) {
+                fmt::print(stderr, "error: bad integer '{}' for --top\n", s);
+                return 1;
+            }
+        }
         else if (a == "--at") {
             uint32_t v = 0;
             std::string s = need("--at");
