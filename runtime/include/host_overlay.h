@@ -74,7 +74,7 @@ void psx_host_set_input_block_capture(int on);
  * fields that only take effect on the next start (compared with boot). Main
  * thread only. */
 typedef struct PsxHostVideoSettings {
-    int fullscreen;            /* 0 windowed, 1 borderless, 2 exclusive */
+    int fullscreen;            /* 0 windowed, 1 borderless (a legacy 2 means 1) */
     int texture_filter;        /* PSX_TEXTURE_FILTER_* (the [video] enum) */
     int fmv_filter;            /* VIDEO_FMV_FILTER_* (config value) */
     int scanlines;             /* 0/1 */

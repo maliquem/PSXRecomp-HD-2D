@@ -1739,8 +1739,7 @@ static void apply_internal_resolution(int display_px_h) {
     return psx_ir_from_supersampling(g_video_scale < 1 ? 1 : g_video_scale, g_video_ref_lines);
 }
 static std::string   g_bezel_path;      /* mod-owned OpenGL margin artwork */
-static int           g_fullscreen     = 0;  /* tri-state: 0 windowed, 1 borderless (desktop)
-                                              * fullscreen, 2 exclusive fullscreen */
+static int           g_fullscreen     = 0;  /* 0 windowed, 1 borderless (desktop) fullscreen */
 static int           g_video_screen   = 0;  /* 0=raw,1=crt,2=composite,3=trinitron */
 static int           g_video_win_w    = 0;    /* 0 = fit the display; see clamp_window_aspect */
 static bool          g_audio_spu_hq   = false; /* SPU float-shadow (env overrides) */
@@ -4481,7 +4480,7 @@ extern "C" void psx_video_hold_smooth_motion(int on) {
 extern "C" int psx_video_get_vsync(void) { return g_video_vsync != 0; }
 extern "C" void psx_video_set_window_size(int w, int h) {
     if (!sdl_window || w < 320 || h < 240) return;
-    if (SDL_GetWindowFlags(sdl_window) & SDL_WINDOW_FULLSCREEN) return;  /* windowed only */
+    if (s_window_fullscreen.mode) return;  /* windowed only (borderless leaves SDL's fullscreen bit clear) */
     SDL_SetWindowSize(sdl_window, w, h);
     SDL_SetWindowPosition(sdl_window, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED);
 }
@@ -10103,17 +10102,14 @@ static bool drain_host_events() {
                 host_volume_adjust(-5);
             }
             /* Fullscreen toggle: Alt+Enter or Cmd/Ctrl+F. Toggles between
-             * windowed and the CONFIGURED tri-state mode (g_fullscreen: 1
-             * borderless desktop fullscreen keeping the desktop resolution
-             * and letterboxing the image, or 2 exclusive fullscreen — a
-             * real display-mode change). Track the selected live mode:
-             * borderless deliberately leaves SDL's fullscreen bit clear. */
+             * windowed and borderless desktop fullscreen (keeps the desktop
+             * resolution and letterboxes the image). Track the selected live
+             * mode: borderless deliberately leaves SDL's fullscreen bit clear. */
             else if (!key_repeat &&
                      host_keymap_match_event(HOST_KEYMAP_FULLSCREEN,
                                              (int)key, (int)scancode,
                                              (int)mod)) {
-                const int target = s_window_fullscreen.mode ? 0 :
-                                   (g_fullscreen ? g_fullscreen : 1);
+                const int target = s_window_fullscreen.mode ? 0 : 1;
                 if (psx_window_fullscreen_set(sdl_window, &s_window_fullscreen, target) == 0)
                     host_osd_push(target ? "Fullscreen" : "Windowed", 1500);
                 else
@@ -11744,7 +11740,7 @@ extern "C" unsigned psx_video_apply_live(const PsxHostVideoSettings *next) {
     if (!g_overlay_settings_path.empty()) {
         try {
             PSXRecompV4::UserSettings us = PSXRecompV4::load_user_settings(g_overlay_settings_path);
-            us.fullscreen = next->fullscreen;                  us.has_fullscreen = true;
+            us.fullscreen = next->fullscreen ? 1 : 0;          us.has_fullscreen = true;
             us.texture_filter = next->texture_filter;          us.has_texture_filter = true;
             us.fmv_filter = next->fmv_filter;                  us.has_fmv_filter = true;
             us.scanlines = next->scanlines != 0;               us.has_scanlines = true;
@@ -18412,7 +18408,7 @@ const char* const kOvlRenderers[] = {"Software", "OpenGL", "Vulkan"};
 PsxHostVideoSettings ovl_video_from(const RecompLauncherCSettings& ls) {
     PsxHostVideoSettings v;
     mh_video_get(&v);  /* keeps fields the menu does not show */
-    v.fullscreen = ls.fullscreen ? (v.fullscreen ? v.fullscreen : 1) : 0;
+    v.fullscreen = ls.fullscreen ? 1 : 0;
     v.texture_filter = psx_texture_filter_from_ui(ls.texture_filter);
     v.fmv_filter = launcher_fmv_filter_to_cfg(ls.fmv_filter);
     v.scanlines = ls.scanlines ? 1 : 0;
@@ -22489,10 +22485,13 @@ session_reboot:
         win_flags |= SDL_WINDOW_HIDDEN;
         g_fullscreen = 0;
     }
-    /* Fullscreen on launch (launcher's tri-state Fullscreen control): 1 =
-     * borderless desktop fullscreen (keeps the desktop resolution, letterboxes
-     * the image), 2 = exclusive fullscreen (real display-mode change), 0 =
-     * windowed. Matches the in-game Alt+Enter / Cmd+Ctrl+F hotkey behaviour. */
+    /* Fullscreen on launch (launcher's Fullscreen control): 1 = borderless
+     * desktop fullscreen (keeps the desktop resolution, letterboxes the
+     * image), 0 = windowed. Matches the in-game Alt+Enter / Cmd+Ctrl+F hotkey.
+     * A borderless start opens hidden and shows once borderless, so the
+     * bordered default-size window never flashes first. */
+    const bool show_after_fullscreen = g_fullscreen && (win_flags & SDL_WINDOW_HIDDEN) == 0;
+    if (show_after_fullscreen) win_flags |= SDL_WINDOW_HIDDEN;
     /* Open at the user-chosen window size (default: see window_size.h)
      * instead of the old hardcoded 640x480. The
      * height follows the configured display aspect (4:3 native, wider for the
@@ -22520,6 +22519,7 @@ session_reboot:
     s_window_fullscreen = {};
     if (psx_window_fullscreen_set(sdl_window, &s_window_fullscreen, g_fullscreen) != 0)
         std::fprintf(stderr, "Fullscreen setup failed: %s\n", SDL_GetError());
+    if (show_after_fullscreen) SDL_ShowWindow(sdl_window);
 
     /* No maximise: the default size (window_size.h) leaves a third of the
      * usable height free, so the client plus title bar and borders fits on

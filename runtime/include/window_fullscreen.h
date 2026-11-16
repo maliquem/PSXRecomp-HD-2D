@@ -2,8 +2,10 @@
 
 #include "psx_sdl.h"
 
-/* On Windows/SDL3, borderless stays a normal desktop-sized window. Other
- * window managers retain native desktop fullscreen (Wayland owns placement). */
+/* Two modes: 0 windowed, 1 borderless. On Windows/SDL3, borderless stays a
+ * normal desktop-sized window. Other window managers retain native desktop
+ * fullscreen (Wayland owns placement). Exclusive fullscreen (a display-mode
+ * change) was removed; a legacy 2 from older configs means borderless. */
 struct PsxWindowFullscreen {
     int mode = 0;
     int x = 0, y = 0, width = 0, height = 0;
@@ -17,6 +19,7 @@ static inline int psx_window_fullscreen_set(SDL_Window* window,
                                            PsxWindowFullscreen* state, int mode)
 {
     if (!window || !state || mode < 0 || mode > 2) return -1;
+    if (mode == 2) mode = 1;
     if (state->mode == mode) return 0;
     if (state->mode == 0) {
         const auto flags = SDL_GetWindowFlags(window);
@@ -42,14 +45,7 @@ static inline int psx_window_fullscreen_set(SDL_Window* window,
 #if defined(PSX_SDL3)
     const SDL_DisplayID display = SDL_GetDisplayForWindow(window);
     if (mode == 1 && (!display || !SDL_GetDisplayBounds(display, &desktop))) return -1;
-    SDL_DisplayMode exclusive{};
-    if (mode == 2) {
-        const SDL_DisplayMode* current = SDL_GetDesktopDisplayMode(display);
-        if (!current || !SDL_GetClosestFullscreenDisplayMode(display, current->w,
-                current->h, current->refresh_rate, true, &exclusive)) return -1;
-    }
     if (!SDL_SetWindowFullscreen(window, false)) return -1;
-    if (!SDL_SetWindowFullscreenMode(window, mode == 2 ? &exclusive : nullptr)) return -1;
 #else
     const int display = SDL_GetWindowDisplayIndex(window);
     if (mode == 1 && (display < 0 || SDL_GetDisplayBounds(display, &desktop) != 0)) return -1;
@@ -83,15 +79,7 @@ static inline int psx_window_fullscreen_set(SDL_Window* window,
         SDL_SetWindowResizable(window, state->resizable ? SDL_TRUE : SDL_FALSE);
         SDL_SetWindowSize(window, state->width, state->height);
         SDL_SetWindowPosition(window, state->x, state->y);
-        if (mode == 2) {
-#if defined(PSX_SDL3)
-            if (!SDL_SetWindowFullscreen(window, true)) return -1;
-#else
-            if (SDL_SetWindowFullscreen(window, SDL_WINDOW_FULLSCREEN) != 0) return -1;
-#endif
-        } else if (state->maximized) {
-            SDL_MaximizeWindow(window);
-        }
+        if (state->maximized) SDL_MaximizeWindow(window);
     }
     state->mode = mode;
 #if defined(PSX_SDL3)

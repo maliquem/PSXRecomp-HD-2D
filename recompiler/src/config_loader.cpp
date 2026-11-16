@@ -3661,15 +3661,16 @@ UserSettings load_user_settings(const fs::path& path) {
             s.bios_hle = toml::find<bool>(v, "bios_hle"); s.has_bios_hle = true;
         });
         if (v.contains("fullscreen")) try_get([&]{
-            // Tri-state (0 off / 1 borderless / 2 exclusive). Back-compat: a
-            // settings.toml written before the tri-state migration stores this
-            // as a bool (true meant borderless desktop fullscreen).
+            // 0 windowed / 1 borderless. Back-compat: an older settings.toml
+            // stores a bool (true meant borderless) or 2 (exclusive fullscreen,
+            // since removed), and both now mean borderless.
             try {
                 s.fullscreen = toml::find<int>(v, "fullscreen");
             } catch (const std::exception&) {
                 s.fullscreen = toml::find<bool>(v, "fullscreen") ? 1 : 0;
             }
             if (s.fullscreen < 0 || s.fullscreen > 2) s.fullscreen = 0;
+            if (s.fullscreen == 2) s.fullscreen = 1;
             s.has_fullscreen = true;
         });
         if (v.contains("low_latency_input")) try_get([&]{

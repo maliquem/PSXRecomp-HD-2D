@@ -55,11 +55,12 @@ int main() {
         check(SDL_CursorVisible(), "windowed cursor visibility restored");
 #endif
     }
-    check(psx_window_fullscreen_set(window, &state, 2) == 0, "enter exclusive");
+    check(psx_window_fullscreen_set(window, &state, 2) == 0 && state.mode == 1,
+          "legacy exclusive (2) enters borderless");
 #if defined(PSX_SDL3)
-    check(SDL_GetWindowFullscreenMode(window) != nullptr, "exclusive selects an explicit display mode");
+    check(SDL_GetWindowFullscreenMode(window) == nullptr, "legacy exclusive selects no display mode");
 #endif
-    check(psx_window_fullscreen_set(window, &state, 1) == 0, "exclusive to borderless");
+    check(psx_window_fullscreen_set(window, &state, 1) == 0, "borderless again is a no-op");
     check(psx_window_fullscreen_set(window, &state, 0) == 0, "borderless to windowed");
     check(psx_window_fullscreen_set(window, &state, 3) == -1 && state.mode == 0, "invalid mode leaves window unchanged");
 #if defined(PSX_SDL3)
