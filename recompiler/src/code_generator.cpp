@@ -2142,7 +2142,12 @@ std::string CodeGenerator::translate_instruction_core(uint32_t addr, uint32_t in
             default: {
                 // psx-spx "Illegal Opcodes": N/A primary opcodes raise RI (0Ah); cop0 load/store
                 // (LWC0/SWC0) raise CpU (0Bh). Raised where the word executes, so data never aborts the regen.
-                const bool cop_unusable = (opcode == 0x30 || opcode == 0x38);
+                // COP1/COP3 and LWC1/LWC3/SWC1/SWC3 address a coprocessor the PS1 lacks (psx-spx SR:
+                // CU1/CU3 "none in PSX"): CpU with Cause.CE = the coprocessor number (opcode bits 26-27).
+                const bool absent_cop = opcode == 0x11 || opcode == 0x13 || opcode == 0x31 ||
+                    opcode == 0x33 || opcode == 0x39 || opcode == 0x3B;
+                const bool cop_unusable = absent_cop || opcode == 0x30 || opcode == 0x38;
+                const uint32_t cause_ce = cop_unusable ? ((opcode & 3u) << 28) : 0u;
                 const bool reserved = cop_unusable || (opcode >= 0x14 && opcode <= 0x1F) ||
                     opcode == 0x27 || opcode == 0x2C || opcode == 0x2D ||
                     (opcode >= 0x34 && opcode <= 0x37) || opcode >= 0x3C;
@@ -2163,7 +2168,7 @@ std::string CodeGenerator::translate_instruction_core(uint32_t addr, uint32_t in
                     "cpu->pc = (psx_ri_sr & 0x00400000u) ? 0xBFC00180u : 0x80000080u; return; }}",
                     opcode, cop_unusable ? "CpU" : "RI", runtime_pc(in_delay ? addr - 4u : addr),
                     cop_unusable ? 0xB000007Cu : 0x8000007Cu,
-                    (in_delay ? 0x80000000u : 0u) | ((cop_unusable ? 11u : 10u) << 2));
+                    (in_delay ? 0x80000000u : 0u) | cause_ce | ((cop_unusable ? 11u : 10u) << 2));
                 break;
             }
         }

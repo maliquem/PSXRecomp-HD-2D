@@ -761,6 +761,12 @@ void check_reserved_primary_opcodes() {
         0x00000000u,  // +2C nop
         0x9C000000u,  // +30 opcode 0x27 (N/A)
         0x9C000000u,  // +34 opcode 0x27 (N/A): >= 50% reserved, data stub
+        0x46700B13u,  // +38 cop1: CpU, CE=1
+        0x25080001u,  // +3C addiu $t0, $t0, 1
+        0xEC000000u,  // +40 swc3: CpU, CE=3
+        0x25080001u,  // +44 addiu $t0, $t0, 1
+        0x03E00008u,  // +48 jr    $ra
+        0x00000000u,  // +4C nop
     };
     PSXRecomp::PS1Executable exe{};
     exe.header.load_address = base;
@@ -774,7 +780,7 @@ void check_reserved_primary_opcodes() {
     PSXRecomp::CodeGenerator generator(exe, config);
     std::vector<PSXRecomp::Function> funcs;
     std::set<uint32_t> known;
-    const uint32_t spans[][2] = {{0x00u, 0x10u}, {0x10u, 0x24u}, {0x24u, 0x30u}, {0x30u, 0x38u}};
+    const uint32_t spans[][2] = {{0x00u, 0x10u}, {0x10u, 0x24u}, {0x24u, 0x30u}, {0x30u, 0x38u}, {0x38u, 0x50u}};
     for (const auto& span : spans) {
         const uint32_t s = span[0], e = span[1];
         PSXRecomp::Function f{};
@@ -810,6 +816,12 @@ void check_reserved_primary_opcodes() {
               !has(0x30, "reserved opcode="),
           "reserved: a mostly-reserved function is no longer the data stub: " +
               body["func_" + hex(base + 0x30)]);
+    check(has(0x38, "reserved opcode=0x11: architectural CpU exception") &&
+              has(0x38, "& ~0xB000007Cu) | 0x1000002Cu;") &&
+              has(0x38, "reserved opcode=0x3B: architectural CpU exception") &&
+              has(0x38, "& ~0xB000007Cu) | 0x3000002Cu;") && !has(0x38, "TODO"),
+          "reserved: cop1/swc3 do not raise CpU with CE = the coprocessor: " +
+              body["func_" + hex(base + 0x38)]);
 }
 
 void check_delay_slot_control_transfer() {

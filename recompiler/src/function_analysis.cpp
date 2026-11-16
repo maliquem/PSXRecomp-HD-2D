@@ -1636,11 +1636,27 @@ FunctionAnalysisResult FunctionAnalyzer::analyze_exact_entries(
     // function and losing every case after the accidental cap. If a candidate
     // is already owned by any walk in the final partition, leave it absorbed;
     // the analyzer exports that proven host mapping for main_psx to materialize.
+    //
+    // A candidate can defeat its own evidence: root E jumps over T and calls T
+    // from code past it, so T as a root caps E at T, the call disappears, T
+    // drops and the partition cycles with no fixed point. On a repeated state
+    // every candidate proven so far becomes sticky (kept, never dropped) and
+    // discovery continues; the universe only grows, so it settles on the
+    // superset partition. Captures that converge never reach this.
     uint32_t discovery_round = 0;
     std::set<std::pair<std::set<uint32_t>, std::set<uint32_t>>> seen_states;
+    std::set<uint32_t> sticky_entries;
+    std::map<uint32_t, std::set<std::pair<uint32_t, bool>>> proven_evidence;
     while (true) {
         auto state = std::make_pair(known_entries, derived_entries);
-        if (++discovery_round > 64u || !seen_states.insert(state).second) {
+        bool repeated = !seen_states.insert(state).second;
+        bool grows = false;
+        if (repeated) {
+            for (const auto& [target, evidence] : proven_evidence)
+                grows |= sticky_entries.insert(target).second;
+            seen_states = {state};
+        }
+        if (++discovery_round > 64u || (repeated && !grows)) {
             // A silent fallback would emit a different function set than a converging capture.
             fmt::print(stderr, "ERROR: exact-entry ownership did not converge "
                        "after {} discovery rounds\n", discovery_round - 1u);
@@ -1662,15 +1678,23 @@ FunctionAnalysisResult FunctionAnalyzer::analyze_exact_entries(
                 candidate_evidence[target].insert(
                     evidence.begin(), evidence.end());
         }
+        for (uint32_t target : candidate_targets)
+            if (!explicit_entries.count(target))
+                proven_evidence[target].insert(
+                    candidate_evidence[target].begin(),
+                    candidate_evidence[target].end());
+        candidate_targets.insert(sticky_entries.begin(), sticky_entries.end());
 
         derived_entries.clear();
         derived_evidence.clear();
         for (uint32_t target : candidate_targets)
             if (!explicit_entries.count(target)) {
                 derived_entries.insert(target);
-                auto evidence = candidate_evidence.find(target);
-                if (evidence != candidate_evidence.end())
-                    derived_evidence.emplace(target, evidence->second);
+                // A sticky target keeps the evidence of the round that proved it.
+                const auto& evidence = sticky_entries.count(target)
+                    ? proven_evidence[target] : candidate_evidence[target];
+                if (!evidence.empty())
+                    derived_evidence.emplace(target, evidence);
             }
 
         // Rebuild ownership FROM SCRATCH whenever the candidate universe grows.

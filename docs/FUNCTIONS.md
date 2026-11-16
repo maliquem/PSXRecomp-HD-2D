@@ -223,19 +223,19 @@ Static recompiler core that turns MIPS instructions and functions into generated
 - `ram_fast_rewrite` (L1059) — [recompiler] ram_fast_path (docs/PERFORMANCE_MODES.md): the plain-RAM entries (psx_store_* in memory.c, psx_cyc_load_byte_fast in psx_cyc.h) in place of the CPUState store pointers and the out-of-line
 - `CodeGenerator::translate_instruction` (L1073) — Translates one instruction, adding the draw-distance clamp prefix and any mod hook call before its core translation.
 - `CodeGenerator::translate_instruction_core` (L1088) — Translates one instruction's opcode into C statements, dispatching on the opcode and funct fields.
-- `CodeGenerator::translate_basic_block` (L2186) — Emits the C code for one basic block, including its label, cycle charges and each of its instructions.
-- `CodeGenerator::func_has_screen_extent_cull` (L3299) — True when a function has both a width and a height compare against the widescreen sets, the signature of a screen-extent cull.
-- `CodeGenerator::detect_cull_bltz_sites` (L3325) — Finds the left-edge bltz branch addresses of a screen-extent cull and records them for the function.
-- `CodeGenerator::detect_backdrop_windows` (L3350) — Detects backdrop window sites in a function and records them, when automatic backdrop preload is enabled.
-- `CodeGenerator::generate_function` (L3376) — Generates the C function for one recompiled function from its blocks and fallthrough target.
-- `CodeGenerator::scan_jr_tables` (L3671) — Scans the blocks of a function for jr jump tables and adds their target addresses to the output edge map.
-- `CodeGenerator::generate_alias_group` (L3708) — Generates C functions for a group of alias entries that share the same code.
-- `CodeGenerator::generate_all_functions` (L3933) — Generates C code for every function in the list using its control flow graph, returning all generated functions.
-- `CodeGenerator::emit_runtime_externs` (L4071) — Writes extern declarations for the runtime helpers the generated C needs, with debug tool externs guarded by a macro.
-- `CodeGenerator::emit_unaligned_helpers` (L4141) — Writes the helper functions for unaligned loads and stores, using the block or full timing helper for LWL and LWR.
-- `CodeGenerator::build_shared_decls_header` (L4226) — Builds the shared declarations header used by split full.c shards, listing the generated functions and extra declarations.
-- `CodeGenerator::generate_file` (L4246) — Generates the complete C source file for all functions, including runtime externs, helpers and function bodies.
-- `CodeGenerator::generate_ranges_manifest` (L4503) — Generates a text manifest listing the address ranges of the generated functions.
+- `CodeGenerator::translate_basic_block` (L2191) — Emits the C code for one basic block, including its label, cycle charges and each of its instructions.
+- `CodeGenerator::func_has_screen_extent_cull` (L3304) — True when a function has both a width and a height compare against the widescreen sets, the signature of a screen-extent cull.
+- `CodeGenerator::detect_cull_bltz_sites` (L3330) — Finds the left-edge bltz branch addresses of a screen-extent cull and records them for the function.
+- `CodeGenerator::detect_backdrop_windows` (L3355) — Detects backdrop window sites in a function and records them, when automatic backdrop preload is enabled.
+- `CodeGenerator::generate_function` (L3381) — Generates the C function for one recompiled function from its blocks and fallthrough target.
+- `CodeGenerator::scan_jr_tables` (L3676) — Scans the blocks of a function for jr jump tables and adds their target addresses to the output edge map.
+- `CodeGenerator::generate_alias_group` (L3713) — Generates C functions for a group of alias entries that share the same code.
+- `CodeGenerator::generate_all_functions` (L3938) — Generates C code for every function in the list using its control flow graph, returning all generated functions.
+- `CodeGenerator::emit_runtime_externs` (L4076) — Writes extern declarations for the runtime helpers the generated C needs, with debug tool externs guarded by a macro.
+- `CodeGenerator::emit_unaligned_helpers` (L4146) — Writes the helper functions for unaligned loads and stores, using the block or full timing helper for LWL and LWR.
+- `CodeGenerator::build_shared_decls_header` (L4231) — Builds the shared declarations header used by split full.c shards, listing the generated functions and extra declarations.
+- `CodeGenerator::generate_file` (L4251) — Generates the complete C source file for all functions, including runtime externs, helpers and function bodies.
+- `CodeGenerator::generate_ranges_manifest` (L4508) — Generates a text manifest listing the address ranges of the generated functions.
 
 ### recompiler/src/config_loader.cpp
 
@@ -358,7 +358,7 @@ Finds function starts and boundaries in a PS1 executable from prologues, return 
 - `resolve_computed_stride_jump` (L1139) — Tries to resolve a computed jump with a fixed stride from an entry point, bounded by a hard cap; true when the targets are found.
 - `resolve_self_limited_jump_table` (L1295) — Tries to resolve a jump table whose bounds come from the table itself, bounded by a hard cap; true when resolved.
 - `FunctionAnalyzer::analyze_exact_entries` (L1419) — Runs the exact analysis from the given entry points, using producer ranges and allowed cross-function calls, and returns the result.
-- `FunctionAnalyzer::analyze` (L1791) — Runs the full function analysis over the executable and returns the discovered functions and counts.
+- `FunctionAnalyzer::analyze` (L1815) — Runs the full function analysis over the executable and returns the discovered functions and counts.
 
 ### recompiler/src/function_discovery.cpp
 

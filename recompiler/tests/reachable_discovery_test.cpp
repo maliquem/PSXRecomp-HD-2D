@@ -321,6 +321,24 @@ int main() {
     CHECK(same_round_hosted,
           "every analyzer-proven absorbed target names its final CFG host");
 
+    // A root that jumps over T and calls T from code past it defeats its own
+    // evidence once T caps it. Ownership must settle on {root, T} instead of
+    // cycling between {root} and {root, T}.
+    auto cycle_image = make_exe_buffer(0x1000);
+    put32(cycle_image, text + 0x00, 0x08000000u | ((kLoad + 0x200) >> 2 & 0x03FFFFFFu));
+    put32(cycle_image, text + 0x04, 0x00000000u);
+    put32(cycle_image, text + 0x100, 0x03E00008u);
+    put32(cycle_image, text + 0x104, 0x24020001u);
+    put32(cycle_image, text + 0x200, jal(kLoad + 0x100));
+    put32(cycle_image, text + 0x204, 0x00000000u);
+    put32(cycle_image, text + 0x208, 0x03E00008u);
+    put32(cycle_image, text + 0x20C, 0x00000000u);
+    auto cycle_exe = parse(cycle_image);
+    PSXRecomp::FunctionAnalyzer cycle_analyzer(cycle_exe);
+    CHECK(starts(cycle_analyzer.analyze_exact_entries({kLoad})) ==
+              std::set<uint32_t>({kLoad, kLoad + 0x100}),
+          "a self-defeating call target settles as a root instead of cycling");
+
     // Resolved constant-register calls carry the same reachable provenance as
     // direct JALs and can therefore become final hosted aliases too.
     auto indirect_alias_image = make_exe_buffer(0x1000);
@@ -462,8 +480,8 @@ int main() {
           "explicit roots in uncovered producer gaps fail closed");
 
     // R reaches S, S calls B, and B calls earlier X. X then caps R before S,
-    // invalidating B's only source edge. Recomputing evidence oscillates, so the
-    // analyzer must fail closed to explicit R instead of retaining B forever.
+    // invalidating B's only source edge. Recomputing evidence oscillates; the
+    // proven targets become sticky and the partition settles on {R, X, B}.
     auto stale_source_image = make_exe_buffer(0x1000);
     put32(stale_source_image, text + 0x00,
           0x08000000u | (((kLoad + 0x100) >> 2) & 0x03FFFFFFu));
@@ -482,9 +500,10 @@ int main() {
     PSXRecomp::FunctionAnalyzer stale_source_analyzer(stale_source_exe);
     const auto stale_source_result =
         stale_source_analyzer.analyze_exact_entries({kLoad});
-    CHECK(starts(stale_source_result) == std::set<uint32_t>({kLoad}) &&
+    CHECK(starts(stale_source_result) ==
+              std::set<uint32_t>({kLoad, kLoad + 0x80, kLoad + 0x140}) &&
           stale_source_result.absorbed_entries.empty(),
-          "cyclic stale call evidence fails closed to explicit roots");
+          "cyclic stale call evidence settles on the proven superset");
 
     // beq rN,rN is unconditional: PC+8 is not reachable and a hidden JAL
     // there cannot manufacture a function or absorbed alias.
