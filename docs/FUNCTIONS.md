@@ -268,11 +268,11 @@ Loads and validates the BIOS, game, options and user settings TOML files, and wr
 - `load_game_options` (L3482) — Load game_options.toml ([[option]] array of {name, addr, size}).
 - `valid_user_audio_freq` (L3519) — True when an audio frequency is one of the allowed user values: 32040, 32000, 44100 or 48000.
 - `load_user_settings` (L3523) — Load settings.toml. Returns an all-defaults (all has_*=false) struct if the file is missing or unreadable.
-- `relative_to_folder` (L3983) — Returns a path relative to a folder when the path is absolute, or the path unchanged when it is not.
-- `toml_escape` (L3997) — A basic TOML string must not carry a raw quote, backslash or control char.
-- `write_text_atomic` (L4013) — Write to a sibling temp file then rename, so a crash never leaves a cut file.
-- `save_user_settings` (L4028) — Write settings.toml deterministically.
-- `upsert_game_toml_controller_bool` (L4272) — Sets a boolean key in the controller section of a game TOML file, adding or updating it, and returns whether the write succeeded.
+- `relative_to_folder` (L3982) — Returns a path relative to a folder when the path is absolute, or the path unchanged when it is not.
+- `toml_escape` (L3996) — A basic TOML string must not carry a raw quote, backslash or control char.
+- `write_text_atomic` (L4012) — Write to a sibling temp file then rename, so a crash never leaves a cut file.
+- `save_user_settings` (L4027) — Write settings.toml deterministically.
+- `upsert_game_toml_controller_bool` (L4271) — Sets a boolean key in the controller section of a game TOML file, adding or updating it, and returns whether the write succeeded.
 
 ### recompiler/src/config_loader.h
 

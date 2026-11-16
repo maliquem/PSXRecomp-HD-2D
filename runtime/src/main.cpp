@@ -19932,7 +19932,7 @@ int main(int argc, char** argv) {
                 "settings save.\n");
         if (us.has_fast_boot)      fast_boot = us.fast_boot;
         if (us.has_bios_hle)       bios_hle  = us.bios_hle;
-        if (us.has_fullscreen)     g_fullscreen      = us.fullscreen;
+        if (us.has_fullscreen)     g_fullscreen      = us.fullscreen ? 1 : 0;  /* a legacy 2 (exclusive) is borderless */
         if (us.has_aspect_ratio) {
             g_video_aspect_num = us.aspect_num;
             g_video_aspect_den = us.aspect_den;
@@ -21032,7 +21032,7 @@ int main(int argc, char** argv) {
                     seed.disc_index = ls.disc_index;
                     seed.has_disc_index = true;
                 }
-                seed.fullscreen    = ls.fullscreen;            seed.has_fullscreen = true;
+                seed.fullscreen    = ls.fullscreen ? 1 : 0;            seed.has_fullscreen = true;
                 seed.skip_launcher = ls.skip_launcher != 0;   seed.has_skip_launcher = true;
                 /* aspect_index round-trips 0/1/2 -> 4:3 / 16:9 / 21:9, superseding the
                  * legacy ls.widescreen bool (still set above for older callers). */
@@ -23893,7 +23893,7 @@ soft_return_lobby:
                 us.has_auto_skip_fmv = skip_fmv_offered;
                 us.turbo_loads = ls.turbo_loads != 0;
                 us.has_turbo_loads = turbo_loads_offered;
-                us.fullscreen = ls.fullscreen;
+                us.fullscreen = ls.fullscreen ? 1 : 0;
                 us.has_fullscreen = true;
                 us.window_width = ls.window_width > 0 ? ls.window_width : g_video_win_w;
                 us.has_window_width = true;
@@ -23942,7 +23942,7 @@ soft_return_lobby:
              * both. */
             if (skip_fmv_offered)     g_auto_skip_fmv = ls.auto_skip_fmv ? 1 : 0;
             if (turbo_loads_offered)  g_turbo_loads_enabled = ls.turbo_loads ? 1 : 0;
-            g_fullscreen = ls.fullscreen;
+            g_fullscreen = ls.fullscreen ? 1 : 0;
             g_frame_interpolation = ls.frame_interp ? 1 : 0;
             g_frame_interpolation_fps = ls.frame_interp_fps;
             g_audio_freq = ls.audio_freq;
