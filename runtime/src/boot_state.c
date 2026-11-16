@@ -11,6 +11,7 @@
 #endif
 #define BOOT_STATE_IMPLEMENTATION_KEY ((uint32_t)PSX_OVERLAY_CODEGEN_VER ^ (uint32_t)PSX_SAVESTATE_IMPL_TAG)
 #include "dirty_ram_interp.h"
+#include "overlay_capture.h" /* journal outgoing overlay evidence before RAM restore */
 #include "gpu.h"           /* gpu_get_vram — CPU-auth mirror under dual-raster   */
 #include "gpu_render.h"    /* gr_vram_transfer_in / gr_vram_transfer_out          */
 #include "gpu_vram_dirty.h"
@@ -1175,6 +1176,9 @@ int boot_state_load_buffer(const uint8_t* file, size_t file_len,
         extern int g_spu_cd_restored;
         g_spu_cd_restored = 0;
     }
+    /* The restore overwrites RAM: journal the outgoing overlay's executed
+     * bytes now, as a DMA over the whole RAM would. */
+    if (ok) overlay_capture_before_dma(0u, psx_ram_live_bytes());
     for (uint32_t i = 0; ok && i < n_sections; i++) {
         const double t_sec = boot_state_mono_ms();
         if (!apply_section(sections[i].tag, sections[i].p, sections[i].len,

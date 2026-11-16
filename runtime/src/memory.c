@@ -1106,6 +1106,10 @@ void dirty_ram_text_guard_resync_after_restore(void) {
 void overlay_watch_invalidate_after_ram_restore(void) {
     for (uint32_t pg = 0; pg < DIRTY_RAM_PAGE_COUNT; pg++)
         overlay_page_gen[pg]++;
+    /* PCs executed before the load must not bind to the restored bytes. */
+    memset(g_dirty_ram_exec_pc_bitmap, 0, sizeof(g_dirty_ram_exec_pc_bitmap));
+    dirty_ram_dispatch_evidence_clear(0u, DIRTY_RAM_EXEC_BITMAP_WORDS);
+    memset(g_dirty_ram_exec_page_bitmap, 0, sizeof(g_dirty_ram_exec_page_bitmap));
     extern void overlay_loader_note_code_write(void);
     extern void overlay_loader_resync_validation_after_restore(void);
     overlay_loader_note_code_write();

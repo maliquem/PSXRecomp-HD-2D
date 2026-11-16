@@ -24,6 +24,7 @@ uint32_t dirty_ram_get_bitmap_word_count(void) { return 16; }
 uint32_t dirty_ram_get_bitmap_word(uint32_t i) { (void)i; return 0; }
 void dirty_ram_set_bitmap_words(const uint32_t* p,uint32_t n) { (void)p; (void)n; }
 void overlay_watch_invalidate_after_ram_restore(void) {}
+void overlay_capture_before_dma(uint32_t a, uint32_t n) { (void)a; (void)n; }
 void psx_kernel_bless_note_range(uint32_t p,uint32_t n) { (void)p; (void)n; }
 void gte_canonicalize_cpu_state(CPUState* cpu) { cpu->gpr[0]=0; }
 uint32_t interrupts_get_cycles_since_vblank(void) { return 42; }

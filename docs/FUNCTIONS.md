@@ -1811,38 +1811,38 @@ Pure decision function that picks which BIOS HLE features to enable for a given 
 
 Saves and loads full emulator snapshots, with sections for CPU, timers, RAM, VRAM and modules, in a versioned file format.
 
-- `boot_state_mono_ms` (L35) — Monotonic millisecond clock used for save timing (QueryPerformanceCounter on Windows).
-- `boot_state_ram_cookie` (L114) — Header compatibility cookie (h.reserved): enhancement-memory layout, live RAM geometry and the fixed execution implementation.
-- `boot_state_layout_cookie` (L117) — Combines the memory layout, RAM size and execution cookies into one value that is checked on load.
-- `boot_state_load_stats` (L142) — Copies the stored stats of the boot_state loads (timings, rejects, last reason) for TCP boot_state_stats.
-- `boot_state_note_reject` (L146) — Counts a rejected boot_state load and keeps its reason and path, truncated.
-- `boot_state_last_vram_dirty_rows` (L152) — §96 telemetry: after the latest save, how many VRAM scanlines were dirty and whether the incremental mirror path patched (vs full memcpy).
-- `boot_state_last_vram_incremental` (L157) — Returns 1 when the last save patched only the dirty VRAM rows, rather than copying all of VRAM.
-- `boot_state_vram_mirror_reset` (L162) — Drop the §96 VRAM mirror (RB shutdown / before re-enable).
-- `sync_vram_mirror_for_save` (L172) — Build s_vram_mirror from live CPU VRAM using dirty rows when possible.
-- `bs_write` (L247) — Writes bytes to the save output, either to the file or to the growing in-memory buffer; returns 1 on success.
-- `write_header_le` (L266) — Writes the save file header in little-endian byte order.
-- `write_section_raw` (L284) — Writes a section header (tag, flags, length) followed by the data, uncompressed.
-- `write_section` (L299) — Prefer zlib for large blobs (smaller disk + faster load on slow storage).
-- `write_module_section` (L323) — Writes a module's state as one section, using callbacks for its size and its bytes.
-- `write_cpu_section` (L335) — Writes the general registers and the other CPU state as one section.
-- `write_timer_section` (L366) — Writes the three timer counters, targets, modes and IRQ lines as one section.
-- `write_vram_section_full` (L391) — Classic full VRAM section (offline / zlib / tracking off).
-- `boot_state_save_to` (L422) — Writes a complete snapshot, header then sections, to an output stream.
-- `boot_state_save` (L594) — Saves a snapshot to the file at path; returns 1 on success.
-- `boot_state_save_buffer_ex` (L608) — Saves a snapshot into a newly allocated buffer, with zlib compression on or off.
-- `boot_state_save_buffer` (L635) — Saves a snapshot into a newly allocated buffer, compressing large sections.
-- `boot_state_save_buffer_raw` (L642) — Saves a snapshot into a newly allocated buffer with compression turned off.
-- `apply_section` (L651) — Applies one saved section's data to the CPU, memory or devices, chosen by its tag.
-- `timer_section_ok` (L880) — CPU-8: the timer section is fixed-size; its mode words must also be ones the timer block can hold (range check of the internal one-shot bit).
-- `validate_section` (L893) — Checks that a section's length matches what this build expects for its tag.
-- `boot_state_parse_header` (L935) — Reads and checks the file header; returns 0 for a bad or oversized file.
-- `boot_state_append_reason` (L958) — Appends a part name to the reason text, separated by a comma, if it fits.
-- `boot_state_check_buffer` (L972) — Checks whether a snapshot buffer can be loaded here, filling in a reason when it cannot.
-- `boot_state_load_buffer` (L1051) — Loads a snapshot from a buffer into the CPU and machine state, after checking it.
-- `boot_state_load` (L1215) — Loads a snapshot file from path into the CPU and machine state; returns 1 on success.
-- `boot_state_set_capture` (L1254) — Sets the file path for an automatic snapshot taken when the game's entry point is first reached.
-- `boot_state_trigger_capture` (L1262) — Called from fntrace when the game entry PC first dispatches.
+- `boot_state_mono_ms` (L36) — Monotonic millisecond clock used for save timing (QueryPerformanceCounter on Windows).
+- `boot_state_ram_cookie` (L115) — Header compatibility cookie (h.reserved): enhancement-memory layout, live RAM geometry and the fixed execution implementation.
+- `boot_state_layout_cookie` (L118) — Combines the memory layout, RAM size and execution cookies into one value that is checked on load.
+- `boot_state_load_stats` (L143) — Copies the stored stats of the boot_state loads (timings, rejects, last reason) for TCP boot_state_stats.
+- `boot_state_note_reject` (L147) — Counts a rejected boot_state load and keeps its reason and path, truncated.
+- `boot_state_last_vram_dirty_rows` (L153) — §96 telemetry: after the latest save, how many VRAM scanlines were dirty and whether the incremental mirror path patched (vs full memcpy).
+- `boot_state_last_vram_incremental` (L158) — Returns 1 when the last save patched only the dirty VRAM rows, rather than copying all of VRAM.
+- `boot_state_vram_mirror_reset` (L163) — Drop the §96 VRAM mirror (RB shutdown / before re-enable).
+- `sync_vram_mirror_for_save` (L173) — Build s_vram_mirror from live CPU VRAM using dirty rows when possible.
+- `bs_write` (L248) — Writes bytes to the save output, either to the file or to the growing in-memory buffer; returns 1 on success.
+- `write_header_le` (L267) — Writes the save file header in little-endian byte order.
+- `write_section_raw` (L285) — Writes a section header (tag, flags, length) followed by the data, uncompressed.
+- `write_section` (L300) — Prefer zlib for large blobs (smaller disk + faster load on slow storage).
+- `write_module_section` (L324) — Writes a module's state as one section, using callbacks for its size and its bytes.
+- `write_cpu_section` (L336) — Writes the general registers and the other CPU state as one section.
+- `write_timer_section` (L367) — Writes the three timer counters, targets, modes and IRQ lines as one section.
+- `write_vram_section_full` (L392) — Classic full VRAM section (offline / zlib / tracking off).
+- `boot_state_save_to` (L423) — Writes a complete snapshot, header then sections, to an output stream.
+- `boot_state_save` (L595) — Saves a snapshot to the file at path; returns 1 on success.
+- `boot_state_save_buffer_ex` (L609) — Saves a snapshot into a newly allocated buffer, with zlib compression on or off.
+- `boot_state_save_buffer` (L636) — Saves a snapshot into a newly allocated buffer, compressing large sections.
+- `boot_state_save_buffer_raw` (L643) — Saves a snapshot into a newly allocated buffer with compression turned off.
+- `apply_section` (L652) — Applies one saved section's data to the CPU, memory or devices, chosen by its tag.
+- `timer_section_ok` (L881) — CPU-8: the timer section is fixed-size; its mode words must also be ones the timer block can hold (range check of the internal one-shot bit).
+- `validate_section` (L894) — Checks that a section's length matches what this build expects for its tag.
+- `boot_state_parse_header` (L936) — Reads and checks the file header; returns 0 for a bad or oversized file.
+- `boot_state_append_reason` (L959) — Appends a part name to the reason text, separated by a comma, if it fits.
+- `boot_state_check_buffer` (L973) — Checks whether a snapshot buffer can be loaded here, filling in a reason when it cannot.
+- `boot_state_load_buffer` (L1052) — Loads a snapshot from a buffer into the CPU and machine state, after checking it.
+- `boot_state_load` (L1219) — Loads a snapshot file from path into the CPU and machine state; returns 1 on success.
+- `boot_state_set_capture` (L1258) — Sets the file path for an automatic snapshot taken when the game's entry point is first reached.
+- `boot_state_trigger_capture` (L1266) — Called from fntrace when the game entry PC first dispatches.
 
 ### runtime/src/bug_report.c
 
@@ -6611,91 +6611,91 @@ Main memory map: RAM and scratchpad, address translation, MMIO register dispatch
 - `overlay_watch_clear_range` (L1038) — Unmarks the watched overlay pages covering a physical range.
 - `overlay_watch_pagegen_sum` (L1051) — Sum of generation counters over the pages spanning [phys, phys+len).
 - `dirty_ram_text_guard_resync_after_restore` (L1066) — Savestate restores RAM via memcpy and never hits the store chokepoint that bumps overlay_page_gen.
-- `overlay_watch_invalidate_after_ram_restore` (L1106) — After bulk RAM restore (savestate): bump overlay page gens + lazy-miss epoch so native overlays re-hash against restored bytes; also drop sticky text_diverged/modified bitmaps (host-only — restored RA
-- `overlay_watch_note_write` (L1117) — Records a guest store to a watched overlay page and drops the PC evidence for the written words only.
-- `memory_ctrl_snapshot_bytes` (L1172) — Size of the BS_SEC_MEMCTL payload: 18 u32 (memory control, RAM size, cache control).
-- `memory_ctrl_snapshot_write` (L1173) — Writes mem_ctrl[16], the RAM size register and cache control as u32 LE for BS_SEC_MEMCTL.
-- `memory_ctrl_snapshot_validate` (L1180) — Pass 1 check of BS_SEC_MEMCTL: the payload must be exactly 18 u32.
-- `memory_ctrl_snapshot_read` (L1183) — Restores mem_ctrl[16], the RAM size register and cache control from BS_SEC_MEMCTL.
-- `imask_trace_record` (L1254) — Records an interrupt mask write in the trace ring, with old and new values, width, caller and store PC.
-- `interrupt_write_stat_masked` (L1283) — Acknowledges the interrupt status bits written by the guest (a 1 clears), counts vblank acks and refreshes the IP2 cause.
-- `interrupt_write_mask_masked` (L1291) — Applies a guest write to the interrupt mask, traces it, notifies the SIO card handoff and refreshes the IP2 cause.
-- `memory_get_imask_bit7_set_count` (L1305) — Getters for debug server
-- `memory_get_imask_bit7_clear_count` (L1306) — Returns how many times interrupt mask bit 7 was cleared, for the debug server.
-- `memory_get_imask_trace` (L1307) — Returns the interrupt mask trace ring, with its current index and count through the out pointers.
-- `effective_store_pc` (L1338) — Returns the PC to credit a store to: the DMA initiator while DMA runs, otherwise the last store PC.
-- `read_ram_word` (L1346) — Reads a 32-bit little-endian word from RAM at a physical address.
-- `read_ram_half` (L1352) — Reads a 16-bit little-endian value from RAM at a physical address.
-- `scph1001_active` (L1367) — The active BIOS image is SCPH-1001.
-- `scph1001_relocated_store` (L1375) — Returns 1 when a store at pc is SCPH-1001's own BIOS store from ROM offset rom, so its legacy key still applies.
-- `memory_set_sr_ptr` (L1390) — Stores the pointer to the CPU status register that memory_get_sr reads.
-- `memory_get_sr` (L1391) — Returns the CPU status register through the stored pointer, or 0 when none is set.
-- `memory_get_bios_checksum` (L1394) — Returns the checksum of the loaded BIOS image.
-- `memory_init` (L1398) — static uint32_t psx_mem_gate_flags(void); /* below, with psx_store_fast_ptr extern int g_psx_store_page_audit; /* below, with psx_store_page_kind
-- `unmapped_fatal` (L1448) — Does nothing for an unmapped address: the BIOS probes these on purpose, so it is treated as open bus.
-- `mmio_read32_impl` (L1458) — Performs a 32-bit MMIO read, selecting the register by address region: memory control, SIO, RAM size and the other devices.
-- `mmio_hist` (L1514) — Counts an MMIO access in a histogram bucket by register region, separately for reads and writes.
-- `mmio_read32` (L1527) — 32-bit MMIO read: syncs devices, applies render-pass read rules, and returns the register value.
-- `mmio_write32` (L1536) — 32-bit MMIO write: records the histogram, syncs devices, traces the write and routes the value to its register.
-- `mmio_read16_impl` (L1604) — 16-bit MMIO read, including the halfword lanes of the 32-bit memory control registers.
-- `mmio_read16` (L1652) — 16-bit MMIO read: syncs devices, applies render-pass read rules, and returns the register value.
-- `mmio_write16` (L1661) — 16-bit MMIO write: records the histogram, syncs devices and routes the value to its register.
-- `mmio_read8_impl` (L1729) — 8-bit MMIO read by register region, taking the byte lane of the 32-bit registers.
-- `mmio_read8` (L1774) — 8-bit MMIO read: syncs devices, applies render-pass read rules, and returns the byte.
-- `mmio_write8` (L1783) — 8-bit MMIO write; memory control registers get a read-modify-write of the byte lane.
-- `psx_read_word` (L1879) — data-shard capture feed (data_shards.c): record guest reads/writes while a capture window is armed.
-- `psx_read_word_raw` (L1900) — Physical address of a CPU/DMA main-RAM access.
-- `pgxp_untracked_store` (L2003) — DMA and host stores have no instruction hook to carry or reset a PGXP shadow.
-- `cpu_store_isolated` (L2008) — Returns 1 when a CPU store should only touch the cache: cache isolation is on and no DMA or host store is running.
-- `isc_store` (L2013) — Handles a store made while the cache is isolated: updates the instruction cache and the data cache, not RAM.
-- `render_pass_mmio_write` (L2033) — Writes an MMIO register at the given width (4, 2 or 1 bytes) during a render pass.
-- `rp_mod_journal` (L2055) — Saves the original contents of each arena page a write touches, once per page, so a render pass can roll it back; returns 0 if journaling failed.
-- `render_pass_mod_store` (L2079) — 1 when the store landed in a mod arena (journaled and written).
-- `render_pass_mod_arenas_rollback` (L2100) — Restores every journaled arena page to its saved contents and clears the journal.
-- `render_pass_mod_arenas_hash` (L2111) — FNV-1a over the used part of both arenas (PSX_RENDER_PASS_VERIFY).
-- `render_pass_store` (L2119) — Routes a store during a render pass: mod arena writes are journaled, and everything else goes through the render pass policy to RAM or scratchpad.
-- `psx_write_word` (L2143) — Guest 32-bit store entry point: flushes pending cycles, takes the fast path when possible, and otherwise handles render-pass, lockstep and recording cases.
-- `psx_write_word_raw` (L2159) — Performs a 32-bit store to RAM, scratchpad or a device, after updating the store counters and last-store tracking.
-- `psx_read_half` (L2315) — Guest 16-bit load: records it for recording or lockstep when active, then reads the value.
-- `psx_read_half_raw` (L2326) — Reads 16 bits from RAM or a device at the address, ignoring KSEG2 accesses.
-- `psx_write_half` (L2363) — Guest 16-bit store entry point, with the same fast path and special cases as the word store.
-- `psx_write_half_raw` (L2379) — Performs a 16-bit store to RAM or a device, honouring cache isolation and KSEG2.
-- `psx_read_byte` (L2446) — Guest 8-bit load entry point, with the same recording and lockstep checks as the other loads.
-- `psx_read_byte_raw` (L2457) — Reads one byte from RAM or a device at the address, ignoring KSEG2 accesses.
-- `psx_load_charge_cycles` (L2517) — Charges the cycles of a load to the emulated clock, through the CPU charge when the fast cycle path is not active.
-- `psx_mmio_read_wait` (L2541) — Beetle MemRW device-region READ wait (libretro.cpp:859-1131), the device-dependent part of a load's access cost (added to the timestamp before the +completion).
-- `psx_cyc_readmem` (L2548) — Beetle ReadMemory data-access timing (cpu.cpp:369-448), after §1/deps/DO_LDS.
-- `psx_load_delay_enabled` (L2571) — Resolve PSX_LOAD_DELAY once (shared with inlined psx_cyc.h helpers).
-- `psx_cyc_load_timing` (L2585) — The interlock half of a load (§1+deps+(cancel)+DO_LDS+ReadMemory).
-- `psx_cyc_main_ram_fast_addr` (L2615) — Returns 1 and the physical address when an access is a plain main RAM hit with no tracing active; 0 otherwise.
-- `psx_cyc_load_word_slow` (L2637) — Slow paths for the inlined helpers in psx_cyc.h (MMIO / lockstep / shards).
-- `psx_cyc_load_half_slow` (L2641) — Slow path for a timed 16-bit load: charges the load timing, then reads the halfword.
-- `psx_cyc_load_word_timing_only` (L2645) — Charges the timing of a 32-bit load without reading the value.
-- `psx_cyc_load_byte` (L2649) — Timed 8-bit load for generated code: charges the load timing, then returns the byte from RAM or the full read.
-- `psx_cyc_lwc2_read_slow` (L2661) — LWC2 (GTE load): §1/DO_LDS done by psx_cyc_step(cpu,0); the GTE deadline stall by psx_gte_stall — both emitted before this call.
-- `psx_guest_read_word` (L2681) — Deprecated uncharged passthroughs (the +4 flat wait-state model is gone; load timing now lives in psx_cyc_load_*).
-- `psx_guest_read_half` (L2682) — Untimed 16-bit read for guest code, with no load timing charged.
-- `psx_guest_read_byte` (L2683) — Untimed 8-bit read for guest code, with no load timing charged.
-- `psx_cyc_load_word_host` (L2689) — The overlay DLLs' timed loads (overlay_loader.c callbacks): the same entries the main program inlines (psx_cyc.h), main RAM and scratchpad on the short path, everything else on the slow one.
-- `psx_cyc_load_half_host` (L2692) — Timed 16-bit load for overlay DLLs, the same as the main program's inline load.
-- `psx_cyc_load_byte_host` (L2695) — Timed 8-bit load for overlay DLLs, using the fast byte-load path.
-- `psx_cyc_lwc2_read_host` (L2698) — Timed GTE load for overlay DLLs: reads a word for LWC2 with its timing.
-- `psx_blk_load_slow` (L2704) — [recompiler] cpu_timing = "block": a load outside main RAM and the scratchpad (psx_cyc.h psx_blk_load_*): its access cost, then the read.
-- `psx_write_byte` (L2714) — Guest 8-bit store entry point, with the same fast path and special cases as the word store.
-- `psx_host_write_word` (L2733) — Host stores: the same paths as a guest store, but never cache-isolated (cpu_store_isolated).
-- `psx_host_write_half` (L2739) — Host 16-bit store: works like a guest store, but is never cache-isolated.
-- `psx_host_write_byte` (L2745) — Host 8-bit store: works like a guest store, but is never cache-isolated.
-- `psx_write_byte_raw` (L2752) — Performs an 8-bit store to RAM or a device, honouring cache isolation and KSEG2.
-- `psx_mem_gate_value` (L2837) — psx_mem_gate.h (g_psx_mem_gate lives in psx_cycles.c): raised by every writer that sets one of the stores' global gates; lowered here once all are clear.
-- `__attribute__` (L2850) — The gate was raised: lower it if every flag is clear (1: the short path may go on).
-- `psx_mem_gate_flags` (L2857) — Returns the combined store gate flags that decide whether the fast store path may be used.
-- `psx_store_pages_forget_all` (L2862) — Clears every cached store-page classification so each page is recomputed on its next store.
-- `psx_store_page_kind` (L2867) — 1: every aligned store to the page is a plain store here; 2: one is when its text line is already marked (text_line_mark would do nothing); 0: neither (kernel window, executed code, watched overlay pa
-- `psx_store_pages_audit` (L2878) — Debug check: aborts if a cached page classification no longer matches the current state.
-- `psx_store_fast_ptr` (L2895) — Where a plain store may go directly: main RAM (above the kernel window, on a page no code watcher acts on) or the scratchpad, which the full path writes with nothing else to do (no mod aperture reache
-- `psx_store_try_word` (L2931) — Tries a 32-bit store through the fast path; returns 1 when it wrote the value, 0 to fall back to the full path.
-- `psx_store_try_half` (L2943) — Tries a 16-bit store through the fast path; returns 1 when handled, 0 to fall back.
-- `psx_store_try_byte` (L2952) — Tries an 8-bit store through the fast path; returns 1 when handled, 0 to fall back.
+- `overlay_watch_invalidate_after_ram_restore` (L1106) — After bulk RAM restore (savestate): bump overlay page gens + lazy-miss epoch so native overlays re-hash against restored bytes; clear the exec pc/page bitmaps and dispatch evidence so pre-load PCs never bind to restored bytes; also drop sticky text_diverged/modified bitmaps (host-only — restored RA
+- `overlay_watch_note_write` (L1121) — Records a guest store to a watched overlay page and drops the PC evidence for the written words only.
+- `memory_ctrl_snapshot_bytes` (L1176) — Size of the BS_SEC_MEMCTL payload: 18 u32 (memory control, RAM size, cache control).
+- `memory_ctrl_snapshot_write` (L1177) — Writes mem_ctrl[16], the RAM size register and cache control as u32 LE for BS_SEC_MEMCTL.
+- `memory_ctrl_snapshot_validate` (L1184) — Pass 1 check of BS_SEC_MEMCTL: the payload must be exactly 18 u32.
+- `memory_ctrl_snapshot_read` (L1187) — Restores mem_ctrl[16], the RAM size register and cache control from BS_SEC_MEMCTL.
+- `imask_trace_record` (L1258) — Records an interrupt mask write in the trace ring, with old and new values, width, caller and store PC.
+- `interrupt_write_stat_masked` (L1287) — Acknowledges the interrupt status bits written by the guest (a 1 clears), counts vblank acks and refreshes the IP2 cause.
+- `interrupt_write_mask_masked` (L1295) — Applies a guest write to the interrupt mask, traces it, notifies the SIO card handoff and refreshes the IP2 cause.
+- `memory_get_imask_bit7_set_count` (L1309) — Getters for debug server
+- `memory_get_imask_bit7_clear_count` (L1310) — Returns how many times interrupt mask bit 7 was cleared, for the debug server.
+- `memory_get_imask_trace` (L1311) — Returns the interrupt mask trace ring, with its current index and count through the out pointers.
+- `effective_store_pc` (L1342) — Returns the PC to credit a store to: the DMA initiator while DMA runs, otherwise the last store PC.
+- `read_ram_word` (L1350) — Reads a 32-bit little-endian word from RAM at a physical address.
+- `read_ram_half` (L1356) — Reads a 16-bit little-endian value from RAM at a physical address.
+- `scph1001_active` (L1371) — The active BIOS image is SCPH-1001.
+- `scph1001_relocated_store` (L1379) — Returns 1 when a store at pc is SCPH-1001's own BIOS store from ROM offset rom, so its legacy key still applies.
+- `memory_set_sr_ptr` (L1394) — Stores the pointer to the CPU status register that memory_get_sr reads.
+- `memory_get_sr` (L1395) — Returns the CPU status register through the stored pointer, or 0 when none is set.
+- `memory_get_bios_checksum` (L1398) — Returns the checksum of the loaded BIOS image.
+- `memory_init` (L1402) — static uint32_t psx_mem_gate_flags(void); /* below, with psx_store_fast_ptr extern int g_psx_store_page_audit; /* below, with psx_store_page_kind
+- `unmapped_fatal` (L1452) — Does nothing for an unmapped address: the BIOS probes these on purpose, so it is treated as open bus.
+- `mmio_read32_impl` (L1462) — Performs a 32-bit MMIO read, selecting the register by address region: memory control, SIO, RAM size and the other devices.
+- `mmio_hist` (L1518) — Counts an MMIO access in a histogram bucket by register region, separately for reads and writes.
+- `mmio_read32` (L1531) — 32-bit MMIO read: syncs devices, applies render-pass read rules, and returns the register value.
+- `mmio_write32` (L1540) — 32-bit MMIO write: records the histogram, syncs devices, traces the write and routes the value to its register.
+- `mmio_read16_impl` (L1608) — 16-bit MMIO read, including the halfword lanes of the 32-bit memory control registers.
+- `mmio_read16` (L1656) — 16-bit MMIO read: syncs devices, applies render-pass read rules, and returns the register value.
+- `mmio_write16` (L1665) — 16-bit MMIO write: records the histogram, syncs devices and routes the value to its register.
+- `mmio_read8_impl` (L1733) — 8-bit MMIO read by register region, taking the byte lane of the 32-bit registers.
+- `mmio_read8` (L1778) — 8-bit MMIO read: syncs devices, applies render-pass read rules, and returns the byte.
+- `mmio_write8` (L1787) — 8-bit MMIO write; memory control registers get a read-modify-write of the byte lane.
+- `psx_read_word` (L1883) — data-shard capture feed (data_shards.c): record guest reads/writes while a capture window is armed.
+- `psx_read_word_raw` (L1904) — Physical address of a CPU/DMA main-RAM access.
+- `pgxp_untracked_store` (L2007) — DMA and host stores have no instruction hook to carry or reset a PGXP shadow.
+- `cpu_store_isolated` (L2012) — Returns 1 when a CPU store should only touch the cache: cache isolation is on and no DMA or host store is running.
+- `isc_store` (L2017) — Handles a store made while the cache is isolated: updates the instruction cache and the data cache, not RAM.
+- `render_pass_mmio_write` (L2037) — Writes an MMIO register at the given width (4, 2 or 1 bytes) during a render pass.
+- `rp_mod_journal` (L2059) — Saves the original contents of each arena page a write touches, once per page, so a render pass can roll it back; returns 0 if journaling failed.
+- `render_pass_mod_store` (L2083) — 1 when the store landed in a mod arena (journaled and written).
+- `render_pass_mod_arenas_rollback` (L2104) — Restores every journaled arena page to its saved contents and clears the journal.
+- `render_pass_mod_arenas_hash` (L2115) — FNV-1a over the used part of both arenas (PSX_RENDER_PASS_VERIFY).
+- `render_pass_store` (L2123) — Routes a store during a render pass: mod arena writes are journaled, and everything else goes through the render pass policy to RAM or scratchpad.
+- `psx_write_word` (L2147) — Guest 32-bit store entry point: flushes pending cycles, takes the fast path when possible, and otherwise handles render-pass, lockstep and recording cases.
+- `psx_write_word_raw` (L2163) — Performs a 32-bit store to RAM, scratchpad or a device, after updating the store counters and last-store tracking.
+- `psx_read_half` (L2319) — Guest 16-bit load: records it for recording or lockstep when active, then reads the value.
+- `psx_read_half_raw` (L2330) — Reads 16 bits from RAM or a device at the address, ignoring KSEG2 accesses.
+- `psx_write_half` (L2367) — Guest 16-bit store entry point, with the same fast path and special cases as the word store.
+- `psx_write_half_raw` (L2383) — Performs a 16-bit store to RAM or a device, honouring cache isolation and KSEG2.
+- `psx_read_byte` (L2450) — Guest 8-bit load entry point, with the same recording and lockstep checks as the other loads.
+- `psx_read_byte_raw` (L2461) — Reads one byte from RAM or a device at the address, ignoring KSEG2 accesses.
+- `psx_load_charge_cycles` (L2521) — Charges the cycles of a load to the emulated clock, through the CPU charge when the fast cycle path is not active.
+- `psx_mmio_read_wait` (L2545) — Beetle MemRW device-region READ wait (libretro.cpp:859-1131), the device-dependent part of a load's access cost (added to the timestamp before the +completion).
+- `psx_cyc_readmem` (L2552) — Beetle ReadMemory data-access timing (cpu.cpp:369-448), after §1/deps/DO_LDS.
+- `psx_load_delay_enabled` (L2575) — Resolve PSX_LOAD_DELAY once (shared with inlined psx_cyc.h helpers).
+- `psx_cyc_load_timing` (L2589) — The interlock half of a load (§1+deps+(cancel)+DO_LDS+ReadMemory).
+- `psx_cyc_main_ram_fast_addr` (L2619) — Returns 1 and the physical address when an access is a plain main RAM hit with no tracing active; 0 otherwise.
+- `psx_cyc_load_word_slow` (L2641) — Slow paths for the inlined helpers in psx_cyc.h (MMIO / lockstep / shards).
+- `psx_cyc_load_half_slow` (L2645) — Slow path for a timed 16-bit load: charges the load timing, then reads the halfword.
+- `psx_cyc_load_word_timing_only` (L2649) — Charges the timing of a 32-bit load without reading the value.
+- `psx_cyc_load_byte` (L2653) — Timed 8-bit load for generated code: charges the load timing, then returns the byte from RAM or the full read.
+- `psx_cyc_lwc2_read_slow` (L2665) — LWC2 (GTE load): §1/DO_LDS done by psx_cyc_step(cpu,0); the GTE deadline stall by psx_gte_stall — both emitted before this call.
+- `psx_guest_read_word` (L2685) — Deprecated uncharged passthroughs (the +4 flat wait-state model is gone; load timing now lives in psx_cyc_load_*).
+- `psx_guest_read_half` (L2686) — Untimed 16-bit read for guest code, with no load timing charged.
+- `psx_guest_read_byte` (L2687) — Untimed 8-bit read for guest code, with no load timing charged.
+- `psx_cyc_load_word_host` (L2693) — The overlay DLLs' timed loads (overlay_loader.c callbacks): the same entries the main program inlines (psx_cyc.h), main RAM and scratchpad on the short path, everything else on the slow one.
+- `psx_cyc_load_half_host` (L2696) — Timed 16-bit load for overlay DLLs, the same as the main program's inline load.
+- `psx_cyc_load_byte_host` (L2699) — Timed 8-bit load for overlay DLLs, using the fast byte-load path.
+- `psx_cyc_lwc2_read_host` (L2702) — Timed GTE load for overlay DLLs: reads a word for LWC2 with its timing.
+- `psx_blk_load_slow` (L2708) — [recompiler] cpu_timing = "block": a load outside main RAM and the scratchpad (psx_cyc.h psx_blk_load_*): its access cost, then the read.
+- `psx_write_byte` (L2718) — Guest 8-bit store entry point, with the same fast path and special cases as the word store.
+- `psx_host_write_word` (L2737) — Host stores: the same paths as a guest store, but never cache-isolated (cpu_store_isolated).
+- `psx_host_write_half` (L2743) — Host 16-bit store: works like a guest store, but is never cache-isolated.
+- `psx_host_write_byte` (L2749) — Host 8-bit store: works like a guest store, but is never cache-isolated.
+- `psx_write_byte_raw` (L2756) — Performs an 8-bit store to RAM or a device, honouring cache isolation and KSEG2.
+- `psx_mem_gate_value` (L2841) — psx_mem_gate.h (g_psx_mem_gate lives in psx_cycles.c): raised by every writer that sets one of the stores' global gates; lowered here once all are clear.
+- `__attribute__` (L2854) — The gate was raised: lower it if every flag is clear (1: the short path may go on).
+- `psx_mem_gate_flags` (L2861) — Returns the combined store gate flags that decide whether the fast store path may be used.
+- `psx_store_pages_forget_all` (L2866) — Clears every cached store-page classification so each page is recomputed on its next store.
+- `psx_store_page_kind` (L2871) — 1: every aligned store to the page is a plain store here; 2: one is when its text line is already marked (text_line_mark would do nothing); 0: neither (kernel window, executed code, watched overlay pa
+- `psx_store_pages_audit` (L2882) — Debug check: aborts if a cached page classification no longer matches the current state.
+- `psx_store_fast_ptr` (L2899) — Where a plain store may go directly: main RAM (above the kernel window, on a page no code watcher acts on) or the scratchpad, which the full path writes with nothing else to do (no mod aperture reache
+- `psx_store_try_word` (L2935) — Tries a 32-bit store through the fast path; returns 1 when it wrote the value, 0 to fall back to the full path.
+- `psx_store_try_half` (L2947) — Tries a 16-bit store through the fast path; returns 1 when handled, 0 to fall back.
+- `psx_store_try_byte` (L2956) — Tries an 8-bit store through the fast path; returns 1 when handled, 0 to fall back.
 
 ### runtime/src/mod_builtin_bezel.c
 
@@ -8036,6 +8036,25 @@ Keeps the guest CPU cycle clock and charges device, timing and idle-skip work ag
 - `psx_cycle_uncharged_begin` (L1343) — Uncharged span: the same freeze without the pass's rollback.
 - `psx_cycle_uncharged_counted` (L1355) — Guest cycles the current span has executed so far, published or still batched (0 outside a span).
 - `psx_cycle_uncharged_end` (L1360) — Ends an uncharged span; returns 1 if its cycles were never charged, and restores the clock only in that case.
+
+### runtime/src/psx_disc_saves.c
+
+(what this file is for)
+
+- `psx_card_list_saves` (L45) — The saves on a 128 KB card image (broken chains are skipped).
+- `rec_find` (L85)
+- `rec_by_sha` (L93)
+- `rec_remove` (L100)
+- `rec_put` (L106)
+- `save_named` (L121)
+- `prune` (L130) — Records of 'card' whose save is not in 'list' (or, with 'strict', whose bytes differ) go away.
+- `psx_disc_saves_card_seen` (L140) — A card in slot 0/1 seen for the first time this session (or after a rebind): prune, inherit copies, and remember its saves as they are now.
+- `psx_disc_saves_card_written` (L156) — The game wrote the card: saves that changed since the last look get 'disc' and 'now'; copies inherit; deleted saves lose their record.
+- `psx_disc_saves_disc_of_block` (L184) — Recorded disc of the save holding 'block' (0..14) on the card in 'slot', 0 when that block holds no recorded save.
+- `psx_disc_saves_newest` (L197) — Disc of the newest recorded save on the cards seen, 0 when none.
+- `hex_sha` (L214)
+- `psx_disc_saves_open` (L224) — Load the registry file (missing = empty).
+- `psx_disc_saves_flush` (L262) — Write the file if anything changed.
 
 ### runtime/src/psx_disc_tray.c
 
