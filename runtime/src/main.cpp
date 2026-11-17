@@ -18414,7 +18414,9 @@ PsxHostVideoSettings ovl_video_from(const RecompLauncherCSettings& ls) {
     v.scanlines = ls.scanlines ? 1 : 0;
     v.scanline_strength_pct = ls.scanline_strength_pct;
     v.present_linear = ls.antialiasing ? 1 : 0;
+#if defined(RECOMP_LAUNCHER_HAS_DYNAMIC_RESOLUTION)  /* recomp-ui 20ae77b+ folds it into internal_resolution = -2 */
     v.dynamic_resolution = ls.dynamic_resolution ? 1 : 0;
+#endif
     v.frame_generation = ls.frame_generation ? 1 : 0;
     v.renderer = ls.renderer;
     v.render_thread = ls.render_thread ? 1 : 0;
@@ -18432,7 +18434,9 @@ void mh_launcher_settings_get(RecompLauncherCSettings* out) {
     ls.scanlines = v.scanlines;
     ls.scanline_strength_pct = v.scanline_strength_pct;
     ls.antialiasing = v.present_linear;
+#if defined(RECOMP_LAUNCHER_HAS_DYNAMIC_RESOLUTION)  /* recomp-ui 20ae77b+ folds it into internal_resolution = -2 */
     ls.dynamic_resolution = v.dynamic_resolution;
+#endif
     ls.frame_generation = v.frame_generation;
     ls.renderer = v.renderer;
     ls.render_thread = v.render_thread;
@@ -18483,7 +18487,9 @@ void mh_launcher_game_info(RecompLauncherCGameInfo* out) {
     gi.renderer_labels = kOvlRenderers;
     gi.num_renderers = 2;
     gi.has_supersampling = 0;            /* restart-only; set before boot */
+#if defined(RECOMP_LAUNCHER_HAS_DYNAMIC_RESOLUTION)  /* recomp-ui 20ae77b+ folds it into internal_resolution = -2 */
     gi.has_dynamic_resolution = 1;
+#endif
     gi.has_render_pipeline = 1;
     gi.has_vsync = 0;
     gi.has_rewind_depth = 0;
