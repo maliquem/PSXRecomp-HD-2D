@@ -3586,6 +3586,17 @@ def load_shard_func_ids(dll_path: str,
     suppress a needed fragment.
     """
     ranges_path = os.path.splitext(dll_path)[0] + '.ranges'
+    # Every capture rescans its region's shards; the answer depends only on the
+    # pair's files, so reuse it while both fingerprints stay the same.
+    key = (os.path.normcase(os.path.abspath(dll_path)), expected_abi,
+           include_supplemental)
+    fingerprint = (_candidate_file_fingerprint(dll_path),
+                   _candidate_file_fingerprint(ranges_path))
+    if None not in fingerprint:
+        with _candidate_validation_cache_lock:
+            hit = _shard_func_ids_cache.get(key)
+        if hit is not None and hit[0] == fingerprint:
+            return list(hit[1])
     try:
         with _shard_pair_lock(dll_path):
             _recover_shard_pair_locked(dll_path)
@@ -3605,9 +3616,14 @@ def load_shard_func_ids(dll_path: str,
             if (not valid_funcs or not _dll_runtime_exports_match(
                     dll_path, expected_abi, pair_id,
                     {entry for entry, _crc, _ranges in valid_funcs})):
-                return []
+                valid_funcs = []
+            after = (_candidate_file_fingerprint(dll_path),
+                     _candidate_file_fingerprint(ranges_path))
     except (OSError, UnicodeError):
         return []
+    if None not in after:
+        with _candidate_validation_cache_lock:
+            _shard_func_ids_cache[key] = (after, list(valid_funcs))
     return valid_funcs
 
 
@@ -5614,6 +5630,7 @@ _candidate_validation_cache_lock = threading.Lock()
 _candidate_abi_cache = {}
 _candidate_record_cache = {}
 _candidate_rejection_witness_cache = {}
+_shard_func_ids_cache = {}
 
 
 def _candidate_file_fingerprint(path: str):
