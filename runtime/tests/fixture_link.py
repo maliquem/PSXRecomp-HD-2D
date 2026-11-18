@@ -90,7 +90,10 @@ def build_and_run(cc, here, src_root, opt, work, modules, test_name, defines=())
     stub_o = work / ("stubs" + tag + ".o")
 
     test_o = work / ("fixture" + tag + ".o")
+    # psx_cyc.h keeps unused static helpers and an inline+noinline helper; GCC
+    # warns on both (clang does not), everything else stays fatal.
     subprocess.run([cc, "-std=c11", opt, "-Wall", "-Wextra", "-Werror",
+                    "-Wno-unused-function", "-Wno-attributes",
                     "-I", include, "-c", str(here / test_name), "-o", str(test_o)],
                    check=True)
     exe = work / ("fixture" + tag + (".exe" if os.name == "nt" else ""))
