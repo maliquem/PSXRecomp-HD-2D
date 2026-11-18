@@ -16,7 +16,7 @@ assert "bool vulkan_offered = false;" in config_h
 assert 'video.contains("offer_vulkan")' in config_cpp
 assert 'rt.video_offer_vulkan = toml::find<bool>(video, "offer_vulkan");' in config_cpp
 assert "bool vulkan_offered = false;" in config_cpp
-assert "/*vulkan_offered*/" in config_cpp
+assert "loaded.vulkan_offered = vulkan_offered;" in config_cpp
 
 assert '"Software"' in main
 assert '"OpenGL (Recommended)"' in main

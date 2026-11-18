@@ -105,7 +105,7 @@ class TemplateContract(unittest.TestCase):
     def test_links_committed_bios_backends(self):
         self.assertNotIn("generate_openbios", self.text, "BIOS C is committed, not emitted in CI")
         self.assertIn("-DPSXRECOMP_BIOS_STALE_FATAL=ON", self.text)
-        self.assertIn("BIOS backends linked: .*SCPH1001", self.text)
+        self.assertIn("BIOS backends linked: .*OpenBIOS", self.text)
 
     def test_configures_a_full_build(self):
         self.assertIn("-DPSXRECOMP_REQUIRE_GAME_C=ON", self.text)

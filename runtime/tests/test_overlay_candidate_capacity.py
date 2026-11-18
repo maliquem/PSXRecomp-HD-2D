@@ -181,7 +181,7 @@ def main() -> int:
             "alias lookup must precede durable near/full-cap suppression")
     require(r"registered\s*==\s*0", load_one,
             "rejected loads must remain retryable")
-    require(r"registered\s*>\s*0\)\s*s_ndlls\+\+", load_one,
+    require(r"registered\s*>\s*0\)\s*s_dll_path_idx\[s_ndlls\+\+\]", load_one,
             "pair aliases must not claim a DLL owner/flush slot")
 
     range_match = function_body(source, "range_candidate_matches")

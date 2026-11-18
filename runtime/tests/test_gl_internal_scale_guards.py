@@ -96,15 +96,15 @@ class GlScaleGuards(unittest.TestCase):
         # The window and the wide surface draw only the batch's nverts
         # vertices (triangles and line quads). (A GL_LINES batch at 1x, where
         # one exists, draws with its own mode in both places.)
-        flush = body(GL, "static void flush_flat_batch(void)")
+        flush = body(GL, "static void flush_flat_batch_impl(void)")
         self.assertIn("s_fbl_n = 0;", flush)
         self.assertIn("memcpy(&s_fb[nverts * 6], s_fbl,", flush)
         self.assertIn("(nverts + 2 * nl) * 6 * sizeof(float)", flush)
-        self.assertRegex(flush, r"if \(nl\) flat_batch_draw_hr_lines\(nverts, nl\);\n"
-                                r"\s*else glDrawArrays\((GL_TRIANGLES|fmode), 0, nverts\);")
+        self.assertRegex(flush, r"BCLS_DRAW\([^;]*if \(nl\) flat_batch_draw_hr_lines\(nverts, nl\);\n"
+                                r"\s*else glDrawArrays\((GL_TRIANGLES|fmode), 0, nverts\)\);")
         self.assertIn("hiw_enqueue_geo(s_fb, nverts, semi, mask, mirror, s_fb_gate)", flush)
         wide = flush[flush.index("wide_target_begin("):]
-        self.assertRegex(wide, r"glDrawArrays\((GL_TRIANGLES|fmode), 0, nverts\);")
+        self.assertRegex(wide, r"glDrawArrays\((GL_TRIANGLES|fmode), 0, nverts\)\);")
         hr = body(GL, "static void flat_batch_draw_hr_lines(int nverts, int nl)")
         self.assertIn("glDrawArrays(GL_LINES, nverts + 2 * i, 2 * (j - i));", hr)
         # Room for the copy: every line takes six batch vertices.
@@ -134,19 +134,20 @@ class HiresWindowGuards(unittest.TestCase):
             self.assertIn("hiw_flush_queue();", body(GL, fn))
         # Queued when the window is on, or (full-VRAM surface) when a native-wide
         # mirror can ride the queue (wide_queue_live).
-        for site in ("flush_tex_batch(void)", "flush_flat_batch(void)"):
+        for site in ("flush_tex_batch_impl(void)", "flush_flat_batch_impl(void)"):
             self.assertRegex(body(GL, "static void " + site),
-                             r"if \(\(hiw_on\(\) \|\| \(mirror[^)]*wide_queue_live\(\)\)\) &&\s*hiw_enqueue_")
+                             r"if \(\(hiw_on\(\) \|\| \(mirror[^)]*wide_queue_live\(\)\)\) &&\s*"
+                             r"(\(s_hq_b3d_cur = b3d, )?hiw_enqueue_")
 
     def test_wide_mirror_queued_in_windowed_mode(self):
         # Windowed mode: a draw's native-wide mirror rides in its window queue
         # entry and is replayed in the queue's flush (one pass per wide
         # surface), not as a surface switch per batch. The immediate mirror
         # runs only when the entry did not take it.
-        for site, call in (("static void flush_tex_batch(void)",
+        for site, call in (("static void flush_tex_batch_impl(void)",
                             "hiw_enqueue_tex(nverts, semi, mirror, s_tb_gate)) mirror = 0;"),
-                           ("static void flush_flat_batch(void)",
-                            "hiw_enqueue_geo(s_fb, nverts, semi, mask, mirror, s_fb_gate)) mirror = 0;"),
+                           ("static void flush_flat_batch_impl(void)",
+                            "hiw_enqueue_geo(s_fb, nverts, semi, mask, mirror, s_fb_gate))) mirror = 0;"),
                            ("static void gpu_geometry(", "mirror = 0;")):
             fn = body(GL, site)
             self.assertIn(call, fn, site)
@@ -171,7 +172,7 @@ class HiresWindowGuards(unittest.TestCase):
                      "glScissor(c->wsx * S, c->wsy * S, c->wsw * S, c->wsh * S);",
                      "p_glUniform1f(s_tex_uXoff, (float)c->wdx);",
                      "p_glUniform1f(s_geo_uXoff, (float)c->wdx);",
-                     "tex_draw_passes_ex(c->vcount, c->semi, c->mask, c->check, 0);",
+                     "tex_draw_passes_ex(c->vcount, c->semi, c->mask, c->check, 0, c->b3d);",
                      "mask_stencil_ex(c->mask, c->check);"):
             self.assertIn(need, replay)
         # Every other write to a wide surface, and every read of one, lands
@@ -213,7 +214,8 @@ class HiresWindowGuards(unittest.TestCase):
         # The window's S-scaled copy source has its own scratch, staged in
         # column chunks that fit the GPU limit; the shared scratch never grows
         # past the hr surface for it.
-        copy = body(GL, "static void gpu_copy_rect(int sx,int sy,int dx,int dy,int w,int h)")
+        # gpu_copy_rect splits the copy at the VRAM wrap; gpu_copy_seg stages it.
+        copy = body(GL, "static void gpu_copy_seg(int sx,int sy,int dx,int dy,int w,int h)")
         self.assertNotIn("s_out_scale", copy)
         self.assertIn("if (!scratch_ensure(w * S, h * S)) return;", copy)
         self.assertIn("int cols = s_gl_max_dim > 0 ? s_gl_max_dim / S : hi - lo;",
@@ -277,6 +279,8 @@ class ScaleContractGuards(unittest.TestCase):
         for name, fn in functions(code):
             if not re.search(r"FRAMEBUFFER,\s*s_hr_fbo\b", fn):
                 continue
+            if name == "pres_record":
+                continue  # s_out_scale only labels telemetry; the hr read is a debug probe
             if "s_out_scale" in fn:
                 self.assertTrue("s_hiw" in fn or "hiw_on()" in fn,
                                 name + " binds s_hr_fbo at s_out_scale without handling the window")

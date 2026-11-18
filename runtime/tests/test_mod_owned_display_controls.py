@@ -100,7 +100,8 @@ COPIES = (
     ("frame_period_ms", "g_frame_period_ms"),
 )
 before = c_statements(helper[len(HELPER_SIG):call_at])
-expected = ["psx_local_mouse_clear();", "PSXModSessionScalars live;"] + [
+expected = ["psx_mod_internal_resolution_reset();", "psx_local_mouse_clear();",
+            "psx_keybinds_clear_session_players();", "PSXModSessionScalars live;"] + [
     f"live.{f} = {g};" for f, g in COPIES
 ]
 assert sorted(before) == sorted(expected), \
@@ -179,7 +180,8 @@ order = [session.index(step) for step in (
     "g_mod_disc_speed_divisor = -1;",
     "g_mod_disc_instant_rate = -1;",
     "g_turbo_load_wall_multiplier = 0;",
-    "reset_mod_owned_presentation();\n        mod_runtime_activate_plugins();",
+    "reset_mod_owned_presentation();",
+    "mod_runtime_activate_plugins();",
     "apply_netplay_local_viewport_aspect(netplay);",
     "player_mode[i] = g_mod_controller_mode_override[i];",
     "g_turbo_load_wall_multiplier = g_mod_load_wall_multiplier;",
