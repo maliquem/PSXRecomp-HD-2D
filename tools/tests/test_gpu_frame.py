@@ -26,6 +26,12 @@ def _load(name):
     return mod
 
 
+try:
+    import numpy  # noqa: F401  (gpu_frame_layers renders with it)
+except ImportError:
+    print("SKIP gpu_frame: numpy is not installed (pip install numpy)")
+    sys.exit(77)  # ctest SKIP_RETURN_CODE
+
 GF = _load("psx_gpu_frame")
 LAYERS = _load("gpu_frame_layers")
 DIFF = _load("gpu_frame_diff")

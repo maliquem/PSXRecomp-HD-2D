@@ -225,6 +225,12 @@ add_custom_command(
     VERBATIM)
 add_custom_target(psxrecomp_baked_codegen_hash DEPENDS ${_baked_hash_hdr})
 add_dependencies(psxrecomp-game psxrecomp_baked_codegen_hash)
+# compile_overlays.py --runtime-include reads the same hash from the runtime's
+# header; a CLI-only checkout never builds the runtime, so leave it there too.
+add_custom_command(TARGET psxrecomp-game POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different ${_baked_hash_hdr}
+            ${PSXRECOMP_CODEGEN_HASH_ROOT}/runtime/include/overlay_codegen_hash.h
+    VERBATIM)
 # Force main_psx.cpp to recompile whenever the hash header content changes
 # (same OBJECT_DEPENDS hardening as runtime.cmake — __has_include depfile gap).
 set_source_files_properties(src/main_psx.cpp PROPERTIES OBJECT_DEPENDS ${_baked_hash_hdr})
@@ -1324,6 +1330,7 @@ if(BUILD_TESTING)
                         ${CMAKE_CURRENT_SOURCE_DIR}/../tools/tests/test_${_t}.py
                 WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/..)
         endforeach()
+        set_tests_properties(gpu_frame PROPERTIES SKIP_RETURN_CODE 77)  # no numpy
         add_test(
             NAME compile_overlays_static_split
             COMMAND ${Python3_EXECUTABLE}
