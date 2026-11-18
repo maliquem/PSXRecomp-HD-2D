@@ -33,6 +33,7 @@ uint32_t g_overlay_region_floor;
 uint32_t i_stat, i_mask;
 int g_exec_phase;
 int g_idle_note_suppress;
+int g_idle_skip_enabled;
 int g_psx_call_bail;
 uint32_t g_dirty_ram_code_gen;
 uint64_t g_psx_bail_first, g_psx_bail_resolved;
@@ -248,6 +249,15 @@ void psx_pgxp_store_masked(CPUState *cpu, uint32_t i, uint32_t a, uint32_t v) {
 void psx_pgxp_alu(CPUState *cpu, uint32_t i, uint32_t r, uint32_t s, uint32_t t) {
     (void)cpu; (void)i; (void)r; (void)s; (void)t;
 }
+void psx_pgxp_alu_masked(CPUState *cpu, uint32_t i, uint32_t r, uint32_t s, uint32_t t) {
+    (void)cpu; (void)i; (void)r; (void)s; (void)t;
+}
+/* Seams overlay_loader.c reaches that live in psx_cycles.c / gpu / mod_plugins. */
+void overlay_flush_cycles(void) {}
+int psx_idle_skip_area_site(uint32_t pc) { (void)pc; return 0; }
+void psx_idle_note_check(struct CPUState *cpu, uint32_t pc) { (void)cpu; (void)pc; }
+int psx_overdraw_axis(int axis) { (void)axis; return 0; }
+int psx_mod_function_entry_has_hook(uint32_t address) { (void)address; return 0; }
 void psx_pgxp_muldiv(CPUState *cpu, uint32_t i, uint32_t h, uint32_t l, uint32_t s, uint32_t t) {
     (void)cpu; (void)i; (void)h; (void)l; (void)s; (void)t;
 }

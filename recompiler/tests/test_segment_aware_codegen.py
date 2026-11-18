@@ -199,6 +199,7 @@ static int dirty_ram_text_native_ok_ranges(const uint32_t* r, uint32_t n) {
 }
 static void psx_check_interrupts_dispatch_entry(CPUState* cpu, uint32_t a) { (void)cpu; (void)a; }
 int psx_vsync_query_hle_try(CPUState* cpu, uint32_t a) { (void)cpu; (void)a; return 0; }
+void psx_store_pages_forget_all(void) {}   /* memory.c, called by psx_ram_geometry.c */
 """
 
 DISPATCH_HARNESS_MAIN = r"""

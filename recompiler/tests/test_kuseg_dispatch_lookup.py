@@ -572,6 +572,7 @@ def main():
 #include <assert.h>
 #include "psx_memory.h"
 int psx_mod_set_main_ram_8mb(int enabled);   /* runtime psx_ram_geometry.c */
+void psx_store_pages_forget_all(void) {}   /* memory.c, called by psx_ram_geometry.c */
 typedef struct { uint32_t pc; } CPUState;
 static int allowed = 1, calls = 0, irqs = 0;
 static uint32_t resumed;

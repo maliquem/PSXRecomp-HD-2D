@@ -31,6 +31,7 @@ def main():
                 (root / "recomp_net/auth.h").write_text("RNET_AUTH_HEADER_INCLUDED\n")
                 (root / "recomp_net/chat_filter.h").write_text("RNET_CHAT_HEADER_INCLUDED\n")
                 (root / "recomp_net/host_relay.h").write_text("RNET_HOST_RELAY_HEADER_INCLUDED\n")
+                (root / "recomp_net/host_ice.h").write_text("RNET_HOST_ICE_HEADER_INCLUDED\n")
             flags = ["RECOMP_LAUNCHER=1", "RECOMP_LAUNCHER_HAS_ACCOUNT=1",
                      "SDL_VERSION_ATLEAST(x,y,z)=1", "DEFAULT_DEBUG_PORT=4370"]
             if enabled:

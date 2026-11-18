@@ -39,6 +39,7 @@ int      g_psx_render_pass_active;
 int      g_psx_guest_time_frozen;
 uint32_t g_psx_cyc_batch;
 uint32_t g_psx_cyc_batch_limit;
+uint32_t g_psx_mem_gate;   /* data: fixture_link would stub it as a function */
 
 static uint64_t s_serviced_to;
 void psx_devices_service_to_now(void) {
@@ -65,6 +66,7 @@ uint32_t psx_read_word(uint32_t a) {
     uint32_t v; memcpy(&v, ram + (a & 0x1FFFFCu), 4); return v;
 }
 void psx_write_word(uint32_t a, uint32_t v) { memcpy(ram + (a & 0x1FFFFCu), &v, 4); }
+int psx_peek_word(uint32_t a, uint32_t *out) { *out = psx_read_word(a); return 1; }
 uint32_t psx_mod_gpu_dma_resolve_address(uint32_t a) { return a; }
 
 /* ---- GPU ---------------------------------------------------------------- */
