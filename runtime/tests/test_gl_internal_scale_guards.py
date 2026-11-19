@@ -281,6 +281,10 @@ class ScaleContractGuards(unittest.TestCase):
                 continue
             if name == "pres_record":
                 continue  # s_out_scale only labels telemetry; the hr read is a debug probe
+            if name == "wide_copy_margins":
+                # s_out_scale is the wide surface's scale (the side read); hr is written at s_hr_scale
+                self.assertIn("S = s_hr_scale", fn)
+                continue
             if "s_out_scale" in fn:
                 self.assertTrue("s_hiw" in fn or "hiw_on()" in fn,
                                 name + " binds s_hr_fbo at s_out_scale without handling the window")

@@ -114,8 +114,16 @@ assert "g_wide" not in definition(gl, "pass_journal_protect"), (
     "out-of-rect writes are journaled in native-wide as well")
 for name in ("gpu_fill", "gpu_copy_rect", "flush_cpu_upload",
              "glb_vram_transfer_in", "glb_vram_write"):
-    assert "wide" not in definition(gl, name), (
+    fn = definition(gl, name)
+    if name == "gpu_copy_rect":
+        # wide_copy_margins only reads a wide surface; it writes hr inside
+        # this copy's destination, which the copy already journaled.
+        fn = re.sub(r".*wide_copy_margins\(.*\n", "", fn)
+    assert "wide" not in fn, (
         "journaled writes must not reach a native-wide surface: " + name)
+draws = set(re.findall(r"DRAW_FRAMEBUFFER,\s*(\w+)", definition(gl, "wide_copy_margins")))
+assert "s_hr_fbo" in draws and not any(d.startswith("g_wide") for d in draws), (
+    "wide_copy_margins must write only s_hr_fbo, never a wide surface")
 # One-time pass allocations are not cost samples (render_pass_plan_test):
 # every path that makes a pass texture or framebuffer must count it, and the
 # cost average must go through the tested sampling rule.
