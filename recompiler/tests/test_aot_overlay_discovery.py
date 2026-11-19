@@ -30,6 +30,7 @@ SPEC = importlib.util.spec_from_file_location(
 MOD = importlib.util.module_from_spec(SPEC)
 assert SPEC.loader is not None
 SPEC.loader.exec_module(MOD)
+EXT = MOD.overlay_ext()  # .so on Linux; literal .dll names hid every pair there
 EXTRACT_SPEC = importlib.util.spec_from_file_location(
     "extract_generic", ROOT / "tools" / "aot_overlay_spike" /
     "extract_generic.py")
@@ -1610,7 +1611,6 @@ m.publish_shard_pair(sys.argv[2], sys.argv[3], sys.argv[4])
 
 def check_candidate_capacity_publication():
     """Candidate accounting dedups only exact, same-tier whole pairs."""
-    EXT = MOD.overlay_ext()  # .so on Linux; literal .dll names hid every pair there
     original_exports = MOD._dll_runtime_exports_match
     original_abi = MOD._dll_abi_matches
     try:
@@ -2923,7 +2923,7 @@ def check_interior_fragment_contract():
     assert isolated == [entry + 4, entry + 8, entry + 12]
 
     with tempfile.TemporaryDirectory() as td:
-        dll = pathlib.Path(td) / ("00010000_fragment" + MOD.overlay_ext())
+        dll = pathlib.Path(td) / ("00010000_fragment" + EXT)
         ranges = pathlib.Path(td) / "00010000_fragment.ranges"
         pair_id = 0x123456789ABCDEF0
         payload = bytes(0x100)
@@ -2934,10 +2934,16 @@ def check_interior_fragment_contract():
         dll.write_bytes(b"DLL")
         ranges.write_text(manifest)
         old_exports_match = MOD._dll_runtime_exports_match
+        old_fingerprint = MOD._candidate_file_fingerprint
         try:
             MOD._dll_runtime_exports_match = (
                 lambda _path, _abi, expected, entries:
                 expected in (pair_id, None) and bool(entries))
+            # The rewrites below keep the inode and size, and Linux file times
+            # move in clock ticks (~4 ms), so the stat fingerprint alone can
+            # serve the previous manifest's answer. Add the content.
+            MOD._candidate_file_fingerprint = lambda p: (
+                (fp := old_fingerprint(p)) and fp + (pathlib.Path(p).read_bytes(),))
             assert MOD.load_shard_entry_set(str(dll)) == {
                 entry & 0x1FFFFFFF}
             assert MOD.load_shard_code_ranges(str(dll)) == [
@@ -2947,7 +2953,7 @@ def check_interior_fragment_contract():
             assert entries == {entry & 0x1FFFFFFF}
             assert code_ranges == [
                 (entry & 0x1FFFFFFF, (entry & 0x1FFFFFFF) + 8)]
-            canonical = pathlib.Path(td) / ("00010000_DEADBEEF" + MOD.overlay_ext())
+            canonical = pathlib.Path(td) / ("00010000_DEADBEEF" + EXT)
             assert MOD.current_variant_func_id_coverage(
                 MOD.load_shard_func_ids(str(canonical)), payload,
                 LOAD, len(payload)) == (set(), [])
@@ -3041,6 +3047,7 @@ def check_interior_fragment_contract():
             assert MOD.load_shard_entry_set(str(dll)) == set()
         finally:
             MOD._dll_runtime_exports_match = old_exports_match
+            MOD._candidate_file_fingerprint = old_fingerprint
 
         ranges.write_text("EXPECTED\n")
         assert MOD.cached_shard_manifest_status(
