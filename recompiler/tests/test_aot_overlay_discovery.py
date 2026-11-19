@@ -2124,8 +2124,8 @@ def check_candidate_capacity_publication():
             assert tcc_pair not in counts
             assert MOD.candidate_capacity_saturated_in_tier(
                 total, counts, 2, str(gcc_dir))
-            gcc_exact = str(gcc_dir / '00010000_00000002' + EXT)
-            tcc_exact = str(tcc_dir / '00010000_00000003' + EXT)
+            gcc_exact = str(gcc_dir / ('00010000_00000002' + EXT))
+            tcc_exact = str(tcc_dir / ('00010000_00000003' + EXT))
             pair(gcc_exact, 1, 15, LOAD + 0x40)
             pair(tcc_exact, 1, 15, LOAD + 0x40)
             total, counts = MOD.cache_candidate_inventory(tier_dirs, None)
@@ -2133,7 +2133,7 @@ def check_candidate_capacity_publication():
             for exact in (gcc_exact, tcc_exact):
                 pathlib.Path(exact).unlink()
                 pathlib.Path(exact).with_suffix('.ranges').unlink()
-            lower_unique = str(tcc_dir / '00010000_00000002' + EXT)
+            lower_unique = str(tcc_dir / ('00010000_00000002' + EXT))
             pair(lower_unique, 1, 14, LOAD + 0x80)
             total, counts = MOD.cache_candidate_inventory(tier_dirs, None)
             assert total == 3 and counts[lower_unique] == 1
@@ -2160,8 +2160,8 @@ def check_candidate_capacity_publication():
             tcc_dir = game / 'tcc' / 'win-x64' / 'cg5_06162507'
             gcc_dir.mkdir(parents=True)
             tcc_dir.mkdir(parents=True)
-            upper = str(gcc_dir / '00010000_DEADBEEF' + EXT)
-            lower = str(tcc_dir / '00010000_deadbeef' + EXT)
+            upper = str(gcc_dir / ('00010000_DEADBEEF' + EXT))
+            lower = str(tcc_dir / ('00010000_deadbeef' + EXT))
             pair(upper, 2, 12)
             pair(lower, 3, 13)
             total, counts = MOD.cache_candidate_inventory(
@@ -2246,7 +2246,7 @@ def check_candidate_capacity_publication():
         with tempfile.TemporaryDirectory() as tmp:
             pair_id = 0x1020304050607080
             source = pathlib.Path(tmp) / 'capacity.c'
-            template = pathlib.Path(tmp) / 'template' + EXT
+            template = pathlib.Path(tmp) / ('template' + EXT)
             source.write_text(
                 '#include <stdint.h>\n'
                 '__declspec(dllexport) int overlay_abi(void){return 14;}\n'
@@ -2278,11 +2278,11 @@ except m.ShardCandidateCapacityError:
 '''
             writers = []
             for index in range(2):
-                staged = pathlib.Path(tmp) / f'.race-{index}' + EXT
+                staged = pathlib.Path(tmp) / (f'.race-{index}' + EXT)
                 staged_ranges = pathlib.Path(tmp) / f'.race-{index}.ranges'
                 shutil.copy2(template, staged)
                 staged_ranges.write_text(manifest)
-                final = pathlib.Path(tmp) / f'00010000_{index + 1:08X}' + EXT
+                final = pathlib.Path(tmp) / (f'00010000_{index + 1:08X}' + EXT)
                 writers.append(subprocess.Popen([
                     sys.executable, '-c', child_script, module_path,
                     str(staged), str(staged_ranges), str(final)]))
@@ -2306,7 +2306,7 @@ except m.ShardCandidateCapacityError:
             for index, pair_id in enumerate(
                     (0x1020304050607080, 0x1020304050607081)):
                 source = pathlib.Path(tmp) / f'distinct-{index}.c'
-                template = pathlib.Path(tmp) / f'.distinct-{index}' + EXT
+                template = pathlib.Path(tmp) / (f'.distinct-{index}' + EXT)
                 source.write_text(
                     '#include <stdint.h>\n'
                     '__declspec(dllexport) int overlay_abi(void){return 14;}\n'
@@ -2321,7 +2321,7 @@ except m.ShardCandidateCapacityError:
                 staged_ranges = pathlib.Path(tmp) / f'.distinct-{index}.ranges'
                 staged_ranges.write_text(MOD.overlay_ranges_text(
                     [(LOAD, 1, ((LOAD, 4),))], pair_id))
-                final = pathlib.Path(tmp) / f'00010000_{index + 1:08X}' + EXT
+                final = pathlib.Path(tmp) / (f'00010000_{index + 1:08X}' + EXT)
                 writers.append(subprocess.Popen([
                     sys.executable, '-c', child_script, module_path,
                     str(template), str(staged_ranges), str(final)]))
@@ -2923,7 +2923,7 @@ def check_interior_fragment_contract():
     assert isolated == [entry + 4, entry + 8, entry + 12]
 
     with tempfile.TemporaryDirectory() as td:
-        dll = pathlib.Path(td) / "00010000_fragment.dll"
+        dll = pathlib.Path(td) / ("00010000_fragment" + MOD.overlay_ext())
         ranges = pathlib.Path(td) / "00010000_fragment.ranges"
         pair_id = 0x123456789ABCDEF0
         payload = bytes(0x100)
@@ -2947,7 +2947,7 @@ def check_interior_fragment_contract():
             assert entries == {entry & 0x1FFFFFFF}
             assert code_ranges == [
                 (entry & 0x1FFFFFFF, (entry & 0x1FFFFFFF) + 8)]
-            canonical = pathlib.Path(td) / "00010000_DEADBEEF.dll"
+            canonical = pathlib.Path(td) / ("00010000_DEADBEEF" + MOD.overlay_ext())
             assert MOD.current_variant_func_id_coverage(
                 MOD.load_shard_func_ids(str(canonical)), payload,
                 LOAD, len(payload)) == (set(), [])
