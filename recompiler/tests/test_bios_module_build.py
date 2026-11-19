@@ -119,7 +119,9 @@ def main():
         lib.psx_bios_module_codegen_hash.restype = ctypes.c_uint32
         lib.psx_bios_module_backend.restype = ctypes.POINTER(PsxBiosBackend)
         abi = lib.psx_bios_module_abi()
-        assert (abi & 0xFFFF) == 1, f'ABI version {abi & 0xFFFF}'
+        hdr = open(os.path.join(ROOT, 'runtime', 'include', 'psx_bios_module.h')).read()
+        want_abi = int(re.search(r'#define PSX_BIOS_MODULE_ABI_VERSION\s+(\d+)', hdr).group(1))
+        assert (abi & 0xFFFF) == want_abi, f'ABI version {abi & 0xFFFF}, header says {want_abi}'
         assert ((abi >> 16) & 0xFFFF) == 2, f'flavor bits {(abi >> 16) & 0xFFFF}'
         h = lib.psx_bios_module_codegen_hash()
         want_h = codegen_hash_expected()
