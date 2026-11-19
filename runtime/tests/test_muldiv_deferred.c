@@ -43,6 +43,8 @@ int  psx_netplay_active(void) { return 0; }
 int  psx_selfcheck_enabled(void) { return 0; }
 void dirty_ram_ld_delay_discard(void) {}
 void dirty_ram_irq_ambient_resync_after_restore(void) {}
+int  g_psx_store_page_audit;            /* memory.c; psx_mem_gate_check reads it */
+void psx_store_pages_audit(void) {}
 
 
 static uint32_t local;

@@ -54,6 +54,8 @@ uint64_t psx_cycle_count;
 /* Live RAM geometry (memory.c): retail 2 MiB, as the stub RAM below. */
 uint32_t g_psx_ram_size = PSX_MAIN_RAM_RETAIL_BYTES;
 uint32_t g_psx_ram_mask = PSX_MAIN_RAM_RETAIL_BYTES - 1u;
+/* All 0: every inline store takes the slow path the stubs below serve. */
+uint8_t  g_psx_store_page[PSX_STORE_PAGE_COUNT];
 
 static uint8_t test_ram[0x00200000u];
 
