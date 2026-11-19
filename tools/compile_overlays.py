@@ -5631,6 +5631,9 @@ _candidate_abi_cache = {}
 _candidate_record_cache = {}
 _candidate_rejection_witness_cache = {}
 _shard_func_ids_cache = {}
+# git's "racily clean" margin: a file changed this recently can still be
+# rewritten in place inside one timestamp tick (~4 ms on Linux, 2 s on FAT).
+_CANDIDATE_RACY_NS = 3_000_000_000
 
 
 def _candidate_file_fingerprint(path: str):
@@ -5647,6 +5650,11 @@ def _candidate_file_fingerprint(path: str):
         stat = os.stat(path)
     except OSError:
         return None
+    # Too fresh to tell an in-place rewrite apart: no identity, so callers
+    # neither reuse nor store a cached answer and validate the content.
+    changed = max(stat.st_mtime_ns, getattr(stat, 'st_ctime_ns', 0))
+    if time.time_ns() - changed < _CANDIDATE_RACY_NS:
+        return None
     return (stat.st_dev, stat.st_ino, stat.st_size, stat.st_mtime_ns,
             getattr(stat, 'st_ctime_ns', None))
 
@@ -5657,14 +5665,16 @@ def _candidate_cached_abi_matches(dll: str, expected_abi: int) -> bool:
         expected_abi, _dll_abi_matches,
         _candidate_file_fingerprint(dll),
     )
-    with _candidate_validation_cache_lock:
-        cached = _candidate_abi_cache.get(path)
-        if cached is not None and cached[0] == fingerprint:
-            return cached[1]
+    if fingerprint[2] is not None:
+        with _candidate_validation_cache_lock:
+            cached = _candidate_abi_cache.get(path)
+            if cached is not None and cached[0] == fingerprint:
+                return cached[1]
     matched = _dll_abi_matches(dll, expected_abi)
     # Do not memoize across an uncooperative in-place writer. Cooperating cache
     # publishers are already excluded by the namespace lock held by callers.
-    if matched and fingerprint[2] == _candidate_file_fingerprint(dll):
+    if (matched and fingerprint[2] is not None and
+            fingerprint[2] == _candidate_file_fingerprint(dll)):
         with _candidate_validation_cache_lock:
             _candidate_abi_cache[path] = (fingerprint, matched)
     return matched
@@ -5677,11 +5687,14 @@ def _load_candidate_inventory_record(dll: str,
     path = os.path.normcase(os.path.abspath(dll))
 
     def fingerprint():
-        return (
+        fp = (
             expected_abi, _dll_runtime_exports_match,
             _candidate_file_fingerprint(dll),
             _candidate_file_fingerprint(ranges_path),
         )
+        # A file without identity (missing or too fresh) never matches a
+        # cached record: a fresh object is unequal to every stored one.
+        return object() if None in fp[2:] else fp
 
     # A positive cached record is immutable under the cooperating publisher's
     # atomic-replacement contract. Double-stat it before reuse; a changed or

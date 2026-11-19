@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Focused regression checks for play-free overlay call-target discovery."""
 import argparse
+import contextlib
 import importlib.util
 import os
 import pathlib
@@ -31,6 +32,23 @@ MOD = importlib.util.module_from_spec(SPEC)
 assert SPEC.loader is not None
 SPEC.loader.exec_module(MOD)
 EXT = MOD.overlay_ext()  # .so on Linux; literal .dll names hid every pair there
+
+
+@contextlib.contextmanager
+def files_settled():
+    """compile_overlays sees files as written 10 s ago, past its racily-clean
+    margin, so its stat cache may serve pairs a test has just written."""
+    class Later:
+        def __getattr__(self, name):
+            return getattr(time, name)
+
+        def time_ns(self):
+            return time.time_ns() + 10_000_000_000
+    MOD.time = Later()
+    try:
+        yield
+    finally:
+        MOD.time = time
 EXTRACT_SPEC = importlib.util.spec_from_file_location(
     "extract_generic", ROOT / "tools" / "aot_overlay_spike" /
     "extract_generic.py")
@@ -1716,7 +1734,7 @@ def check_candidate_capacity_publication():
             MOD._dll_runtime_exports_match = (
                 lambda _path, _abi, _pair, entries: bool(entries))
 
-        with tempfile.TemporaryDirectory() as tmp:
+        with tempfile.TemporaryDirectory() as tmp, files_settled():
             # Repeated near-cap projections must not map and validate every
             # unchanged DLL again. File identity, manifest identity, expected
             # ABI, and validation callback changes each invalidate only the
@@ -1779,7 +1797,7 @@ def check_candidate_capacity_publication():
             MOD._dll_runtime_exports_match = (
                 lambda _path, _abi, _pair, entries: bool(entries))
 
-        with tempfile.TemporaryDirectory() as tmp:
+        with tempfile.TemporaryDirectory() as tmp, files_settled():
             # A boolean validation failure may be a transient loader error, so
             # neither ABI nor full-export negative results may be memoized.
             calls = {'abi': 0, 'exports': 0}
@@ -2934,16 +2952,10 @@ def check_interior_fragment_contract():
         dll.write_bytes(b"DLL")
         ranges.write_text(manifest)
         old_exports_match = MOD._dll_runtime_exports_match
-        old_fingerprint = MOD._candidate_file_fingerprint
         try:
             MOD._dll_runtime_exports_match = (
                 lambda _path, _abi, expected, entries:
                 expected in (pair_id, None) and bool(entries))
-            # The rewrites below keep the inode and size, and Linux file times
-            # move in clock ticks (~4 ms), so the stat fingerprint alone can
-            # serve the previous manifest's answer. Add the content.
-            MOD._candidate_file_fingerprint = lambda p: (
-                (fp := old_fingerprint(p)) and fp + (pathlib.Path(p).read_bytes(),))
             assert MOD.load_shard_entry_set(str(dll)) == {
                 entry & 0x1FFFFFFF}
             assert MOD.load_shard_code_ranges(str(dll)) == [
@@ -3047,7 +3059,6 @@ def check_interior_fragment_contract():
             assert MOD.load_shard_entry_set(str(dll)) == set()
         finally:
             MOD._dll_runtime_exports_match = old_exports_match
-            MOD._candidate_file_fingerprint = old_fingerprint
 
         ranges.write_text("EXPECTED\n")
         assert MOD.cached_shard_manifest_status(
