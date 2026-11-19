@@ -82,7 +82,9 @@ def segment_manifest(seg: int, *, s_record: int | None, f_seg: int | None = None
 
 
 def compile_segment_fixture(gcc: str, out: pathlib.Path, seg: int) -> None:
-    command = [gcc, "-std=c11", "-O0", "-Wall", "-Wextra", "-Werror", "-shared",
+    # -O1 and the -Wno flags: see compile_fixture in test_overlay_pair_dedup_runtime.py.
+    command = [gcc, "-std=c11", "-O1", "-Wall", "-Wextra", "-Werror", "-shared",
+               "-Wno-unused-function", "-Wno-attributes",
                f"-I{pair.RUNTIME / 'include'}",
                f"-DTEST_INSTANCE={INSTANCE[seg]}"]
     if SEG_DEFINE[seg]:

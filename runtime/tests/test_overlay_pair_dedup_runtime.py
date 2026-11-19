@@ -74,7 +74,11 @@ def manifest(entries: list[tuple[int, int]], provenance: str | None = None) -> s
 
 def compile_fixture(gcc: str, out: pathlib.Path, *, instance: int,
                     partial: bool = False) -> None:
-    command = [gcc, "-std=c11", "-O0", "-Wall", "-Wextra", "-Werror", "-shared",
+    # psx_cyc.h: unused static helpers and an inline+noinline helper (GCC only).
+    # -O1 drops those helpers; at -O0 they stay and pull in cycle globals the
+    # harness does not export, so dlopen/LoadLibrary rejects the fixture.
+    command = [gcc, "-std=c11", "-O1", "-Wall", "-Wextra", "-Werror", "-shared",
+               "-Wno-unused-function", "-Wno-attributes",
                f"-I{RUNTIME / 'include'}", f"-DTEST_INSTANCE={instance}"]
     if platform.system() != "Windows":
         command.append("-fPIC")
