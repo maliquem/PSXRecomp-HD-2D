@@ -2348,6 +2348,40 @@ except m.ShardCandidateCapacityError:
             assert MOD.cache_candidate_inventory([tmp], 14)[0] == 1
 
 
+def check_candidate_cache_racy_rewrite():
+    """A same-size in-place rewrite right after caching must not reuse the
+    cached answer: inside one timestamp tick it keeps the whole stat identity.
+    A settled pair must still be served from the cache."""
+    entry = LOAD + 0x20
+    manifest = (f"P {1:016X}\n"
+                f"F {entry:08X} 00000000\n"
+                f"R {entry:08X} 8\n")
+    with tempfile.TemporaryDirectory() as td:
+        dll = pathlib.Path(td) / ("00010000_fragment" + EXT)
+        ranges = dll.with_suffix(".ranges")
+        dll.write_bytes(b"DLL")
+        ranges.write_text(manifest)
+        calls = []
+        old_exports_match = MOD._dll_runtime_exports_match
+        try:
+            MOD._dll_runtime_exports_match = (
+                lambda _path, _abi, expected, entries:
+                calls.append(expected) or expected == 1)
+            assert MOD.load_shard_entry_set(str(dll)) == {entry & 0x1FFFFFFF}
+            before = ranges.stat()
+            ranges.write_text(manifest.replace(f"P {1:016X}", f"P {2:016X}"))
+            # Same tick: the old mtime back (ctime too, where it is creation).
+            os.utime(ranges, ns=(before.st_atime_ns, before.st_mtime_ns))
+            assert MOD.load_shard_entry_set(str(dll)) == set()
+            del calls[:]
+            with files_settled():
+                assert MOD.load_shard_entry_set(str(dll)) == set()
+                assert MOD.load_shard_entry_set(str(dll)) == set()
+            assert len(calls) == 1, calls
+        finally:
+            MOD._dll_runtime_exports_match = old_exports_match
+
+
 def check_interior_fragment_contract():
     entry = LOAD + 0x20
     assert MOD.walk_root_seed_entries([
@@ -3972,6 +4006,7 @@ def main():
     check_retained_alias_contract(args.recompiler)
     check_atomic_dll_publication()
     check_candidate_capacity_publication()
+    check_candidate_cache_racy_rewrite()
     check_interior_fragment_contract()
     check_observed_dispatch_fragment_recovery()
     check_tcc_runtime_define_parity()
