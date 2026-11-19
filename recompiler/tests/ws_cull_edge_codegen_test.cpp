@@ -214,11 +214,11 @@ clip_edge_width = 320
     check(plain_hash == PSXRecompV4::overlay_codegen_config_hash(explicit_empty),
           "empty new lists (and an unused width) leave the overlay hash unchanged");
 
-    // Pinned against the hash layout before these kinds existed, computed
-    // from this exact config with the previous config_loader.cpp. A change
+    // Pinned to the ANA-10 key layout (2f42b3d1, which dropped options that
+    // never reach overlay code), computed from this exact config. A change
     // here invalidates every title's overlay cache; do it deliberately.
-    check(plain_hash == 0xE3B85230u,
-          "hash of a config without the new kinds matches the pre-change layout");
+    check(plain_hash == 0xCE50320Au,
+          "hash of a config without the new kinds matches the ANA-10 layout");
 
     const auto with_bgez = load(body + "bgez_sites = [\"0x80010010\"]\n");
     check(plain_hash != PSXRecompV4::overlay_codegen_config_hash(with_bgez),
