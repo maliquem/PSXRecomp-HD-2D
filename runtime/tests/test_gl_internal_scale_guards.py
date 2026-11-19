@@ -284,6 +284,7 @@ class ScaleContractGuards(unittest.TestCase):
             if name == "wide_copy_margins":
                 # s_out_scale is the wide surface's scale (the side read); hr is written at s_hr_scale
                 self.assertIn("S = s_hr_scale", fn)
+                self.assertRegex(fn, r"\(dx \+ c\) \* S, dy \* S, \(dx \+ c \+ n\) \* S, \(dy \+ h\) \* S")
                 continue
             if "s_out_scale" in fn:
                 self.assertTrue("s_hiw" in fn or "hiw_on()" in fn,
