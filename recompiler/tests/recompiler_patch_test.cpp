@@ -831,7 +831,7 @@ void codegen_tests() {
         const std::string lower = generate_first_instruction(opcode, {}, false, lower_bias_config);
         check(lower.find("((int32_t)-48 - psx_ws_x_margin())") != std::string::npos,
               "ADDI/ADDIU lower endpoint expands left without changing camera source");
-        check(lower.find("PGXP_ALU(") != std::string::npos &&
+        check(lower.find("PGXP_ALU_K(") != std::string::npos &&
               lower.find("_pgx1 = cpu->gpr[4]") != std::string::npos,
               "lower bound preserves native ALU precision tracking");
     }

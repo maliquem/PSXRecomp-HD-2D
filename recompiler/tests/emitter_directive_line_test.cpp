@@ -103,7 +103,7 @@ int main() {
             "cpu->gpr[3] = cpu->cop0[12];"
             "\n#ifdef PSX_ENABLE_BLOCK_CYCLES\n    cpu->ld_absorb = 0u; cpu->ld_which_t = 3u;\n#endif";
         PSXRecomp::append_pgxp_hooks(mfc0, code);
-        CHECK(code.find("\n    PGXP_ALU(0x40036000u, cpu->gpr[3], 0u, 0u);") != std::string::npos,
+        CHECK(code.find("\n    PGXP_ALU_K(8, 0x40036000u, cpu->gpr[3], 0u, 0u);") != std::string::npos,
               "MFC0 resets the destination shadow on its own line");
 
         const uint32_t cfc2 = (0x12u << 26) | (0x02u << 21) | (3u << 16) | (31u << 11);
