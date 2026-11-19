@@ -92,6 +92,9 @@ void psx_ra_tripwire(CPUState *cpu, uint32_t a, uint32_t b, uint32_t c) {
 void psx_pgxp_alu(CPUState *cpu, uint32_t insn, uint32_t r, uint32_t a, uint32_t b) {
     (void)cpu; (void)insn; (void)r; (void)a; (void)b;
 }
+void psx_pgxp_alu_masked(CPUState *cpu, uint32_t insn, uint32_t r, uint32_t a, uint32_t b) {
+    psx_pgxp_alu(cpu, insn, r, a, b);
+}
 
 static int failures;
 

@@ -64,9 +64,21 @@ def nm_symbols(objs):
     return defined, undefined
 
 
+def stub_line(sym):
+    # A global (g_*/s_*) stubbed as a function is written into .text and
+    # faults (g_psx_mem_gate, g_psx_cyc_gate...): give it zeroed storage.
+    # shortcut: name prefix decides data vs code; switch to relocation types
+    # if a seam ever breaks the g_/s_ convention.
+    if sym.startswith(("g_", "s_")):
+        return "_Alignas(64) unsigned char %s[1 << 16];" % sym
+    return ('void %s(void) { puts("stub %s reached"); fflush(stdout); abort(); }'
+            % (sym, sym))
+
+
 def write_stubs(path, symbols):
-    lines = ["#include <stdlib.h>", "/* Unrelated link seams must not execute. */"]
-    lines += ["void %s(void) { abort(); }" % s for s in sorted(symbols)]
+    lines = ["#include <stdio.h>", "#include <stdlib.h>",
+             "/* Unrelated link seams must not execute. */"]
+    lines += [stub_line(s) for s in sorted(symbols)]
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 

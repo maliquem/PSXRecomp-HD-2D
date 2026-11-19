@@ -29,6 +29,7 @@ int interp_test_step(CPUState *cpu, uint32_t pc, uint32_t insn, uint32_t *next);
 uint64_t psx_cycle_count;
 uint64_t psx_next_service_cycle;
 uint64_t g_psx_cycle_fast_limit;
+uint32_t g_psx_gcs_recip_q16 = 65536u;   /* clock scale 1:1 */
 int      psx_in_device_service;
 int      g_event_step_conservative;
 uint32_t g_psx_cyc_batch;
@@ -73,6 +74,10 @@ void psx_pgxp_alu(CPUState *cpu, uint32_t instr, uint32_t result,
     CHECK(cpu == s_device_cpu, "PGXP received the wrong CPU");
     CHECK(result == cpu->gpr[A1], "PGXP did not receive the written GPR");
     CHECK(s1 == 0u && s2 == 0u, "COP0 read inherited ALU source provenance");
+}
+void psx_pgxp_alu_masked(CPUState *cpu, uint32_t instr, uint32_t result,
+                         uint32_t s1, uint32_t s2) {
+    psx_pgxp_alu(cpu, instr, result, s1, s2);
 }
 
 /* Runs `insn` (MFC0/CFC0 a1,$13) once and returns what it read. The device
