@@ -2408,7 +2408,7 @@ function(psxrecomp_add_runtime_target target)
     #
     # Build Vulkan when its SDK tools are available so release binaries can offer
     # it without game projects opting in individually. This does not select the
-    # runtime renderer: OpenGL remains the default in config_loader.h. Builders
+    # runtime renderer: the default (config_loader.h) is sdl_gpu, below. Builders
     # can still use -DPSX_ENABLE_VULKAN=OFF to produce the inert stub explicitly.
     option(PSX_ENABLE_VULKAN "Build the Vulkan renderer backend when SDK tools are available" ON)
     if(PSX_ENABLE_VULKAN)
@@ -2547,7 +2547,8 @@ function(psxrecomp_add_runtime_target target)
     # [video] renderer = "sdl_gpu" (docs/SDL_GPU_RENDERER_PLAN.md): the same
     # gpu_gl_renderer.c, its GL calls recorded and encoded on SDL_GPU (Vulkan /
     # Direct3D 12 / Metal). glslang + SPIRV-Cross come from pinned archives
-    # (sdl_gpu_dependency.cmake). OFF: renderer = "sdl_gpu" falls back to OpenGL.
+    # (sdl_gpu_dependency.cmake). OFF: renderer = "sdl_gpu", the default, falls
+    # back to OpenGL (main.cpp video_renderer_settle).
     option(PSX_SDL_GPU "Build the SDL_GPU implementation of the GL renderer (sgl)" ON)
     if(PSX_SDL_GPU AND _psx_sdl_backend STREQUAL "SDL3")
         include("${PSXRECOMP_ROOT}/runtime/sdl_gpu_dependency.cmake")

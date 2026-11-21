@@ -699,8 +699,9 @@ See [`docs/STRING_TRANSLATION.md`](docs/STRING_TRANSLATION.md); *Tsumu Light*
 
 | Backend | Status |
 |---|---|
-| **OpenGL** | **Default.** GPU-authoritative VRAM/FBO renderer; moves rasterization and supersampling onto the GPU. |
-| **Vulkan** | **Experimental.** Built when the SDK is present, opt-in at runtime; falls back to OpenGL if unavailable. |
+| **Vulkan (sdl_gpu)** | **Default.** The OpenGL renderer's code drawn on SDL3's GPU API (Vulkan / Direct3D 12 / Metal); falls back to OpenGL when it is not built in or the machine has no device for it. |
+| **OpenGL** | GPU-authoritative VRAM/FBO renderer; moves rasterization and supersampling onto the GPU. |
+| **Vulkan (direct)** | **Experimental.** Built when the SDK is present, opt-in per game (`offer_vulkan`); falls back to OpenGL if unavailable. |
 | **Software** | CPU rasterizer — the reference look, and the most portable fallback. |
 
 ### Geometry enhancements (opt-in)

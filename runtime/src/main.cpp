@@ -1641,6 +1641,17 @@ static void video_renderer_settle() {
 static int video_renderer_saved() {
     return g_video_renderer == 1 && (g_video_sdl_gpu || g_video_sdl_gpu_fallback) ? 3 : g_video_renderer;
 }
+/* Launcher / menu renderer row <-> renderer ID. The rows are Software, OpenGL,
+ * Vulkan (sdl_gpu), then the raw Vulkan backend when a game offers it, so IDs
+ * 2 and 3 trade places; the mapping is its own inverse. */
+static inline int renderer_row_swap(int v) { return v == 2 ? 3 : v == 3 ? 2 : v; }
+/* A renderer ID as a launcher row: an unknown ID, or raw Vulkan in a game that
+ * does not offer it, lands on the default. */
+static inline int launcher_renderer_row(int id, bool raw_vulkan_offered) {
+    if (id < 0 || id > 3 || (id == 2 && !raw_vulkan_offered))
+        id = PSXRecompV4::DEFAULT_VIDEO_RENDERER;
+    return renderer_row_swap(id);
+}
 
 /* Settings -> Display -> Internal resolution (internal_resolution.h). The
  * preset supersedes the legacy supersampling factor once set; PSX_IR_UNSET
@@ -1711,7 +1722,9 @@ static_assert(PSX_IR_LEGACY_SS_MAX == SW_MAX_INTERNAL_SCALE,
               "settings.toml supersampling for an older runtime is the software ceiling");
 
 static int video_scale_ceiling(void) {
-    return g_video_renderer == 1 ? GL_MAX_INTERNAL_SCALE : SW_MAX_INTERNAL_SCALE;
+    /* 3 = sdl_gpu before video_renderer_settle(): the same GL renderer */
+    return g_video_renderer == 1 || g_video_renderer == 3 ? GL_MAX_INTERNAL_SCALE
+                                                          : SW_MAX_INTERNAL_SCALE;
 }
 
 /* Session priority: environment override, active mod request, player setting. */
@@ -3263,7 +3276,7 @@ extern "C" void psx_frontend_netplay_force_sw_gpu(void) {
     }
     /* Software present (user picked software, GL init failed, or Vulkan).
      * Do not clear g_video_renderer — that preference must survive rematch /
-     * first settings.toml write so OpenGL stays the user's default. */
+     * first settings.toml write so the user's hardware choice survives. */
     g_gl_fbo_present = false;
     gl_renderer_set_cpu_auth_dual(0);
     gr_set_backend(GR_BACKEND_SOFTWARE);
@@ -17892,8 +17905,9 @@ namespace {
     std::string g_rui_config_ini_path;
     static const char* const kPsxRendererLabels[] = {
         "Software",
-        "OpenGL (Recommended)",
-        "Vulkan",
+        "OpenGL",
+        "Vulkan (Recommended)",   /* sdl_gpu */
+        "Vulkan (direct)",        /* the raw Vulkan backend, [video] offer_vulkan */
     };
     static const char* const kPsxHostShortcutLabels[] = {
         "Rewind",
@@ -18139,7 +18153,7 @@ namespace {
         gi->lock_device = ctrl_lock_device_b ? 1 : 0;
         gi->aspect_mask = 0;
         gi->renderer_labels = kPsxRendererLabels;
-        gi->num_renderers = vulkan_offered_b ? 3 : 2;
+        gi->num_renderers = vulkan_offered_b ? 4 : 3;
         gi->settings_bindings = 1;
         gi->assist_binding_labels = kPsxHostShortcutLabels;
         gi->assist_binding_count = PSX_ASSIST_BIND_COUNT;
@@ -18519,7 +18533,7 @@ int mh_disc_insert(int n) {
 #if defined(RECOMP_LAUNCHER)
 /* Shared launcher ABI helpers: the same translations the pre-game launcher
  * handoff uses (texture filter, FMV filter), so the two cannot drift. */
-const char* const kOvlRenderers[] = {"Software", "OpenGL", "Vulkan"};
+const char* const kOvlRenderers[] = {"Software", "OpenGL", "Vulkan"};  /* rows: renderer_row_swap */
 PsxHostVideoSettings ovl_video_from(const RecompLauncherCSettings& ls) {
     PsxHostVideoSettings v;
     mh_video_get(&v);  /* keeps fields the menu does not show */
@@ -18533,7 +18547,7 @@ PsxHostVideoSettings ovl_video_from(const RecompLauncherCSettings& ls) {
     v.dynamic_resolution = ls.dynamic_resolution ? 1 : 0;
 #endif
     v.frame_generation = ls.frame_generation ? 1 : 0;
-    v.renderer = ls.renderer;
+    v.renderer = renderer_row_swap(ls.renderer);
     v.render_thread = ls.render_thread ? 1 : 0;
     v.present_thread = ls.present_thread ? 1 : 0;
     return v;
@@ -18553,7 +18567,7 @@ void mh_launcher_settings_get(RecompLauncherCSettings* out) {
     ls.dynamic_resolution = v.dynamic_resolution;
 #endif
     ls.frame_generation = v.frame_generation;
-    ls.renderer = v.renderer;
+    ls.renderer = renderer_row_swap(v.renderer);
     ls.render_thread = v.render_thread;
     ls.present_thread = v.present_thread;
 #if defined(RECOMP_LAUNCHER_HAS_QUALITY_PRESETS)
@@ -18600,7 +18614,7 @@ void mh_launcher_game_info(RecompLauncherCGameInfo* out) {
     gi.config_path = g_ovl_config.c_str();
     gi.num_players = PSX_MAX_PLAYERS < 4 ? PSX_MAX_PLAYERS : 4;
     gi.renderer_labels = kOvlRenderers;
-    gi.num_renderers = 2;
+    gi.num_renderers = 3;
     gi.has_supersampling = 0;            /* restart-only; set before boot */
 #if defined(RECOMP_LAUNCHER_HAS_DYNAMIC_RESOLUTION)  /* recomp-ui 20ae77b+ folds it into internal_resolution = -2 */
     gi.has_dynamic_resolution = 1;
@@ -19981,10 +19995,10 @@ int main(int argc, char** argv) {
         if (us.has_debug_toggle_keys) g_debug_toggle_keys = us.debug_toggle_keys ? 1 : 0;
         if (us.has_renderer) {
             if (us.renderer == 2 && !vulkan_offered) {
-                g_video_renderer = 1;
+                g_video_renderer = PSXRecompV4::DEFAULT_VIDEO_RENDERER;
                 std::fprintf(stdout,
                     "psxrecomp: settings requested Vulkan, but this game does not "
-                    "offer Vulkan in the launcher; using OpenGL.\n");
+                    "offer Vulkan in the launcher; using the default renderer.\n");
             } else {
                 g_video_renderer = us.renderer;
             }
@@ -20847,14 +20861,13 @@ int main(int argc, char** argv) {
             /* ---- deeper PSX-style settings (capability-gated via launcher_profile
              * below). Sourced 1:1 from PSXRecompV4::UserSettings (config_loader.h). */
             ls.window_width      = seed.window_width;
-            ls.renderer           = seed.renderer;
-            /* Fresh / invalid seed → OpenGL (DEFAULT_VIDEO_RENDERER), never
+            /* Fresh / invalid seed → DEFAULT_VIDEO_RENDERER (sdl_gpu), never
              * Software — unless the user explicitly saved software. */
-            if (ls.renderer < 0 || ls.renderer > (vulkan_offered ? 2 : 1))
-                ls.renderer = PSXRecompV4::DEFAULT_VIDEO_RENDERER;
+            ls.renderer = launcher_renderer_row(seed.renderer, vulkan_offered);
             if (ls.renderer == 0 && !user_settings_has_renderer &&
                 PSXRecompV4::DEFAULT_VIDEO_RENDERER != 0)
-                ls.renderer = PSXRecompV4::DEFAULT_VIDEO_RENDERER;
+                ls.renderer = launcher_renderer_row(PSXRecompV4::DEFAULT_VIDEO_RENDERER,
+                                                    vulkan_offered);
             ls.supersampling      = seed.supersampling;
 #if defined(RECOMP_LAUNCHER_HAS_INTERNAL_RESOLUTION)
             ls.internal_resolution = seed.internal_resolution;
@@ -21225,7 +21238,7 @@ int main(int argc, char** argv) {
                 /* ---- deeper PSX-style settings write-back (mirrors the seed
                  * fields above), all gated on by the "psx" launcher_profile caps. */
                 seed.window_width          = ls.window_width;          seed.has_window_width          = true;
-                seed.renderer              = ls.renderer;              seed.has_renderer              = true;
+                seed.renderer              = renderer_row_swap(ls.renderer); seed.has_renderer         = true;
                 seed.supersampling         = ls.supersampling;         seed.has_supersampling         = true;
 #if defined(RECOMP_LAUNCHER_HAS_INTERNAL_RESOLUTION)
                 ir_row_result = ls.internal_resolution;
@@ -23526,9 +23539,7 @@ soft_return_lobby:
         ls.audio_freq = g_audio_freq;
         ls.volume = host_volume_get();
         ls.window_width = g_video_win_w;
-        ls.renderer = g_video_renderer;
-        if (ls.renderer < 0 || ls.renderer > (vulkan_offered ? 2 : 1))
-            ls.renderer = PSXRecompV4::DEFAULT_VIDEO_RENDERER;
+        ls.renderer = launcher_renderer_row(video_renderer_saved(), vulkan_offered);
         /* Internal resolution round trip, as at first boot. */
         const int ir_preset_seeded = g_video_internal_res;
         const int ir_ss_seeded = psx_ir_launcher_seed_supersampling(
@@ -23865,7 +23876,8 @@ soft_return_lobby:
                 kLauncherHasInternalResolution, ir_preset_seeded, ir_ss_seeded,
                 ls.supersampling, ir_row_result, g_video_ref_lines,
                 psx_sdl_display_pixel_height(nullptr),
-                ls.renderer == 1 ? GL_MAX_INTERNAL_SCALE : SW_MAX_INTERNAL_SCALE);
+                (ls.renderer == 1 || ls.renderer == 2)   /* OpenGL / Vulkan (sdl_gpu) rows */
+                    ? GL_MAX_INTERNAL_SCALE : SW_MAX_INTERNAL_SCALE);
             /* Persist controller (and rematch video) choices without wiping
              * the rest of settings.toml — merge into the on-disk file. */
             {
@@ -23935,7 +23947,7 @@ soft_return_lobby:
                         us.memcard2_path = memcard2_path; us.has_memcard2_path = true;
                     }
                 }
-                us.renderer = ls.renderer;
+                us.renderer = renderer_row_swap(ls.renderer);
                 us.has_renderer = true;
                 us.supersampling = ir.save_ss;
                 us.has_supersampling = true;
@@ -24037,7 +24049,7 @@ soft_return_lobby:
                 }
                 (void)quality_save_user_settings(settings_path, us);
             }
-            g_video_renderer = ls.renderer;
+            g_video_renderer = renderer_row_swap(ls.renderer);
             video_renderer_settle();
             g_video_internal_res = ir.preset;
             g_video_scale = ir.scale;

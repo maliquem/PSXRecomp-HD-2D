@@ -7,7 +7,8 @@ para `K:\src\psxrecomp-gpu`; `generated/` copiado do main), diretório de build 
 
 Objetivo: um renderizador nativo (Vulkan, Direct3D 12 e Metal pelo `SDL_GPU` do SDL 3.4) que
 iguale o OpenGL atual em tudo, inclusive todos os efeitos do BoF4, no menor tempo possível. O
-OpenGL continua o padrão e a referência pixel a pixel até o novo igualar.
+OpenGL foi o padrão e a referência pixel a pixel até o novo igualar; desde 2026-11-21 o
+`sdl_gpu` é o padrão do framework (`DEFAULT_VIDEO_RENDERER`), com o OpenGL como queda.
 
 ## 1. A decisão de arquitetura: o MESMO código do renderizador, sobre uma camada GL→SDL_GPU
 

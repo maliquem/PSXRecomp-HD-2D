@@ -19,11 +19,19 @@ assert "bool vulkan_offered = false;" in config_cpp
 assert "loaded.vulkan_offered = vulkan_offered;" in config_cpp
 
 assert '"Software"' in main
-assert '"OpenGL (Recommended)"' in main
-assert '"Vulkan"' in main
+assert '"OpenGL"' in main
+assert '"Vulkan (Recommended)"' in main
+assert '"Vulkan (direct)"' in main
 assert "gi->renderer_labels = kPsxRendererLabels;" in main
-assert "gi->num_renderers = vulkan_offered_b ? 3 : 2;" in main
-assert "ls.renderer < 0 || ls.renderer > (vulkan_offered ? 2 : 1)" in main
+assert "gi->num_renderers = vulkan_offered_b ? 4 : 3;" in main
+assert "id < 0 || id > 3 || (id == 2 && !raw_vulkan_offered)" in main
+# Launcher rows are not renderer IDs (2 and 3 trade places): every crossing
+# goes through renderer_row_swap, never a straight copy.
+for straight in ("g_video_renderer = ls.renderer;", "us.renderer = ls.renderer;",
+                 "v.renderer = ls.renderer;", "ls.renderer = v.renderer;",
+                 "ls.renderer = g_video_renderer;"):
+    assert straight not in main, straight
+assert main.count("renderer_row_swap(ls.renderer)") == 4
 assert "settings requested Vulkan, but this game does not" in main
 
 print("Launcher Vulkan-option test passed")

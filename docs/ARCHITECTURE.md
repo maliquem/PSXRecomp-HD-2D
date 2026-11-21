@@ -142,8 +142,10 @@ and [`docs/ASYNC_OVERLAY_COMPILE.md`](ASYNC_OVERLAY_COMPILE.md).
 Three GPU backends behind one interface:
 
 - **Software rasterizer** — CPU, most portable, the reference look.
-- **OpenGL** — GPU-authoritative VRAM/FBO renderer, the default; moves
-  rasterization and supersampling onto the GPU. Falls back to software if GL
+- **OpenGL** — GPU-authoritative VRAM/FBO renderer; moves rasterization and
+  supersampling onto the GPU. The default, `renderer = "sdl_gpu"`, draws this
+  same renderer on SDL3's GPU API (Vulkan / Direct3D 12 / Metal) and falls back
+  to OpenGL without a device for it (docs/SDL_GPU_RENDERER_PLAN.md). Falls back to software if GL
   init fails. (See [`docs/internal/GL_RENDERER_HANDOFF.md`](internal/GL_RENDERER_HANDOFF.md).)
 - **Vulkan** — experimental. The build option `PSX_ENABLE_VULKAN` defaults **ON**
   (compiled when the SDK tools are present), but it is not the runtime default

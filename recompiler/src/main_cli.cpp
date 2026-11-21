@@ -358,7 +358,7 @@ int build_project(const Options& options, const fs::path& exe_dir) {
         "bios_hle = false\n"
         "overlay_cache = true\n\n"
         "[video]\n"
-        "renderer = \"opengl\"\n",
+        "renderer = \"sdl_gpu\"\n",
         toml_string(game_name), serial, toml_string(boot_file),
         toml_string(options.disc.generic_string()), image.load_address(),
         image.entry_point(), text_size, stack, bios_profile.filename,

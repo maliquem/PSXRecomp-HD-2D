@@ -12,8 +12,9 @@ option = re.search(
 )
 assert option, "PSX_ENABLE_VULKAN option not found"
 assert option.group(1) == "ON", "Vulkan backend is not compiled by default"
-assert "DEFAULT_VIDEO_RENDERER = VIDEO_RENDERER_OPENGL" in config_loader, (
-    "enabling the Vulkan build changed the runtime renderer default away from OpenGL"
+# The raw Vulkan backend is built, but the default renderer is sdl_gpu, not it.
+assert "DEFAULT_VIDEO_RENDERER = VIDEO_RENDERER_SDL_GPU" in config_loader, (
+    "the runtime renderer default is not sdl_gpu"
 )
 
 print("Vulkan build/default-renderer policy test passed")

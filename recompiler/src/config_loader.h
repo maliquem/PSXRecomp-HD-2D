@@ -37,13 +37,15 @@ namespace PSXRecompV4 {
 enum PadMode { PAD_MODE_ANALOG = 1, PAD_MODE_DIGITAL = 2 };
 
 // Renderer IDs shared by game.toml/settings parsing and runtime startup.
-// OpenGL is the default because the Windows software/SDL_Renderer path is slow
-// enough to mask interpreter/AOT performance work and can present as a false
-// 30 FPS regression. Software remains an explicit opt-in fallback.
+// sdl_gpu (the GL renderer on SDL3's GPU API: Vulkan / Direct3D 12 / Metal) is
+// the default; the runtime draws with OpenGL instead when sdl_gpu is not built
+// in (PSX_SDL_GPU=OFF) or the machine has no device for it. Software remains an
+// explicit opt-in fallback.
 inline constexpr int VIDEO_RENDERER_SOFTWARE = 0;
 inline constexpr int VIDEO_RENDERER_OPENGL = 1;
 inline constexpr int VIDEO_RENDERER_VULKAN = 2;
-inline constexpr int DEFAULT_VIDEO_RENDERER = VIDEO_RENDERER_OPENGL;
+inline constexpr int VIDEO_RENDERER_SDL_GPU = 3;
+inline constexpr int DEFAULT_VIDEO_RENDERER = VIDEO_RENDERER_SDL_GPU;
 
 // Controller-hotkey bind encoding, mirroring recomp-ui's RECOMP_LAUNCHER_PAD_*
 // (recomp_launcher.h): 0 = unbound, 1..99 = button (1 + SDL button code),
@@ -1731,7 +1733,7 @@ struct UserSettings {
     bool parse_error = false;
 
     // [video]
-    bool has_renderer       = false; int  renderer       = DEFAULT_VIDEO_RENDERER; // 0=software,1=opengl,2=vulkan
+    bool has_renderer       = false; int  renderer       = DEFAULT_VIDEO_RENDERER; // 0=software,1=opengl,2=vulkan,3=sdl_gpu
     bool has_supersampling  = false; int  supersampling  = 1; // 1..32 (runtime clamps per backend)
     // Internal resolution preset (RuntimeConfig::video_internal_resolution
     // encoding). Written as a stable id ("4k") or a line count; when present

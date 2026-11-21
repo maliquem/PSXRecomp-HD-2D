@@ -684,18 +684,18 @@ Runtime video defaults live in `[video]`:
 
 ```toml
 [video]
-renderer = "opengl"       # "software", "opengl", "sdl_gpu", or "vulkan"
+renderer = "sdl_gpu"      # the default; "software", "opengl", "sdl_gpu", or "vulkan"
 offer_vulkan = false      # show Vulkan in the launcher only after game validation
 auto_skip_fmv = false     # legacy Settings/runtime default
 offer_skip_fmv = true     # false when the game exposes this through Mods
 ```
 
-`renderer = "sdl_gpu"` is the native renderer. It draws the same OpenGL renderer
+`renderer = "sdl_gpu"` is the native renderer and the default when `renderer` is absent. It draws the same OpenGL renderer
 code and its effects through the `sgl` layer on SDL3's GPU API, which
 runs on Vulkan, Direct3D 12 or Metal. Without a device for it, it falls back to
 OpenGL and the setting stays `"sdl_gpu"`; netplay, OpenXR and stereo also
 stay on OpenGL. It is built with `PSX_SDL_GPU` (on
-by default with the SDL3 backend), and Breath of Fire IV uses it by default. The
+by default with the SDL3 backend); with `PSX_SDL_GPU=OFF` it falls back to OpenGL too. The
 design and diary are in docs/SDL_GPU_RENDERER_PLAN.md.
 
 `renderer = "vulkan"` is the old experimental backend, with no effects, and

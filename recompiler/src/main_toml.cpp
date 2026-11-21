@@ -256,7 +256,7 @@ int main(int argc, char* argv[]) {
     toml += "bios_hle = false\n";
     toml += "\n";
     toml += "[video]\n";
-    toml += "renderer = \"opengl\"\n";
+    toml += "renderer = \"sdl_gpu\"\n";
 
     // Write output
     if (!output_path.empty() && !force_stdout) {
