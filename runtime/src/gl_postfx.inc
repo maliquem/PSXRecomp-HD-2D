@@ -1301,6 +1301,11 @@ static float spr_floor_field(const SprFoot *f, const float *nrm, float na_d, flo
          * (the hips) back to the plane: ramping along the whole leg put the
          * leg nearer than its foot, its shadow off the heel toward the toe */
         const float bs = fmaxf(B[x] - LEG_UP * height, yc + 1.0f);
+        /* each edge at the depth halfway to the next column's: two feet side
+         * by side at their own depths (12 units apart) left a step there, their
+         * legs' shadows apart and a light line along the shadow */
+        const float Dl = x > 0 ? 0.5f * (D[x - 1] + D[x]) : D[x];
+        const float Dr = x + 1 < f->W ? 0.5f * (D[x] + D[x + 1]) : D[x];
         const int Ybot = (int)lroundf(cb + s_sc_cy);   /* one past the column's lowest row */
         for (int Y = Ytop; Y < Ybot;) {
             const int k0 = f->Yb - 1 - Y;
@@ -1319,7 +1324,7 @@ static float spr_floor_field(const SprFoot *f, const float *nrm, float na_d, flo
                 float t = (qy[j] - yc) / (bs - yc);
                 t = t < 0.0f ? 0.0f : t > 1.0f ? 1.0f : t;
                 t = t * t * (3.0f - 2.0f * t);
-                const float nb = na_d + (D[x] - na_d) * t;
+                const float nb = na_d + ((qx[j] > xl ? Dr : Dl) - na_d) * t;
                 const float xc = qx[j] + (qx[j] > xl ? 1.0f : -1.0f);   /* a pixel wider each side: no gaps */
                 const float dc[3] = {xc / h, -qy[j] / h, 1.0f}, d[3] = {qx[j] / h, -qy[j] / h, 1.0f};
                 const float zc = nb / (nrm[0] * dc[0] + nrm[1] * dc[1] + nrm[2] * dc[2]);
