@@ -13,6 +13,7 @@ for psxrecomp (no third-party code) and staged next to every game runtime as
 | `hd2d/light.pfx` | glowing effects (spells) light the 3D scenery near them; a steady glow (a campfire, a lamp) becomes a light with its own colour, flicker and shadows on the scenery and the sprites (`firemap`) | PGXP depth, bloom mask, camera |
 | `hd2d/grade.pfx` | colour grade and vignette on the 3D scenery | mask3d |
 | `hd2d/aa3d.pfx` | anti-aliasing of the 3D geometry's edges only (silhouettes found in the depth; sprites, HUD, menus and texture detail untouched) | PGXP depth, mask3d |
+| `hd2d/water.pfx` | reflection of the scenery and sprites about the shore, ripples and glints on the water (the 3D texels in the colours the game listed, `gl_renderer_set_water_texels`) | water (mask3d marks) |
 | `downsample/box.pfx`, `adaptive.pfx` | native-looking downsample (Adaptive: 2D only) | mask3d |
 | `debug/depth.pfx`, `mask.pfx`, `shadowmap.pfx` | views of the depth, masks and shadow map | |
 
