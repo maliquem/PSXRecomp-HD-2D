@@ -245,8 +245,9 @@ int pfx_chain_parse(const char *text, const char *name, PfxShaderLoader load, vo
             else if (!strcmp(f, "mask3d")) { from = PFX_IN_MASK3D; out->uses_mask3d = 1; }
             else if (!strcmp(f, "depth")) { from = PFX_IN_DEPTH; out->uses_depth = 1; }
             else if (!strcmp(f, "shadow")) { from = PFX_IN_SHADOW; out->uses_shadow = out->uses_world = 1; }
-            /* the sprites' depth stands without a shadow map (gl_postfx.inc pfx_sprites_alone) */
-            else if (!strcmp(f, "sprite")) { from = PFX_IN_SPRITE; out->uses_sprite = 1; }
+            /* the sprites' depth stands without a shadow map (gl_postfx.inc pfx_sprites_alone),
+             * but not without the scene's memory (uses_world), which holds the sprites */
+            else if (!strcmp(f, "sprite")) { from = PFX_IN_SPRITE; out->uses_sprite = out->uses_world = 1; }
             else if (!strcmp(f, "sprshadow")) { from = PFX_IN_SPRSHADOW; out->uses_shadow = out->uses_world = out->uses_sprite = 1; }
             /* the fire lights' shadow map (gl_postfx.inc pfx_fire_build): the scenery and the sprites
              * cast; no sun, so a place with none (uses_shadow) still runs it */
