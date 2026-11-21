@@ -2175,6 +2175,14 @@ static void wst_add(int i, int x0, int y0, int x1, int y1) {
 }
 static void wst_all(int i) { wst_add(i, 0, 0, g_wide_w, VRAM_H); }
 static void wst_clear(int i) { s_wst_x0[i] = s_wst_y0[i] = s_wst_x1[i] = s_wst_y1[i] = 0; }
+/* The rows of surface i drawn whole (centre included: the centre was not the
+ * canonical blit then) since the centre was last copied from hr. Only there
+ * do the surface's own stencil marks hold the centre; elsewhere the centre is
+ * the hr copy (colour only), so the marks are hr's too (postfx_note_center).
+ * The present asks by the band it shows, not by the state now: the next
+ * frame, drawn whole into the other band, must not take the shown band's
+ * marks from a surface whose centre never drew its HUD. */
+static int s_wnat_y0[WIDE_MAX_SURF], s_wnat_y1[WIDE_MAX_SURF];
 /* A mirror draw of `n` vertices (x at v[0], y at v[1], `stride` floats
  * apart, canonical VRAM px) into surface `fbo`, shifted by dx and stretched
  * by (scale, centre) exactly as GEO_VS/TEX_VS do; check: the mask check it
@@ -4673,7 +4681,9 @@ static void wide_band_scissor_x(int x, int w) {
     glScissor(x * s_out_scale, sy * s_out_scale, w * s_out_scale, sh * s_out_scale);
 }
 static void wide_band_scissor(void) { wide_band_scissor_x(0, g_wide_w); }
+static void wide_note_native_rows(int sy, int sh);
 static void wide_target_begin(int dx, GLint uXoff, GLint uXhalf) {
+    { int sy, sh; wide_band_rows(&sy, &sh); wide_note_native_rows(sy, sh); }
     if (s_ws_ablate != 3)   /* ablate 3: no FBO rebind (draws land in hr — perf probe) */
         p_glBindFramebuffer(PSXGL_FRAMEBUFFER, g_wide_cur);
     /* Windowed high-resolution mode: the wide surfaces are at s_out_scale while
@@ -4816,6 +4826,21 @@ static int wide_fast_center_valid(void) {
  * pass capture) must ask this, never wide_fast_center_valid() alone. */
 static int wide_center_is_canonical(void) {
     return wide_fast_center_valid() && !view_enabled;
+}
+/* A mirror draw into g_wide_cur's rows sy..sy+sh-1 (s_wnat_*). */
+static void wide_note_native_rows(int sy, int sh) {
+    const int i = wide_index(g_wide_cur);
+    if (wide_center_is_canonical() || sh <= 0 || i < 0) return;
+    if (s_wnat_y1[i] <= s_wnat_y0[i]) { s_wnat_y0[i] = sy; s_wnat_y1[i] = sy + sh; return; }
+    if (sy < s_wnat_y0[i]) s_wnat_y0[i] = sy;
+    if (sy + sh > s_wnat_y1[i]) s_wnat_y1[i] = sy + sh;
+}
+/* The shown band's centre marks are hr's: the centre is the canonical blit,
+ * or (no camera view) the blit still, no row of the band drawn whole since. */
+static int wide_center_marks_hr(GLuint wide_fbo, int disp_y, int disp_h) {
+    const int i = wide_index(wide_fbo);
+    if (wide_center_is_canonical()) return 1;
+    return !view_enabled && !(i >= 0 && disp_y < s_wnat_y1[i] && disp_y + disp_h > s_wnat_y0[i]);
 }
 static void wide_blit_center(GLuint wide_fbo, int base_x, int disp_y, int disp_h); /* def below */
 /* True if [lo,hi] (canonical draw-x) lies strictly inside the 4:3 frame, so the
@@ -5531,6 +5556,7 @@ static void hiw_wide_set(HiCmd *c, int gate) {
         c->wsx = view_pad_left;
         c->wsw = g_wide_w - view_pad_left - view_pad_right;
         wide_band_rows(&c->wsy, &c->wsh);
+        wide_note_native_rows(c->wsy, c->wsh);
     }
     if ((gate & 7) == 5) {   /* cut at the 4:3 picture's edges (GPU_WS_WIDE_PRIM_CLIP) */
         const int native_w = g_wide_w - 2 * g_wide_off;
@@ -9013,6 +9039,7 @@ static GLuint wide_fbo_for(int base_x) {
             s_wide_base[i] = base_x;
             s_dyn_wide_y0[i] = s_dyn_wide_y1[i] = 0;   /* nothing presented yet */
             wst_clear(i);   /* colour and stencil cleared together */
+            s_wnat_y0[i] = s_wnat_y1[i] = 0;
             return s_wide_fbo[i];
         }
     }
@@ -12687,6 +12714,7 @@ static void wide_blit_center(GLuint wide_fbo, int base_x, int disp_y, int disp_h
     const GLbitfield bits = GL_COLOR_BUFFER_BIT | ((s_bcls_on || s_b3d_on) && s_hiw ? GL_STENCIL_BUFFER_BIT : 0);
     /* Colour only: the centre's stencil is left behind (see s_wst_*). */
     wst_add(wide_index(wide_fbo), g_wide_off, 0, g_wide_off + native_w, VRAM_H);
+    { const int i = wide_index(wide_fbo); if (i >= 0) s_wnat_y0[i] = s_wnat_y1[i] = 0; }
     /* Copy the canonical framebuffer column into the wide surface CENTRE over the
      * FULL VRAM height, not just the current display band [disp_y, disp_y+disp_h].
      * The wide surface holds BOTH vertical double-buffer bands (Ape flips
@@ -12827,7 +12855,7 @@ static int present_wide_fbo_impl(int disp_x, int disp_y, int disp_h, int linear)
     s_sc_cx = (float)disp_x + (float)(g_wide_w - 2 * g_wide_off) * 0.5f;
     s_sc_cy = (float)disp_y + (float)disp_h * 0.5f;
     s_sc_nh = (float)disp_h;
-    if (!s_hiw && wide_center_is_canonical() && g_wide_w > 2 * g_wide_off)
+    if (!s_hiw && wide_center_marks_hr(fbo, disp_y, disp_h) && g_wide_w > 2 * g_wide_off)
         postfx_note_center(s_hr_fbo, s_hr_tex, present_alloc_extent(VRAM_W, s_hr_scale),
                            present_alloc_extent(VRAM_H, s_hr_scale), disp_x, disp_y,
                            g_wide_w - 2 * g_wide_off, disp_h, g_wide_off, g_wide_w);
@@ -15209,7 +15237,7 @@ static void fg_compose(const FgList *b, GLuint wide_fbo, GLuint wide_tex, int li
         if (b->wide) {
             postfx_note_source(wide_fbo, wide_tex, (float)g_wide_w, (float)VRAM_H,
                                0, b->disp[1], g_wide_w, b->disp[3]);
-            if (!s_hiw && wide_center_is_canonical() && g_wide_w > 2 * g_wide_off)
+            if (!s_hiw && wide_center_marks_hr(wide_fbo, b->disp[1], b->disp[3]) && g_wide_w > 2 * g_wide_off)
                 postfx_note_center(s_hr_fbo, s_hr_tex, (float)VRAM_W, (float)VRAM_H, b->disp[0], b->disp[1],
                                    g_wide_w - 2 * g_wide_off, b->disp[3], g_wide_off, g_wide_w);
         } else {
