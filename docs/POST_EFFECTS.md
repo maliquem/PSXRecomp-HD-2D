@@ -198,7 +198,12 @@ The casters, best source first:
 3. **The frame's own triangles** only.
 
 Faces the game culls (back-facing after RTPT) are kept as shadow-only casters
-with the frame's triangles, so a closed object casts a whole shadow. The
+with the frame's triangles, so a closed object casts a whole shadow. An
+RTPS right after a culled RTPT is that quad's 4th corner (its second half
+casts too) only when both ran under the same return address: another
+routine's lone RTPS (BoF4's fish position, RA `0x8014730C`, after a vertex
+batch) joined two batch corners to that point, a thin dark band across the
+river. The
 winding alone says culled, so a routine that draws faces either way round (a
 bush's leaf cards) would cast each card seen from behind whole, over its
 cut-out, and each card it does not draw (off the picture) whole too. The

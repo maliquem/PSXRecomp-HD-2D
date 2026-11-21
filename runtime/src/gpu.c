@@ -4770,12 +4770,16 @@ static void shadow_bf_drawn(const int32_t *vx, const int32_t *vy, int n) {
  * holds the previous projection's results: a triangle an RTPT left whose
  * winding is not the one the game draws is a face it will cull (its NCLIP
  * test), and when an RTPS (the 4th corner of a quad) followed it, the FIFO
- * now holds that quad's second half. Read through the mod services (the
- * running build's CPU layout). gte.cpp is part of the savestate execution
- * contract, so the hook lives here. */
+ * now holds that quad's second half, if the same routine (return address)
+ * made both: another routine's lone RTPS (an object's position) after a
+ * vertex batch would join two of the batch's corners to that point, a long
+ * thin face across the scene (a band through the river under a fish).
+ * Read through the mod services (the running build's CPU layout). gte.cpp
+ * is part of the savestate execution contract, so the hook lives here. */
 extern int psx_mod_gte_data(uint32_t out[32]);
-static int sh_bf_prev = 0, sh_bf_prev_back = 0;   /* last projection: 3 = RTPT, 1 = RTPS */
+static int sh_bf_prev = 0;                        /* last projection: 3 = RTPT, 1 = RTPS */
 static uint32_t sh_bf_prev_ra = 0;                /* its return address */
+static uint32_t sh_bf_back_ra = 0;                /* a culled RTPT's, 0 = the last was none */
 static void sh_bf_take(const uint32_t *d, uint32_t ra) {
     if (sh_ts_has(ra)) return;
     const int32_t sxy[3] = {(int32_t)d[12], (int32_t)d[13], (int32_t)d[14]};
@@ -4805,13 +4809,13 @@ static void shadow_note_projection(int nverts) {
         const int32_t x1 = (int16_t)d[13], y1 = (int16_t)(d[13] >> 16);
         const int32_t x2 = (int16_t)d[14], y2 = (int16_t)(d[14] >> 16);
         const int64_t a = (int64_t)(x1 - x0) * (y2 - y0) - (int64_t)(x2 - x0) * (y1 - y0);
-        sh_bf_prev_back = front != 0 && a != 0 && (a > 0 ? 1 : -1) != front;
-        if (sh_bf_prev_back) sh_bf_take(d, pra);
-    } else if (prev == 1 && sh_bf_prev_back) {
-        sh_bf_take(d, pra);       /* v1 v2 v3 of the culled quad */
-        sh_bf_prev_back = 0;
+        const int back = front != 0 && a != 0 && (a > 0 ? 1 : -1) != front;
+        sh_bf_back_ra = back ? pra : 0;
+        if (back) sh_bf_take(d, pra);
     } else {
-        sh_bf_prev_back = 0;
+        if (prev == 1 && sh_bf_back_ra && pra == sh_bf_back_ra)
+            sh_bf_take(d, pra);   /* v1 v2 v3 of the culled quad */
+        sh_bf_back_ra = 0;
     }
 }
 static void shadow_backfaces_flush(void) {
