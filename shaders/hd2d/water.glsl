@@ -1,92 +1,118 @@
-// Water: reflection, ripples and shimmer. Written for psxrecomp.
+// Water: the bank and the sprites standing on it mirrored in the water, with a
+// slow, light ripple. Written for psxrecomp.
 // u_w is the framework's water mask (1 on the 3D pixels painted in a colour the
 // game listed as water, gl_renderer_set_water_texels). For each water pixel the
-// pass walks up the screen to the shore (the first pixel above that is not water)
-// and mirrors the picture about it, so the scenery and the sprites standing on the
-// bank show upside down in the water, fading with the distance from the shore.
-// The shore is 3D scenery (u_m mask3d: green, no 2D over it, blue) dry for two
-// more steps up: a small dry hole in the water, or a HUD window over it, is
-// walked through, and 2D pixels (HUD, text) are never mirrored.
-// u_water: x = reflection strength (0 = none), y = ripple size (PS1 lines),
-//          z = shimmer strength, w = reach of the reflection (fraction of the height).
-// u_wave:  x = ripple speed, y = ripple length (PS1 lines), zw = 0.
-// Pixels outside the mask are copied unchanged.
+// pass walks up the screen to the bank (the first dry 3D pixel above) and mirrors
+// the picture about it, fading with the distance from it; a sprite met on the way
+// (standing at the water) is mirrored about its feet instead. The water itself is
+// never moved; only the mirrored picture sways a little.
+// Nothing leaks out of the water: a pixel changes only when it is water with no
+// 2D over it (u_m mask3d: green 3D, blue 2D over it), and only dry 3D scenery with
+// no 2D over it and the sprites standing in the scene (u_spr, the framework's
+// `sprite` input: no HUD, no window) are mirrored, never the HUD or text.
+// u_water: x = reflection strength (0 = none), y = ripple (PS1 pixels of sway),
+//          z = reach of the sprites' reflection, w = reach of the scenery's
+//          (fractions of the height; a sprite often stands well above the shore).
+// u_wave:  x = ripple speed, y = ripple wave length (PS1 lines), zw = 0.
+// The mirrored picture is kept clean: only the water's own colour filters it.
 
 uniform vec4 u_water;
 uniform vec4 u_wave;
 
 float wet(vec2 uv) { return texture(u_w, uv).r; }
 float solid(vec2 uv) { vec2 m = texture(u_m, uv).gb; return step(0.5, m.x) * step(m.y, 0.5); }
+float spr(vec2 uv) { return step(texture(u_spr, uv).r, 59999.0); }
 
-// The shore above (x, y0): walk up in steps to the first 3D pixel that is dry
-// for two more steps, then refine; -1 when none within the reach.
-float shore(float x, float y0, float stp, float reach)
+// Walk up from (x, y0) in steps: .x = the bank, the first dry 3D scenery pixel
+// that stays dry for two more steps (sprites and small dry holes are walked
+// through), .y = the first sprite pixel met before it (a sprite standing at the
+// water); both refined, -1 when none within the reach.
+vec2 walk(float x, float y0, float stp, float reach)
 {
-    float ys = -1.0;
+    float yb = -1.0, ys = -1.0;
     for (int i = 1; i <= 64; i++) {
         float y = y0 + float(i) * stp;
         if (y > 1.0 || float(i) * stp > reach) break;
-        if (wet(vec2(x, y)) < 0.5 && solid(vec2(x, y)) > 0.5 &&
-            wet(vec2(x, y + stp)) < 0.5 && wet(vec2(x, y + 2.0 * stp)) < 0.5) { ys = y; break; }
+        vec2 p = vec2(x, y);
+        if (ys < 0.0 && spr(p) > 0.5) ys = y;
+        if (wet(p) < 0.5 && solid(p) > 0.5 &&
+            wet(vec2(x, y + stp)) < 0.5 && wet(vec2(x, y + 2.0 * stp)) < 0.5) { yb = y; break; }
     }
-    if (ys < 0.0) return -1.0;
-    float lo = ys - stp, hi = ys;                 // lo is water, hi is not
-    for (int i = 0; i < 5; i++) {
-        float m = 0.5 * (lo + hi);
-        if (wet(vec2(x, m)) < 0.5) hi = m; else lo = m;
+    if (yb >= 0.0) {
+        float lo = yb - stp, hi = yb;             // lo is water, hi is not
+        for (int i = 0; i < 5; i++) {
+            float m = 0.5 * (lo + hi);
+            if (wet(vec2(x, m)) < 0.5) hi = m; else lo = m;
+        }
+        yb = hi;
     }
-    return hi;
+    if (ys >= 0.0) {
+        float lo = ys - stp, hi = ys;             // lo is no sprite, hi is
+        for (int i = 0; i < 5; i++) {
+            float m = 0.5 * (lo + hi);
+            if (spr(vec2(x, m)) > 0.5) hi = m; else lo = m;
+        }
+        ys = hi;
+    }
+    return vec2(yb, ys);
 }
-
-float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
 
 void main()
 {
     vec3 src = texture(u_src, v_uv).rgb;
-    if (wet(v_uv) < 0.5) { o = vec4(src, 1.0); return; }
-
+    o = vec4(src, 1.0);
     vec2 px = 1.0 / u_size;
     float line = u_size.y / 240.0;                 // target pixels per PS1 line
-    float t = u_time * u_wave.x;
-    vec2 sp = v_uv * u_size / line;                // position in PS1 pixels
-    float lw = max(u_wave.y, 1.0);
-    // two crossing wave trains: a horizontal sway that grows down the screen (nearer water)
-    float d = sin(sp.y * 6.2832 / lw + t * 2.1) * 0.6 + sin((sp.x * 0.35 + sp.y) * 6.2832 / (lw * 1.7) - t * 1.3) * 0.4;
-    vec2 off = vec2(d * u_water.y * line * px.x, 0.0);
+    if (wet(v_uv) < 0.5 || solid(v_uv) < 0.5) return;
 
-    // the water itself, swayed (only from other water pixels, so the shore does not smear in)
-    vec2 uv1 = v_uv + off;
-    vec3 c = wet(uv1) > 0.5 ? texture(u_src, uv1).rgb : src;
-
-    // shore: found on the columns every 8 PS1 pixels either side and blended
-    // between them, so the line is smooth, not jagged texel by texel
-    float reach = u_water.w;
+    float reach = u_water.w, sreach = u_water.z;
     float stp = 4.0 * line * px.y;
-    float bw = 8.0 * line * px.x;
-    float bx = v_uv.x / bw - 0.5, w = fract(bx);
-    float xl = (floor(bx) + 0.5) * bw;
-    float hl = shore(xl, v_uv.y, stp, reach), hr = shore(xl + bw, v_uv.y, stp, reach);
-    // a side with no shore weighs nothing, and fades the reflection: no hard edge
-    float wl = hl < 0.0 ? 0.0 : 1.0 - w, wr = hr < 0.0 ? 0.0 : w;
-    float hi = (hl * wl + hr * wr) / max(wl + wr, 1e-4);
-    float dist = hi - v_uv.y;                      // distance below the shore
-    if (wl + wr > 0.0 && dist > 0.0) {
-        // the reflection sways more the farther it is from the shore
-        vec2 ruv = vec2(v_uv.x + off.x * (1.5 + 2.0 * dist / reach), hi + dist);
-        if (ruv.y <= 1.0) {
-            vec3 r = texture(u_src, ruv).rgb;
-            float f = u_water.x * (1.0 - smoothstep(0.0, reach, dist)) * solid(ruv) * (wl + wr);
-            // the reflection darkens and takes the water's tint a little
-            c = mix(c, r * mix(vec3(1.0), c / max(max(c.r, max(c.g, c.b)), 0.05), 0.35), f);
-        }
+
+    // the columns here and 8, 16 and 24 PS1 pixels either side: the bank is
+    // their weighted average (1 2 3 4 3 2 1; a column that finds none weighs
+    // nothing), so the mirror line runs smooth along it; a sprite's line is the
+    // lowest sprite pixel among them (its feet), one line for the whole sprite,
+    // so the gaps between its legs and its outline do not slice its reflection
+    float dx = 8.0 * line * px.x, hs = 0.0, ws = 0.0, fs = 2.0;
+    for (int k = -3; k <= 3; k++) {
+        vec2 h = walk(v_uv.x + float(k) * dx, v_uv.y, stp, max(reach, sreach));
+        float wk = (4.0 - abs(float(k))) * step(0.0, h.x);
+        hs += h.x * wk; ws += wk;
+        if (h.y >= 0.0) fs = min(fs, h.y);
     }
 
-    // shimmer: small glints on the crests that come and go
-    vec2 cell = floor(sp / vec2(3.0, 2.0));
-    float g = hash(cell + floor(t * 0.7));
-    float crest = smoothstep(0.75, 1.0, d);
-    float glint = step(0.985, g) * crest * (0.5 + 0.5 * sin(t * 5.0 + g * 40.0));
-    c += vec3(0.9, 0.95, 1.0) * glint * u_water.z;
+    // a slow ripple of long waves: the mirrored picture only bends a little
+    float yl = v_uv.y * u_size.y / line;           // PS1 lines
+    float sway = sin(yl * 6.2832 / max(u_wave.y, 1.0) + u_time * u_wave.x) * u_water.y * line * px.x;
 
-    o = vec4(clamp(c, 0.0, 1.0), 1.0);
+    vec3 r = src;
+    float f = 0.0;
+    if (fs < 1.5) {                                // a sprite at the water: mirrored about its feet
+        float d = fs - v_uv.y;
+        vec2 ruv = vec2(v_uv.x + sway, fs + d);
+        if (ruv.y <= 1.0 && spr(ruv) > 0.5) {
+            r = texture(u_src, ruv).rgb;
+            f = 1.0 - smoothstep(0.5 * sreach, sreach, d);
+        }
+    }
+    if (f <= 0.0 && ws > 0.5) {                    // the bank, and a sprite standing on it
+        float hb = hs / ws, d = hb - v_uv.y;
+        vec2 ruv = vec2(v_uv.x + sway, hb + d);
+        // a sprite already mirrored about its feet is not mirrored again here
+        float s = spr(ruv) * step(1.5, fs);
+        if (d > 0.0 && ruv.y <= 1.0 && (s > 0.5 || (solid(ruv) > 0.5 && wet(ruv) < 0.5))) {
+            r = texture(u_src, ruv).rgb;
+            float R = mix(reach, sreach, s);
+            f = (1.0 - smoothstep(0.5 * R, R, d)) * clamp(ws / 8.0, 0.0, 1.0);
+        }
+    }
+    if (f <= 0.0) return;
+
+    // the water's colour, averaged over a few PS1 pixels (its texture's grain
+    // stays out of the reflection), as a filter over the clean mirrored picture
+    vec2 q = 6.0 * line * px;
+    vec3 wc = (src + texture(u_src, v_uv + vec2(q.x, 0.0)).rgb + texture(u_src, v_uv - vec2(q.x, 0.0)).rgb
+                   + texture(u_src, v_uv + vec2(0.0, q.y)).rgb + texture(u_src, v_uv - vec2(0.0, q.y)).rgb) / 5.0;
+    vec3 tint = wc / max(max(wc.r, max(wc.g, wc.b)), 0.05);
+    o = vec4(mix(src, r * mix(vec3(1.0), tint, 0.6), u_water.x * f), 1.0);
 }
