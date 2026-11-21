@@ -4858,20 +4858,35 @@ static int wide_center_is_canonical(void) {
     return wide_fast_center_valid() && !view_enabled;
 }
 static void wide_blit_center(GLuint wide_fbo, int base_x, int disp_y, int disp_h); /* def below */
+/* A centre-only mirror was skipped (bit 0: since the last wide present, bits
+ * 1-3: the three intervals before; a frame is drawn in one interval and shown
+ * at the next one to three presents, 60 to 20 fps): the wide surface's centre
+ * lacks that prim's marks (stencil), the hr surface has them. The present reads
+ * the centre's marks from hr then, also when the centre stopped being canonical
+ * by the present (a frame drawn with the splice on and shown with it off lost
+ * its 3D and water marks there for that present: the effects blinked). */
+static int s_wide_ctr_skipped = 0;
+static int wide_center_marks_from_hr(void) {
+    return !s_hiw && !view_enabled && (wide_center_is_canonical() || s_wide_ctr_skipped) && g_wide_w > 2 * g_wide_off;
+}
 /* True if [lo,hi] (canonical draw-x) lies strictly inside the 4:3 frame, so the
  * prim adds nothing to either reveal margin and its mirror can be skipped. */
 static int mirror_x_center_only(int lo, int hi) {
     if (!wide_center_is_canonical()) return 0;
     int base = g_wide_cur_base, native_w = g_wide_w - 2 * g_wide_off;
     if (native_w <= 0) return 0;
-    return (lo >= base) && (hi < base + native_w);
+    const int skip = (lo >= base) && (hi < base + native_w);
+    s_wide_ctr_skipped |= skip;
+    return skip;
 }
 /* A primitive the title cut at the 4:3 picture's edges (GPU_WS_WIDE_PRIM_CLIP,
  * gate 5): its centre comes from the canonical blit, so not drawing its wide
  * mirror leaves out exactly what it puts in the revealed bands. Only while the
  * centre is that blit; otherwise it is drawn as it is. */
 static int mirror_gate_clipped(int gate) {
-    return (gate & 7) == 5 && wide_center_is_canonical();
+    const int skip = (gate & 7) == 5 && wide_center_is_canonical();
+    s_wide_ctr_skipped |= skip;
+    return skip;
 }
 /* (Not canonical: the wide surface is drawn whole, and wide_target_begin cuts
  * a gate-5 mirror to the 4:3 columns with the scissor.) */
@@ -12900,10 +12915,11 @@ static int present_wide_fbo_impl(int disp_x, int disp_y, int disp_h, int linear)
     s_sc_cx = (float)disp_x + (float)(g_wide_w - 2 * g_wide_off) * 0.5f;
     s_sc_cy = (float)disp_y + (float)disp_h * 0.5f;
     s_sc_nh = (float)disp_h;
-    if (!s_hiw && wide_center_is_canonical() && g_wide_w > 2 * g_wide_off)
+    if (wide_center_marks_from_hr())
         postfx_note_center(s_hr_fbo, s_hr_tex, present_alloc_extent(VRAM_W, s_hr_scale),
                            present_alloc_extent(VRAM_H, s_hr_scale), disp_x, disp_y,
                            g_wide_w - 2 * g_wide_off, disp_h, g_wide_off, g_wide_w);
+    s_wide_ctr_skipped = (s_wide_ctr_skipped << 1) & 0xF;
     pres_record(GL_PRES_WIDE, disp_x, disp_y, g_wide_w, disp_h, lx, ly, lw, lh);
     gpu_timeline_note(GTL_PRESENT, GTL_PATH_WIDE_FBO,
                       (uint32_t)disp_x | ((uint32_t)disp_y << 16));
@@ -15282,7 +15298,7 @@ static void fg_compose(const FgList *b, GLuint wide_fbo, GLuint wide_tex, int li
         if (b->wide) {
             postfx_note_source(wide_fbo, wide_tex, (float)g_wide_w, (float)VRAM_H,
                                0, b->disp[1], g_wide_w, b->disp[3]);
-            if (!s_hiw && wide_center_is_canonical() && g_wide_w > 2 * g_wide_off)
+            if (wide_center_marks_from_hr())
                 postfx_note_center(s_hr_fbo, s_hr_tex, (float)VRAM_W, (float)VRAM_H, b->disp[0], b->disp[1],
                                    g_wide_w - 2 * g_wide_off, b->disp[3], g_wide_off, g_wide_w);
         } else {
@@ -16144,7 +16160,7 @@ static int fg_generate(double t, int swap) {
         if (iw >= 0) {
             const float wext = (was > s_out_scale && s_out_scale >= 1) ? (float)was / (float)s_out_scale : 1.0f;
             postfx_note_fill(wf, wt, (float)g_wide_w * wext, (float)VRAM_H * wext, 0, b->disp[1], g_wide_w, b->disp[3]);
-            if (!s_hiw && wide_center_is_canonical() && g_wide_w > 2 * g_wide_off)
+            if (wide_center_marks_from_hr())
                 postfx_note_fill_center(f0, t0, present_alloc_extent(VRAM_W, s_hr_scale), present_alloc_extent(VRAM_H, s_hr_scale),
                                         b->disp[0], b->disp[1], g_wide_w - 2 * g_wide_off, b->disp[3], g_wide_off, g_wide_w);
         } else {
