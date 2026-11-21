@@ -39,7 +39,8 @@ extern "C" {
 enum { PFX_MAX_PASSES = 16, PFX_MAX_INPUTS = 8, PFX_MAX_UNIFORMS = 12, PFX_NAME = 32 };
 /* Input sources; a value >= 0 is an earlier pass's index. */
 enum { PFX_IN_SOURCE = -1, PFX_IN_MASK = -2, PFX_IN_SOURCE_DOWN = -3, PFX_IN_MASK3D = -4, PFX_IN_DEPTH = -5,
-       PFX_IN_SHADOW = -6, PFX_IN_SPRITE = -7, PFX_IN_SPRSHADOW = -8, PFX_IN_FIREMAP = -9, PFX_IN_WINMASK = -10 };
+       PFX_IN_SHADOW = -6, PFX_IN_SPRITE = -7, PFX_IN_SPRSHADOW = -8, PFX_IN_FIREMAP = -9, PFX_IN_WINMASK = -10,
+       PFX_IN_WATER = -11 };
 enum { PFX_BLEND_REPLACE = 0, PFX_BLEND_SCREEN = 1 };
 enum { PFX_FMT_RGBA8 = 0, PFX_FMT_RGBA16F = 1 };
 
@@ -72,6 +73,7 @@ typedef struct {
     int     npasses;
     int     uses_mask;               /* some pass reads `mask` */
     int     uses_mask3d;             /* some pass reads `mask3d` (3D primitives only) */
+    int     uses_water;              /* some pass reads `water` (the 3D texels in a water colour; needs mask3d's marks) */
     int     uses_depth;              /* some pass reads `depth` (PGXP depth buffer) */
     int     uses_shadow;             /* some pass reads `shadow` (shadow map of the PGXP triangles) */
     int     uses_sprite;             /* some pass reads `sprite` (view depth of the sprites standing in the scene) */

@@ -252,6 +252,7 @@ int pfx_chain_parse(const char *text, const char *name, PfxShaderLoader load, vo
              * cast; no sun, so a place with none (uses_shadow) still runs it */
             else if (!strcmp(f, "firemap")) { from = PFX_IN_FIREMAP; out->uses_world = out->uses_sprite = 1; }
             else if (!strcmp(f, "winmask")) from = PFX_IN_WINMASK;
+            else if (!strcmp(f, "water")) { from = PFX_IN_WATER; out->uses_water = out->uses_mask3d = 1; }
             else if (!strcmp(f, "previous")) {
                 if (self == 0) { pfx_chain_free(out); return pfx_fail(err, errlen, line, "the first pass has no previous"); }
                 from = self - 1;

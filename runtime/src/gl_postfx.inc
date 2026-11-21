@@ -108,9 +108,9 @@ typedef struct {
     int      dw[PFX_MAX_PASSES], dh[PFX_MAX_PASSES];
     int      tw[PFX_MAX_PASSES], th[PFX_MAX_PASSES];
 } PfxStage;
-/* EXTRA0..5: further file chains run, in order, before USER (e.g. a depth
+/* EXTRA0..6: further file chains run, in order, before USER (e.g. a depth
  * look, then a down-sample, under a CRT chain). */
-#define PFX_EXTRA 6
+#define PFX_EXTRA 7
 enum { PFX_STAGE_BLOOM, PFX_STAGE_EXTRA0, PFX_STAGE_USER = PFX_STAGE_EXTRA0 + PFX_EXTRA,
        PFX_STAGE_AA, PFX_STAGE_HQ, PFX_NSTAGES };
 #define PFX_IS_EXTRA(i)  ((i) >= PFX_STAGE_EXTRA0 && (i) < PFX_STAGE_EXTRA0 + PFX_EXTRA)
@@ -193,6 +193,10 @@ static GLint  s_mmap_uUv = -1, s_mmap_uS = -1, s_mmap_uSrc = -1, s_mmap_uDst = -
  * mask's channels: the same 0/1 values. */
 typedef struct { GLuint rb, tex, fbo; int w, h, r8; } PfxSurfMask;
 static PfxSurfMask s_smask[2];
+/* The water mark (stencil 0x20, s_water_on) the same way: R8 per surface,
+ * then its own window mask (red), for chains that read `water`. */
+static PfxSurfMask s_wsmask[2];
+static GLuint s_wmask_tex = 0, s_wmask_fbo = 0;
 static int    s_mask_w = 0, s_mask_h = 0;
 
 static int pfx_stage_on(int i) {
@@ -237,6 +241,9 @@ static void pfx_mask_wanted_update(void) {
     int want3d = 0;
     for (int i = 0; i < PFX_NSTAGES; i++)
         if (pfx_stage_on(i) && s_pfx[i].loaded && s_pfx[i].chain.uses_mask3d) want3d = 1;
+    s_water_on = 0;
+    for (int i = 0; i < PFX_NSTAGES; i++)
+        if (pfx_stage_on(i) && s_pfx[i].loaded && s_pfx[i].chain.uses_water) s_water_on = 1;
     if (hdr_mask_wanted()) want3d = 1;    /* HDR: lights with no opaque 2D over them, the scenery (gl_hdr.inc) */
     int wantd = 0, wants = 0, wantw = 0;
     for (int i = 0; i < PFX_NSTAGES; i++)
@@ -462,19 +469,47 @@ static int pfx_surf_mask(int k, GLuint rb, int tw, int th, const int r[4]) {
     glDisable(GL_STENCIL_TEST);
     return 1;
 }
-/* Slot k's rect r into window columns [x0, x1) of the lw x lh mask, the way
- * a NEAREST blit (row 0 = the rect's bottom) would map it. */
-static void pfx_mask_map(int k, const int r[4], int x0, int x1, int lh) {
-    p_glBindFramebuffer(PSXGL_FRAMEBUFFER, s_mask_fbo);
+/* The water mark of rect r of surface rb into slot k's R8 texture: 1 where
+ * stencil bit 5 (0x20, the 3D texels in a water colour) is set, 0 elsewhere. */
+static void pfx_surf_water(int k, GLuint rb, int tw, int th, const int r[4]) {
+    PfxSurfMask *m = &s_wsmask[k];
+    if (m->rb != rb || m->w != tw || m->h != th) {
+        pfx_tex_alloc(&m->tex, tw, th, -1, 1);
+        pfx_fbo_attach(&m->fbo, m->tex);
+        p_glFramebufferRenderbuffer(PSXGL_FRAMEBUFFER, PSXGL_DEPTH_STENCIL_ATTACHMENT,
+                                    PSXGL_RENDERBUFFER, rb);
+        m->rb = rb; m->w = tw; m->h = th;
+    }
+    p_glBindFramebuffer(PSXGL_FRAMEBUFFER, m->fbo);
+    glViewport(r[0], r[1], r[2] - r[0], r[3] - r[1]);
+    p_glUseProgram(s_mask_prog);
+    p_glUniform1f(s_mask_uV, 0.0f);
+    post_fullscreen(s_mask_prog, s_mask_uUv);
+    glEnable(GL_STENCIL_TEST);
+    glStencilOp(GL_KEEP, GL_KEEP, GL_KEEP);
+    glStencilFunc(GL_EQUAL, 0x20, 0x20);
+    p_glUniform1f(s_mask_uV, 1.0f);
+    post_fullscreen(s_mask_prog, s_mask_uUv);
+    glDisable(GL_STENCIL_TEST);
+}
+/* Texture tex's rect r into window columns [x0, x1) of the lw x lh mask
+ * behind fbo, the way a NEAREST blit (row 0 = the rect's bottom) would map
+ * it; bits: an R8 of lean marks, spread over the channels. */
+static void pfx_mask_map_to(GLuint fbo, GLuint tex, int bits, const int r[4], int x0, int x1, int lh) {
+    p_glBindFramebuffer(PSXGL_FRAMEBUFFER, fbo);
     glViewport(x0, 0, x1 - x0, lh);
     p_glUseProgram(s_mask_map_prog);
     p_glActiveTexture(PSXGL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, s_smask[k].tex);
+    glBindTexture(GL_TEXTURE_2D, tex);
     p_glUniform1i(s_mmap_uS, 0);
     p_glUniform4i(s_mmap_uSrc, r[0], r[1], r[2], r[3]);
     p_glUniform4f(s_mmap_uDst, (float)x0, (float)(x1 - x0), (float)lh, 0.0f);
-    p_glUniform1i(s_mmap_uBits, s_smask[k].r8);
+    p_glUniform1i(s_mmap_uBits, bits);
     post_fullscreen(s_mask_map_prog, s_mmap_uUv);
+}
+static void pfx_mask_map(int k, const int r[4], int x0, int x1, int lh) {
+    pfx_mask_map_to(s_mask_fbo, s_smask[k].tex, s_smask[k].r8, r, x0, x1, lh);
+    if (s_water_on) pfx_mask_map_to(s_wmask_fbo, s_wsmask[k].tex, 0, r, x0, x1, lh);
 }
 
 /* Window-sized depth (DEPTH24_STENCIL8 texture) from the presented surface's
@@ -785,11 +820,22 @@ static int pfx_mask_build(int fresh, int lw, int lh) {
         pfx_tex_alloc(&s_mask_tex, lw, lh, 0, 1);
         pfx_fbo_attach(&s_mask_fbo, s_mask_tex);
         s_mask_w = lw; s_mask_h = lh; s_mask_ok = 0;
+        if (s_wmask_tex) { glDeleteTextures(1, &s_wmask_tex); s_wmask_tex = 0; }
+    }
+    if (s_water_on && !s_wmask_tex) {
+        pfx_tex_alloc(&s_wmask_tex, lw, lh, -1, 1);
+        pfx_fbo_attach(&s_wmask_fbo, s_wmask_tex);
+        s_mask_ok = 0;
     }
     if (fresh && s_mask_src_valid) {
         pfx_surf_mask(0, s_mask_src_rb, s_mask_src_tw, s_mask_src_th, s_mask_src);
         if (s_mask_ctr_valid)
             pfx_surf_mask(1, s_mask_ctr_rb, s_mask_ctr_tw, s_mask_ctr_th, s_mask_ctr);
+        if (s_water_on) {
+            pfx_surf_water(0, s_mask_src_rb, s_mask_src_tw, s_mask_src_th, s_mask_src);
+            if (s_mask_ctr_valid)
+                pfx_surf_water(1, s_mask_ctr_rb, s_mask_ctr_tw, s_mask_ctr_th, s_mask_ctr);
+        }
         if (s_pxi_inner) pxi_stamp(PXI_MASK_MAP, 0);
         pfx_mask_map(0, s_mask_src, 0, lw, lh);
         if (s_mask_ctr_valid) {
@@ -3653,6 +3699,7 @@ static int pfx_stage_run(PfxStage *st, int generated, int lx, int ly, int lw, in
                            : from == PFX_IN_SPRITE ? s_spr_tex
                            : from == PFX_IN_FIREMAP ? s_fm_tex
                            : from == PFX_IN_WINMASK ? s_wm_tex
+                           : from == PFX_IN_WATER ? s_wmask_tex
                            : st->tex[from];
             p_glActiveTexture(PSXGL_TEXTURE0 + (GLenum)k);
             glBindTexture(GL_TEXTURE_2D, t);
