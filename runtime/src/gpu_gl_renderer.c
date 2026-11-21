@@ -1311,6 +1311,39 @@ static int tex_nocast(int base_x, int base_y, int clut_x, int clut_y, int depth)
         if ((s_nocast_tpage[i] & 0x19Fu) == tp && (s_nocast_clut[i] == 0xFFFFu || s_nocast_clut[i] == cl)) return 1;
     return 0;
 }
+/* The water colours (gl_renderer_set_water_texels): the texel values (15 bits,
+ * the STP bit ignored) the game paints its water with. An opaque 3D piece with
+ * two or more of its 16 sampled texels in those colours is a water candidate;
+ * pass 6 marks exactly its fragments of those colours (stencil bit 0x20), which
+ * a chain reads as `water`. By colour, not by VRAM place: the area's page and
+ * CLUT slots hold other art elsewhere. Set once at start. */
+static int s_water_n = 0;
+static int s_water_texel[4] = {-1, -1, -1, -1};
+void gl_renderer_set_water_texels(const uint16_t *texel, int n) {
+    GL_RT_SYNC("water_texels");
+    s_water_n = n < 0 ? 0 : n > 4 ? 4 : n;
+    for (int i = 0; i < 4; i++) s_water_texel[i] = i < s_water_n ? (texel[i] & 0x7FFF) : -1;
+}
+/* 1 when two or more of 4x4 texels of a piece's uv box (through the CLUT) are water colours */
+static int tex_has_water(const int *us, const int *vs, int bx, int by, int depth, int cx, int cy) {
+    int u0 = us[0], u1 = us[0], v0 = vs[0], v1 = vs[0];
+    for (int i = 1; i < 3; i++) {
+        u0 = us[i] < u0 ? us[i] : u0; u1 = us[i] > u1 ? us[i] : u1;
+        v0 = vs[i] < v0 ? vs[i] : v0; v1 = vs[i] > v1 ? vs[i] : v1;
+    }
+    int hits = 0;
+    for (int j = 0; j < 4; j++)
+        for (int i = 0; i < 4; i++) {
+            const int u = (u0 + (u1 - u0) * (2 * i + 1) / 8) & 255, v = (v0 + (v1 - v0) * (2 * j + 1) / 8) & 255;
+            const int row = ((by + v) & 511) * 1024;
+            int t;
+            if (depth == 0) t = s_vram[(cy & 511) * 1024 + ((cx + ((s_vram[row + ((bx + (u >> 2)) & 1023)] >> ((u & 3) * 4)) & 0xF)) & 1023)];
+            else if (depth == 1) t = s_vram[(cy & 511) * 1024 + ((cx + ((s_vram[row + ((bx + (u >> 1)) & 1023)] >> ((u & 1) * 8)) & 0xFF)) & 1023)];
+            else t = s_vram[row + ((bx + u) & 1023)];
+            for (int k = 0; k < s_water_n; k++) hits += (t & 0x7FFF) == s_water_texel[k];
+        }
+    return hits >= 2;
+}
 /* tex: NULL = untextured, else {u0,v0,u1,v1,u2,v2, page x, page y, clut x,
  * clut y, depth, window}. tone: its colour as drawn (tone_tex_rgb,
  * tone_flat_rgb), NULL = none: the slot's tone sums it by its area. */
@@ -2525,6 +2558,8 @@ static uint64_t    s_pres_seq = 0;
 static float s_bloom = 0.0f;           /* [video] bloom strength (gl_postfx.inc) */
 static int   s_bcls_on = 0;            /* draws keep the "may glow" mask (a chain reads it) */
 static int   s_b3d_on = 0;             /* draws keep the "3D" mask, stencil bit 2 (a chain reads mask3d) */
+static int   s_water_on = 0;           /* draws keep the water mark, stencil bit 5 (a chain reads `water`) */
+static int   s_draw_water = 0;         /* the batch being drawn is water (tex_draw_passes_ex_) */
 static unsigned s_dbg_bdm[3];          /* DBG: prims marked as backdrop: flat, textured, asked */
 static int   s_dep_on = 0;             /* a chain reads `depth`: the presented surface's depth is noted */
 static int   s_bloom_add_only = 0;     /* [video] bloom_source: 1 "additive" (opaque 3D does not glow),
@@ -3057,7 +3092,7 @@ static const char *GEO_FS =
     "#version 330\n"
     "noperspective in vec4 v_col; smooth in vec3 v_col_p; flat in int v_cp; out vec4 frag;\n"
     "noperspective in float v_b3d;\n"
-    "uniform int u_bcls;   /* mask pass (gl_postfx.inc): 0 off, 2 clear, 1 mark glow, 3 mark 3D, 4 mark see-through */\n"
+    "uniform int u_bcls;   /* mask pass (gl_postfx.inc): 0 off, 2 clear, 1 mark glow, 3 mark 3D, 4 mark see-through, 7 clear water */\n"
     "uniform int u_badd;   /* this batch blends additively: 1 adds its colour (mode 1), 4 a quarter (mode 3) */\n"
     "uniform int u_baddonly; /* 1: only additive primitives feed the bloom; 2: only additive 3D ones */\n"
     "noperspective in vec2 v_npos; flat in int v_dith;\n"
@@ -3065,6 +3100,7 @@ static const char *GEO_FS =
     "void main(){\n"
     "  if (u_bcls != 0) { if (u_bcls == 1 && !((u_baddonly == 0 && v_b3d > 0.999) || (u_badd != 0 && (u_baddonly != 2 || v_b3d > 0.999)))) discard;\n"
     "    if (u_bcls == 3 && v_b3d <= 0.999) discard;\n"
+    "    if (u_bcls == 7 && v_b3d > 0.999) discard;   /* water mark: cleared under 2D only */\n"
     "    if (u_bcls == 4 && u_badd != 0 &&   /* adding next to nothing (a smoke column's dark top): no cover */\n"
     "        max(v_cp != 0 ? v_col_p.r : v_col.r, max(v_cp != 0 ? v_col_p.g : v_col.g, v_cp != 0 ? v_col_p.b : v_col.b)) / float(u_badd) < 0.1) discard;\n"
     "    if (u_bcls == 4 && u_badd != 0 && v_b3d > 0.999) {   /* a 3D piece adding a little grey light: lit with the scenery */\n"
@@ -3169,8 +3205,9 @@ static const char *TEX_FS =
     PSX_DITHER_GLSL
     "out vec4 frag; out vec4 blend_factor;\n"
     "noperspective in float v_b3d;\n"
-    "uniform int u_bcls;      /* mask pass (gl_postfx.inc): 0 off, 2 clear, 1 mark glow, 3 mark 3D */\n"
+    "uniform int u_bcls;      /* mask pass (gl_postfx.inc): 0 off, 2 clear, 1 mark glow, 3 mark 3D, 6/7 set/clear water */\n"
     "uniform int u_baddonly;  /* 1: only additive texels feed the bloom; 2: only additive 3D ones */\n"
+    "uniform ivec4 u_wtex;    /* u_bcls 6: the water colours (-1 = unused) */\n"
     "flat in ivec2 v_tpage;   /* texture page base, VRAM px */\n"
     "flat in ivec2 v_clut;    /* CLUT base, VRAM px */\n"
     "flat in int v_depth;     /* 0=4bit 1=8bit 2=15bit */\n"
@@ -3421,6 +3458,9 @@ static const char *TEX_FS =
     "  if (u_bcls != 0) {   /* 3D, or additive (modes 1 and 3) semi texels */\n"
     "    if (u_bcls == 1 && !((u_baddonly == 0 && v_b3d > 0.999) || ((v_semi == 2 || v_semi == 4) && stp == 1 && (u_baddonly != 2 || v_b3d > 0.999)))) discard;\n"
     "    if (u_bcls == 3 && v_b3d <= 0.999) discard;            /* 3D mask: 3D texels only */\n"
+    "    if (u_bcls == 7 && v_b3d > 0.999) discard;             /* water mark: cleared under 2D only */\n"
+    "    if (u_bcls == 6 && (v_b3d <= 0.999 ||                  /* water mark: water-colour texels only */\n"
+    "        !any(equal(ivec4(fetch_texel(int(floor(uv0.x)), int(floor(uv0.y))) & 0x7FFF), u_wtex)))) discard;\n"
     "    if (u_bcls == 2 && v_semi != 0 && stp == 1) discard;   /* see-through: keeps what is under */\n"
     "    if (u_bcls == 4 && !(v_semi != 0 && stp == 1)) discard; /* see-through cover: those texels only */\n"
     "    if (u_bcls == 4 && (v_semi == 2 || v_semi == 4)) {   /* an additive texel adding next to nothing\n"
@@ -4947,6 +4987,7 @@ static int nd_tris_overlap(const float *a, const float *b) {
 }
 static int   s_tb_depth = 0;                /* PGXP depth mode (batch key) */
 static int   s_tb_b3d = 0;                  /* bloom on: 3D (bloom source) batch (key) */
+static int   s_tb_water = 0;                /* a water batch (painted partly in a water colour; key) */
 static int   s_tb_mask = 0, s_tb_filter = 0;
 static GLuint s_tb_bank_tex;
 static GLuint s_tb_hd_tex;
@@ -5106,6 +5147,7 @@ void gl_renderer_batch_diag(uint64_t out[9]) {
  * leave it as it was. Bloom off: none of this runs and no state changes. */
 static GLint s_tex_uBcls = -1, s_geo_uBcls = -1, s_geo_uBadd = -1;
 static GLint s_tex_uBaddonly = -1, s_geo_uBaddonly = -1;
+static GLint s_tex_uWtex = -1;   /* pass 6: the water colours */
 /* No glGet here: on a threaded driver every query is a round trip, and these
  * run per batch. The passes set what they need; the caller's draw state is
  * then put back from what the caller knows (bcls_end_geo / tex_bcls_end).
@@ -5114,8 +5156,11 @@ static GLint s_tex_uBaddonly = -1, s_geo_uBaddonly = -1;
 /* bit: 0x02 the "may glow" mark, 0x04 the "3D" mark (mask3d), 0x08 the
  * "see-through cover" mark (mask3d blue: something semi-transparent was
  * drawn over the last opaque thing; kept with the 3D mark). */
+static GLuint s_bcls_bit = 0;   /* bcls_begin's bits */
+static int s_wm_semi = -1;       /* the 3D mark's batch: its semi key (the water mark, bcls_pass) */
 static void bcls_begin(int tex, int additive, GLuint bit) {
     if ((bit & 0x04) && s_fg_drawing && s_fg_marks) bit |= 0x10;   /* the object mark goes with the 3D mark */
+    s_bcls_bit = bit;
     glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
     glDisable(GL_BLEND);
     glEnable(GL_STENCIL_TEST);
@@ -5130,6 +5175,19 @@ static void bcls_begin(int tex, int additive, GLuint bit) {
  * b3d 2 below). */
 static void bcls_pass(int tex, int pass) {
     const GLint obj = s_fg_obj_mark && s_fg_drawing ? 0x10 : 0x00;
+    /* the water mark (0x20): the 3D mark's clears and an opaque batch's set
+     * pass clear it; pass 6 sets it on a water batch's water-colour texels,
+     * pass 7 clears it under see-through 2D (a HUD window); a see-through 3D
+     * piece leaves it (ripples, glints over the water) */
+    if (pass >= 6) {
+        glStencilMask(0x20);
+        glStencilFunc(GL_ALWAYS, pass == 6 ? 0x20 : 0x00, 0xFF);
+        if (pass == 6) p_glUniform4i(s_tex_uWtex, s_water_texel[0], s_water_texel[1], s_water_texel[2], s_water_texel[3]);
+        p_glUniform1i(tex ? s_tex_uBcls : s_geo_uBcls, pass);
+        return;
+    }
+    if (s_water_on && (s_bcls_bit & 0x04) && pass != 4)
+        glStencilMask(s_bcls_bit | (pass == 2 || s_wm_semi < 0 ? 0x20u : 0u));
     glStencilFunc(GL_ALWAYS, pass == 1 ? 0x02 : (pass == 3 || pass == 5) ? 0x04 | obj : pass == 4 ? 0x08 : 0x00, 0xFF);
     p_glUniform1i(tex ? s_tex_uBcls : s_geo_uBcls, pass);
 }
@@ -5234,9 +5292,11 @@ static int bcls_lean(int b3d, int tex, int add, int bp) {
                 const int b3dm_p_ = b3dm_lean((b3d), b3dm_passes((semi), (b3d))); \
                 /* opaque: its passes also clear the cover bit; the cover     \
                  * pass reads u_badd (a dim additive 3D piece: no cover) */   \
+                s_wm_semi = (semi);                                           \
                 bcls_begin(0, BCLS_ADD(semi), (semi) < 0 ? 0x0C : 0x04);      \
                 if (b3dm_p_ & BCLS_CLEAR) { bcls_pass(0, 2); DRAW; }          \
                 if (b3dm_p_ & BCLS_SET)   { bcls_pass(0, (b3d) == 2 ? 5 : 3); DRAW; } \
+                if (s_water_on && (semi) >= 0) { bcls_pass(0, 7); DRAW; }     \
                 if ((semi) >= 0) { glStencilMask(0x08); bcls_pass(0, 4); DRAW; } \
             }                                                                 \
             bcls_end_geo((semi), (mask), (check));                            \
@@ -5348,9 +5408,11 @@ static void tex_draw_passes_ex_(int nverts, int semi, int tb_mask, int check,
              * too, so a HUD panel drawn semi-transparent is 2D where it is solid.
              * Both bits: the 3D mark and the see-through cover. */
             const int bp = b3dm_lean(b3d, b3dm_passes(semi, b3d) | (semi >= 0 ? BCLS_CLEAR : 0));
+            s_wm_semi = semi;
             bcls_begin(1, 0, 0x0C);
             if (bp & BCLS_CLEAR) { bcls_pass(1, 2); glDrawArrays(GL_TRIANGLES, 0, nverts); }
             if (bp & BCLS_SET)   { bcls_pass(1, b3d == 2 ? 5 : 3); glDrawArrays(GL_TRIANGLES, 0, nverts); }
+            if (s_water_on && (semi >= 0 || s_draw_water)) { bcls_pass(1, semi >= 0 ? 7 : 6); glDrawArrays(GL_TRIANGLES, 0, nverts); }
             if (semi >= 0) { glStencilMask(0x08); bcls_pass(1, 4); glDrawArrays(GL_TRIANGLES, 0, nverts); }
         }
         /* Back to the state the branch above ended in. */
@@ -5374,7 +5436,9 @@ static void tex_draw_passes_ex_(int nverts, int semi, int tb_mask, int check,
     }
 }
 static void tex_batch_draw_passes(int nverts, int semi) {
+    s_draw_water = s_tb_water;
     tex_draw_passes_ex(nverts, semi, s_tb_mask, s_mask_check, 1, s_tb_b3d);
+    s_draw_water = 0;
 }
 
 /* ---- frame_perf CPU attribution (native-wide wedge hunt) ----------------- *
@@ -5455,6 +5519,7 @@ typedef struct {
     uint8_t depth;           /* PGXP depth mode (depth_apply) */
     int8_t  b3d;             /* its marking (bcls_passes): 2 = a painted backdrop, else -1 (each fragment's own) */
     uint8_t obj;             /* s_fg_obj_mark when queued */
+    uint8_t water;           /* a water batch (s_tb_water) */
 } HiCmd;
 static int s_hq_depth_cur = 0;   /* depth mode of the batch being queued */
 static int s_hq_b3d_cur = -1;    /* a flat batch's b3d while it is queued */
@@ -5552,6 +5617,7 @@ static int hiw_enqueue_tex(int nverts, int semi, int mirror, int gate) {
     c->palette = s_tb_bank_tex && !s_tb_bank_live_clut ? s_tb_bank_tex : s_raw_tex;
     c->hd_tex = s_tb_hd_tex;
     c->b3d = s_tb_b3d == 2 || s_tb_b3d == 3 ? s_tb_b3d : -1;
+    c->water = (uint8_t)s_tb_water;
     if (wq) hiw_wide_set(c, gate);
     return wq;
 }
@@ -5611,7 +5677,7 @@ static void hiw_replay_wide(void) {
             p_glBufferData(PSXGL_ARRAY_BUFFER, (ptrdiff_t)((size_t)c->vcount * TEXV * sizeof(float)),
                            s_hq_v + c->vfirst, PSXGL_STREAM_DRAW);
             depth_apply_ex(c->depth, 1, c->vcount);
-            { const int om_ = s_fg_obj_mark; s_fg_obj_mark = c->obj; tex_draw_passes_ex(c->vcount, c->semi, c->mask, c->check, 0, c->b3d); s_fg_obj_mark = om_; }
+            { const int om_ = s_fg_obj_mark; s_fg_obj_mark = c->obj; s_draw_water = c->water; tex_draw_passes_ex(c->vcount, c->semi, c->mask, c->check, 0, c->b3d); s_draw_water = 0; s_fg_obj_mark = om_; }
             depth_restore_ex(c->depth, 1);
         } else {
             if (cur != HQ_GEO) {
@@ -5695,7 +5761,7 @@ static void hiw_flush_queue(void) {
                 p_glBufferData(PSXGL_ARRAY_BUFFER, (ptrdiff_t)((size_t)c->vcount * TEXV * sizeof(float)),
                                s_hq_v + c->vfirst, PSXGL_STREAM_DRAW);
                 depth_apply_ex(c->depth, 1, c->vcount);
-                { const int om_ = s_fg_obj_mark; s_fg_obj_mark = c->obj; tex_draw_passes_ex(c->vcount, c->semi, c->mask, c->check, 0, c->b3d); s_fg_obj_mark = om_; }
+                { const int om_ = s_fg_obj_mark; s_fg_obj_mark = c->obj; s_draw_water = c->water; tex_draw_passes_ex(c->vcount, c->semi, c->mask, c->check, 0, c->b3d); s_draw_water = 0; s_fg_obj_mark = om_; }
                 depth_restore_ex(c->depth, 1);
             } else {
                 if (cur != HQ_GEO) {
@@ -6516,6 +6582,9 @@ static void gpu_textured_triangle(const int *xs, const int *ys,
         const int tex_b3d = glass ? 3 : (s_bcls_on || s_b3d_on) && pgxp_tri_is_3d() ? 1
                           : s_b3d_on && (ctx_prim_in_backdrop() & 7) == 1 ? 2 : 0;
         s_dbg_bdm[2]++; if (tex_b3d == 2) s_dbg_bdm[1]++;
+        /* water (gl_renderer_set_water_texels): an opaque 3D piece painted partly in a water colour */
+        const int water = s_water_on && s_water_n && s_b3d_on && tex_b3d == 1 && semi < 0 && s_vram &&
+                          !s_selected_bank_tex && tex_has_water(us, vs, base_x, base_y, depth, clut_x, clut_y);
         if (semi >= 0 && s_sc_on && !glass) sc_note_cover(s_area_x1, s_area_y1, s_area_x2, s_area_y2, xs, ys, semi);
         if ((semi == 1 || semi == 3) && s_sc_on && !glass) {
             float rgb[3], wsc, wce;
@@ -6563,6 +6632,7 @@ static void gpu_textured_triangle(const int *xs, const int *ys,
             /* Bloom marks a batch in two passes (clear, then sources), so
              * one batch holds either 3D sources or not: painter order. */
             else if ((s_bcls_on || s_b3d_on) && tex_b3d != s_tb_b3d) reason = 7;
+            else if (water != s_tb_water) reason = 7;
             else if (nd_overlap) reason = 0;
         }
         if (reason >= 0) {
@@ -6574,6 +6644,7 @@ static void gpu_textured_triangle(const int *xs, const int *ys,
             s_tb_semi = batch_semi; s_tb_mask = s_mask_set; s_tb_filter = filter; s_tb_gate = gate;
             s_tb_depth = tdmode;
             s_tb_b3d = tex_b3d;
+            s_tb_water = water;
             s_tb_bank_tex = s_selected_bank_tex;
             s_tb_bank_live_clut = s_selected_bank_live_clut;
             s_tb_hd_tex = hd_tex;
@@ -7846,6 +7917,7 @@ static void tex_prog_locations(void) {
     s_uHdTexture = p_glGetUniformLocation(s_tex_prog, "u_hd_texture");
     s_tex_uBcls = p_glGetUniformLocation(s_tex_prog, "u_bcls");
     s_tex_uBaddonly = p_glGetUniformLocation(s_tex_prog, "u_baddonly");
+    s_tex_uWtex = p_glGetUniformLocation(s_tex_prog, "u_wtex");
     s_tex_uXoff = p_glGetUniformLocation(s_tex_prog, "u_xoff");
     s_tex_uXhalf = p_glGetUniformLocation(s_tex_prog, "u_xhalf");
     s_tex_uXscale = p_glGetUniformLocation(s_tex_prog, "u_xscale");
@@ -8006,6 +8078,7 @@ static int init_gpu_raster(void) {
     s_geo_uBcls = p_glGetUniformLocation(s_geo_prog, "u_bcls");
     s_geo_uBadd = p_glGetUniformLocation(s_geo_prog, "u_badd");
     s_tex_uBaddonly = p_glGetUniformLocation(s_tex_prog, "u_baddonly");
+    s_tex_uWtex = p_glGetUniformLocation(s_tex_prog, "u_wtex");
     s_geo_uBaddonly = p_glGetUniformLocation(s_geo_prog, "u_baddonly");
     s_uBlitSrc     = p_glGetUniformLocation(s_blit_prog, "u_src");
     s_uBlitPass    = p_glGetUniformLocation(s_blit_prog, "u_stp_pass");

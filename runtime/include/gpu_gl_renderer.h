@@ -225,9 +225,13 @@ float gl_renderer_get_bloom(void);
  * ("" = none; PSX_POST_SHADER overrides). A preset that fails to load or
  * compile is logged and skipped. */
 void  gl_renderer_set_post_shader(const char *path);
-/* Further .pfx chains run in slot order (0..5) right before post_shader
+/* Further .pfx chains run in slot order (0..6) right before post_shader
  * ("" = none); live uniforms (gl_renderer_set_post_uniform) reach them all. */
 void  gl_renderer_set_extra_shader(int slot, const char *path);
+/* The water: the texel colours (15 bits) the game paints its water with; the
+ * opaque 3D fragments drawn with one of them are a chain's `water` input
+ * (n 0..4; 0 = none). */
+void  gl_renderer_set_water_texels(const uint16_t *texel, int n);
 /* Pillarbox fill: a picture narrower than the window gets its side bars in
  * its own edge colour when that is flat (a plain logo or title background);
  * otherwise 1 fills them with the picture scaled to cover, blurred and
