@@ -20,6 +20,10 @@ int g_dma_exec_depth, g_ls_mode, g_ls_suppress_record, g_ram_read_watch_active;
 volatile int g_ds_recording;
 uint64_t g_psx_device_gen;
 void (*g_overlay_flush_pending_cycles)(void);
+uint32_t g_psx_mem_gate;
+int g_parity_trace_armed;
+volatile int g_card_data_writes_armed;
+int psx_mod_host_output_active(void) { return 0; }
 void debug_server_trace_ram_read_watch(uint32_t p, uint32_t v) { (void)p; (void)v; }
 void ds_note_dma_write(void) {}
 void ds_note_read(uint32_t a, uint32_t s) { (void)a; (void)s; }

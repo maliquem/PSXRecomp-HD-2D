@@ -62,8 +62,9 @@ int main(void) {
                            commands[i], t, mode);
       }
     }
+    /* No disc: the plain error (ReadN adds error code 80h, ReadS does not). */
     present = 0; count = irq = reads = 0; execute((uint8_t)commands[i]);
-    if (!(reads == 0 && irq == 5 && count == 1)) {
+    if (!(reads == 0 && irq == 5 && count >= 1 && bytes[0] == 3 && (count == 1 || bytes[1] == 0x80))) {
       if (!bad++) printf("FAIL: command %02X with no disc\n", commands[i]);
     }
   }
