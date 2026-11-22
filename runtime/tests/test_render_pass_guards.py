@@ -46,7 +46,7 @@ for sig in ("int psx_interrupt_delivery_needed(const CPUState* cpu) {",
         "no interrupt may be delivered inside a pass: " + sig)
 
 dma = (SRC / "dma.c").read_text(encoding="utf-8")
-assert "while (g_psx_render_pass_active && gpu_linked_list.active)" in dma, (
+assert "while (g_psx_render_pass_active && gpu_linked_list.active" in dma, (
     "GPU linked-list DMA must complete synchronously in a pass")
 b = body(dma, "static void schedule_delayed_complete(int ch, uint32_t total_words,")
 assert "g_psx_render_pass_active" in b, (

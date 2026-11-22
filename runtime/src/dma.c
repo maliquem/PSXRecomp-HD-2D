@@ -909,7 +909,10 @@ static void hold_cpu_for_gpu_linked_list(void) {
     const uint32_t words0 = gpu_linked_list.total_words;
     uint32_t steps = 0;
     while (gpu_linked_list.active && ((channels[2].chcr >> 24) & 1u) &&
-           channel_enabled(2)) {
+           channel_enabled(2) &&
+           /* A cyclic list never ends; return to the CPU after a bound and
+            * let the scheduled service continue it. */
+           gpu_linked_list.nodes_processed < 0x80000u) {
         const uint32_t moved = gpu_linked_list.total_words;
         uint32_t fin = 0;
         if (ll_bulk_enabled() && !mdec_async[0].active && !mdec_async[1].active &&
@@ -1143,8 +1146,11 @@ static void try_execute(int ch) {
                 /* Render pass: devices never advance in frozen time, so walk
                  * the whole list now. The walk is the same event-driven code,
                  * only with an unlimited budget; completion flags and the IRQ
-                 * latch it raises are rolled back with the pass. */
-                while (g_psx_render_pass_active && gpu_linked_list.active)
+                 * latch it raises are rolled back with the pass. A cyclic list
+                 * never ends, so the walk stops at the same node bound as the
+                 * CPU hold below. */
+                while (g_psx_render_pass_active && gpu_linked_list.active &&
+                       gpu_linked_list.nodes_processed < 0x80000u)
                     dma_gpu_ll_advance(&gpu_linked_list, UINT32_MAX,
                                        &gpu_ll_ops, NULL);
                 hold_cpu_for_gpu_linked_list();
@@ -1639,9 +1645,9 @@ void dma_snapshot_write(uint8_t *p) {
 /* Pass-1 check for boot_state's two-pass load. It parses into locals, so the
  * read below cannot fail halfway, and refuses an async start address outside
  * live RAM (finish_async_cdrom_transfer spans ram + start_addr). The GPU list
- * node limit and node size bound the render-pass walk (UINT32_MAX budget);
- * the walk only ever writes max_nodes 0 or DMA_GPU_LL_MAX_NODES and a node
- * size of header >> 24. Addresses, MADR and total_words are masked or
+ * node size bounds the render-pass walk (UINT32_MAX budget), and max_nodes
+ * is only ever 0 or DMA_GPU_LL_MAX_NODES; the walk itself stops at a node
+ * count, not at max_nodes. Node size is header >> 24. Addresses, MADR and total_words are masked or
  * clamped where used, so they stay unchecked. */
 int dma_snapshot_validate(const uint8_t *p, uint32_t len) {
     PstR r;

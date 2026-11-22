@@ -3107,40 +3107,40 @@ Emulates the PS1 DMA controller: its seven channels, transfer timing, interrupt 
 - `hold_host_ticks_per_sec` (L877) — Ticks per second of the host clock behind hold_host_ticks.
 - `ll_bulk_enabled` (L895) — While the CPU is held and no other DMA moves RAM, the list's words cannot change under the walk: its end is known in advance (dma_gpu_ll_cycles_to_ finish), and the hold advances there in one go.
 - `hold_cpu_for_gpu_linked_list` (L904) — Holds the CPU while the GPU linked list walks, advancing guest cycles to the walk's end in one go when possible.
-- `dma_debug_get_gpu_hold` (L958) — Debug accessor: copies the GPU-hold statistics and returns the hold ring.
-- `execute_ch2_gpu` (L964) — Runs a channel 2 GPU transfer: block mode moves the words to or from the GPU, linked-list mode starts the list walk.
-- `execute_ch3_cdrom` (L1028) — Runs a channel 3 CD-ROM transfer: copies sector data from the CD-ROM buffer into RAM, or completes it when it is to the device.
-- `execute_ch4_spu` (L1044) — Returns the number of words moved so the caller can schedule a faithful delayed completion (DMA_SPU_CYCLES_PER_WORD).
-- `execute_ch6_otc` (L1081) — Runs an OTC transfer: writes a backward-linked ordering table into RAM ending with the 0xFFFFFF marker.
-- `try_execute` (L1106) — Starts a transfer on the channel when its start bit is set and the channel is enabled in DPCR, dispatching by channel.
-- `dma_get_dicr` (L1185) — The DICR register value as the CPU reads it.
-- `dma_gpu_linked_list_active` (L1187) — A GPU linked-list walk is in flight (render passes refuse to start then).
-- `dma_get_dpcr` (L1188) — The DPCR register value (DMA channel priority and enable).
-- `dma_cdrom_transfer_active` (L1189) — Nonzero while the asynchronous CD-ROM transfer is active.
-- `dma_cycles_to_irq` (L1202) — Cycle-budgeted precise event slicing: guest CPU cycles until DMA raises a DELIVERABLE IRQ (bit3 unmasked in i_mask).
-- `dma_cycles_to_internal_event` (L1225) — Mask-blind scheduler boundary: next DMA word movement or delayed completion, not merely the final IRQ.
-- `dma_cycles_to_deliverable_irq` (L1281) — Strict deliverability form for wait-loop elision: unlike the conservative scheduler bound, ignores channel completions whose DICR IRQ is disabled.
-- `dma_advance` (L1308) — Advances all DMA activity by the given guest cycles: MDEC and linked-list walks, delayed completions and CD-ROM transfers.
-- `dma_init` (L1385) — Resets all DMA channels and registers to their power-on state.
-- `dma_read` (L1397) — Reads a DMA register at the given address (DPCR, DICR or a channel register) and returns its value.
-- `dma_write_masked` (L1441) — Writes a DMA register under a bit mask, handling DPCR, DICR acknowledge bits and the channel control registers.
-- `dma_write` (L1506) — Writes a full 32-bit DMA register value.
-- `dma_debug_get_gpu_ot_stats` (L1510) — Debug accessor: copies the GPU ordering-table statistics into out.
-- `dma_debug_get_trace` (L1517) — Debug accessor: returns the DMA trace ring and its entry count.
-- `dma_debug_clear_trace` (L1522) — Clears the DMA trace ring.
-- `dma_debug_get_cdrom_history` (L1527) — Debug accessor: returns the CD-ROM DMA history ring and its entry count.
-- `dma_debug_clear_cdrom_history` (L1532) — Clears the CD-ROM DMA history ring.
-- `dma_debug_get_state` (L1540) — Debug accessor: fills out with the DMA state (registers and channel status).
-- `dma_w_async` (L1578) — Saves one asynchronous channel's state into a snapshot writer; returns 1 on success.
-- `dma_r_async` (L1583) — Restores one asynchronous channel's state from a snapshot reader; returns 1 on success.
-- `dma_w_gpu_ll` (L1588) — Saves the GPU linked-list state into a snapshot writer; returns 1 on success.
-- `dma_r_gpu_ll` (L1598) — Restores the GPU linked-list state from a snapshot reader; returns 1 on success.
-- `dma_w_delay` (L1610) — Saves a delayed-completion state into a snapshot writer; returns 1 on success.
-- `dma_r_delay` (L1614) — Restores a delayed-completion state from a snapshot reader; returns 1 on success.
-- `dma_snapshot_bytes` (L1619) — Byte size of the DMA snapshot section.
-- `dma_snapshot_write` (L1621) — Writes the DMA state into the snapshot buffer p.
-- `dma_snapshot_validate` (L1646) — Pass-1 check for boot_state's two-pass load: parses into locals and refuses an async start address outside live RAM or remaining words above the total.
-- `dma_snapshot_read` (L1661) — Restores the DMA state from a snapshot buffer of len bytes; returns nonzero on success.
+- `dma_debug_get_gpu_hold` (L961) — Debug accessor: copies the GPU-hold statistics and returns the hold ring.
+- `execute_ch2_gpu` (L967) — Runs a channel 2 GPU transfer: block mode moves the words to or from the GPU, linked-list mode starts the list walk.
+- `execute_ch3_cdrom` (L1031) — Runs a channel 3 CD-ROM transfer: copies sector data from the CD-ROM buffer into RAM, or completes it when it is to the device.
+- `execute_ch4_spu` (L1047) — Returns the number of words moved so the caller can schedule a faithful delayed completion (DMA_SPU_CYCLES_PER_WORD).
+- `execute_ch6_otc` (L1084) — Runs an OTC transfer: writes a backward-linked ordering table into RAM ending with the 0xFFFFFF marker.
+- `try_execute` (L1109) — Starts a transfer on the channel when its start bit is set and the channel is enabled in DPCR, dispatching by channel.
+- `dma_get_dicr` (L1191) — The DICR register value as the CPU reads it.
+- `dma_gpu_linked_list_active` (L1193) — A GPU linked-list walk is in flight (render passes refuse to start then).
+- `dma_get_dpcr` (L1194) — The DPCR register value (DMA channel priority and enable).
+- `dma_cdrom_transfer_active` (L1195) — Nonzero while the asynchronous CD-ROM transfer is active.
+- `dma_cycles_to_irq` (L1208) — Cycle-budgeted precise event slicing: guest CPU cycles until DMA raises a DELIVERABLE IRQ (bit3 unmasked in i_mask).
+- `dma_cycles_to_internal_event` (L1231) — Mask-blind scheduler boundary: next DMA word movement or delayed completion, not merely the final IRQ.
+- `dma_cycles_to_deliverable_irq` (L1287) — Strict deliverability form for wait-loop elision: unlike the conservative scheduler bound, ignores channel completions whose DICR IRQ is disabled.
+- `dma_advance` (L1314) — Advances all DMA activity by the given guest cycles: MDEC and linked-list walks, delayed completions and CD-ROM transfers.
+- `dma_init` (L1391) — Resets all DMA channels and registers to their power-on state.
+- `dma_read` (L1403) — Reads a DMA register at the given address (DPCR, DICR or a channel register) and returns its value.
+- `dma_write_masked` (L1447) — Writes a DMA register under a bit mask, handling DPCR, DICR acknowledge bits and the channel control registers.
+- `dma_write` (L1512) — Writes a full 32-bit DMA register value.
+- `dma_debug_get_gpu_ot_stats` (L1516) — Debug accessor: copies the GPU ordering-table statistics into out.
+- `dma_debug_get_trace` (L1523) — Debug accessor: returns the DMA trace ring and its entry count.
+- `dma_debug_clear_trace` (L1528) — Clears the DMA trace ring.
+- `dma_debug_get_cdrom_history` (L1533) — Debug accessor: returns the CD-ROM DMA history ring and its entry count.
+- `dma_debug_clear_cdrom_history` (L1538) — Clears the CD-ROM DMA history ring.
+- `dma_debug_get_state` (L1546) — Debug accessor: fills out with the DMA state (registers and channel status).
+- `dma_w_async` (L1584) — Saves one asynchronous channel's state into a snapshot writer; returns 1 on success.
+- `dma_r_async` (L1589) — Restores one asynchronous channel's state from a snapshot reader; returns 1 on success.
+- `dma_w_gpu_ll` (L1594) — Saves the GPU linked-list state into a snapshot writer; returns 1 on success.
+- `dma_r_gpu_ll` (L1604) — Restores the GPU linked-list state from a snapshot reader; returns 1 on success.
+- `dma_w_delay` (L1616) — Saves a delayed-completion state into a snapshot writer; returns 1 on success.
+- `dma_r_delay` (L1620) — Restores a delayed-completion state from a snapshot reader; returns 1 on success.
+- `dma_snapshot_bytes` (L1625) — Byte size of the DMA snapshot section.
+- `dma_snapshot_write` (L1627) — Writes the DMA state into the snapshot buffer p.
+- `dma_snapshot_validate` (L1652) — Pass-1 check for boot_state's two-pass load: parses into locals and refuses an async start address outside live RAM or remaining words above the total.
+- `dma_snapshot_read` (L1667) — Restores the DMA state from a snapshot buffer of len bytes; returns nonzero on success.
 
 ### runtime/src/dma_gpu_ll.c
 
@@ -3152,7 +3152,7 @@ Walks a GPU linked list (ordering table) in RAM node by node as an asynchronous 
 - `dma_gpu_ll_cancel` (L38) — Cancels a list walk by clearing its whole state.
 - `dma_gpu_ll_cycles_to_event` (L42) — Guest cycles until the list walk's next event (UINT32_MAX when it is not active).
 - `dma_gpu_ll_cycles_to_finish` (L51) — The walk below run on a copy, reading headers with 'peek' (no side effects): the clocks dma_gpu_ll_advance needs to reach the walk's end from this state, as long as the list's words do not change on t
-- `dma_gpu_ll_advance` (L98) — Advances the list walk by the given guest cycles, reading headers and words through the ops callbacks.
+- `dma_gpu_ll_advance` (L97) — Advances the list walk by the given guest cycles, reading headers and words through the ops callbacks.
 
 ### runtime/src/draw_distance.c
 
