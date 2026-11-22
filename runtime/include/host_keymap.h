@@ -27,6 +27,7 @@ typedef enum HostKeymapAction {
     HOST_KEYMAP_PERF_RECORD,      /* default Shift+F; records the perf meter (perf_meter.h) */
     HOST_KEYMAP_BUG_REPORT,       /* default Ctrl+B; the player's bug report (bug_report.h) */
     HOST_KEYMAP_CHANGE_DISC,      /* default Ctrl+C; next disc of a multi-disc set, else reinsert */
+    HOST_KEYMAP_SWAP_CONTROLLER_PORTS, /* default Ctrl+F6: swap console ports 1 and 2 */
     HOST_KEYMAP_ACTION_COUNT
 } HostKeymapAction;
 

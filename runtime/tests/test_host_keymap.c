@@ -43,6 +43,13 @@ int main(int argc, char **argv) {
           "default change disc is Ctrl+C");
     check(!host_keymap_match(HOST_KEYMAP_CHANGE_DISC, (int)SDLK_c, 0),
           "plain C does not change the disc");
+    check(host_keymap_match(HOST_KEYMAP_SWAP_CONTROLLER_PORTS, (int)SDLK_F6,
+                            (int)KMOD_LCTRL),
+          "default port swap is Ctrl+F6");
+    check(!host_keymap_match(HOST_KEYMAP_SWAP_CONTROLLER_PORTS, (int)SDLK_F6, 0) &&
+          host_keymap_match(HOST_KEYMAP_SCANLINES, (int)SDLK_F6, 0) &&
+          !host_keymap_match(HOST_KEYMAP_SCANLINES, (int)SDLK_F6, (int)KMOD_LCTRL),
+          "plain F6 stays scanlines and does not swap ports");
     keys[SDL_SCANCODE_TAB] = 1;
     check(host_keymap_down(HOST_KEYMAP_TURBO, keys, 0),
           "default turbo is held by Tab");
