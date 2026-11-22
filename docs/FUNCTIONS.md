@@ -2010,160 +2010,160 @@ PS1 CD-ROM controller: register interface, command handling, sector reads, CD-DA
 - `rb_available` (L171) — Returns 1 when the sector data buffer still has bytes left to read.
 - `load_data_fifo` (L175) — An explicit BFRD request may reload the retained announced sector after software clears the FIFO.
 - `ring_note_starved` (L190) — Counts a moment when the sector ring holds data but the read buffer is empty.
-- `cdrom_set_speed` (L323) — Set disc speed multiplier immediately.
-- `cdrom_set_game_speed` (L328) — Store the configured speed for post-BIOS application.
-- `cdrom_notify_game_started` (L333) — Called by fntrace_record on first game-range dispatch.
-- `cdrom_get_setloc_lba` (L337) — LBA of the most recent SetLoc command (-1 if none yet).
-- `cdrom_get_delivered_lba` (L344) — The sector most recently DELIVERED into the data buffer -- as opposed to the game's last SetLoc.
-- `cdrom_xa_stream_active` (L347) — Frontend XA-stream probe (FMV auto-skip / turbo-load gating in main.cpp).
-- `cdrom_fmv_stream_pending` (L349) — True while a CD read is armed with XA/FMV mode bits (or XA already streaming).
-- `cdrom_resync_deadlines_after_restore` (L361) — Re-arm host absolute CD deadlines from restored relative delays after boot_state / RB snap load (read stream + pending/present dues from snap).
-- `cdrom_register_warm_route` (L444) — Registers a warm route: a list of sector addresses served at a set rate once a SetLoc names its arm address.
-- `cdrom_warm_route_set_enabled` (L465) — Turns the warm route feature on or off, disarming any armed or active route when turned off.
-- `warm_route_current` (L477) — Returns the warm route that is currently active, or NULL when none is.
-- `cdrom_warm_route_stats_json` (L483) — Writes the warm route state and counters as JSON into a buffer.
-- `warm_route_on_setloc` (L508) — When a SetLoc names a route's arm address, arms that route.
-- `cdrom_set_instant_rate` (L568) — 'instant' per-frame sector-IRQ budget (step 3).
-- `cdrom_get_instant_rate` (L573) — Returns the current instant mode per-frame sector budget.
-- `instant_period` (L575) — Cycles between sectors in instant mode: one vblank divided by the per-frame budget, with a minimum.
-- `warm_route_period` (L580) — Cycles between sectors on the active warm route, from its rate, with a minimum.
-- `apply_speed` (L587) — Scales a sector delay by the drive speed setting, keeping authentic timing during XA streams and instant timing when unlimited.
-- `apply_read_speed` (L597) — Scales a read delay by the speed setting only for explicit data-read routes; FMV and XA reads keep authentic timing.
-- `host_ms` (L620) — Monotonic host milliseconds, used to timestamp CD read bursts.
-- `burst_note_sector` (L630) — Records one sector read in the burst log, starting a new burst after a gap.
-- `cdrom_get_bursts` (L651) — Copy out the most recent 'max' bursts, newest first.
-- `cdrom_get_burst_total` (L660) — Returns the total number of CD read bursts recorded.
-- `sector_delay_cycles` (L662) — Cycles between sector deliveries: half the 1x period at double speed, passed through the speed setting.
-- `initial_read_delay_cycles` (L671) — Cycles before the first sector after a read command starts, with the same speed rules.
-- `seek_complete_delay_cycles` (L681) — Cycles a seek takes to complete: about four sector periods for a far seek, a short fixed delay when near.
-- `cycles_until_due` (L701) — Guest cycles left until a due time; 0 if it has passed, capped to a 31-bit value.
-- `pending_rem_cycles` (L707) — Cycles left until the pending command response is due, or 0 when nothing is pending.
-- `irq_present_rem_cycles` (L712) — Cycles left until the pending interrupt is presented to the CPU.
-- `pending_arm` (L716) — Schedules a pending command response to come due after a latency, counted from now.
-- `seek_in_flight` (L726) — SeekL/SeekP armed: the drive is moving the head (phase 2 = a Setloc retargeted it mid-seek, see process_pending).
-- `cmd_leaves_drive_alone` (L732) — Commands that neither move the drive nor arm a second response.
-- `pending_set_remaining` (L742) — Sets the pending response to come due after the given cycles, or clears it when nothing is pending.
-- `irq_present_set_remaining` (L751) — Sets the interrupt presentation to come due after the given cycles, or clears it when none remain.
-- `update_last_valid_subq` (L789) — Reads a sector's subchannel data and keeps it as the last valid one when it is valid.
-- `trace_cdrom` (L801) — Records one register access (kind, address, value and width) in the CD-ROM trace ring.
-- `record_command_history` (L832) — Records a command and its parameters in the command history ring.
-- `xa_is_audio_realtime` (L877) — Returns true when a sector is XA audio in realtime mode (Mode 2 with audio and realtime submode bits).
-- `classify_raw_sector` (L884) — Reads the mode and XA submode of a raw sector and returns its delivery classification.
-- `record_sector_history` (L899) — Records a delivered sector (LBA, size, mode and classification) in the sector history ring.
-- `has_disc` (L929) — Returns true when media is in the drive and the lid is closed.
-- `response_clear` (L950) — Empties the response FIFO.
-- `response_push` (L955) — Adds one byte to the response FIFO if it has room.
-- `set_irq` (L961) — Sets the CD interrupt type and starts a new interrupt generation to be presented to the CPU.
-- `present_lid_open_irq_if_ready` (L981) — Presents the pending lid-open interrupt once the previous interrupt has been acknowledged.
-- `process_lid_state` (L994) — Presents a pending lid interrupt and closes the lid once its delay has passed.
-- `present_cdrom_irq` (L1017) — Present the current CD INT to the CPU interrupt controller exactly once per generation.
-- `fire_cdrom_irq` (L1038) — Fire CDROM IRQ into the interrupt controller (explicit, per command/response).
-- `refresh_cdrom_irq_line` (L1045) — Re-presents the CD interrupt line to the interrupt controller.
-- `bcd_to_bin` (L1049) — Converts a BCD byte to a plain number.
-- `msf_to_lba` (L1053) — Converts minutes, seconds and frames to a sector number (LBA), removing the 150-frame lead-in.
-- `cd_timing_lookup` (L1057) — Finds a timing record by sequence number, or NULL if it has been overwritten.
-- `cd_timing_begin_sector` (L1064) — Starts a timing record for a sector read and returns its sequence number.
-- `cd_timing_flag` (L1076) — Adds flags to a timing record found by sequence number.
-- `cd_timing_arm_irq` (L1081) — Marks a timing record as having its interrupt armed now.
-- `cd_timing_note_intc` (L1089) — Marks the latest armed interrupt as presented to the interrupt controller, once.
-- `cdrom_timing_reset` (L1096) — Passive physical-deadline -> buffer -> INT1 exposure telemetry (L1.5).
-- `cdrom_timing_total` (L1107) — Returns the total number of timing records made.
-- `cdrom_timing_record` (L1109) — Copies one timing record into the public struct; returns 0 if it is no longer kept.
-- `cdrom_timing_stats_json` (L1123) — Writes timing statistics as JSON into a buffer, including how many records were dropped.
-- `bin_to_bcd` (L1225) — Converts a number from 0 to 99 to BCD.
-- `lba_to_msf` (L1229) — Converts a sector number to minutes, seconds and frames, adding the pregap.
-- `clamp16_cd` (L1238) — Clamps a 32-bit audio value to the 16-bit range.
-- `xa_reset_decode` (L1244) — Clears the XA audio decoder history and stream selection.
-- `cd_apply_decode_volume` (L1263) — Applies the CD-audio left and right volume matrix to a block of stereo samples in place.
-- `xa_decode_sector_4bit_stereo` (L1278) — Decodes one XA-ADPCM sector of 4-bit stereo audio into 16-bit samples.
-- `xa_decode_sector_4bit_mono` (L1323) — Decodes one XA-ADPCM sector of 4-bit mono audio into 16-bit samples.
-- `xa_resample_to_44100` (L1361) — Resamples decoded XA audio to 44100 Hz and returns how many frames were produced.
-- `xa_zero_scan` (L1393) — Always-on XA zero-run scanner (audio_trace event ring).
-- `maybe_deliver_xa_audio` (L1412) — Sends a realtime XA audio sector to the audio output when XA is on and not muted.
-- `read_sector_at` (L1469) — Reads the sector at a minute, second and frame address into the buffers and returns its delivery info.
-- `advance_msf` (L1576) — Moves a minute, second and frame address forward by one sector.
-- `clear_sector_buffer` (L1582) — Empties the data FIFO and clears all sector buffers.
-- `cdrom_clear_pending_dataready` (L1621) — Drive-state changes (Read/Play/Pause/Stop/Seek) cancel a pended notification, matching Beetle's ClearAIP in every such command.
-- `read_continues_current_stream` (L1648) — A Read issued while the drive is ALREADY streaming the very sector the pending Setloc names is not a new read -- it is the game saying "keep going".
-- `read_seek_landed` (L1659) — A read's first sector arrived: ends its seek, so the status says Read instead of Seek and GetlocL has a header again.
-- `stop_cdda_playback` (L1665) — Stops CD-DA playback and leaves the head (read_*) where the music stopped.
-- `start_read_stream` (L1676) — Starts a data read stream after a read command, resetting CD-DA playback and read timing.
-- `stop_read_stream` (L1742) — Stops the data read stream and its timing.
-- `deliver_cdda_data_end` (L1751) — Sends the pending CD-DA end response once the interrupt line is clear.
-- `deliver_xa_data_end` (L1760) — Sends the pending XA end response once the interrupt line is clear.
-- `deliver_cdda_report` (L1777) — CD-DA position reports (Setmode bit2), psx-spx "Command 03h - Play": INT1(stat, track, index, mm/amm, ss+80h/ass, sect/asect, peaklo, peakhi) on every 10th frame of absolute time — asect BCD 00/20/40/
-- `cdda_track_for_lba` (L1817) — Returns the audio track that contains a sector, or 0 if none does.
-- `cdda_track_end_lba` (L1827) — Returns the sector where a track ends: the next track's start, or the end of the disc.
-- `start_cdda_playback` (L1834) — Starts CD-DA playback from a requested track, or from the current position.
-- `process_cdda_stream` (L1867) — Advances CD-DA playback by the elapsed cycles, sending timed reports and the end response.
-- `data_fifo_ready` (L1925) — Returns 1 when the CPU has requested data and data is available, counting starved moments.
-- `cdrom_get_dataready_fires` (L1931) — static uint64_t s_dataready_fires; /* INT1 (data-ready) raised per streamed sector — FMV dispatch probe
-- `deliver_read_sector` (L1933) — Reads the next sector of the data stream into the buffers, advances the position and raises the data-ready interrupt.
-- `deliver_read_sector_without_irq` (L1963) — A continuing DMA needs the newly filled slot immediately.
-- `cd_bisect_cmd_log` (L1977) — §93 P1: cmd timeline under PSX_RB_CD_BISECT (window via netplay).
-- `try_execute_queued_command` (L2050) — Runs a queued command once the interrupt line is clear.
-- `queue_or_exec_command` (L2069) — Runs a command now if the interrupt line is clear, otherwise queues it.
-- `pause_complete_delay_cycles` (L2103) — Pause (0x09) completion latency — Beetle PS_CDC::Command_Pause.
-- `reject_audio_disc_data_read` (L2122) — Audio-only media cannot satisfy a data read.
-- `exec_command` (L2133) — Runs one CD-ROM controller command, setting its response and timing; the core of the command dispatcher.
-- `process_pending` (L2655) — Completes a pending command response once its due cycle has passed.
-- `warm_route_consumer_blocked` (L2760) — Route-only HLE producer/consumer handshake.
-- `authentic_sector_period` (L2801) — Returns the sector period at the real drive speed, halved in double-speed mode.
-- `accelerated_read_active` (L2806) — Returns 1 when reads run faster than the real drive speed, not during XA or filter modes.
-- `accelerated_consumer_blocked` (L2811) — Returns 1 when an accelerated read must wait for the CPU to take the last sector or interrupt.
-- `process_read_stream` (L2818) — Advances the data read stream by the elapsed cycles, delivering sectors when due and waiting for the CPU when it is behind.
-- `present_pending_dataready` (L2903) — Present a pended data-ready INT1 the moment the guest fully acks the previous INT (Beetle CheckAIP: async results present as soon as the IRQ register clears).
-- `cdrom_init` (L2919) — Starts the CD-ROM controller: clears its FIFOs and buffers, then mounts the disc image from the cue path.
-- `cdrom_has_disc` (L3013) — Did cdrom_init() actually mount an image?
-- `cdrom_read` (L3017) — MMIO read/write (0x1F801800-0x1F801803)
-- `cdrom_write` (L3067) — Handles a CPU write to the CD-ROM registers, tracing it and dispatching by register and index.
-- `cdrom_cycles_to_irq` (L3156) — Cycle-budgeted precise event slicing: guest CPU cycles until the CD-ROM raises a DELIVERABLE IRQ (bit2 unmasked in i_mask).
-- `cdrom_advance` (L3188) — Advance CD-ROM state machine by guest CPU cycles.
-- `cdrom_tick` (L3211) — Legacy frame-paced entry point for interpreter/oracle builds.
-- `cdrom_dma_read` (L3215) — DMA channel 3 interface
-- `cdrom_dma_ready` (L3227) — Returns 1 when DMA can take data now, first loading any announced sector into the FIFO.
-- `cdrom_dma_sector_word_count` (L3236) — Returns the word count for a CD DMA transfer, using one sector's size when the count is zero.
-- `cdrom_debug_snapshot` (L3249) — Copies the controller's registers and state into a debug struct.
-- `cdrom_debug_get_trace` (L3304) — Returns the register trace ring and its total count.
-- `cdrom_debug_clear_trace` (L3309) — Clears the register trace ring.
-- `cdrom_debug_get_command_history` (L3314) — Returns the command history ring and its total count.
-- `cdrom_debug_clear_command_history` (L3319) — Clears the command history ring.
-- `cdrom_debug_get_sector_history` (L3324) — Returns the sector history ring and its total count.
-- `cdrom_debug_clear_sector_history` (L3329) — Clears the sector history ring.
-- `cdrom_debug_copy_last_sector` (L3334) — Copies part of the last sector read into a buffer and fills in its debug state.
-- `cdrom_load_in_progress` (L3363) — Load-in-progress predicate for turbo-through-loads (step 4).
-- `cdrom_data_read_active` (L3374) — Physical non-XA data-read command state, without the logical load gap bridge used by cdrom_load_in_progress().
-- `cdrom_apply_savestate_delay_caps` (L3387) — Limits long pending and interrupt delays after a savestate load so the game does not stall.
-- `cdrom_accelerate_after_savestate` (L3412) — After savestate restore: clamp long CD second-response / read-start delays and arm a short boost window so post-load ReadTOC/seek/Init waits do not freeze the picture for ~1s+.
-- `cdrom_savestate_boost_vblank` (L3423) — Call once per host vblank while the boost window is armed.
-- `cdrom_savestate_cd_wait_active` (L3429) — Non-zero while boost is armed AND a CD wait is outstanding (pending second response or non-XA read).
-- `cdrom_savestate_boost_vblanks_remaining` (L3436) — Remaining boost vblanks (0 when idle).
-- `cdrom_snap_emit` (L3450) — Writes the CD-ROM controller state into a snapshot writer, in the legacy or extended layout.
-- `cdrom_snap_parse` (L3528) — Reads the CD-ROM controller state from a snapshot reader, in the legacy or extended layout.
-- `cdrom_snapshot_level_bytes` (L3622) — Returns the wire size of the snapshot layout at a given level (0 = legacy, CDROM_SNAP_LEVEL_CURRENT = newest).
-- `cdrom_snapshot_level` (L3629) — Maps a snapshot block length to its layout level; -1 when no level has that size.
-- `cdrom_snapshot_legacy_bytes` (L3635) — Returns the size of the legacy snapshot layout.
-- `cdrom_snapshot_fifos_ok` (L3641) — The parameter and response FIFO cursors index param_fifo / response_fifo; every layout starts with the legacy prefix, so this applies to all of them.
-- `cdrom_snapshot_validate` (L3651) — Checks that a snapshot block has a length matching the legacy or current layout.
-- `cdrom_snapshot_prepare_disc` (L3697) — A state taken on another disc of the roster: open that disc's image now, while the load can still be refused, so applying it cannot fail.
-- `cdrom_snapshot_drop_prepared` (L3710) — Close a disc image opened for a state that was then refused.
-- `cdrom_snapshot_disc_matches` (L3720) — 0 when the state was taken on another disc of this game's roster than the one mounted now: its LBAs, TOC and file table belong to that other disc.
-- `cdrom_snapshot_bytes` (L3727) — boot_state / netplay digest — full controller FSM (sector FIFOs included).
-- `cdrom_snapshot_write` (L3730) — Writes the current CD-ROM snapshot block into a buffer.
-- `cdrom_snapshot_read` (L3736) — Reads a CD-ROM snapshot block, checking its length first; returns 1 on success.
-- `begin_tray_open_cycle` (L3769) — Open the tray: stop every transfer in flight, hide the media, and arm the timed close.
-- `debug_force_cd_reinsert` (L3785) — Simulates a disc swap by opening the tray, which hides the media until the timed close. — Notify the guest that the mounted disc was reinserted.
-- `cdrom_disc_roster_set` (L3789) — Sets the list of disc image paths the player can switch between, and which one is selected.
-- `cdrom_disc_roster_count` (L3809) — Returns how many discs are in the roster.
-- `cdrom_mounted_sector_count` (L3811) — TOC of the image currently mounted; 0 when the drive is empty.
-- `cdrom_mounted_track_count` (L3815) — Returns the number of tracks in the mounted image, 0 when the drive is empty.
-- `cdrom_disc_selected` (L3819) — Returns the 1-based number of the selected disc.
-- `cdrom_disc_roster_path` (L3821) — Returns the path of a disc in the roster by 1-based index, or NULL if out of range.
-- `swap_image` (L3839) — Change the mounted image mid-session, the way a player changes a disc.
-- `cdrom_disc_select` (L3857) — Change the mounted image mid-session, the way a player changes a disc.
-- `cdrom_disc_mount_quiet` (L3888) — The same image swap without the lid: no ShellOpen, no 2 s wait, transfers and position kept.
-- `cdrom_disc_set_pending_quiet` (L3899) — Mount disc N quietly right before the next command that positions the drive (Setloc, Play, ReadN, ReadS, SeekL, SeekP); 0 cancels.
-- `cdrom_disc_pending_quiet` (L3904) — Disc waiting to be mounted quietly before the next positioning command, 0 none.
+- `cdrom_set_speed` (L328) — Set disc speed multiplier immediately.
+- `cdrom_set_game_speed` (L333) — Store the configured speed for post-BIOS application.
+- `cdrom_notify_game_started` (L338) — Called by fntrace_record on first game-range dispatch.
+- `cdrom_get_setloc_lba` (L342) — LBA of the most recent SetLoc command (-1 if none yet).
+- `cdrom_get_delivered_lba` (L349) — The sector most recently DELIVERED into the data buffer -- as opposed to the game's last SetLoc.
+- `cdrom_xa_stream_active` (L352) — Frontend XA-stream probe (FMV auto-skip / turbo-load gating in main.cpp).
+- `cdrom_fmv_stream_pending` (L354) — True while a CD read is armed with XA/FMV mode bits (or XA already streaming).
+- `cdrom_resync_deadlines_after_restore` (L366) — Re-arm host absolute CD deadlines from restored relative delays after boot_state / RB snap load (read stream + pending/present dues from snap).
+- `cdrom_register_warm_route` (L449) — Registers a warm route: a list of sector addresses served at a set rate once a SetLoc names its arm address.
+- `cdrom_warm_route_set_enabled` (L470) — Turns the warm route feature on or off, disarming any armed or active route when turned off.
+- `warm_route_current` (L482) — Returns the warm route that is currently active, or NULL when none is.
+- `cdrom_warm_route_stats_json` (L488) — Writes the warm route state and counters as JSON into a buffer.
+- `warm_route_on_setloc` (L513) — When a SetLoc names a route's arm address, arms that route.
+- `cdrom_set_instant_rate` (L573) — 'instant' per-frame sector-IRQ budget (step 3).
+- `cdrom_get_instant_rate` (L578) — Returns the current instant mode per-frame sector budget.
+- `instant_period` (L580) — Cycles between sectors in instant mode: one vblank divided by the per-frame budget, with a minimum.
+- `warm_route_period` (L585) — Cycles between sectors on the active warm route, from its rate, with a minimum.
+- `apply_speed` (L592) — Scales a sector delay by the drive speed setting, keeping authentic timing during XA streams and instant timing when unlimited.
+- `apply_read_speed` (L602) — Scales a read delay by the speed setting only for explicit data-read routes; FMV and XA reads keep authentic timing.
+- `host_ms` (L625) — Monotonic host milliseconds, used to timestamp CD read bursts.
+- `burst_note_sector` (L635) — Records one sector read in the burst log, starting a new burst after a gap.
+- `cdrom_get_bursts` (L656) — Copy out the most recent 'max' bursts, newest first.
+- `cdrom_get_burst_total` (L665) — Returns the total number of CD read bursts recorded.
+- `sector_delay_cycles` (L667) — Cycles between sector deliveries: half the 1x period at double speed, passed through the speed setting.
+- `initial_read_delay_cycles` (L676) — Cycles before the first sector after a read command starts, with the same speed rules.
+- `seek_complete_delay_cycles` (L686) — Cycles a seek takes to complete: about four sector periods for a far seek, a short fixed delay when near.
+- `cycles_until_due` (L706) — Guest cycles left until a due time; 0 if it has passed, capped to a 31-bit value.
+- `pending_rem_cycles` (L712) — Cycles left until the pending command response is due, or 0 when nothing is pending.
+- `irq_present_rem_cycles` (L717) — Cycles left until the pending interrupt is presented to the CPU.
+- `pending_arm` (L721) — Schedules a pending command response to come due after a latency, counted from now.
+- `seek_in_flight` (L731) — SeekL/SeekP armed: the drive is moving the head (phase 2 = a Setloc retargeted it mid-seek, see process_pending).
+- `cmd_leaves_drive_alone` (L737) — Commands that neither move the drive nor arm a second response.
+- `pending_set_remaining` (L747) — Sets the pending response to come due after the given cycles, or clears it when nothing is pending.
+- `irq_present_set_remaining` (L756) — Sets the interrupt presentation to come due after the given cycles, or clears it when none remain.
+- `update_last_valid_subq` (L794) — Reads a sector's subchannel data and keeps it as the last valid one when it is valid.
+- `trace_cdrom` (L806) — Records one register access (kind, address, value and width) in the CD-ROM trace ring.
+- `record_command_history` (L837) — Records a command and its parameters in the command history ring.
+- `xa_is_audio_realtime` (L882) — Returns true when a sector is XA audio in realtime mode (Mode 2 with audio and realtime submode bits).
+- `classify_raw_sector` (L889) — Reads the mode and XA submode of a raw sector and returns its delivery classification.
+- `record_sector_history` (L904) — Records a delivered sector (LBA, size, mode and classification) in the sector history ring.
+- `has_disc` (L934) — Returns true when media is in the drive and the lid is closed.
+- `response_clear` (L955) — Empties the response FIFO.
+- `response_push` (L960) — Adds one byte to the response FIFO if it has room.
+- `set_irq` (L966) — Sets the CD interrupt type and starts a new interrupt generation to be presented to the CPU.
+- `present_lid_open_irq_if_ready` (L986) — Presents the pending lid-open interrupt once the previous interrupt has been acknowledged.
+- `process_lid_state` (L999) — Presents a pending lid interrupt and closes the lid once its delay has passed.
+- `present_cdrom_irq` (L1022) — Present the current CD INT to the CPU interrupt controller exactly once per generation.
+- `fire_cdrom_irq` (L1043) — Fire CDROM IRQ into the interrupt controller (explicit, per command/response).
+- `refresh_cdrom_irq_line` (L1050) — Re-presents the CD interrupt line to the interrupt controller.
+- `bcd_to_bin` (L1054) — Converts a BCD byte to a plain number.
+- `msf_to_lba` (L1058) — Converts minutes, seconds and frames to a sector number (LBA), removing the 150-frame lead-in.
+- `cd_timing_lookup` (L1062) — Finds a timing record by sequence number, or NULL if it has been overwritten.
+- `cd_timing_begin_sector` (L1069) — Starts a timing record for a sector read and returns its sequence number.
+- `cd_timing_flag` (L1081) — Adds flags to a timing record found by sequence number.
+- `cd_timing_arm_irq` (L1086) — Marks a timing record as having its interrupt armed now.
+- `cd_timing_note_intc` (L1094) — Marks the latest armed interrupt as presented to the interrupt controller, once.
+- `cdrom_timing_reset` (L1101) — Passive physical-deadline -> buffer -> INT1 exposure telemetry (L1.5).
+- `cdrom_timing_total` (L1112) — Returns the total number of timing records made.
+- `cdrom_timing_record` (L1114) — Copies one timing record into the public struct; returns 0 if it is no longer kept.
+- `cdrom_timing_stats_json` (L1128) — Writes timing statistics as JSON into a buffer, including how many records were dropped.
+- `bin_to_bcd` (L1230) — Converts a number from 0 to 99 to BCD.
+- `lba_to_msf` (L1234) — Converts a sector number to minutes, seconds and frames, adding the pregap.
+- `clamp16_cd` (L1243) — Clamps a 32-bit audio value to the 16-bit range.
+- `xa_reset_decode` (L1249) — Clears the XA audio decoder history and stream selection.
+- `cd_apply_decode_volume` (L1268) — Applies the CD-audio left and right volume matrix to a block of stereo samples in place.
+- `xa_decode_sector_4bit_stereo` (L1283) — Decodes one XA-ADPCM sector of 4-bit stereo audio into 16-bit samples.
+- `xa_decode_sector_4bit_mono` (L1328) — Decodes one XA-ADPCM sector of 4-bit mono audio into 16-bit samples.
+- `xa_resample_to_44100` (L1366) — Resamples decoded XA audio to 44100 Hz and returns how many frames were produced.
+- `xa_zero_scan` (L1398) — Always-on XA zero-run scanner (audio_trace event ring).
+- `maybe_deliver_xa_audio` (L1417) — Sends a realtime XA audio sector to the audio output when XA is on and not muted.
+- `read_sector_at` (L1474) — Reads the sector at a minute, second and frame address into the buffers and returns its delivery info.
+- `advance_msf` (L1581) — Moves a minute, second and frame address forward by one sector.
+- `clear_sector_buffer` (L1587) — Empties the data FIFO and clears all sector buffers.
+- `cdrom_clear_pending_dataready` (L1626) — Drive-state changes (Read/Play/Pause/Stop/Seek) cancel a pended notification, matching Beetle's ClearAIP in every such command.
+- `read_continues_current_stream` (L1653) — A Read issued while the drive is ALREADY streaming the very sector the pending Setloc names is not a new read -- it is the game saying "keep going".
+- `read_seek_landed` (L1664) — A read's first sector arrived: ends its seek, so the status says Read instead of Seek and GetlocL has a header again.
+- `stop_cdda_playback` (L1670) — Stops CD-DA playback and leaves the head (read_*) where the music stopped.
+- `start_read_stream` (L1681) — Starts a data read stream after a read command, resetting CD-DA playback and read timing.
+- `stop_read_stream` (L1747) — Stops the data read stream and its timing.
+- `deliver_cdda_data_end` (L1756) — Sends the pending CD-DA end response once the interrupt line is clear.
+- `deliver_xa_data_end` (L1765) — Sends the pending XA end response once the interrupt line is clear.
+- `deliver_cdda_report` (L1782) — CD-DA position reports (Setmode bit2), psx-spx "Command 03h - Play": INT1(stat, track, index, mm/amm, ss+80h/ass, sect/asect, peaklo, peakhi) on every 10th frame of absolute time — asect BCD 00/20/40/
+- `cdda_track_for_lba` (L1822) — Returns the audio track that contains a sector, or 0 if none does.
+- `cdda_track_end_lba` (L1832) — Returns the sector where a track ends: the next track's start, or the end of the disc.
+- `start_cdda_playback` (L1839) — Starts CD-DA playback from a requested track, or from the current position.
+- `process_cdda_stream` (L1872) — Advances CD-DA playback by the elapsed cycles, sending timed reports and the end response.
+- `data_fifo_ready` (L1930) — Returns 1 when the CPU has requested data and data is available, counting starved moments.
+- `cdrom_get_dataready_fires` (L1936) — static uint64_t s_dataready_fires; /* INT1 (data-ready) raised per streamed sector — FMV dispatch probe
+- `deliver_read_sector` (L1938) — Reads the next sector of the data stream into the buffers, advances the position and raises the data-ready interrupt.
+- `deliver_read_sector_without_irq` (L1968) — A continuing DMA needs the newly filled slot immediately.
+- `cd_bisect_cmd_log` (L1982) — §93 P1: cmd timeline under PSX_RB_CD_BISECT (window via netplay).
+- `try_execute_queued_command` (L2055) — Runs a queued command once the interrupt line is clear.
+- `queue_or_exec_command` (L2074) — Runs a command now if the interrupt line is clear, otherwise queues it.
+- `pause_complete_delay_cycles` (L2108) — Pause (0x09) completion latency — Beetle PS_CDC::Command_Pause.
+- `reject_audio_disc_data_read` (L2127) — Audio-only media cannot satisfy a data read.
+- `exec_command` (L2138) — Runs one CD-ROM controller command, setting its response and timing; the core of the command dispatcher.
+- `process_pending` (L2667) — Completes a pending command response once its due cycle has passed.
+- `warm_route_consumer_blocked` (L2774) — Route-only HLE producer/consumer handshake.
+- `authentic_sector_period` (L2815) — Returns the sector period at the real drive speed, halved in double-speed mode.
+- `accelerated_read_active` (L2820) — Returns 1 when reads run faster than the real drive speed, not during XA or filter modes.
+- `accelerated_consumer_blocked` (L2825) — Returns 1 when an accelerated read must wait for the CPU to take the last sector or interrupt.
+- `process_read_stream` (L2832) — Advances the data read stream by the elapsed cycles, delivering sectors when due and waiting for the CPU when it is behind.
+- `present_pending_dataready` (L2917) — Present a pended data-ready INT1 the moment the guest fully acks the previous INT (Beetle CheckAIP: async results present as soon as the IRQ register clears).
+- `cdrom_init` (L2933) — Starts the CD-ROM controller: clears its FIFOs and buffers, then mounts the disc image from the cue path.
+- `cdrom_has_disc` (L3027) — Did cdrom_init() actually mount an image?
+- `cdrom_read` (L3031) — MMIO read/write (0x1F801800-0x1F801803)
+- `cdrom_write` (L3081) — Handles a CPU write to the CD-ROM registers, tracing it and dispatching by register and index.
+- `cdrom_cycles_to_irq` (L3170) — Cycle-budgeted precise event slicing: guest CPU cycles until the CD-ROM raises a DELIVERABLE IRQ (bit2 unmasked in i_mask).
+- `cdrom_advance` (L3202) — Advance CD-ROM state machine by guest CPU cycles.
+- `cdrom_tick` (L3225) — Legacy frame-paced entry point for interpreter/oracle builds.
+- `cdrom_dma_read` (L3229) — DMA channel 3 interface
+- `cdrom_dma_ready` (L3241) — Returns 1 when DMA can take data now, first loading any announced sector into the FIFO.
+- `cdrom_dma_sector_word_count` (L3250) — Returns the word count for a CD DMA transfer, using one sector's size when the count is zero.
+- `cdrom_debug_snapshot` (L3263) — Copies the controller's registers and state into a debug struct.
+- `cdrom_debug_get_trace` (L3318) — Returns the register trace ring and its total count.
+- `cdrom_debug_clear_trace` (L3323) — Clears the register trace ring.
+- `cdrom_debug_get_command_history` (L3328) — Returns the command history ring and its total count.
+- `cdrom_debug_clear_command_history` (L3333) — Clears the command history ring.
+- `cdrom_debug_get_sector_history` (L3338) — Returns the sector history ring and its total count.
+- `cdrom_debug_clear_sector_history` (L3343) — Clears the sector history ring.
+- `cdrom_debug_copy_last_sector` (L3348) — Copies part of the last sector read into a buffer and fills in its debug state.
+- `cdrom_load_in_progress` (L3377) — Load-in-progress predicate for turbo-through-loads (step 4).
+- `cdrom_data_read_active` (L3388) — Physical non-XA data-read command state, without the logical load gap bridge used by cdrom_load_in_progress().
+- `cdrom_apply_savestate_delay_caps` (L3401) — Limits long pending and interrupt delays after a savestate load so the game does not stall.
+- `cdrom_accelerate_after_savestate` (L3426) — After savestate restore: clamp long CD second-response / read-start delays and arm a short boost window so post-load ReadTOC/seek/Init waits do not freeze the picture for ~1s+.
+- `cdrom_savestate_boost_vblank` (L3437) — Call once per host vblank while the boost window is armed.
+- `cdrom_savestate_cd_wait_active` (L3443) — Non-zero while boost is armed AND a CD wait is outstanding (pending second response or non-XA read).
+- `cdrom_savestate_boost_vblanks_remaining` (L3450) — Remaining boost vblanks (0 when idle).
+- `cdrom_snap_emit` (L3464) — Writes the CD-ROM controller state into a snapshot writer, in the legacy or extended layout.
+- `cdrom_snap_parse` (L3542) — Reads the CD-ROM controller state from a snapshot reader, in the legacy or extended layout.
+- `cdrom_snapshot_level_bytes` (L3636) — Returns the wire size of the snapshot layout at a given level (0 = legacy, CDROM_SNAP_LEVEL_CURRENT = newest).
+- `cdrom_snapshot_level` (L3643) — Maps a snapshot block length to its layout level; -1 when no level has that size.
+- `cdrom_snapshot_legacy_bytes` (L3649) — Returns the size of the legacy snapshot layout.
+- `cdrom_snapshot_fifos_ok` (L3655) — The parameter and response FIFO cursors index param_fifo / response_fifo; every layout starts with the legacy prefix, so this applies to all of them.
+- `cdrom_snapshot_validate` (L3665) — Checks that a snapshot block has a length matching the legacy or current layout.
+- `cdrom_snapshot_prepare_disc` (L3711) — A state taken on another disc of the roster: open that disc's image now, while the load can still be refused, so applying it cannot fail.
+- `cdrom_snapshot_drop_prepared` (L3724) — Close a disc image opened for a state that was then refused.
+- `cdrom_snapshot_disc_matches` (L3734) — 0 when the state was taken on another disc of this game's roster than the one mounted now: its LBAs, TOC and file table belong to that other disc.
+- `cdrom_snapshot_bytes` (L3741) — boot_state / netplay digest — full controller FSM (sector FIFOs included).
+- `cdrom_snapshot_write` (L3744) — Writes the current CD-ROM snapshot block into a buffer.
+- `cdrom_snapshot_read` (L3750) — Reads a CD-ROM snapshot block, checking its length first; returns 1 on success.
+- `begin_tray_open_cycle` (L3783) — Open the tray: stop every transfer in flight, hide the media, and arm the timed close.
+- `debug_force_cd_reinsert` (L3799) — Simulates a disc swap by opening the tray, which hides the media until the timed close. — Notify the guest that the mounted disc was reinserted.
+- `cdrom_disc_roster_set` (L3803) — Sets the list of disc image paths the player can switch between, and which one is selected.
+- `cdrom_disc_roster_count` (L3823) — Returns how many discs are in the roster.
+- `cdrom_mounted_sector_count` (L3825) — TOC of the image currently mounted; 0 when the drive is empty.
+- `cdrom_mounted_track_count` (L3829) — Returns the number of tracks in the mounted image, 0 when the drive is empty.
+- `cdrom_disc_selected` (L3833) — Returns the 1-based number of the selected disc.
+- `cdrom_disc_roster_path` (L3835) — Returns the path of a disc in the roster by 1-based index, or NULL if out of range.
+- `swap_image` (L3853) — Change the mounted image mid-session, the way a player changes a disc.
+- `cdrom_disc_select` (L3871) — Change the mounted image mid-session, the way a player changes a disc.
+- `cdrom_disc_mount_quiet` (L3902) — The same image swap without the lid: no ShellOpen, no 2 s wait, transfers and position kept.
+- `cdrom_disc_set_pending_quiet` (L3913) — Mount disc N quietly right before the next command that positions the drive (Setloc, Play, ReadN, ReadS, SeekL, SeekP); 0 cancels.
+- `cdrom_disc_pending_quiet` (L3918) — Disc waiting to be mounted quietly before the next positioning command, 0 none.
 
 ### runtime/src/cdrom_irq.h
 
@@ -5826,26 +5826,26 @@ Disc image reader for BIN/CUE and CHD images: opens the image, reads data and ra
 - `ISOReader::Close` (L496) — Closes the image file or CHD and clears the tracks, spans and open state.
 - `ISOReader::LoadSBICompanion` (L515) — Loads a matching .sbi subchannel patch file next to the image when one exists; also returns true when none exists.
 - `ISOReader::ReadSubChannelQ` (L554) — Fills the subchannel Q data for an LBA, using replacements from the SBI file first; valid says whether the data is real.
-- `ISOReader::SpanForLBA` (L588) — Returns the data span that contains lba, or nullptr; a linear scan over the spans.
-- `ISOReader::ReadSector` (L599) — Reads one 2048-byte data sector at lba into buffer, from CHD or the BIN file; returns false on failure.
-- `ISOReader::ReadRawSector` (L664) — Reads one full 2352-byte raw sector at lba into buffer; returns false on failure.
-- `ISOReader::IsOpen` (L702) — True when an image is open.
-- `ISOReader::GetVolumeID` (L706) — Returns the volume identifier from the disc's primary volume descriptor.
-- `ISOReader::GetBinPath` (L710) — Returns the path of the image that was opened.
-- `ISOReader::GetSectorCount` (L714) — Returns the number of sectors on the disc, or 0 when no image is open.
-- `ISOReader::TrackCount` (L722) — Returns how many tracks the disc has.
-- `ISOReader::TrackStartLBA` (L726) — Returns the start LBA of a track number, or 0 when that track does not exist.
-- `ISOReader::TrackPregapLBA` (L733) — Returns the pregap LBA of a track number, or 0 when that track does not exist.
-- `ISOReader::TrackIsAudio` (L740) — True when the given track number is an audio track.
-- `ISOReader::GetRootDirectory` (L747) — Returns the location and size of the root directory.
-- `ISOReader::Read733` (L751) — Reads the little-endian half of a both-endian 32-bit field.
-- `ISOReader::ParseVolumeDescriptor` (L756) — Reads the primary volume descriptor at sector 16 and stores the volume ID and root directory; returns false when it is missing.
-- `ISOReader::ParseDirectoryRecord` (L789) — Parses one ISO 9660 directory record into a file entry; returns false for an invalid or padding record.
-- `ISOReader::ListFilesByLBA` (L838) — Lists the files of the directory at the given LBA and size; empty when the image is closed or the arguments are invalid.
-- `ISOReader::ListFiles` (L890) — Lists the files in a directory path on the disc.
-- `ISOReader::FindFile` (L927) — Looks up a file path on the disc and fills entry; returns false when it is not found.
-- `ISOReader::ReadFile` (L986) — Reads a file's contents into buffer, up to max_size bytes; returns the number of bytes read.
-- `ISOReader::GetFileSize` (L1025) — Returns the size in bytes of a file on the disc, or 0 when it is not found.
+- `ISOReader::SpanForLBA` (L593) — Returns the data span that contains lba, or nullptr; a linear scan over the spans.
+- `ISOReader::ReadSector` (L604) — Reads one 2048-byte data sector at lba into buffer, from CHD or the BIN file; returns false on failure.
+- `ISOReader::ReadRawSector` (L669) — Reads one full 2352-byte raw sector at lba into buffer; returns false on failure.
+- `ISOReader::IsOpen` (L707) — True when an image is open.
+- `ISOReader::GetVolumeID` (L711) — Returns the volume identifier from the disc's primary volume descriptor.
+- `ISOReader::GetBinPath` (L715) — Returns the path of the image that was opened.
+- `ISOReader::GetSectorCount` (L719) — Returns the number of sectors on the disc, or 0 when no image is open.
+- `ISOReader::TrackCount` (L727) — Returns how many tracks the disc has.
+- `ISOReader::TrackStartLBA` (L731) — Returns the start LBA of a track number, or 0 when that track does not exist.
+- `ISOReader::TrackPregapLBA` (L738) — Returns the pregap LBA of a track number, or 0 when that track does not exist.
+- `ISOReader::TrackIsAudio` (L745) — True when the given track number is an audio track.
+- `ISOReader::GetRootDirectory` (L752) — Returns the location and size of the root directory.
+- `ISOReader::Read733` (L756) — Reads the little-endian half of a both-endian 32-bit field.
+- `ISOReader::ParseVolumeDescriptor` (L761) — Reads the primary volume descriptor at sector 16 and stores the volume ID and root directory; returns false when it is missing.
+- `ISOReader::ParseDirectoryRecord` (L794) — Parses one ISO 9660 directory record into a file entry; returns false for an invalid or padding record.
+- `ISOReader::ListFilesByLBA` (L843) — Lists the files of the directory at the given LBA and size; empty when the image is closed or the arguments are invalid.
+- `ISOReader::ListFiles` (L895) — Lists the files in a directory path on the disc.
+- `ISOReader::FindFile` (L932) — Looks up a file path on the disc and fills entry; returns false when it is not found.
+- `ISOReader::ReadFile` (L991) — Reads a file's contents into buffer, up to max_size bytes; returns the number of bytes read.
+- `ISOReader::GetFileSize` (L1030) — Returns the size in bytes of a file on the disc, or 0 when it is not found.
 
 ### runtime/src/iso_reader_c.cpp
 

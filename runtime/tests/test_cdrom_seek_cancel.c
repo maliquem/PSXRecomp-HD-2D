@@ -29,7 +29,8 @@ int main(void) {
             clear_irq();
             if (neutral[n] == 0x0E) { param_fifo[0] = 0x80; param_count = 1; }
             exec_command(neutral[n]);   /* lands before the seek deadline */
-            SEEK_CHECK(irq_flag == CDIRQ_ACK);
+            /* GetlocL answers INT5 80h while seeking (psx-spx); the seek still lands. */
+            SEEK_CHECK(irq_flag == (neutral[n] == 0x10 ? CDIRQ_ERROR : CDIRQ_ACK));
             if (neutral[n] == 0x01) SEEK_CHECK(response_fifo[0] & CDSTAT_SEEK);
             clear_irq();
             run_past_deadline();
