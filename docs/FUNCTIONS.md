@@ -4352,628 +4352,628 @@ Hardware OpenGL renderer backend that keeps PS1 VRAM on the GPU and draws, masks
 - `post_fullscreen` (L2878) — One full-target triangle with prog (PRESENT_VS).
 - `post_aa_release` (L2885) — Forgets the shared post-process copy texture and its size.
 - `gl_renderer_post_aa_gpu_us` (L2892) — Mean microseconds per pass since the last call (debug builds with PSX_POST_AA_TIME=N; 0 otherwise).
-- `compile_shader` (L3634) — Compiles one GLSL shader of the given type from source; returns its name, or 0 on failure.
-- `build_program_ex` (L3644) — Compiles a vertex and a fragment shader and links them into a program; dual_source selects dual-source blending. Returns 0 on failure.
-- `build_program` (L3660) — Builds a program from vertex and fragment sources without dual-source blending.
-- `tex_prog_build` (L3677) — Builds the textured fragment program for a filter mask, stripping the version line from the shared source.
-- `tf_mask_now` (L3690) — The samplers the classes use now (gl_texfilter.inc's TFM_*).
-- `tex_prog_copy_uniforms` (L3711) — Every uniform of 'from' (TEX_FS has scalars and samplers only) into 'to'.
-- `tex_prog_switch` (L3727) — Switches the textured draw program to the variant for mask, remembering the mask so a failed build is not retried on every flush.
-- `conv_1555_to_rgba8` (L3757) — ---- pixel conversion (PS1 1555: bit15=mask, B[14:10] G[9:5] R[4:0]) ----
-- `mask_stencil_ex` (L3770) — ---- mask-bit stencil --------------------------------------------------- * Stencil bit0 mirrors bit15 of every pixel.
-- `mask_stencil` (L3781) — Writes the stencil mask-bit value using the current mask-check setting.
-- `plain_stencil` (L3783) — Like mask_stencil but never checks (uploads: gpu.c already applied mask).
-- `apply_psx_blend` (L3793) — PS1 semi-transparency as fixed-function blending, RGB only — the alpha channel (mask bit) is always replaced by the source fragment's alpha.
-- `hr_begin` (L3824) — ---- hr FBO render-state bracket ----------------------------------------
-- `hr_end` (L3842) — Ends the high-resolution render-state bracket: disables blending and resets the blend equation to the default.
-- `pgxp_depth_tol` (L3875) — Returns the relative depth bias for the PGXP depth test, read once from PSX_PGXP_DEPTH_TOL (default 0.02).
-- `depth_apply_ex` (L3884) — Turns on depth testing for the given mode (0 leaves it off), with a mode-specific depth function for textured or flat draws.
-- `depth_restore_ex` (L3913) — After the colour pass of mode 1: the depth-only pass (n vertices of the bound buffer), then back to the default state.
-- `flush_cpu_upload` (L3925) — ---- coherency: CPU -> GPU upload flush --------------------------------- CPU-side VRAM writes (GP0 A0 transfers, DMA, single pixel pokes) land in the CPU array immediately and accumulate s_up_rects.
-- `rebuild_target_stencil` (L4009) — Recreate one target's stencil mask from its authoritative alpha channel.
-- `stage_tex_grow` (L4052) — Grow a staging texture to at least w x h (never shrinks).
-- `scratch_ensure` (L4088) — Makes the copy and stencil scratch texture at least w by h; returns 0 when it cannot be allocated.
-- `rebuild_target_stencil_tiled` (L4097) — Rebuild the stencil mask of [x, x+w) x [y, y+h) (target px) from alpha, in tiles no larger than GL_SCRATCH_TILE so the scratch never has to match a multi-gigapixel surface.
-- `rebuild_mask_stencils` (L4146) — Rebuilds the whole-surface stencil mask from alpha when it is stale, after flushing the wide queue.
-- `wst_rebuild_rect` (L4195) — Rebuild surface i's stale stencil rect (S > 1).
-- `wst_rebuild` (L4203) — Rebuilds the stale stencil rectangle of wide surface i, or defers it when defer is set, within the canonical columns.
-- `wide_stencil_ready` (L4227) — Before a mirror draw into the current wide surface: under the mask check with the centre splice off, the stencil it tests must be current everywhere, including a centre part a rebuild left stale.
-- `hiw_on` (L4237) — ---- windowed high-resolution surface: mirror plumbing ------------------
-- `hiw_tile_holding` (L4240) — The first tile that holds all of [x0, x1), or NULL.
-- `hiw_clear_rect` (L4248) — Scissored clear of [x, x+w) x [y, y+h) (native) in every tile it touches.
-- `hiw_blit_begin` (L4270) — Bind the hi blit program for tile T: projection and shift set, the source texture on unit 0.
-- `blit_quad_verts` (L4291) — Fills six vertices (two triangles) covering the rectangle x, y, w, h for a quad draw.
-- `hiw_mirror_uploads` (L4302) — CPU->VRAM uploads into the tiles: the same staged native texels (s_up_tex, VRAM-aligned) drawn at S, texel = frag/S + tile origin.
-- `hiw_mirror_copy_chunk` (L4331) — Copies one chunk of a VRAM-to-VRAM copy (columns a to b, shifted, from row sy) into the high-resolution tiles, staging through a scratch texture.
-- `hiw_mirror_copy` (L4399) — VRAM->VRAM copy into the tiles.
-- `hiw_tile_bytes` (L4419) — Returns the GPU memory a window tile spanning columns x0 to x1 takes at the output scale.
-- `hiw_alloc_tile` (L4430) — Allocate a tile over [nx0, nx1) (64-aligned) and release the tiles in 'drop' (a bitmask of indices).
-- `hiw_ensure` (L4504) — The tile holding columns [x0, x1), created or grown on first sight: 1.
-- `raw_upload_pbo_on` (L4555) — Returns whether pixel-buffer uploads are used, from the PSX_GL_PBO_UPLOAD environment variable, read once.
-- `pack_flush` (L4565) — Pushes the dirty native VRAM region into the raw texture mirror before textured draws sample it; skipped when nothing is dirty or the raster is not ready.
-- `flush_pack_if_sampling` (L4628) — Make sure the raw mirror is current for a textured draw that samples the given texture page / CLUT.
-- `cpu_vram_authoritative` (L4652) — static DirtyRect s_d24_skip_fb; /* union of skipped MDEC FB rects (VRAM halfwords)
-- `ensure_cpu` (L4656) — Brings the CPU VRAM copy up to date by reading back the GPU framebuffer, when it is marked dirty and the raster is ready (netplay-aware).
-- `mark_prim_dirty` (L4699) — static uint64_t s_scene_prims = 0; /* frame_perf: scene primitives submitted (pre double-draw) static uint64_t s_scene_prims_tex = 0; /* frame_perf: of which textured (vs flat geometry)
-- `wide_band_rows` (L4753) — ---- native-wide mirror pass plumbing ----------------------------------- * Re-issue an already-set-up draw (program/VAO/VBO/blend/stencil bound) into the active wide surface.
-- `wide_band_scissor_x` (L4765) — Sets the scissor to the display band rows across columns x to x+w (scaled) for drawing into the wide surface.
-- `wide_band_scissor` (L4771) — Sets the scissor to the display band across the full wide width.
-- `wide_target_begin` (L4773) — Binds the wide surface for drawing and sets its shader offset and half-width uniforms for a mirror draw shifted by dx.
-- `wide_target_end` (L4793) — Restores the shader offset and shift uniforms after a wide-surface mirror draw.
-- `bd_prim_gate` (L4807) — Per-prim gate: stretch this prim iff native-wide + feature on AND the prim's source address is inside the flower-field backdrop data structure (precise — excludes the 3D rock/foreground, which is unta
-- `gl_renderer_set_wide_fast` (L4845) — Select full native-wide mirror rendering instead of the centre-splice fast path.
-- `gl_renderer_get_wide_fast` (L4847) — Returns whether full native-wide mirror rendering is selected, rather than the centre fast path.
-- `pgxp_render_wanted_update` (L4854) — PGXP renderer features (G1.14).
-- `gl_renderer_pgxp_render_wanted` (L4861) — PGXP renderer features (docs/ENHANCEMENTS.md G1.14), all off by default: depth buffer for opaque 3D polygons, perspective-correct Gouraud colour, seam expansion (0 off, 1 = 1 output px above 1x, 2 = 0
-- `gl_renderer_set_pgxp_depth` (L4864) — Turns the PGXP depth buffer for opaque 3D polygons on or off, requesting a depth clear and updating the render flag.
-- `gl_renderer_get_pgxp_depth` (L4871) — Returns whether the PGXP depth buffer is enabled.
-- `gl_renderer_set_pgxp_color_perspective` (L4872) — Turns perspective-correct Gouraud colour on or off and updates the PGXP render flag.
-- `gl_renderer_get_pgxp_color_perspective` (L4877) — Returns whether perspective-correct Gouraud colour is enabled.
-- `gl_renderer_set_pgxp_seam` (L4878) — Sets the seam expansion mode, clamped to 0 to 2, and updates the PGXP render flag.
-- `gl_renderer_get_pgxp_seam` (L4883) — Returns the current seam expansion mode.
-- `gl_renderer_set_pgxp_depth_threshold` (L4884) — Stores the average SZ jump threshold that triggers a PGXP depth clear.
-- `gl_renderer_set_pgxp_depth_tolerance` (L4886) — Relative near bias of the PGXP depth test (0..0.5); 0 = per-triangle LEQUAL.
-- `gl_renderer_pgxp_depth_clear_reasons` (L4889) — Cumulative depth clears by cause: config, drawing-area change, fill, average-SZ jump-back threshold, displayed frame.
-- `gl_renderer_pgxp_render_stats` (L4893) — Returns the cumulative depth-tested triangle, depth clear and seam triangle counts through the given pointers.
-- `wide_fast_center_valid` (L4900) — Returns whether the centre fast path can stand in for the full wide composite; false for scenes with an explicitly stretched sky or backdrop.
-- `wide_center_is_canonical` (L4915) — The one predicate for "the wide surface's centre columns [g_wide_off, g_wide_off+native_w) are the canonical framebuffer, unshifted".
-- `wide_note_native_rows` (L4919) — Adds rows sy..sy+sh-1 of g_wide_cur to s_wnat_* (drawn whole, centre included) unless the centre is the canonical blit; wide_blit_center clears them.
-- `wide_center_marks_hr` (L4928) — The shown band's centre marks are hr's: the centre is the canonical blit, or (no camera view) the blit still, no row of the band drawn whole since.
-- `wide_center_marks_from_hr` (L4942) — The present (real or generated frame) reads the 16:9 centre's marks from hr: while the centre is canonical, or a centre-only mirror was skipped in the last four presents (no effect blink when the splice turns off).
-- `mirror_x_center_only` (L4947) — static void wide_blit_center(GLuint wide_fbo, int base_x, int disp_y, int disp_h); /* def below True if [lo,hi] (canonical draw-x) lies strictly inside the 4:3 frame, so the prim adds nothing to eithe
-- `mirror_gate_clipped` (L4959) — A primitive the title cut at the 4:3 picture's edges (GPU_WS_WIDE_PRIM_CLIP, gate 5): its centre comes from the canonical blit, so not drawing its wide mirror leaves out exactly what it puts in the re
-- `mirror_geo_center_only` (L4966) — (Not canonical: the wide surface is drawn whole, and wide_target_begin cuts a gate-5 mirror to the 4:3 columns with the scissor.)
-- `wide_bd_scale` (L4976) — The 2D-backdrop x-stretch for a wide-mirror draw under gate 'gate'.
-- `emit_wide_scale` (L4986) — A glowing piece's x stretch where the wide view draws it (sc_add_emit): a backdrop stretched as one picture (gate kinds 1 and 4) about the centre; 1 for the rest.
-- `wide_bd_scale_of` (L4992) — Computes the backdrop x-stretch scale and centre for a wide-mirror draw under the gate, writing them to the outputs (1 and 0 when not stretched).
-- `wide_set_bd_scale` (L5021) — Set / clear the 2D-backdrop x-stretch for a wide-mirror draw, per the current gate (s_bd_gate, set by the caller from bd_prim_gate / the batch gate).
-- `wide_clear_bd_scale` (L5027) — Resets the backdrop stretch uniforms to no stretch (scale 1, centre 0).
-- `nd_axis_apart` (L5054) — Tests whether two triangles projected on the axis (nx, ny) are separated by a gap; returns 1 when they are.
-- `nd_tris_overlap` (L5065) — Two triangles overlap with some area (separating axes: the six edge normals).
-- `gl_renderer_clear_hd_texture_cache` (L5096) — Empties the HD texture cache once the render thread is idle, releasing its GL textures.
-- `gl_renderer_hd_texture_cached` (L5108) — Looks up an HD texture by key and generation; returns 1 with its size when it is cached, else 0.
-- `hd_gl_texture` (L5118) — Returns the GL texture for an HD texture image, reusing a cached one or filling a free cache slot.
-- `bind_textured_resources` (L5172) — Binds the VRAM source, palette and HD textures to texture units 0, 1 and the next unit, and sets their sampler uniforms.
-- `gl_renderer_set_texture_window_batching` (L5200) — Texture-window batching ([video] texture_window_batching; default off).
-- `gl_renderer_get_texture_window_batching` (L5202) — Returns whether texture-window batching is on.
-- `gl_renderer_batch_diag` (L5204) — Cumulative textured-batch diagnostics: total, then flushes caused by isolation, blend-mode, mask, filter, backdrop-gate, texture-window, capacity.
-- `bcls_begin` (L5249) — No glGet here: on a threaded driver every query is a round trip, and these run per batch.
-- `bcls_pass` (L5264) — pass 2: clear the bit under every covered pixel; pass 1 (glow) or 3 (3D): set it on that mark's sources; pass 4: set the cover bit under see-through fragments; pass 5: the 3D mark on every fragment (a
-- `bcls_end_geo` (L5283) — Back to an untextured draw's state: its blend and mask-bit stencil.
-- `bcls_passes` (L5301) — Returns which marking passes (clear, set or both) a textured batch needs, from its semi-transparency and 3D flags.
-- `b3dm_passes` (L5310) — The 3D mark: opaque 2D clears it, 3D (opaque or not) sets it, see-through 2D leaves what is under it.
-- `marks_lean` (L5333) — static int s_marks_lean_env = -1; /* PSX_MARKS_LEAN: -1 unset static uint64_t s_mlean_n[2]; /* passes skipped, drawn
-- `gl_renderer_marks_lean` (L5341) — Lean marks: the marking passes a batch of known make can skip skipped and the surface marks a byte a pixel (pictures identical; less GPU work for a weak GPU).
-- `gl_renderer_marks_lean_force` (L5345) — Forces lean marks on or off for testing, overriding the environment setting.
-- `gl_renderer_marks_lean_counts` (L5346) — Returns how many clear and set marking passes lean marks skipped.
-- `b3dm_lean` (L5347) — Drops the 3D mark set pass when lean marks are on and the batch is not 3D, returning the reduced pass flags.
-- `bcls_lean` (L5356) — Drops the set pass for batches whose marks cannot matter while lean marks are on, returning the reduced pass flags.
-- `tex_opaque_blend` (L5412) — tb_mask / check are the batch's set-mask and the mask-check state it was drawn under; track_stencil lets the canonical pass record deferred stencil (a replay into the high-resolution window must not t
-- `tex_soft_alpha_pass` (L5433) — Without dual source: the mask bit of the soft-edged batch just drawn, into alpha only, from the same fragments (u_softok 3).
-- `tex_draw_passes_ex` (L5444) — Draws a textured batch in its passes, wrapped in GPU timing for the textured batch measurement.
-- `tex_draw_passes_ex_` (L5450) — Draws the passes of a textured batch: sets the semi-transparency mode and draws the triangles for each pass.
-- `tex_batch_draw_passes` (L5534) — Draws the queued textured batch with its current mask, check and 3D settings, tracking stencil.
-- `cw_ms` (L5545) — ---- frame_perf CPU attribution (native-wide wedge hunt) ----------------- * Per-frame CPU wall time spent inside the GL submission paths (driver CPU cost surfaces INSIDE our gl* calls) + counters for
-- `mirror_batch_center_only` (L5560) — Textured-batch variant of mirror_x_center_only: scan the queued verts' x (attr 0, stride TEXV).
-- `hiw_enqueue` (L5628) — Appends a command of nverts vertices to the high-resolution window's queue, growing it as needed, and returns the new entry.
-- `hiw_area_touches` (L5660) — The draw area intersects a tile at all (else nothing to mirror).
-- `hiw_wide_queue_ok` (L5669) — A draw's native-wide mirror goes in its queue entry when the window's queue is live and the mirror is not being ablated (a perf probe).
-- `wide_queue_live` (L5673) — static int s_wide_queue = -1; /* PSX_GL_WIDE_QUEUE (default on)
-- `hiw_wide_set` (L5681) — Stores the wide surface, its shift and backdrop stretch in a queued command so it can be replayed later.
-- `hiw_enqueue_tex` (L5706) — Queue a textured batch for the window, and its native-wide mirror when 'mirror' (gate: its backdrop-stretch gate).
-- `hiw_enqueue_geo` (L5722) — Queues a flat or shaded geometry batch for the window, with its native-wide mirror when it applies; returns 0 when nothing needs queuing.
-- `hiw_replay_wide` (L5738) — Replay the queued native-wide mirrors, in order, into their wide surfaces: the state wide_target_begin sets (full-width scissor, the draw area's rows, the S sample-grid shift) plus each entry's shift
-- `hiw_flush_queue` (L5812) — Replays and empties the queued high-resolution window commands, drawing native-wide mirrors and the window tiles.
-- `hiw_flush_tail` (L5885) — The native-wide mirrors (both modes), then the canonical projection back on both programs.
-- `flush_tex_batch_impl` (L5904) — Draws the pending textured batch: checks stencil readiness, draws its passes, then clears the batch.
-- `mirror_flat_batch_center_only` (L5992) — Returns 1 when the flat batch lies wholly inside the canonical centre columns, so its wide mirror can be skipped.
-- `flat_batch_draw_hr_lines` (L6006) — A batch holding windowed lines (nl > 0) on the 1x hr surface, in painter order as runs: triangles from s_fb, lines as GL_LINES from the s_fbl copy uploaded after the batch's nverts vertices.
-- `batch_site_note` (L6023) — Counts a flush of a non-empty batch against the source line that caused it, for the batch-site diagnostic.
-- `gl_renderer_batch_sites` (L6032) — Cumulative flushes of non-empty batches by caller source line in gpu_gl_renderer.c (kind 0 textured, 1 flat/gouraud).
-- `flush_flat_batch_impl` (L6042) — Draws the pending flat or shaded batch: checks stencil readiness, issues the draw, then clears the batch.
-- `line_to_quad` (L6108) — A PS1 line as a quad one NATIVE pixel thick (used at S > 1).
-- `pgxp_tri_is_3d` (L6143) — ---- PGXP depth buffer, perspective colour, seam expansion (G1.14) ------- A triangle is "3D" here when gpu.c proved all three vertices from GTE dataflow shadows: sub-pixel positions (s_pc_valid) and
-- `pgxp_tri_log` (L6147) — PSX_PGXP_TRI_LOG=<file> (diagnostic): while <file>.on exists, every triangle is logged (kind, depth mode, x y sz per vertex) and every depth clear as "C".
-- `pgxp_tri_log_tri` (L6156) — Writes one triangle record (kind, depth mode, semi flag and each vertex's position and SZ) to the PGXP triangle log.
-- `gl_renderer_set_pgxp_depth_near` (L6174) — static float s_pgxp_depth_near_title = 1024.0f; /* gl_renderer_set_pgxp_depth_near
-- `pgxp_tri_depth_mode` (L6179) — Returns the depth mode for a triangle: 0 for non-depth or semi-transparent ones, else the mode with the near threshold.
-- `pgxp_vertex_code` (L6190) — Per-vertex code the shaders decode: SZ (0 = none) plus 65536 when the vertex's Gouraud colour interpolates perspective-correct.
-- `depth_clear_now` (L6199) — The depth buffer is cleared (beyond every SZ, over the drawing area and the native-wide margins) by a colourless depth-only draw through the flat batch, so every surface a draw reaches (the hr surface
-- `depth_before_tri` (L6223) — Before a depth-tested triangle: clear when the drawing area changed since the last one (a new frame buffer) or after a fill, and, like DuckStation's PGXP depth clear threshold, when the average SZ jum
-- `pgxp_seam_width` (L6245) — Seam expansion of an opaque 3D triangle.
-- `seam_expand` (L6256) — Expands an opaque 3D triangle's vertices outward by e to close seams, filling B with the barycentric matrix; returns 0 when the triangle is degenerate or e is zero.
-- `seam_attr` (L6292) — Extrapolate n attributes (stride apart) of 3 vertices with B.
-- `seam_q` (L6310) — Applies the barycentric matrix B to the perspective values q of three vertices, keeping each value when the result is not positive.
-- `seam_sz` (L6315) — Applies the barycentric matrix B to the three vertex SZ depth values, keeping each one when the result is not positive.
-- `gpu_geometry` (L6327) — Queues a flat or shaded primitive of the given mode with n vertices into the flat batch, after draining pending textured and upload batches.
-- `flush_line_batch` (L6560) — Drain a pending native-wide line batch (gpu_geometry).
-- `gpu_triangle` (L6564) — Draws one flat or shaded triangle from three positions and colours, with its semi-transparency flag.
-- `gpu_line` (L6571) — Draws one line from two positions and colours as a geometry primitive.
-- `gpu_textured_triangle` (L6585) — Textured triangle. Always two passes split by the per-texel STP bit so the stencil (mask) write value is constant within each pass; the semi pass is also where PS1 blending applies.
-- `wide_flat_rect_direct` (L6817) — Draw a flat-colored rect (GEO program) DIRECTLY into the active wide surface at wide-space coords [wx, wx+ww) × [y, y+h).
-- `gpu_flat_rect` (L6851) — Draws a flat-colour rectangle; a full-screen overlay also covers the whole wide surface.
-- `gpu_textured_rect` (L6899) — Draws a textured rectangle from its screen rect, texture coordinates, CLUT position and texture page, with semi-transparency.
-- `fill_segment` (L6927) — GP0(02h) fill: writes color with bit15=0, ignoring draw area, mask and offset; coordinates wrap.
-- `gpu_fill` (L6938) — Fills a rectangle with a colour for GP0 fill after draining pending batches; the drawing area and mask are ignored.
-- `scopy_forget` (L6978) — Copies of the picture being drawn: where a GP0(80h) whose source overlaps the drawing area put it (inclusive VRAM rects).
-- `scopy_note` (L6988) — Records a VRAM copy from source (sx, sy) to destination (dx, dy) of size w by h, so later draws know whether they read a copied picture.
-- `scopy_holds` (L7006) — A 15-bit triangle's texels all inside one picture copy, or reaching into a picture itself: the drawing area, or one a frame's scenery was drawn into lately (a slot's area: the other buffer, the one sh
-- `gpu_copy_seg` (L7030) — VRAM->VRAM copy of a rect that wraps neither at its source nor at its destination: blit the source region to the scratch texture (resolves overlap), then draw it back at the destination through the BL
-- `wide_copy_margins` (L7102) — Native wide: a copy of the picture being drawn (its source rows in the drawing area) whose columns reach past the 4:3 picture's sides takes those columns from the wide surface's margins, the picture r
-- `gpu_copy_rect` (L7142) — GP0(80h): source and destination addresses wrap at 1024x512 on their own, per pixel (sw_copy_rect: (x + col) & 1023, (y + row) & 511).
-- `glb_init` (L7167) — ---- backend vtable wrappers -------------------------------------------
-- `glb_set_scale` (L7172) — Under GL the internal-resolution scale lives in the hr FBO; the CPU-side (software mirror, readbacks, screenshots) stays native, so the reported scale is 1 and the software hi-res mirror stays off.
-- `glb_scale` (L7180) — Returns the real internal supersampling scale of the renderer.
-- `lod_apply_uniforms` (L7185) — Sends the anisotropy setting to the textured program's u_aniso uniform, restoring the previously bound program.
-- `gl_renderer_set_texture_lod` (L7192) — [video] texture_lod / anisotropic_filtering: mip-level emulation (box average of the screen footprint, clamped to the primitive's UV bounds) for minified world textures, with up to 'aniso' taps along
-- `gl_renderer_texture_lod` (L7201) — Returns the texture LOD emulation setting.
-- `gl_renderer_anisotropy` (L7202) — Returns the anisotropic filtering tap count.
-- `accurate_apply_uniforms` (L7204) — Sends the accurate blending setting to the textured program's u_accurate uniform, restoring the previously bound program.
-- `gl_renderer_set_accurate_blending` (L7214) — [video] accurate_blending: store every VRAM write in the k*8/255 basis so 8-bit GL blending truncated to 5 bits is exactly the PS1's semi-transparency arithmetic (whites of fills and textures become 2
-- `gl_renderer_accurate_blending` (L7220) — Returns whether accurate blending is on.
-- `dither_apply_uniforms` (L7224) — Sends the dither mode to the geometry and textured programs' u_dither uniforms, restoring the previously bound program.
-- `glb_set_dither` (L7234) — GP0(E1h) bit 9: recorded; it is read when each primitive is queued.
-- `gl_renderer_set_dithering` (L7235) — [video] dithering: 1 (default) PS1 dither pattern on the native VRAM grid (guest VRAM identical at every internal scale), 2 elective pattern per internal-resolution pixel, 0 off (true colour).
-- `gl_renderer_dithering` (L7243) — Returns the dither mode: 0 off, 1 native pattern, 2 per internal-resolution pixel.
-- `glb_set_texture_filter` (L7244) — Stores the texture filter (out of range becomes 0), refreshes the filter state and passes it to the software rasterizer.
-- `glb_texture_filter` (L7249) — Returns the current texture filter.
-- `gl_renderer_set_texture_filter_class` (L7250) — Texture filters by class (video_texture_filter.h: PSX_TEXTURE_CLASS_* world, sprite, UI; PSX_TEXTURE_FILTER_*; PSX_TEXTURE_EDGE_*).
-- `gl_renderer_texture_filter_class` (L7257) — What class cls draws with now (its edge in *edge, may be NULL).
-- `gl_renderer_texture_filter_stats` (L7262) — Textured triangles drawn per class since start (a counter: read twice and subtract), and whether some class blends its edges now (*soft).
-- `glb_set_semi_transparency` (L7267) — Stores the semi-transparency enable and mode (mode masked to two bits) and passes them to the software rasterizer.
-- `glb_set_mask_bits` (L7268) — Sets the mask set and check flags; a change in the check flag flushes the pending batches first.
-- `glb_set_texture_window` (L7286) — Stores the texture window mask and offset fields decoded from the GP0(E2) value r.
-- `glb_set_color_modulation` (L7293) — Stores the colour modulation factors r, g, b and the raw flag for the next draws.
-- `glb_set_precise_triangle` (L7297) — Sub-pixel / perspective overrides for the next triangle.
-- `glb_set_perspective_triangle` (L7310) — Enables or disables perspective-correct interpolation for the next triangle using three q values, and passes it to the software rasterizer.
-- `glb_set_depth_triangle` (L7315) — Sets the SZ depth values of the next triangle; valid only when enabled and all three are positive.
-- `glb_set_draw_area` (L7319) — Sets the drawing area corners; a changed area clears the PGXP depth buffer and flushes the batches first.
-- `glb_get_draw_area` (L7323) — Returns the current drawing area corners through the output pointers.
-- `glb_set_draw_offset` (L7324) — Sets the drawing offset (x, y) after flushing pending batches, and passes it to the software rasterizer.
-- `cpu_raster_required` (L7333) — Returns 1 when the software rasterizer must also draw the current primitive into CPU VRAM, after applying the depth24 upload policy.
-- `native_draw_begin` (L7346) — Bracket each authoritative draw so a later netplay/session policy change cannot accidentally disable the faithful floor for HD replacement mode.
-- `native_draw_end` (L7351) — Restores the software rasterizer's faithful-authority setting saved by native_draw_begin.
-- `precise_consumed` (L7354) — The sub-pixel / perspective override describes exactly one triangle; drop it once that triangle has been submitted so a later prim can never inherit it.
-- `gl_renderer_projective_supported` (L7356) — Exact-provenance world polygons only.
-- `gl_renderer_draw_projected_triangle` (L7361) — Draws a triangle from three projected vertices with texture page, CLUT, raw, semi and perspective options; while recording it stores the command for the render thread.
-- `glb_draw_flat_triangle` (L7407) — Draws a flat-colour triangle: the software rasterizer too when CPU VRAM must stay exact, then the GL path.
-- `glb_draw_gouraud_triangle` (L7417) — Draws a triangle with a colour at each corner, the same way as the flat version, then clears the precise-triangle override.
-- `glb_fill_rect` (L7429) — Fills a rectangle with a colour after refusing writes outside a pass, forgetting copies there and clearing PGXP depth under it.
-- `glb_copy_rect` (L7441) — Copies a rectangle of VRAM from (sx, sy) to (dx, dy), through the software rasterizer when required and then on GL.
-- `glb_draw_textured_triangle` (L7451) — Draws a textured triangle with the texture page, CLUT and texture coordinates of its three vertices, on the software and GL paths.
-- `glb_draw_shaded_textured_triangle` (L7468) — Draws a textured triangle with a colour per corner, on the software and GL paths.
-- `glb_draw_flat_rect` (L7485) — Draws a flat-colour rectangle, with the software rasterizer too when CPU raster is required.
-- `glb_draw_textured_rect` (L7494) — Draws a textured rectangle at the given position, texture coordinates, CLUT and page, on the software and GL paths.
-- `glb_draw_textured_rect_scaled` (L7506) — Draws a textured rectangle whose texture coordinates span u0 to u1 and v0 to v1, scaled to the rectangle.
-- `glb_draw_line` (L7518) — Draws a flat-colour line from x0,y0 to x1,y1, on the software path when required and then on GL.
-- `glb_draw_shaded_line` (L7527) — Draws a line with a colour at each end.
-- `glb_render_display` (L7540) — Renders the displayed picture into the 32-bit output buffer o at the given display rectangle, applying the depth24 policy first.
-- `glb_render_display_hires` (L7541) — Renders the displayed picture at internal resolution into o, with the same arguments as glb_render_display.
-- `gl_renderer_capture_display_hires` (L7550) — Capture the presented surface at internal resolution (--headless-opengl presentation ring).
-- `depth24_is_fb_transfer` (L7571) — While GP1 depth24 is on, packed RGB888 lives in the CPU mirror and is presented via gl_renderer_present — never as 1555 FBO texels.
-- `depth24_mark_scanout_band` (L7601) — Remember only the depth24 scanout band for clear-on-leave.
-- `depth24_clear_skipped_fb` (L7619) — Clears the VRAM rectangles skipped by depth24 MDEC frames, flushing pending draws first.
-- `depth24_upload_policy` (L7656) — Sets how uploads behave while 24-bit display is on, keeping the CPU mirror current.
-- `glb_vram_write` (L7692) — Writes one 16-bit pixel at (x, y) into VRAM after refusing writes outside a pass and forgetting copies there.
-- `glb_vram_read` (L7700) — Returns the 16-bit VRAM pixel at (x, y), first syncing the depth24 policy and the CPU copy.
-- `glb_vram_transfer_in` (L7701) — Writes a rectangle of 16-bit pixels d into VRAM (CPU to VRAM transfer), refusing writes outside a pass.
-- `glb_vram_transfer_out` (L7726) — Reads a rectangle of VRAM into d (VRAM to CPU transfer), syncing the CPU copy first.
-- `upload_present_tex` (L7729) — ---- context init / present --------------------------------------------
-- `gl_renderer_set_fmv_chroma_smoothing` (L7752) — [video] fmv_chroma_smoothing: on 24-bit (MDEC) presents, keep each sample's luma and smooth its chroma over the 3x3 source pixels around it, hiding the 2x2 colour blocks of 4:2:0 video.
-- `gl_renderer_fmv_chroma_smoothing` (L7756) — Returns whether FMV chroma smoothing is on.
-- `gl_renderer_fmv_chroma_frames` (L7757) — Returns how many frames had FMV chroma smoothing applied.
-- `gl_renderer_note_present_depth24` (L7758) — Records whether the current present is a 24-bit display frame.
-- `gl_renderer_set_fmv_filter` (L7760) — FMV present reconstruction, settings.toml [video] fmv_filter.
-- `fmv_filter_mode` (L7765) — Returns the FMV filter mode, which is the config value minus one.
-- `present_set_sharp` (L7773) — Select the present-program sampling mode.
-- `present_set_gamma` (L7793) — The presentation shader is shared by game content, bezel art, host OSD, and hold-last redraws.
-- `present_set_scanline` (L7811) — Push scanline uniforms into the currently-bound present or interpolation program.
-- `gl_renderer_set_display_aspect` (L7837) — Display aspect for the present letterbox (default 4:3).
-- `gl_renderer_set_scanlines` (L7847) — Scanline post-process toggle (host display setting).
-- `gl_renderer_get_scanlines` (L7855) — Returns whether scanlines are on, and writes their strength to *strength when given.
-- `gl_renderer_set_post_gamma` (L7860) — Presentation-only gamma adjustment.
-- `gl_renderer_get_post_gamma` (L7880) — Returns the presentation gamma adjustment.
-- `letterbox_rect_aspect` (L7885) — Letterbox: largest num:den rect centered in the drawable.
-- `letterbox_rect` (L7893) — Computes the letterbox rectangle for the window size using the configured display aspect.
-- `make_tex` (L7897) — Creates a 2D texture with the given internal format, size, pixel format and type, and returns its name.
-- `make_fbo` (L7909) — Creates a framebuffer object with the given colour texture and stencil renderbuffer attached, returning its name through out_fbo.
-- `hr_alloc_surface` (L7929) — A new hr surface (colour texture, depth-stencil RB, FBO) at scale S for a dynamic-resolution step, depth and stencil cleared.
-- `free_hr_targets` (L7960) — Release the scale-dependent render targets (hr colour + depth-stencil + copy scratch).
-- `alloc_hr_targets` (L7973) — Allocate the authoritative hr surface at scale S.
-- `tex_prog_locations` (L8002) — The textured program's uniform locations after a filter variant switch (tex_prog_switch): init_gpu_raster's, and the lazy ones fetched again when next set.
-- `init_gpu_raster` (L8029) — Initialises the GL rasterizer for the context, with the internal scale clamped to what the driver and memory budget can allocate.
-- `gl_renderer_texture_banks_supported` (L8332) — Returns whether retained texture banks can be used: the raster is ready and HD native authority is off.
-- `gl_renderer_fit_wide_aspect` (L8340) — Narrow a native-wide display aspect num:den to the widest whose surface this context can allocate at its internal scale (psx_gl_fit_wide_aspect; disp_w is the display width the margins derive from).
-- `gl_renderer_scale_info` (L8350) — Fills out with the renderer's scale information, zeroing it first; returns 0 when out is NULL.
-- `gl_read_display_argb` (L8402) — Read the display rect at internal resolution straight from the hr FBO: (w*S) x (h*S) ARGB8888, top row first.
-- `gl_renderer_read_display_hires` (L8448) — Reads the display rectangle at internal resolution into out as ARGB, returning the result of gl_read_display_argb.
-- `gl_renderer_select_texture_bank` (L8455) — Select a retained immutable bank for the next textured submission; zero selects live VRAM.
-- `gl_renderer_select_texture_bank_live_clut` (L8490) — Retain texture indices while sampling current guest CLUTs (fades/animation).
-- `gl_renderer_set_impl` (L8497) — Which GL the renderer calls ([video] renderer, before init_context): 0 = the driver's OpenGL, 1 = sgl on SDL3's GPU API ("sdl_gpu"; the window then is made without SDL_WINDOW_OPENGL).
-- `gl_renderer_get_proc` (L8508) — A GL entry point of the implementation in use (driver or sgl), for code that draws into the renderer's context with its own GL table (ImGui).
-- `gl_renderer_impl` (L8510) — Returns which GL implementation is in use: 0 for the driver's OpenGL, 1 for sgl.
-- `gl_renderer_impl_name` (L8511) — "opengl" or "sdl_gpu (vulkan)" etc.
-- `gl_renderer_impl_probe` (L8517) — sdl_gpu: 1 when its GPU device can be made (made now, before the window, and kept); 0 = none here.
-- `gl_renderer_impl_window_flags` (L8524) — SDL window flags the sdl_gpu window needs ([video] sdl_gpu_driver / PSX_SGL_DRIVER: "vulkan", "direct3d12", "metal", "auto"); 0 without sgl.
-- `gl_renderer_set_sgl_driver` (L8531) — Chooses the SDL GPU driver name for the sgl renderer; does nothing when sgl is not built in.
-- `gl_renderer_sgl_json` (L8538) — sgl counters as JSON (TCP "sgl"); 0 when the renderer is not on sgl.
-- `gl_renderer_init_context` (L8546) — Create the GL context on a window made with SDL_WINDOW_OPENGL.
-- `gl_renderer_set_swap_interval` (L8653) — Set the GL swap interval (vsync mode): 1=vsync, 0=immediate, -1=adaptive.
-- `gl_renderer_get_swap_interval` (L8665) — Returns the current swap interval, or -2 when there is no context.
-- `gl_renderer_shutdown` (L8680) — Shuts the renderer down: stops the render thread, forgets the presented-image ring's GL names, then frees the GL resources.
-- `gl_renderer_present` (L8739) — CPU-readout present (24-bit FMV frames and the PSX_GL_FORCE_CPU_PRESENT diagnostic): full-window clear, then a quad into the letterbox rect.
-- `gl_renderer_present_blank` (L8852) — Clear to black + swap (display-disabled frame).
-- `gl_renderer_sync_cpu` (L8871) — Sync the authoritative FBO down into CPU VRAM (no-op when current).
-- `gl_renderer_invalidate_present` (L8876) — Mark the whole display dirty, drop present-path latches, reset frame- interpolation history, and force the next several SwapWindow calls even if VRAM tiles match the last present.
-- `gl_renderer_restage_vram_after_savestate` (L8886) — After savestate restore: push the CPU VRAM mirror into the GL FBO.
-- `gl_renderer_set_cpu_auth_dual` (L8909) — Netplay dual-raster: every GP0 also writes software VRAM @ 1× (snaps / digests / GPUREAD authority) while the OpenGL hr FBO keeps settings-scale SSAA for present-only.
-- `gl_renderer_set_hd_texture_mode` (L8918) — HD texture presentation uses an independent native SW VRAM authority.
-- `gl_renderer_cpu_auth_dual` (L8947) — Returns whether dual-raster netplay CPU authority is on.
-- `gl_renderer_present_probe_reset` (L8951) — Post-savestate freeze probe: skip/swap/dirty-mark counters (GL present path).
-- `gl_renderer_present_probe_take` (L8958) — Returns and resets the post-savestate present probe counters: skips, swaps, dirty marks and forced presents remaining.
-- `gl_renderer_present_rect_dirty` (L8971) — Returns 1 when any part of the display rectangle is dirty for presentation; 0 when not ready or empty.
-- `gl_renderer_flush_cpu_uploads` (L8977) — Land pending CPU→VRAM uploads into the FBO without reading the FBO back.
-- `gl_renderer_fbo_peek` (L8989) — Diagnostic (debug server "gl_fbo_peek"): read a rect of the GPU-side authoritative VRAM (via the pack pass + raw mirror) WITHOUT writing CPU VRAM — lets a probe diff FBO truth against CPU truth.
-- `gl_renderer_fbo_peek_deferred` (L9016) — fbo_peek at this point of the command stream without a sync point: with the render thread recording, the readback is queued and lands in out when the render thread reaches it (a reader of out must syn
-- `gl_renderer_vram_diff` (L9032) — Diagnostic (debug server "gl_vram_diff"): full-VRAM comparison of the GPU-side truth (FBO via pack) against the CPU array, WITHOUT writing either.
-- `gl_renderer_diag` (L9074) — Diagnostic state for the debug server: coherency flags + dirty rects.
-- `wide_free_all` (L9111) — Deletes every wide surface's framebuffer and texture, after flushing the queued mirrors that target them.
-- `wide_alloc_surface` (L9127) — Create a native-wide surface (colour texture, depth-stencil RB, FBO) at scale S, cleared to black with a zero stencil.
-- `wide_fbo_for` (L9157) — Lazily allocate (or find) the wide FBO+tex for base_x.
-- `glb_wide_set_view` (L9205) — Enable native-wide with a wide width + centering offset (native px), or disable (wide_w <= 0).
-- `glb_wide_configure` (L9216) — Sets the native-wide width and centring offset of the wide surfaces, flushing pending line batches first.
-- `glb_wide_set_target` (L9230) — Select the wide surface to mirror into for the back buffer at base_x.
-- `glb_wide_disable_target` (L9241) — Stop mirroring (offscreen draws that don't target a framebuffer).
-- `glb_wide_clear` (L9246) — Mirror a framebuffer clear: fill the full wide width over [y, y+h) of the surface for base_x, so the revealed margins are clean.
-- `glb_wide_clear_margins` (L9278) — Clear only the two synthetic reveal strips, preserving the centred canonical framebuffer.
-- `fb_prog_ready` (L9359) — Builds the framebuffer band copy program on first use; returns 1 when it is ready.
-- `fb_bind` (L9375) — Program, source texture and uniforms for one band copy (wide-local px).
-- `wide_index_existing` (L9392) — An existing wide surface for base_x; never allocates (nothing to copy yet).
-- `glb_wide_feedback_rect` (L9398) — Feedback copy of a rectangle inside the wide surface from src to dst, drawn with the given flat colour and semi flag.
-- `glb_render_wide_display` (L9439) — Present source: read the wide FBO for the displayed buffer (base_x) into the CPU present buffer as ARGB8888, byte-identical to sw_render_wide_display's output so the shared CPU present path consumes i
-- `glb_wide_dump_full` (L9495) — Dump the ENTIRE wide compositor surface for base_x (all double-buffer bands + both reveal margins), g_wide_w x VRAM_H at scale.
-- `gl_renderer_frame_gpu_totals` (L9605) — frame_perf's GPU timer queries (debug-tools builds), running totals over the frames read back: the scene draws' span (between two presents: an upper bound, idle gaps included) and the present (post ef
-- `gl_perf_yield` (L9614) — Ends the open scene GPU timer query so another timing user can measure.
-- `gl_perf_init` (L9618) — Sets up the frame performance GPU timing queries; does nothing in builds without debug tools.
-- `gl_perf_mirror_begin` (L9650) — Bracket ONE native-wide mirror pass (called from the wide-mirror draw sites).
-- `gl_perf_mirror_end` (L9657) — Closes a native-wide mirror pass timing bracket by recording its end timestamp.
-- `gl_perf_tex_begin` (L9664) — Starts timing a textured batch with a GPU query, when textured timing is on and no other timer owns the GPU clock.
-- `gl_perf_tex_end` (L9671) — Ends a textured batch timing bracket by recording its end timestamp.
-- `gl_renderer_perf_tex_timing` (L9678) — frame_perf "tex": time every textured batch's draws (GL timestamps) while on; perf_tex_gpu: their average GPU ms per frame and the frames measured.
-- `gl_perf_present_enter` (L9688) — Top of present (after flush_cpu_upload, before clear/blit).
-- `gl_perf_present_exit` (L9723) — End of present (after SwapWindow).
-- `gl_renderer_perf_prim_split` (L9787) — Aggregate the ring for the debug server.
-- `gl_renderer_perf_aggregate` (L9793) — frame_perf: aggregate the per-frame GPU/CPU phase-timing ring (debug server "frame_perf").
-- `gl_renderer_perf_tex_gpu` (L9829) — The textured batches' GPU time per frame over the ring (frame_perf "tex"): the average, and the frames that had it measured.
-- `gl_renderer_set_ws_ablate` (L9844) — Native-wide mirror ablation (perf attribution): see s_ws_ablate.
-- `gl_renderer_get_ws_ablate` (L9846) — Returns the native-wide mirror ablation mode used for performance attribution.
-- `interp_reset_history_unlocked` (L9848) — Clears the frame-interpolation history without taking the lock.
-- `interp_reset_history` (L9861) — Clears the frame-interpolation history.
-- `gl_renderer_set_interpolation` (L9865) — Turns frame interpolation on or off, given the host and target refresh rates, the source rate and the blend mode.
-- `gl_renderer_set_interpolation_blend` (L9894) — Change only the blend mode (0 linear, 1 change-adaptive, 2 hold), keeping the history and schedule; takes effect at the next present.
-- `gl_renderer_set_interpolation_suspended` (L9900) — Suspends or resumes frame interpolation; a change resets its history.
-- `gl_renderer_set_interpolation_source` (L9907) — Blend source: 0 = every guest VBlank is a source frame (default), 1 = only real display flips are (psx_mod_set_frame_interpolation_source).
-- `gl_renderer_interpolation_source_diag` (L9917) — Returns interpolation source diagnostics (source mode, flip period, captures, duplicates) through the pointers.
-- `interp_suspended_now` (L9932) — Returns whether interpolation is suspended now, including while an OpenXR session is active; resets history when that changes.
-- `gl_renderer_interpolation_owns_cadence` (L9938) — Returns 1 when interpolation controls the present cadence: context ready, enabled and not suspended.
-- `gl_renderer_interpolation_diag` (L9942) — Returns interpolation state (enabled, suspended, history frames, refresh rates, swap count) through the pointers.
-- `interp_capture` (L9957) — Copy a stable display image out of the mutable VRAM/wide render target.
-- `interp_draw_textures` (L10034) — Draws the previous and current frame textures blended by alpha onto the default framebuffer, in the given viewport rectangle.
-- `interp_present_pair` (L10065) — Presents a blend of two captured frames at fraction t; returns 0 when interpolation is off or has no history.
-- `interp_present` (L10100) — Presents the interpolated frame at alpha, or the held frame when hold is set.
-- `interp_wait_until` (L10107) — Waits on the host until the deadline (performance counter ticks) when native host pacing is on.
-- `interp_present_source_interval` (L10136) — Updates the source-frame interval diagnostics from the performance counter at each source frame.
-- `pass_cpu_vram_hash` (L10281) — The whole CPU VRAM: the guest-visible VRAM (GPUREAD, savestates, netplay digests and, in dual raster, the authoritative surface).
-- `gl_renderer_perf_ticks` (L10290) — Returns the current high-resolution performance counter value.
-- `gl_renderer_perf_frequency` (L10291) — Returns the performance counter frequency in ticks per second.
-- `pass_gens_invalidate` (L10293) — Marks all render pass generations invalid and not promoted, and clears the promotion target.
-- `gl_renderer_pass_begin_diag` (L10301) — Copies the last render pass begin diagnostics into out.
-- `pass_begin_refuse` (L10306) — Records a reason for refusing a render pass begin and returns 0.
-- `pass_gl_errors` (L10312) — Keep pre-existing errors separate from this allocation's errors.
-- `gl_renderer_pass_force_refuse` (L10321) — Debug: make the backend decline passes (PSX_RENDER_PASS_REFUSE=1 at start, render_pass_refuse over TCP), as a renderer mode without them would.
-- `pass_refusal_init` (L10326) — Reads the PSX_RENDER_PASS_REFUSE environment variable once to decide whether render passes are forced to refuse.
-- `gl_renderer_pass_unavailable` (L10336) — Why not: 0 ready, PSX_MOD_RENDER_PASS_NO_PRESENTER or _BACKEND (mod_plugins.h).
-- `gl_renderer_pass_ready` (L10362) — Render passes (render_pass.c; docs/RENDER_PASSES.md).
-- `pass_slot_cap` (L10368) — Slots per generation that fit a 256 MiB budget for the whole queue.
-- `gl_renderer_pass_plan` (L10376) — Plans the render pass schedule for one period: alpha values go into alpha_q16 (up to max) and the wanted count into wanted.
-- `gl_renderer_pass_plan_diag` (L10460) — Copies the latest render pass plan diagnostics into out.
-- `gl_renderer_pass_note_cost` (L10464) — Records the cost in ticks of a render pass, resetting the smoothed cost when the size changed.
-- `gl_renderer_pass_leaks` (L10479) — Returns how many render pass resource leaks were seen.
-- `gl_renderer_pass_verify_vram` (L10481) — Returns 1 when the last render pass VRAM verification passed.
-- `pass_wide_fbo_for` (L10485) — Returns the framebuffer of the existing wide surface for base_x, or 0 when there is none or no wide width.
-- `pass_make_color_fbo` (L10492) — Makes a colour framebuffer of size w by h with a texture and renderbuffer, keeping the existing one when the size matches; returns 1 when ready.
-- `pass_gen_release` (L10522) — Deletes the textures of render pass generation gi and clears its texture table.
-- `pass_gen_reserve` (L10532) — Make sure slots [0, need) of generation gi exist at w x h.
-- `pass_capture_into` (L10563) — Copy the rect as the presenter would see it into 'tex'.
-- `pass_blit` (L10595) — Copies a rectangle from the src to the dst framebuffer with the given mask, after flushing queued wide mirrors.
-- `pass_verify_read` (L10607) — Reads back the high-resolution and raw VRAM copies for render pass verification, flushing queued mirrors first.
-- `pass_free_color_fbo` (L10634) — Deletes a colour framebuffer with its texture and renderbuffer, and resets their names and size.
-- `pass_resources_release` (L10648) — Context teardown (gl_renderer_shutdown): free the pass images, backups and journal, and forget their names so a new context makes fresh ones.
-- `pass_journal_protect` (L10682) — Saves the current contents of a rectangle into the render pass journal so it can be rolled back; returns 0 when the journal is full.
-- `pass_journal_rollback` (L10706) — Restores the journaled rectangles, newest first, undoing the render pass writes that fell outside its rectangle.
-- `transaction_begin` (L10720) — kind: 0 temporal pass, 1 stereo eye, 2 netplay local view.
-- `transaction_restore_ex` (L10879) — keep_color: a committed netplay local view keeps the rect's presented colour (hr surface, native-wide band); everything else is put back.
-- `transaction_restore` (L10936) — Puts back the VRAM that the render pass transaction changed, discarding its colour.
-- `gl_renderer_local_view_unavailable` (L10938) — Netplay local view (psx_mod_render_local_view): the VRAM transaction with no generation.
-- `gl_renderer_local_view_begin` (L10948) — Starts a netplay local-view transaction over the rectangle and returns its result.
-- `gl_renderer_local_view_end` (L10952) — Ends the local-view transaction: flushes pending draws, then keeps or rolls back the view; returns 0 when none is active.
-- `gl_renderer_pass_begin` (L10961) — Starts a temporal render pass transaction over the rectangle, optionally opening a generation with period and reuse; returns its result.
-- `gl_renderer_stereo_begin` (L10966) — Starts a stereo-eye transaction over the rectangle with reuse; returns its result.
-- `gl_renderer_pass_end` (L10970) — Capture the drawn rect at alpha_q16 (keep) and roll the rect back.
-- `gl_renderer_stereo_unavailable` (L10993) — Stereo shares the VRAM transaction, not the temporal generation/schedule.
-- `gl_renderer_stereo_stage_reset` (L11002) — Clears the mask of the staging stereo pair that is not in use.
-- `gl_renderer_stereo_stage_readback` (L11006) — Reads back an eye's staged image into rgba at w by h; returns 0 when the eye, buffer or size is invalid (size up to 1024 by 512).
-- `stereo_invalidate` (L11034) — Marks the stereo pairs as invalid and clears their masks.
-- `gl_renderer_stereo_reset` (L11038) — Resets the stereo state: invalidates the pairs and clears the mode and dump and capture counters.
-- `gl_renderer_stereo_set_presentation` (L11044) — Sets the stereo presentation mode (0 or 1); returns 0 for any other value.
-- `stereo_resources_release` (L11050) — Frees the colour framebuffers of both stereo pairs and both eyes.
-- `gl_renderer_stereo_end` (L11058) — Ends a stereo eye: captures the drawn rectangle of the staging pair for that eye and keeps or rolls it back; returns the result.
-- `gl_renderer_stereo_diag` (L11080) — Fills out with stereo diagnostics for the current pair.
-- `gl_renderer_stereo_dump_arm` (L11091) — Arms a stereo dump into dir for the given number of pairs; a NULL or empty dir disarms it.
-- `gl_renderer_stereo_capture_records` (L11098) — Copies up to capacity stereo capture records into out and returns how many were recorded.
-- `stereo_dump` (L11106) — Writes a stereo pair's two eye images and a side-by-side image to the dump directory.
-- `gl_renderer_stereo_publish` (L11138) — Publishes the staged stereo pair with its id, cycle and the two view positions; returns 0 unless both eyes are complete and the same size.
-- `psx_mod_openxr_enable` (L11150) — Begin locates both views at one predicted time.
-- `psx_mod_openxr_recenter` (L11156) — Recentres the OpenXR view on the current head pose.
-- `psx_mod_openxr_quad` (L11158) — Frame-local UI surface: the fresh pair's left image is shown to both eyes on a head-relative quad.
-- `psx_mod_openxr_surface` (L11163) — Submits a CPU-side surface for OpenXR display; refused while a render pass is active.
-- `psx_mod_openxr_native_surface` (L11168) — Asks OpenXR to show the native-resolution surface at the given distance, width and units; refused while a pass or frame is open or the session is not compiled.
-- `psx_mod_openxr_begin` (L11178) — Starts an OpenXR frame at width by height (within the VRAM size) in the given units; returns 0 when refused.
-- `psx_mod_openxr_view` (L11185) — Fills view with the render view for one eye from OpenXR.
-- `psx_mod_openxr_input` (L11189) — Fills input with the OpenXR controller state; refused while a render pass is active.
-- `psx_mod_openxr_hands` (L11194) — Fills hands with a snapshot of the tracked hand state, which is also safe during replay.
-- `openxr_color_draw` (L11201) — The target stores display-encoded RGB for an sRGB swapchain, or explicitly decoded RGB for a linear-only runtime.
-- `openxr_surface_draw` (L11235) — Draws the submitted OpenXR surfaces for one eye; returns 1 when no surface is present.
-- `openxr_copy_eye` (L11294) — Copies the stereo pair's eye image into an OpenXR swapchain texture, drawing the surfaces first; returns 0 on failure.
-- `psx_mod_openxr_end` (L11328) — Ends the OpenXR frame, presenting the stereo pair when it was rendered and is fresh; returns the result.
-- `openxr_copy_native` (L11337) — Copies the native-surface image for one eye into an OpenXR texture, saving and restoring the GL state it touches.
-- `openxr_present_native` (L11377) — Presents the pending native surface to the window when OpenXR shows it and no pass is active, using its rectangle.
-- `stereo_present` (L11397) — Presents the current stereo pair to the window at w by h, shown only while the plugin keeps submitting; returns 1 when it presented.
-- `xr_mirror_mode` (L11455) — Returns the VR desktop mirror mode: 0 off, 1 on by default, 2 side-by-side, 3 right eye; read once from PSX_VR_DESKTOP_MIRROR.
-- `xr_mirror_active` (L11466) — Returns whether the desktop mirror is active: mirror mode on and an XR session running.
-- `pass_gen_present` (L11476) — Presents the render pass generation whose output is due by the deadline, blending between generations by time; returns 1 when it presented.
-- `gl_renderer_pass_service_presents` (L11506) — Present output deadlines that fell due while guest code ran.
-- `gl_renderer_pass_diag` (L11523) — promotions, presents, blended presents, expired, unmatched flips, presents made between VBlanks, smoothed pass cost (us), images in the shown frame, presents past the frame's planned end (the next fli
-- `gl_renderer_pass_journaled` (L11538) — Out-of-rect VRAM writes journaled and rolled back (lifetime count).
-- `gl_renderer_pass_backups_reused` (L11540) — Passes that reused the previous pass's VRAM backup (lifetime count).
-- `gl_renderer_pass_image_textures` (L11543) — Pass image textures allocated now (both generations) and their bytes.
-- `s_idle_ticks_accum_fwd` (L11556) — Adds ticks to the idle time accumulator and returns the new total.
-- `s_present_ticks_accum_fwd` (L11561) — Adds ticks to the present time accumulator, updates its smoothed cost, and returns the new total.
-- `gl_renderer_pass_set_flip_shown` (L11567) — Generations opened from now on are for a frame already on screen (1) or for the next flip (0, default); render_pass_gen_flip_matches.
-- `pass_note_new_frame` (L11572) — FLIP source saw a new frame: it is the flip a pending generation was built for (render_pass_gen_flip_matches) or a frame without passes.
-- `gl_renderer_pass_dump_arm` (L11596) — Debug: dump the images of the next 'generations' shown frames as PNGs.
-- `pass_dump_generation` (L11602) — Writes the images of render pass generation gi to dump files as RGB.
-- `pass_apply_promotion` (L11625) — Counts an interval and, when a promotion is pending, clears the valid flag of the current generation.
-- `gl_draw_osd_image` (L11661) — Draws an OSD image onto the frame with no blending.
-- `gl_draw_osd_image_blend` (L11667) — blend: the image carries alpha (a title's save state menu canvas): source over the composed frame.
-- `ptr_lock` (L11742) — Acquires the pointer image spinlock, spinning until it is free.
-- `ptr_unlock` (L11743) — Releases the pointer image spinlock.
-- `gl_renderer_set_pointer_image` (L11745) — A title's mouse pointer (mod_plugins.h psx_mod_set_pointer_image / psx_mod_set_pointer): set from the main thread, drawn last at every swap.
-- `gl_renderer_set_pointer_scale` (L11757) — Sets the mouse pointer scale; values outside 0.05 to 4 become 1.
-- `gl_renderer_set_pointer` (L11761) — Sets the mouse pointer visibility and position, to be drawn at the next swap.
-- `ptr_draw` (L11767) — Draws the mouse pointer image on the window at its position when it is visible.
-- `present_image_ring_gl_forget` (L11838) — The GL objects belong to the context: a renderer restart (lobby rematch, in-game menu -> match) makes new ones, so forget the old names.
-- `present_image_ring_capture_gl` (L11847) — Captures the current presented image into the ring through a pixel-buffer readback, when the ring is accepting.
-- `ov_image` (L11927) — Returns OSD image i and its size, from the recorded overlay during replay or the live source; returns 1 when there is a picture.
-- `ov_rewind_slide` (L11939) — Returns the rewind slide amount, from the replay record during replay or the live value.
-- `ov_savestate_blend` (L11942) — Returns whether the save state menu overlay is blended, from the replay record during replay or the live value.
-- `ov_needs_present` (L11945) — Returns whether the on-screen overlay needs a present, from the replay record during replay or the live OSD state.
-- `gl_renderer_set_present_thread` (L11973) — [video] present_thread (docs/RENDER_THREAD.md "Present thread"): set before gl_renderer_render_thread_start; with the render thread, composed frames go to 'slots' (2..4) offscreen slots and a present
-- `gl_renderer_present_thread_active` (L11977) — Returns 1 when the present thread is running.
-- `pt_target_fbo` (L11980) — Composing context: the current slot, (re)allocated at the window's size.
-- `pt_cb_ctx` (L12015) — Callback that makes the present thread's GL context current, or releases it; returns 0 on failure.
-- `gl_swap_self_heal` (L12040) — A wedged Windows/NVIDIA swap queue can block a swap for about 1.5 s per present: audio keeps playing while emulation and input look frozen.
-- `gl_window_swap` (L12052) — The one owned swap call: the composing thread's (direct) or the present thread's.
-- `pt_cb_present` (L12064) — Callback on the present thread that swaps in a queued slot, applying any swap interval change first; returns a fence token.
-- `pt_cb_dispose` (L12105) — Callback that deletes a GL fence sync object once it is no longer needed.
-- `pt_begin` (L12111) — Composing context current; 1 when the present thread runs.
-- `pt_end` (L12157) — Composing context current, render thread stopped.
-- `gl_present_swap` (L12178) — The swap: direct, or queued to the present thread.
-- `gl_renderer_present_thread_json` (L12196) — Writes present thread statistics as JSON into out (up to cap bytes) and returns the length.
-- `gl_swap_with_osd` (L12211) — Performs the swap, first presenting the native surface, then drawing host overlays on top.
-- `perf_note_swap` (L12402) — Records the time of a swap and whether it was a generated frame into the performance timeline ring.
-- `perf_u64_cmp` (L12409) — qsort comparison for 64-bit unsigned values, in ascending order.
-- `gl_renderer_present_pacing` (L12413) — Fills out with present pacing statistics over the last window_s seconds, taken from the present timeline.
-- `gl_renderer_gl_thread_cpu_ns` (L12445) — CPU time (ns) of the thread that swaps (the render thread, else the emulation thread), as of its last swap.
-- `phase_hold` (L12451) — The swap itself (and its accounting).
-- `phase_probe` (L12470) — Times the GPU work before each swap with a query ring, so the frame phase diagnostics know when a swap started (flagged as generated or real).
-- `gl_swap_now` (L12520) — Performs one owned swap for the frame and times the time blocked in it, for the dynamic resolution ledger.
-- `present_target_quad` (L12560) — tex_w/tex_h and x/y/w/h are in the texture's NATIVE units; src_scale is how many texels one native unit spans (the internal scale for the hr FBO and the wide surfaces, 1 for textures that hold native
-- `gl_renderer_set_bezel` (L12639) — Bezel art shown in the letterbox/pillarbox margins.
-- `gl_renderer_has_bezel` (L12659) — Returns 1 when a bezel image is loaded.
-- `present_bezel` (L12662) — Cover the drawable with the bezel before the game quad.
-- `gl_renderer_present_hold_last` (L12682) — §33: re-present the last Live frame captured before Swap (or from a VRAM snapshot when interpolation owned the last present).
-- `present_alloc_extent` (L12746) — The extent, in native units at 'scale', of a surface allocated at alloc_scale_for(scale) that holds 'units' native columns or rows: units itself unless dynamic resolution renders it below its allocati
-- `present_vram_impl` (L12752) — Presents a rectangle of VRAM to the window at the given size and filtering, applying the pass crop; force_4_3 forces the 4:3 framing.
-- `wide_blit_center` (L12878) — Native-wide fast path: authoritatively copy the canonical 4:3 framebuffer into the wide surface's CENTRE columns [g_wide_off, g_wide_off+native_w) for the displayed Y band, so the per-prim mirror coul
-- `present_wide_fbo_impl` (L12950) — GPU-direct native-wide present: blit the displayed buffer's wide FBO straight to the window (no glReadPixels / glFinish CPU round-trip).
-- `dyn_resources` (L13128) — Builds the dynamic-resolution programs and resources on first use; returns 1 when they are ready.
-- `dyn_eligible` (L13169) — Steps are available: the full-VRAM regime above 1x, CPU VRAM not authoritative over the GL surface.
-- `dyn_context_ready` (L13174) — After init_gpu_raster (every context): the allocation is the ceiling.
-- `gl_renderer_set_dynamic_resolution` (L13193) — Turns dynamic internal resolution on or off; ignored until the context is ready.
-- `gl_renderer_dynamic_resolution_ceiling` (L13209) — ---- Dynamic internal resolution ([video] dynamic_resolution) --------------- Opt-in.
-- `dyn_ms` (L13213) — Converts a performance counter interval from t0 to t1 into milliseconds.
-- `dyn_mark` (L13216) — Reads the performance counter, finishing GL work first when dynamic resolution timing is on.
-- `dyn_pass_begin` (L13222) — Fullscreen-triangle pass of 'prog' into dst_fbo over the viewport (x, y, w, h), no scissor/blend/stencil.
-- `dyn_pass_end` (L13235) — Finishes a fullscreen dynamic-resolution pass by drawing its triangle, then unbinds the vertex array and program.
-- `dyn_rescale_rect` (L13244) — Draw native rect (nx, ny, nw, nh) of dst_fbo at snew from src_tex, whose copy of that rect at sold starts at (sx, sy) texels.
-- `dyn_rescale_in_place` (L13263) — Rescale native columns [cx0, cx1) x rows [ry0, ry1) of a surface in place, in bands of rows through the scratch.
-- `dyn_stats_lock` (L13291) — static atomic_flag s_dyn_stats_lock = ATOMIC_FLAG_INIT; /* s_dyn_stats: render thread writes
-- `dyn_stats_unlock` (L13292) — Releases the dynamic-resolution statistics spinlock.
-- `dyn_apply` (L13295) — Steps the internal resolution to snew; refused in windowed high-resolution mode or when not ready, returning 0 in that case.
-- `dyn_after_present` (L13515) — Runs the dynamic-resolution step decision after a present, unless the step is being recorded for the render thread.
-- `dyn_record_step` (L13529) — Render thread: record the step in stream order (after the frame just closed, before the next one's first draw); the emulation side's level moves at once (s_rthm_scale), the backend's when the step is
-- `gl_renderer_request_internal_scale` (L13542) — Ask for a level: applied at the next post-present point outside a render pass (clamped to 1..ceiling).
-- `gl_renderer_set_internal_scale_ceiling` (L13560) — Move the live step ceiling (normally the scale allocated at start).
-- `gl_renderer_step_internal_scale_now` (L13571) — Step now (debug probes and tests): 1 when the level is 'scale' on return, 0 when refused or deferred (inside a render pass; it then applies after the next present).
-- `gl_renderer_dynres_stats` (L13580) — Copies dynamic-resolution statistics into out under the stats lock.
-- `gl_renderer_host_ledger` (L13592) — Copies the host time ledger for dynamic resolution into out.
-- `gl_renderer_present_vram` (L13598) — The perf meter (perf_meter.h) times the emulation thread's calls; the render thread replays the same entry points.
-- `gl_renderer_present_wide_fbo` (L13607) — GPU-direct native-wide present: blit the displayed buffer's wide FBO (key = disp_x) straight to the window, no CPU readback.
-- `rth_bd_flags` (L13670) — #define RTHF_BDQ_SHIFT 5 /* bits 5-12: its stretch share (backdrop images), 0 = the full one #define RTHF_FRONT 0x2000u /* in the ordering table's front (gpu_ot_front_now): UI #define RTHF_NOLIGHT 0x4
-- `rth_bd_value` (L13674) — Decodes the backdrop value from recorded primitive flags: the low bits plus the stretch share.
-- `rth_mirror_resync` (L13678) — Copies the current scale and wide-surface geometry into the render thread's mirror state.
-- `rth_mirror_wide_for` (L13691) — wide_fbo_for() as it will run on the render thread: the same lookup, limit check and slot allocation.
-- `rth_mirror_wide_present_ok` (L13703) — Returns 1 when a wide surface for base_x is known to the render thread mirror state.
-- `rth_rec_ints` (L13710) — Records a command carrying n 32-bit integers into the render thread stream; returns 0 when there is no space.
-- `rth_send_state` (L13721) — Native-wide stream state read by the fast-path gate (wide_fast_center_valid) and the backdrop gate; sent whenever it changes, before the call that would first observe the change.
-- `rth_prim_flags` (L13734) — Per-primitive widescreen tags, read by bd_prim_gate during replay.
-- `gl_rth_eligible` (L13749) — Returns 1 when this context may hand its drawing to the render thread: raster ready, not dual raster, and no depth24 skip or HD conflict.
-- `rth_hd_publish_private` (L13763) — HD texture authority keeps native VRAM on the CPU raster, which runs on the render thread's private copy: hand its result to gpu.c's array, the way ensure_cpu reads the FBO back otherwise.
-- `gl_rth_acquire` (L13768) — Takes the context for the render thread when it is on and this is the emulation thread, publishing the HD private copy first.
-- `gl_rth_release` (L13776) — Gives the context back from the render thread to the emulation thread once the render thread is held.
-- `rth_record_mode` (L13790) — Record this call (1) or run it directly (0).
-- `rth_record_present` (L13806) — Records a present command with its op and integers, plus any overlay image copies, into the render thread stream.
-- `rth_replay_present` (L13844) — extern int psx_presentation_fast_forward(void); /* main.cpp
-- `rth_present_payload` (L13867) — Present a recorded present's payload (header, overlay copies).
-- `host_now_ns_rthf` (L13923) — Returns the host monotonic time in nanoseconds, from the performance counter.
-- `rthf_publish` (L13928) — Publishes one real frame's cost into the render thread frame timing totals; the larger of CPU and GPU time counts when GPU time exists.
-- `rthf_poll` (L13943) — Read every finished query pair, oldest first, without waiting.
-- `rthf_begin` (L13961) — Begins a frame timing bracket, creating the timer queries on first use.
-- `rthf_pause` (L13987) — Frame generation draws between a frame's records: its work is not the frame's.
-- `rthf_resume` (L13994) — Resumes a paused frame timing bracket and adds the paused time to the exclusion total.
-- `rthf_end` (L14011) — Ends the frame timing bracket, resuming it first when paused, and publishes its cost.
-- `gl_renderer_render_thread_measure` (L14042) — Turns render-thread frame measurement on or off.
-- `rthf_owns_timer` (L14043) — Returns 1 when the render thread's frame timing owns the GPU timer: measurement or frame generation is wanted and the queries work.
-- `gl_renderer_render_thread_costs` (L14048) — Fills out with the render thread's frame count and cost totals.
-- `gl_renderer_gpu_totals` (L14060) — Fills out with running GPU time totals for real frames and generated frames.
-- `sgl_fg_fifo_sync` (L14113) — Smooth motion and the swap interval.
-- `fg_main_view` (L14184) — static int s_fg_replay_objects_only = 0; /* fg_replay: cars only static int s_fg_reprojected_now = 0; /* fg_compose: the wide image is complete static int s_fg_src_older = 0; /* the older frame is red
-- `fg_tl_note` (L14225) — Adds a frame generation timeline entry (type, phase and time) to the ring.
-- `fg_note_present` (L14229) — Records the present time for frame generation and advances its next due time.
-- `fg_now_s` (L14266) — Returns the current time in seconds from the runtime clock.
-- `fg_cost` (L14268) — Returns the frame generation cost model, initialised on first use with its spike clamp set by the reprojection mode.
-- `fg_recently_generated` (L14276) — Breaker trips only count while generation is what could have caused them: a generated frame in the last half second.
-- `fg_note_swap` (L14289) — Updates the smoothed swap time (exponential average, 0.9 old and 0.1 new) from a swap of ns nanoseconds.
-- `fg_note_real_cost` (L14301) — Updates the smoothed cost of real frames from the CPU time, and from the GPU time when it is available.
-- `fg_list_clear` (L14310) — Empties a recorded draw list and its primitive store.
-- `fg_state_capture` (L14315) — Saves the current draw state (semi-transparency, masks, texture window and more) into st.
-- `fg_state_apply` (L14330) — Restore draw state without the setters' side effects (stencil rebuilds, wide-surface allocation); batches were flushed by the caller.
-- `fg_list_append` (L14344) — Appends one record (op, flags and payload bytes) to a recorded list, growing it as needed; returns 0 on allocation failure.
-- `fg_raw_add` (L14367) — Adds a raw record to the raw store, growing it when full; returns 0 on failure.
-- `fg_op_kept` (L14380) — Which records a generated frame redraws: draw state and drawing, never transfers, copies, presents, steps or diagnostics.
-- `fg_tri_geom` (L14396) — Positions of a triangle record (absolute native px) and its key words.
-- `fg_buf_of` (L14463) — Returns the index of the frame buffer whose rectangle contains (x, y), or -1 when none does.
-- `rp_snap_slot` (L14478) — Returns the snapshot slot holding list li, or -1 when none does.
-- `rp_snapshot_list` (L14483) — Snapshots the drawn picture of list li into the free slot for reprojection, when reprojection, rendering and generation are all on.
-- `fg_rotate` (L14526) — Close the capturing list as the frame of its buffer; it becomes the newer frame, the newer one the older.
-- `vlog_drop_oldest` (L14544) — Drops the oldest VRAM upload log entry and frees its saved texels.
-- `vlog_note` (L14555) — Logs a VRAM upload rectangle and saves its old texels so the upload can be undone, when the size is within the limit.
-- `vlog_rewind` (L14579) — VRAM back to list l's start (fg_replay): every upload since, newest first, undone; what is there now is kept in *cur (one buffer per upload) for vlog_restore.
-- `vlog_restore` (L14605) — What vlog_rewind kept, put back (VRAM as it is now).
-- `fg_capture` (L14616) — Called for every replayed record (gl_rth_exec), before it executes.
-- `fg_area_meets` (L14696) — Returns 1 when the drawing area overlaps the display rectangle disp.
-- `fg_list_close` (L14702) — Close the capturing list as the frame of buffer disp (x, y, w, h).
-- `fg_list_open` (L14734) — Opens the capturing list for the current buffer: clears it and notes the VRAM log sequence.
-- `fg_invalidate` (L14744) — Invalidates the four recorded lists and the last-frame state, so generation waits for fresh frames.
-- `fg_surface_warm` (L14756) — A new surface's first touch (the driver backing its storage) happens here, when it is allocated, not inside the first generated frame; that frame's measured cost is discarded as well (cold).
-- `fg_surfaces_ensure` (L14770) — Surfaces for the generated image, at the current level.
-- `fg_surfaces_free` (L14797) — Deletes the frame generation surfaces (hr and wide framebuffers, textures and renderbuffers).
-- `fg_blit2` (L14812) — Colour only: a depth-stencil blit costs the CPU milliseconds on macOS (most of a generated frame at high levels).
-- `fg_blit2_stencil` (L14822) — The marks (stencil) of the same rect: only while a chain reads them (s_fg_marks), for the depth-stencil blit's cost (fg_blit2).
-- `fg_blit` (L14830) — Copies the colour of a rectangle from the src framebuffer to dst, with the scissor turned off.
-- `fg_draw_tri_at` (L14840) — Re-emits a recorded triangle record at the given positions (x and y per corner) into the draw list.
-- `fg_rect_meets` (L14891) — Returns 1 when the rectangle x, y, w, h overlaps the display rectangle disp.
-- `fg_rect_groups` (L14903) — Redraw list b at phase t (0 = a's positions, 1 = b's) into the surfaces currently bound as hr / the displayed wide surface.
-- `fg_replay` (L14952) — Redraws list b at phase t for the generated frame, using list a only for the HUD motion; each vertex is placed between the two frames.
-- `fg_edge_offsets` (L15266) — Measures per-view edge offsets from the two lists, using averaged segment offsets, so the generated frame's edges line up.
-- `fg_strip_copy` (L15329) — A strip copy (colour) from the newer frame at an offset (surface px).
-- `fg_effects_view` (L15349) — Builds the map from the newer frame's camera to the in-between camera for the effects view; returns 0 when there is no fit.
-- `fg_newer_to_between` (L15361) — The main view's map from the newer real frame's camera space to the in-between camera's (GTE: y down): P' = A P + b.
-- `fg_compose` (L15383) — The generated image composed like a real present (no hold-last, no interpolation capture, no present bookkeeping), then swapped.
-- `rp_resources` (L15543) — Builds the reprojection programs and resources on first use; returns 1 when ready.
-- `rp_push` (L15591) — Appends one vertex (position, depth and view) to the reprojection vertex list, growing it when full; returns 0 on failure.
-- `rp_push_quad` (L15603) — Appends a two-triangle quad covering the rectangle to the reprojection vertex list.
-- `rp_view_params` (L15611) — Projection centre and distance per view, from its camera-placed vertices (x = cx + h X / Z).
-- `rp_is_car` (L15638) — A triangle the fit called an object is a car only when it really moved against the world: corners whose older position is what the camera alone predicts (near road subdivided past the fit's pixel tole
-- `fg_reproject` (L15662) — Warps the newer real frame to the in-between time t by reprojection, drawing into dst_fbo; returns 0 on failure.
-- `rp_free` (L15923) — Everything reprojection allocated (programs, snapshots, depth image, buffers): released when Smooth motion goes off or redraw is chosen, so neither keeps any of it.
-- `rp_allocated` (L15948) — Tests: reprojection holds nothing (no program, surface or buffer).
-- `fgw_prepare` (L15995) — Ready to fill: the program, and the newer frame's depth over the picture (surface px: x0, y0, w, h of src_fbo) in a texture.
-- `fgw_strip` (L16034) — One strip piece (dst surface px rect), the shader's inputs set by the caller.
-- `fg_generate` (L16042) — Generates one in-between frame at phase t from the two recorded lists, swapping it when swap is set; returns 0 when not possible.
-- `fg_ceil` (L16344) — Returns the frame generation ceiling state, initialised on first use with a limit of 15 and a factor of 2.0.
-- `fg_trip` (L16349) — Records a frame generation breaker trip, counting late trips and backpressure trips by the reason text.
-- `fg_overload` (L16362) — The render thread a frame behind (a stale present, two frames queued): proportional, not a stop.
-- `fg_gen_cost_publish` (L16367) — Publishes one generated frame's cost into the running totals.
-- `fg_gen_cost_poll` (L16374) — Reads finished GPU timer queries for generated frames, oldest first, and publishes their costs.
-- `fg_generate_timed` (L16394) — One generated frame at phase t, timed (GPU query, CPU wall minus swap).
-- `fg_keep_real` (L16443) — Keep the composed back buffer (a real frame) for later.
-- `fg_present_real` (L16468) — Presents the waiting real frame when one was kept; clears the pending flag either way.
-- `fg_flush` (L16492) — Present the waiting real frame now (generated frames still due are dropped): a newer present, a sync point, the queue backing up.
-- `fg_tick` (L16498) — Frame generation tick: presents the waiting real frame or generates frames when they are due; returns 0 when nothing is pending.
-- `fg_on_present` (L16555) — A present record replayed with frame generation on.
-- `fg_hold_real` (L16786) — No in-between frames this game frame: right after one that had them, holds its real frame to the last interval for this one frame (else 0, shown as usual).
-- `fg_queue_real` (L16796) — Keep the composed real frame and show it after n in-between frames spread over 'slots' display intervals (n = 0: at the last of them).
-- `gl_renderer_set_frame_generation` (L16834) — ---- frame generation: public ----
-- `gl_renderer_frame_generation` (L16846) — Returns whether frame generation is on.
-- `gl_renderer_set_frame_generation_method` (L16851) — [video] frame_generation_method (PSX_FRAME_GEN_METHOD, resolved by the frontend): redraw, the default, draws the whole recorded list again per generated frame; reprojection (a title opts in) warps the
-- `gl_renderer_frame_generation_method` (L16859) — Returns the frame generation method: reprojection, or redraw by default.
-- `gl_renderer_fg_source` (L16863) — While recording, passes the reprojection source data (ids, camera matrix, heights and x, y per corner) to the render thread.
-- `gl_renderer_frame_gen_real_share` (L16877) — The share of a game frame the real frame may use so Smooth motion still fills every display interval: (0.85 flip - slots-1 generated frames and their swaps) / flip, never below 0.35.
-- `gl_renderer_frame_gen_configure` (L16895) — Stores the display refresh rate and, when above 1, the guest frame rate used by frame generation.
-- `gl_renderer_frame_gen_hold` (L16903) — Not a breaker trip: generation pauses while the real frames are under pressure (dynamic resolution over budget or stepping down) for the caller's short tail, without the breaker's escalating holds.
-- `fg_note_guest_frame` (L16921) — Emulation thread, once per frame boundary: the guest is late when it has slipped two intervals behind its own VBlank schedule.
-- `gl_renderer_frame_gen_counts` (L16929) — Smooth motion's atomically published running totals, for rate readouts.
-- `gl_renderer_frame_gen_costs` (L16934) — Generated frames so far, how many of them were timed, and the timed ones' summed cost (ns, GPU time or CPU wall, the larger): dynamic resolution counts what Smooth motion actually spent in its load.
-- `gl_renderer_frame_gen_prims_json` (L16950) — TCP frame_gen {"prims":1}: the older and newer closed lists' triangles (only those with no projection when only2d): index, key, view, which corners have a projection (bits), x, y.
-- `gl_renderer_frame_gen_json` (L16975) — Writes frame generation status as JSON into out (up to cap bytes), including whether the breaker is open; returns the length.
-- `rtb_init` (L17053) — Render-thread backend: initialises VRAM, syncing unless recording, and abandons any incomplete A0 transfer.
-- `rtb_set_scale` (L17061) — Render-thread backend: sets the internal resolution scale after a sync point.
-- `rtb_scale` (L17064) — The scale changes under a sync point, or by a recorded dynamic-resolution step: while recording, the level as of the recording position.
-- `rtb_set_texture_filter` (L17067) — Returns the internal scale; while recording, the level as of the recording position.
-- `rtb_texture_filter` (L17068) — Render-thread backend: sets the texture filter after a sync point.
-- `rtb_set_dither` (L17069) — Render-thread backend: returns the current texture filter.
-- `rtb_set_semi_transparency` (L17071) — Render-thread backend: records or applies the dither setting.
-- `rtb_set_mask_bits` (L17073) — Render-thread backend: records or applies the semi-transparency enable and mode.
-- `rtb_set_texture_window` (L17075) — Render-thread backend: records or applies the mask set and check flags.
-- `rtb_set_color_modulation` (L17077) — Render-thread backend: records or applies the texture window value r.
-- `rtb_set_precise_triangle` (L17079) — Render-thread backend: records or applies the colour modulation factors and raw flag.
-- `rtb_set_depth_triangle` (L17084) — Render-thread backend: records or applies the sub-pixel override for the next triangle, with its three vertices.
-- `rtb_set_perspective_triangle` (L17093) — Render-thread backend: records or applies the SZ depth values for the next triangle.
-- `rtb_fill_rect` (L17102) — Render-thread backend: records or applies the perspective q values for the next triangle.
-- `rtb_copy_rect` (L17104) — Render-thread backend: records or applies a fill of a rectangle with a colour.
-- `rtb_draw_flat_triangle` (L17106) — Render-thread backend: records or applies a VRAM copy.
-- `rtb_draw_gouraud_triangle` (L17110) — Render-thread backend: records or applies a flat-colour triangle.
-- `rtb_draw_textured_triangle` (L17115) — Render-thread backend: records or applies a Gouraud triangle with a colour at each corner.
-- `rtb_draw_shaded_textured_triangle` (L17122) — Render-thread backend: records or applies a textured triangle.
-- `rtb_draw_flat_rect` (L17132) — Render-thread backend: records or applies a textured triangle with a colour at each corner.
-- `rtb_draw_textured_rect` (L17136) — Render-thread backend: records or applies a flat rectangle.
-- `rtb_draw_textured_rect_scaled` (L17141) — Render-thread backend: records or applies a textured rectangle.
-- `rtb_draw_line` (L17147) — Render-thread backend: records or applies a textured rectangle with scaled texture coordinates.
-- `rtb_draw_shaded_line` (L17151) — Render-thread backend: records or applies a flat line.
-- `rtb_render_display` (L17155) — Render-thread backend: records or applies a line with a colour at each end.
-- `rtb_render_display_hires` (L17157) — Render-thread backend: renders the display into o after a sync point and returns the result.
-- `rtb_vram_write` (L17159) — Render-thread backend: renders the display at internal resolution into o after a sync point and returns the result.
-- `rtb_vram_read` (L17161) — Render-thread backend: records or applies a single VRAM pixel write.
-- `rtb_vram_transfer_in` (L17162) — Render-thread backend: reads one VRAM pixel after a sync point.
-- `hd_note_exec` (L17176) — Render-thread backend: records or applies a CPU-to-VRAM transfer of a rectangle.
-- `rtb_vram_upload_open` (L17186) — After the upload/draw it follows, in command order, against s_vram.
-- `rtb_hd_texture_note` (L17195) — Runs an HD texture bookkeeping operation (track or begin an upload, and related ops) for a rectangle.
-- `rtb_vram_transfer_out` (L17197) — Render-thread backend: records or runs an HD texture bookkeeping note for a rectangle.
-- `rtb_set_draw_area` (L17218) — Render-thread backend: reads a rectangle of VRAM out after a sync point.
-- `rtb_get_draw_area` (L17226) — Render-thread backend: records or applies the drawing area corners.
-- `rtb_set_draw_offset` (L17233) — Render-thread backend: returns the drawing area, from the recorded copy when the render thread runs asynchronously.
-- `rtb_wide_configure` (L17235) — Render-thread backend: records or applies the drawing offset.
-- `rtb_wide_set_view` (L17250) — Render-thread backend: records or applies the wide-screen width and offset.
-- `rtb_wide_set_target` (L17252) — Render-thread backend: records or applies the wide-screen view (enable, shift and padding).
-- `rtb_wide_disable_target` (L17260) — Render-thread backend: selects the wide surface for base_x, recording the choice when on the emulation side.
-- `rtb_wide_clear` (L17264) — Render-thread backend: stops wide-surface mirroring, recording it when on the emulation side.
-- `rtb_wide_clear_margins` (L17272) — Render-thread backend: records or applies a clear of the wide surface rows for base_x.
-- `rtb_wide_feedback_rect` (L17282) — Render-thread backend: records or applies a clear of the wide surface reveal margins for base_x.
-- `rtb_render_wide_display` (L17291) — Render-thread backend: records or applies the wide-surface feedback copy.
-- `rtb_wide_dump_full` (L17295) — Render-thread backend: renders the wide display band for base_x into out after a sync point and returns the result.
-- `gl_rth_exec` (L17336) — ---- replay (render thread) ----------------------------------------------
-- `gl_rth_ctx` (L17474) — Render-thread backend: dumps the full wide surface for base_x into out after a sync point.
-- `gl_renderer_render_thread_start` (L17495) — Render thread ([video] render_thread, docs/RENDER_THREAD.md).
-- `gl_renderer_render_thread_stop` (L17536) — Callback that makes the render thread's GL context current, or releases it.
-- `gl_renderer_render_thread_active` (L17551) — Stops the render thread, draining its work; the context comes back to the emulation thread, which is current again.
-- `gl_renderer_render_thread_frame_boundary` (L17556) — Frame boundary (once per vblank, after the present): hand the context back to the render thread when the frame may run asynchronously, take it when it may not, then close the frame (the in-flight boun
-- `gl_renderer_render_thread_sync` (L17572) — Explicit sync point for callers that read renderer-written host state without calling a GL entry point (debug rings).
-- `gl_renderer_render_thread_json` (L17574) — Returns 1 when the render thread is on.
-- `rth_ring_capture_now` (L17610) — Presented-image ring capture for --headless-opengl (main.cpp), at this point of the command stream: the native-wide surface slice when wide != 0, else the display rect at internal resolution.
-- `gl_renderer_ring_capture` (L17643) — Captures a presented image into the image ring, recording the request for the render thread when it is recording.
-- `gl_backend_get` (L17654) — Returns the GL backend table: the render-thread version when the render thread is on, else the direct one.
+- `compile_shader` (L3641) — Compiles one GLSL shader of the given type from source; returns its name, or 0 on failure.
+- `build_program_ex` (L3651) — Compiles a vertex and a fragment shader and links them into a program; dual_source selects dual-source blending. Returns 0 on failure.
+- `build_program` (L3667) — Builds a program from vertex and fragment sources without dual-source blending.
+- `tex_prog_build` (L3684) — Builds the textured fragment program for a filter mask, stripping the version line from the shared source.
+- `tf_mask_now` (L3697) — The samplers the classes use now (gl_texfilter.inc's TFM_*).
+- `tex_prog_copy_uniforms` (L3718) — Every uniform of 'from' (TEX_FS has scalars and samplers only) into 'to'.
+- `tex_prog_switch` (L3734) — Switches the textured draw program to the variant for mask, remembering the mask so a failed build is not retried on every flush.
+- `conv_1555_to_rgba8` (L3764) — ---- pixel conversion (PS1 1555: bit15=mask, B[14:10] G[9:5] R[4:0]) ----
+- `mask_stencil_ex` (L3777) — ---- mask-bit stencil --------------------------------------------------- * Stencil bit0 mirrors bit15 of every pixel.
+- `mask_stencil` (L3788) — Writes the stencil mask-bit value using the current mask-check setting.
+- `plain_stencil` (L3790) — Like mask_stencil but never checks (uploads: gpu.c already applied mask).
+- `apply_psx_blend` (L3800) — PS1 semi-transparency as fixed-function blending, RGB only — the alpha channel (mask bit) is always replaced by the source fragment's alpha.
+- `hr_begin` (L3831) — ---- hr FBO render-state bracket ----------------------------------------
+- `hr_end` (L3849) — Ends the high-resolution render-state bracket: disables blending and resets the blend equation to the default.
+- `pgxp_depth_tol` (L3882) — Returns the relative depth bias for the PGXP depth test, read once from PSX_PGXP_DEPTH_TOL (default 0.02).
+- `depth_apply_ex` (L3891) — Turns on depth testing for the given mode (0 leaves it off), with a mode-specific depth function for textured or flat draws.
+- `depth_restore_ex` (L3920) — After the colour pass of mode 1: the depth-only pass (n vertices of the bound buffer), then back to the default state.
+- `flush_cpu_upload` (L3932) — ---- coherency: CPU -> GPU upload flush --------------------------------- CPU-side VRAM writes (GP0 A0 transfers, DMA, single pixel pokes) land in the CPU array immediately and accumulate s_up_rects.
+- `rebuild_target_stencil` (L4016) — Recreate one target's stencil mask from its authoritative alpha channel.
+- `stage_tex_grow` (L4059) — Grow a staging texture to at least w x h (never shrinks).
+- `scratch_ensure` (L4095) — Makes the copy and stencil scratch texture at least w by h; returns 0 when it cannot be allocated.
+- `rebuild_target_stencil_tiled` (L4104) — Rebuild the stencil mask of [x, x+w) x [y, y+h) (target px) from alpha, in tiles no larger than GL_SCRATCH_TILE so the scratch never has to match a multi-gigapixel surface.
+- `rebuild_mask_stencils` (L4153) — Rebuilds the whole-surface stencil mask from alpha when it is stale, after flushing the wide queue.
+- `wst_rebuild_rect` (L4202) — Rebuild surface i's stale stencil rect (S > 1).
+- `wst_rebuild` (L4210) — Rebuilds the stale stencil rectangle of wide surface i, or defers it when defer is set, within the canonical columns.
+- `wide_stencil_ready` (L4234) — Before a mirror draw into the current wide surface: under the mask check with the centre splice off, the stencil it tests must be current everywhere, including a centre part a rebuild left stale.
+- `hiw_on` (L4244) — ---- windowed high-resolution surface: mirror plumbing ------------------
+- `hiw_tile_holding` (L4247) — The first tile that holds all of [x0, x1), or NULL.
+- `hiw_clear_rect` (L4255) — Scissored clear of [x, x+w) x [y, y+h) (native) in every tile it touches.
+- `hiw_blit_begin` (L4277) — Bind the hi blit program for tile T: projection and shift set, the source texture on unit 0.
+- `blit_quad_verts` (L4298) — Fills six vertices (two triangles) covering the rectangle x, y, w, h for a quad draw.
+- `hiw_mirror_uploads` (L4309) — CPU->VRAM uploads into the tiles: the same staged native texels (s_up_tex, VRAM-aligned) drawn at S, texel = frag/S + tile origin.
+- `hiw_mirror_copy_chunk` (L4338) — Copies one chunk of a VRAM-to-VRAM copy (columns a to b, shifted, from row sy) into the high-resolution tiles, staging through a scratch texture.
+- `hiw_mirror_copy` (L4406) — VRAM->VRAM copy into the tiles.
+- `hiw_tile_bytes` (L4426) — Returns the GPU memory a window tile spanning columns x0 to x1 takes at the output scale.
+- `hiw_alloc_tile` (L4437) — Allocate a tile over [nx0, nx1) (64-aligned) and release the tiles in 'drop' (a bitmask of indices).
+- `hiw_ensure` (L4511) — The tile holding columns [x0, x1), created or grown on first sight: 1.
+- `raw_upload_pbo_on` (L4562) — Returns whether pixel-buffer uploads are used, from the PSX_GL_PBO_UPLOAD environment variable, read once.
+- `pack_flush` (L4572) — Pushes the dirty native VRAM region into the raw texture mirror before textured draws sample it; skipped when nothing is dirty or the raster is not ready.
+- `flush_pack_if_sampling` (L4635) — Make sure the raw mirror is current for a textured draw that samples the given texture page / CLUT.
+- `cpu_vram_authoritative` (L4659) — static DirtyRect s_d24_skip_fb; /* union of skipped MDEC FB rects (VRAM halfwords)
+- `ensure_cpu` (L4663) — Brings the CPU VRAM copy up to date by reading back the GPU framebuffer, when it is marked dirty and the raster is ready (netplay-aware).
+- `mark_prim_dirty` (L4706) — static uint64_t s_scene_prims = 0; /* frame_perf: scene primitives submitted (pre double-draw) static uint64_t s_scene_prims_tex = 0; /* frame_perf: of which textured (vs flat geometry)
+- `wide_band_rows` (L4760) — ---- native-wide mirror pass plumbing ----------------------------------- * Re-issue an already-set-up draw (program/VAO/VBO/blend/stencil bound) into the active wide surface.
+- `wide_band_scissor_x` (L4772) — Sets the scissor to the display band rows across columns x to x+w (scaled) for drawing into the wide surface.
+- `wide_band_scissor` (L4778) — Sets the scissor to the display band across the full wide width.
+- `wide_target_begin` (L4780) — Binds the wide surface for drawing and sets its shader offset and half-width uniforms for a mirror draw shifted by dx.
+- `wide_target_end` (L4800) — Restores the shader offset and shift uniforms after a wide-surface mirror draw.
+- `bd_prim_gate` (L4814) — Per-prim gate: stretch this prim iff native-wide + feature on AND the prim's source address is inside the flower-field backdrop data structure (precise — excludes the 3D rock/foreground, which is unta
+- `gl_renderer_set_wide_fast` (L4852) — Select full native-wide mirror rendering instead of the centre-splice fast path.
+- `gl_renderer_get_wide_fast` (L4854) — Returns whether full native-wide mirror rendering is selected, rather than the centre fast path.
+- `pgxp_render_wanted_update` (L4861) — PGXP renderer features (G1.14).
+- `gl_renderer_pgxp_render_wanted` (L4868) — PGXP renderer features (docs/ENHANCEMENTS.md G1.14), all off by default: depth buffer for opaque 3D polygons, perspective-correct Gouraud colour, seam expansion (0 off, 1 = 1 output px above 1x, 2 = 0
+- `gl_renderer_set_pgxp_depth` (L4871) — Turns the PGXP depth buffer for opaque 3D polygons on or off, requesting a depth clear and updating the render flag.
+- `gl_renderer_get_pgxp_depth` (L4878) — Returns whether the PGXP depth buffer is enabled.
+- `gl_renderer_set_pgxp_color_perspective` (L4879) — Turns perspective-correct Gouraud colour on or off and updates the PGXP render flag.
+- `gl_renderer_get_pgxp_color_perspective` (L4884) — Returns whether perspective-correct Gouraud colour is enabled.
+- `gl_renderer_set_pgxp_seam` (L4885) — Sets the seam expansion mode, clamped to 0 to 2, and updates the PGXP render flag.
+- `gl_renderer_get_pgxp_seam` (L4890) — Returns the current seam expansion mode.
+- `gl_renderer_set_pgxp_depth_threshold` (L4891) — Stores the average SZ jump threshold that triggers a PGXP depth clear.
+- `gl_renderer_set_pgxp_depth_tolerance` (L4893) — Relative near bias of the PGXP depth test (0..0.5); 0 = per-triangle LEQUAL.
+- `gl_renderer_pgxp_depth_clear_reasons` (L4896) — Cumulative depth clears by cause: config, drawing-area change, fill, average-SZ jump-back threshold, displayed frame.
+- `gl_renderer_pgxp_render_stats` (L4900) — Returns the cumulative depth-tested triangle, depth clear and seam triangle counts through the given pointers.
+- `wide_fast_center_valid` (L4907) — Returns whether the centre fast path can stand in for the full wide composite; false for scenes with an explicitly stretched sky or backdrop.
+- `wide_center_is_canonical` (L4922) — The one predicate for "the wide surface's centre columns [g_wide_off, g_wide_off+native_w) are the canonical framebuffer, unshifted".
+- `wide_note_native_rows` (L4926) — Adds rows sy..sy+sh-1 of g_wide_cur to s_wnat_* (drawn whole, centre included) unless the centre is the canonical blit; wide_blit_center clears them.
+- `wide_center_marks_hr` (L4935) — The shown band's centre marks are hr's: the centre is the canonical blit, or (no camera view) the blit still, no row of the band drawn whole since.
+- `wide_center_marks_from_hr` (L4949) — The present (real or generated frame) reads the 16:9 centre's marks from hr: while the centre is canonical, or a centre-only mirror was skipped in the last four presents (no effect blink when the splice turns off).
+- `mirror_x_center_only` (L4954) — static void wide_blit_center(GLuint wide_fbo, int base_x, int disp_y, int disp_h); /* def below True if [lo,hi] (canonical draw-x) lies strictly inside the 4:3 frame, so the prim adds nothing to eithe
+- `mirror_gate_clipped` (L4966) — A primitive the title cut at the 4:3 picture's edges (GPU_WS_WIDE_PRIM_CLIP, gate 5): its centre comes from the canonical blit, so not drawing its wide mirror leaves out exactly what it puts in the re
+- `mirror_geo_center_only` (L4973) — (Not canonical: the wide surface is drawn whole, and wide_target_begin cuts a gate-5 mirror to the 4:3 columns with the scissor.)
+- `wide_bd_scale` (L4983) — The 2D-backdrop x-stretch for a wide-mirror draw under gate 'gate'.
+- `emit_wide_scale` (L4993) — A glowing piece's x stretch where the wide view draws it (sc_add_emit): a backdrop stretched as one picture (gate kinds 1 and 4) about the centre; 1 for the rest.
+- `wide_bd_scale_of` (L4999) — Computes the backdrop x-stretch scale and centre for a wide-mirror draw under the gate, writing them to the outputs (1 and 0 when not stretched).
+- `wide_set_bd_scale` (L5028) — Set / clear the 2D-backdrop x-stretch for a wide-mirror draw, per the current gate (s_bd_gate, set by the caller from bd_prim_gate / the batch gate).
+- `wide_clear_bd_scale` (L5034) — Resets the backdrop stretch uniforms to no stretch (scale 1, centre 0).
+- `nd_axis_apart` (L5061) — Tests whether two triangles projected on the axis (nx, ny) are separated by a gap; returns 1 when they are.
+- `nd_tris_overlap` (L5072) — Two triangles overlap with some area (separating axes: the six edge normals).
+- `gl_renderer_clear_hd_texture_cache` (L5103) — Empties the HD texture cache once the render thread is idle, releasing its GL textures.
+- `gl_renderer_hd_texture_cached` (L5115) — Looks up an HD texture by key and generation; returns 1 with its size when it is cached, else 0.
+- `hd_gl_texture` (L5125) — Returns the GL texture for an HD texture image, reusing a cached one or filling a free cache slot.
+- `bind_textured_resources` (L5179) — Binds the VRAM source, palette and HD textures to texture units 0, 1 and the next unit, and sets their sampler uniforms.
+- `gl_renderer_set_texture_window_batching` (L5207) — Texture-window batching ([video] texture_window_batching; default off).
+- `gl_renderer_get_texture_window_batching` (L5209) — Returns whether texture-window batching is on.
+- `gl_renderer_batch_diag` (L5211) — Cumulative textured-batch diagnostics: total, then flushes caused by isolation, blend-mode, mask, filter, backdrop-gate, texture-window, capacity.
+- `bcls_begin` (L5256) — No glGet here: on a threaded driver every query is a round trip, and these run per batch.
+- `bcls_pass` (L5271) — pass 2: clear the bit under every covered pixel; pass 1 (glow) or 3 (3D): set it on that mark's sources; pass 4: set the cover bit under see-through fragments; pass 5: the 3D mark on every fragment (a
+- `bcls_end_geo` (L5290) — Back to an untextured draw's state: its blend and mask-bit stencil.
+- `bcls_passes` (L5308) — Returns which marking passes (clear, set or both) a textured batch needs, from its semi-transparency and 3D flags.
+- `b3dm_passes` (L5317) — The 3D mark: opaque 2D clears it, 3D (opaque or not) sets it, see-through 2D leaves what is under it.
+- `marks_lean` (L5340) — static int s_marks_lean_env = -1; /* PSX_MARKS_LEAN: -1 unset static uint64_t s_mlean_n[2]; /* passes skipped, drawn
+- `gl_renderer_marks_lean` (L5348) — Lean marks: the marking passes a batch of known make can skip skipped and the surface marks a byte a pixel (pictures identical; less GPU work for a weak GPU).
+- `gl_renderer_marks_lean_force` (L5352) — Forces lean marks on or off for testing, overriding the environment setting.
+- `gl_renderer_marks_lean_counts` (L5353) — Returns how many clear and set marking passes lean marks skipped.
+- `b3dm_lean` (L5354) — Drops the 3D mark set pass when lean marks are on and the batch is not 3D, returning the reduced pass flags.
+- `bcls_lean` (L5363) — Drops the set pass for batches whose marks cannot matter while lean marks are on, returning the reduced pass flags.
+- `tex_opaque_blend` (L5419) — tb_mask / check are the batch's set-mask and the mask-check state it was drawn under; track_stencil lets the canonical pass record deferred stencil (a replay into the high-resolution window must not t
+- `tex_soft_alpha_pass` (L5440) — Without dual source: the mask bit of the soft-edged batch just drawn, into alpha only, from the same fragments (u_softok 3).
+- `tex_draw_passes_ex` (L5451) — Draws a textured batch in its passes, wrapped in GPU timing for the textured batch measurement.
+- `tex_draw_passes_ex_` (L5457) — Draws the passes of a textured batch: sets the semi-transparency mode and draws the triangles for each pass.
+- `tex_batch_draw_passes` (L5541) — Draws the queued textured batch with its current mask, check and 3D settings, tracking stencil.
+- `cw_ms` (L5552) — ---- frame_perf CPU attribution (native-wide wedge hunt) ----------------- * Per-frame CPU wall time spent inside the GL submission paths (driver CPU cost surfaces INSIDE our gl* calls) + counters for
+- `mirror_batch_center_only` (L5567) — Textured-batch variant of mirror_x_center_only: scan the queued verts' x (attr 0, stride TEXV).
+- `hiw_enqueue` (L5635) — Appends a command of nverts vertices to the high-resolution window's queue, growing it as needed, and returns the new entry.
+- `hiw_area_touches` (L5667) — The draw area intersects a tile at all (else nothing to mirror).
+- `hiw_wide_queue_ok` (L5676) — A draw's native-wide mirror goes in its queue entry when the window's queue is live and the mirror is not being ablated (a perf probe).
+- `wide_queue_live` (L5680) — static int s_wide_queue = -1; /* PSX_GL_WIDE_QUEUE (default on)
+- `hiw_wide_set` (L5688) — Stores the wide surface, its shift and backdrop stretch in a queued command so it can be replayed later.
+- `hiw_enqueue_tex` (L5713) — Queue a textured batch for the window, and its native-wide mirror when 'mirror' (gate: its backdrop-stretch gate).
+- `hiw_enqueue_geo` (L5729) — Queues a flat or shaded geometry batch for the window, with its native-wide mirror when it applies; returns 0 when nothing needs queuing.
+- `hiw_replay_wide` (L5745) — Replay the queued native-wide mirrors, in order, into their wide surfaces: the state wide_target_begin sets (full-width scissor, the draw area's rows, the S sample-grid shift) plus each entry's shift
+- `hiw_flush_queue` (L5819) — Replays and empties the queued high-resolution window commands, drawing native-wide mirrors and the window tiles.
+- `hiw_flush_tail` (L5892) — The native-wide mirrors (both modes), then the canonical projection back on both programs.
+- `flush_tex_batch_impl` (L5911) — Draws the pending textured batch: checks stencil readiness, draws its passes, then clears the batch.
+- `mirror_flat_batch_center_only` (L5999) — Returns 1 when the flat batch lies wholly inside the canonical centre columns, so its wide mirror can be skipped.
+- `flat_batch_draw_hr_lines` (L6013) — A batch holding windowed lines (nl > 0) on the 1x hr surface, in painter order as runs: triangles from s_fb, lines as GL_LINES from the s_fbl copy uploaded after the batch's nverts vertices.
+- `batch_site_note` (L6030) — Counts a flush of a non-empty batch against the source line that caused it, for the batch-site diagnostic.
+- `gl_renderer_batch_sites` (L6039) — Cumulative flushes of non-empty batches by caller source line in gpu_gl_renderer.c (kind 0 textured, 1 flat/gouraud).
+- `flush_flat_batch_impl` (L6049) — Draws the pending flat or shaded batch: checks stencil readiness, issues the draw, then clears the batch.
+- `line_to_quad` (L6115) — A PS1 line as a quad one NATIVE pixel thick (used at S > 1).
+- `pgxp_tri_is_3d` (L6150) — ---- PGXP depth buffer, perspective colour, seam expansion (G1.14) ------- A triangle is "3D" here when gpu.c proved all three vertices from GTE dataflow shadows: sub-pixel positions (s_pc_valid) and
+- `pgxp_tri_log` (L6154) — PSX_PGXP_TRI_LOG=<file> (diagnostic): while <file>.on exists, every triangle is logged (kind, depth mode, x y sz per vertex) and every depth clear as "C".
+- `pgxp_tri_log_tri` (L6163) — Writes one triangle record (kind, depth mode, semi flag and each vertex's position and SZ) to the PGXP triangle log.
+- `gl_renderer_set_pgxp_depth_near` (L6181) — static float s_pgxp_depth_near_title = 1024.0f; /* gl_renderer_set_pgxp_depth_near
+- `pgxp_tri_depth_mode` (L6186) — Returns the depth mode for a triangle: 0 for non-depth or semi-transparent ones, else the mode with the near threshold.
+- `pgxp_vertex_code` (L6197) — Per-vertex code the shaders decode: SZ (0 = none) plus 65536 when the vertex's Gouraud colour interpolates perspective-correct.
+- `depth_clear_now` (L6206) — The depth buffer is cleared (beyond every SZ, over the drawing area and the native-wide margins) by a colourless depth-only draw through the flat batch, so every surface a draw reaches (the hr surface
+- `depth_before_tri` (L6230) — Before a depth-tested triangle: clear when the drawing area changed since the last one (a new frame buffer) or after a fill, and, like DuckStation's PGXP depth clear threshold, when the average SZ jum
+- `pgxp_seam_width` (L6252) — Seam expansion of an opaque 3D triangle.
+- `seam_expand` (L6263) — Expands an opaque 3D triangle's vertices outward by e to close seams, filling B with the barycentric matrix; returns 0 when the triangle is degenerate or e is zero.
+- `seam_attr` (L6299) — Extrapolate n attributes (stride apart) of 3 vertices with B.
+- `seam_q` (L6317) — Applies the barycentric matrix B to the perspective values q of three vertices, keeping each value when the result is not positive.
+- `seam_sz` (L6322) — Applies the barycentric matrix B to the three vertex SZ depth values, keeping each one when the result is not positive.
+- `gpu_geometry` (L6334) — Queues a flat or shaded primitive of the given mode with n vertices into the flat batch, after draining pending textured and upload batches.
+- `flush_line_batch` (L6567) — Drain a pending native-wide line batch (gpu_geometry).
+- `gpu_triangle` (L6571) — Draws one flat or shaded triangle from three positions and colours, with its semi-transparency flag.
+- `gpu_line` (L6578) — Draws one line from two positions and colours as a geometry primitive.
+- `gpu_textured_triangle` (L6592) — Textured triangle. Always two passes split by the per-texel STP bit so the stencil (mask) write value is constant within each pass; the semi pass is also where PS1 blending applies.
+- `wide_flat_rect_direct` (L6824) — Draw a flat-colored rect (GEO program) DIRECTLY into the active wide surface at wide-space coords [wx, wx+ww) × [y, y+h).
+- `gpu_flat_rect` (L6858) — Draws a flat-colour rectangle; a full-screen overlay also covers the whole wide surface.
+- `gpu_textured_rect` (L6906) — Draws a textured rectangle from its screen rect, texture coordinates, CLUT position and texture page, with semi-transparency.
+- `fill_segment` (L6934) — GP0(02h) fill: writes color with bit15=0, ignoring draw area, mask and offset; coordinates wrap.
+- `gpu_fill` (L6945) — Fills a rectangle with a colour for GP0 fill after draining pending batches; the drawing area and mask are ignored.
+- `scopy_forget` (L6985) — Copies of the picture being drawn: where a GP0(80h) whose source overlaps the drawing area put it (inclusive VRAM rects).
+- `scopy_note` (L6995) — Records a VRAM copy from source (sx, sy) to destination (dx, dy) of size w by h, so later draws know whether they read a copied picture.
+- `scopy_holds` (L7013) — A 15-bit triangle's texels all inside one picture copy, or reaching into a picture itself: the drawing area, or one a frame's scenery was drawn into lately (a slot's area: the other buffer, the one sh
+- `gpu_copy_seg` (L7037) — VRAM->VRAM copy of a rect that wraps neither at its source nor at its destination: blit the source region to the scratch texture (resolves overlap), then draw it back at the destination through the BL
+- `wide_copy_margins` (L7109) — Native wide: a copy of the picture being drawn (its source rows in the drawing area) whose columns reach past the 4:3 picture's sides takes those columns from the wide surface's margins, the picture r
+- `gpu_copy_rect` (L7149) — GP0(80h): source and destination addresses wrap at 1024x512 on their own, per pixel (sw_copy_rect: (x + col) & 1023, (y + row) & 511).
+- `glb_init` (L7174) — ---- backend vtable wrappers -------------------------------------------
+- `glb_set_scale` (L7179) — Under GL the internal-resolution scale lives in the hr FBO; the CPU-side (software mirror, readbacks, screenshots) stays native, so the reported scale is 1 and the software hi-res mirror stays off.
+- `glb_scale` (L7187) — Returns the real internal supersampling scale of the renderer.
+- `lod_apply_uniforms` (L7192) — Sends the anisotropy setting to the textured program's u_aniso uniform, restoring the previously bound program.
+- `gl_renderer_set_texture_lod` (L7199) — [video] texture_lod / anisotropic_filtering: mip-level emulation (box average of the screen footprint, clamped to the primitive's UV bounds) for minified world textures, with up to 'aniso' taps along
+- `gl_renderer_texture_lod` (L7208) — Returns the texture LOD emulation setting.
+- `gl_renderer_anisotropy` (L7209) — Returns the anisotropic filtering tap count.
+- `accurate_apply_uniforms` (L7211) — Sends the accurate blending setting to the textured program's u_accurate uniform, restoring the previously bound program.
+- `gl_renderer_set_accurate_blending` (L7221) — [video] accurate_blending: store every VRAM write in the k*8/255 basis so 8-bit GL blending truncated to 5 bits is exactly the PS1's semi-transparency arithmetic (whites of fills and textures become 2
+- `gl_renderer_accurate_blending` (L7227) — Returns whether accurate blending is on.
+- `dither_apply_uniforms` (L7231) — Sends the dither mode to the geometry and textured programs' u_dither uniforms, restoring the previously bound program.
+- `glb_set_dither` (L7241) — GP0(E1h) bit 9: recorded; it is read when each primitive is queued.
+- `gl_renderer_set_dithering` (L7242) — [video] dithering: 1 (default) PS1 dither pattern on the native VRAM grid (guest VRAM identical at every internal scale), 2 elective pattern per internal-resolution pixel, 0 off (true colour).
+- `gl_renderer_dithering` (L7250) — Returns the dither mode: 0 off, 1 native pattern, 2 per internal-resolution pixel.
+- `glb_set_texture_filter` (L7251) — Stores the texture filter (out of range becomes 0), refreshes the filter state and passes it to the software rasterizer.
+- `glb_texture_filter` (L7256) — Returns the current texture filter.
+- `gl_renderer_set_texture_filter_class` (L7257) — Texture filters by class (video_texture_filter.h: PSX_TEXTURE_CLASS_* world, sprite, UI; PSX_TEXTURE_FILTER_*; PSX_TEXTURE_EDGE_*).
+- `gl_renderer_texture_filter_class` (L7264) — What class cls draws with now (its edge in *edge, may be NULL).
+- `gl_renderer_texture_filter_stats` (L7269) — Textured triangles drawn per class since start (a counter: read twice and subtract), and whether some class blends its edges now (*soft).
+- `glb_set_semi_transparency` (L7274) — Stores the semi-transparency enable and mode (mode masked to two bits) and passes them to the software rasterizer.
+- `glb_set_mask_bits` (L7275) — Sets the mask set and check flags; a change in the check flag flushes the pending batches first.
+- `glb_set_texture_window` (L7293) — Stores the texture window mask and offset fields decoded from the GP0(E2) value r.
+- `glb_set_color_modulation` (L7300) — Stores the colour modulation factors r, g, b and the raw flag for the next draws.
+- `glb_set_precise_triangle` (L7304) — Sub-pixel / perspective overrides for the next triangle.
+- `glb_set_perspective_triangle` (L7317) — Enables or disables perspective-correct interpolation for the next triangle using three q values, and passes it to the software rasterizer.
+- `glb_set_depth_triangle` (L7322) — Sets the SZ depth values of the next triangle; valid only when enabled and all three are positive.
+- `glb_set_draw_area` (L7326) — Sets the drawing area corners; a changed area clears the PGXP depth buffer and flushes the batches first.
+- `glb_get_draw_area` (L7330) — Returns the current drawing area corners through the output pointers.
+- `glb_set_draw_offset` (L7331) — Sets the drawing offset (x, y) after flushing pending batches, and passes it to the software rasterizer.
+- `cpu_raster_required` (L7340) — Returns 1 when the software rasterizer must also draw the current primitive into CPU VRAM, after applying the depth24 upload policy.
+- `native_draw_begin` (L7353) — Bracket each authoritative draw so a later netplay/session policy change cannot accidentally disable the faithful floor for HD replacement mode.
+- `native_draw_end` (L7358) — Restores the software rasterizer's faithful-authority setting saved by native_draw_begin.
+- `precise_consumed` (L7361) — The sub-pixel / perspective override describes exactly one triangle; drop it once that triangle has been submitted so a later prim can never inherit it.
+- `gl_renderer_projective_supported` (L7363) — Exact-provenance world polygons only.
+- `gl_renderer_draw_projected_triangle` (L7368) — Draws a triangle from three projected vertices with texture page, CLUT, raw, semi and perspective options; while recording it stores the command for the render thread.
+- `glb_draw_flat_triangle` (L7414) — Draws a flat-colour triangle: the software rasterizer too when CPU VRAM must stay exact, then the GL path.
+- `glb_draw_gouraud_triangle` (L7424) — Draws a triangle with a colour at each corner, the same way as the flat version, then clears the precise-triangle override.
+- `glb_fill_rect` (L7436) — Fills a rectangle with a colour after refusing writes outside a pass, forgetting copies there and clearing PGXP depth under it.
+- `glb_copy_rect` (L7448) — Copies a rectangle of VRAM from (sx, sy) to (dx, dy), through the software rasterizer when required and then on GL.
+- `glb_draw_textured_triangle` (L7458) — Draws a textured triangle with the texture page, CLUT and texture coordinates of its three vertices, on the software and GL paths.
+- `glb_draw_shaded_textured_triangle` (L7475) — Draws a textured triangle with a colour per corner, on the software and GL paths.
+- `glb_draw_flat_rect` (L7492) — Draws a flat-colour rectangle, with the software rasterizer too when CPU raster is required.
+- `glb_draw_textured_rect` (L7501) — Draws a textured rectangle at the given position, texture coordinates, CLUT and page, on the software and GL paths.
+- `glb_draw_textured_rect_scaled` (L7513) — Draws a textured rectangle whose texture coordinates span u0 to u1 and v0 to v1, scaled to the rectangle.
+- `glb_draw_line` (L7525) — Draws a flat-colour line from x0,y0 to x1,y1, on the software path when required and then on GL.
+- `glb_draw_shaded_line` (L7534) — Draws a line with a colour at each end.
+- `glb_render_display` (L7547) — Renders the displayed picture into the 32-bit output buffer o at the given display rectangle, applying the depth24 policy first.
+- `glb_render_display_hires` (L7548) — Renders the displayed picture at internal resolution into o, with the same arguments as glb_render_display.
+- `gl_renderer_capture_display_hires` (L7557) — Capture the presented surface at internal resolution (--headless-opengl presentation ring).
+- `depth24_is_fb_transfer` (L7578) — While GP1 depth24 is on, packed RGB888 lives in the CPU mirror and is presented via gl_renderer_present — never as 1555 FBO texels.
+- `depth24_mark_scanout_band` (L7608) — Remember only the depth24 scanout band for clear-on-leave.
+- `depth24_clear_skipped_fb` (L7626) — Clears the VRAM rectangles skipped by depth24 MDEC frames, flushing pending draws first.
+- `depth24_upload_policy` (L7663) — Sets how uploads behave while 24-bit display is on, keeping the CPU mirror current.
+- `glb_vram_write` (L7699) — Writes one 16-bit pixel at (x, y) into VRAM after refusing writes outside a pass and forgetting copies there.
+- `glb_vram_read` (L7707) — Returns the 16-bit VRAM pixel at (x, y), first syncing the depth24 policy and the CPU copy.
+- `glb_vram_transfer_in` (L7708) — Writes a rectangle of 16-bit pixels d into VRAM (CPU to VRAM transfer), refusing writes outside a pass.
+- `glb_vram_transfer_out` (L7733) — Reads a rectangle of VRAM into d (VRAM to CPU transfer), syncing the CPU copy first.
+- `upload_present_tex` (L7736) — ---- context init / present --------------------------------------------
+- `gl_renderer_set_fmv_chroma_smoothing` (L7759) — [video] fmv_chroma_smoothing: on 24-bit (MDEC) presents, keep each sample's luma and smooth its chroma over the 3x3 source pixels around it, hiding the 2x2 colour blocks of 4:2:0 video.
+- `gl_renderer_fmv_chroma_smoothing` (L7763) — Returns whether FMV chroma smoothing is on.
+- `gl_renderer_fmv_chroma_frames` (L7764) — Returns how many frames had FMV chroma smoothing applied.
+- `gl_renderer_note_present_depth24` (L7765) — Records whether the current present is a 24-bit display frame.
+- `gl_renderer_set_fmv_filter` (L7767) — FMV present reconstruction, settings.toml [video] fmv_filter.
+- `fmv_filter_mode` (L7772) — Returns the FMV filter mode, which is the config value minus one.
+- `present_set_sharp` (L7780) — Select the present-program sampling mode.
+- `present_set_gamma` (L7800) — The presentation shader is shared by game content, bezel art, host OSD, and hold-last redraws.
+- `present_set_scanline` (L7818) — Push scanline uniforms into the currently-bound present or interpolation program.
+- `gl_renderer_set_display_aspect` (L7844) — Display aspect for the present letterbox (default 4:3).
+- `gl_renderer_set_scanlines` (L7854) — Scanline post-process toggle (host display setting).
+- `gl_renderer_get_scanlines` (L7862) — Returns whether scanlines are on, and writes their strength to *strength when given.
+- `gl_renderer_set_post_gamma` (L7867) — Presentation-only gamma adjustment.
+- `gl_renderer_get_post_gamma` (L7887) — Returns the presentation gamma adjustment.
+- `letterbox_rect_aspect` (L7892) — Letterbox: largest num:den rect centered in the drawable.
+- `letterbox_rect` (L7900) — Computes the letterbox rectangle for the window size using the configured display aspect.
+- `make_tex` (L7904) — Creates a 2D texture with the given internal format, size, pixel format and type, and returns its name.
+- `make_fbo` (L7916) — Creates a framebuffer object with the given colour texture and stencil renderbuffer attached, returning its name through out_fbo.
+- `hr_alloc_surface` (L7936) — A new hr surface (colour texture, depth-stencil RB, FBO) at scale S for a dynamic-resolution step, depth and stencil cleared.
+- `free_hr_targets` (L7967) — Release the scale-dependent render targets (hr colour + depth-stencil + copy scratch).
+- `alloc_hr_targets` (L7980) — Allocate the authoritative hr surface at scale S.
+- `tex_prog_locations` (L8009) — The textured program's uniform locations after a filter variant switch (tex_prog_switch): init_gpu_raster's, and the lazy ones fetched again when next set.
+- `init_gpu_raster` (L8036) — Initialises the GL rasterizer for the context, with the internal scale clamped to what the driver and memory budget can allocate.
+- `gl_renderer_texture_banks_supported` (L8339) — Returns whether retained texture banks can be used: the raster is ready and HD native authority is off.
+- `gl_renderer_fit_wide_aspect` (L8347) — Narrow a native-wide display aspect num:den to the widest whose surface this context can allocate at its internal scale (psx_gl_fit_wide_aspect; disp_w is the display width the margins derive from).
+- `gl_renderer_scale_info` (L8357) — Fills out with the renderer's scale information, zeroing it first; returns 0 when out is NULL.
+- `gl_read_display_argb` (L8409) — Read the display rect at internal resolution straight from the hr FBO: (w*S) x (h*S) ARGB8888, top row first.
+- `gl_renderer_read_display_hires` (L8455) — Reads the display rectangle at internal resolution into out as ARGB, returning the result of gl_read_display_argb.
+- `gl_renderer_select_texture_bank` (L8462) — Select a retained immutable bank for the next textured submission; zero selects live VRAM.
+- `gl_renderer_select_texture_bank_live_clut` (L8497) — Retain texture indices while sampling current guest CLUTs (fades/animation).
+- `gl_renderer_set_impl` (L8504) — Which GL the renderer calls ([video] renderer, before init_context): 0 = the driver's OpenGL, 1 = sgl on SDL3's GPU API ("sdl_gpu"; the window then is made without SDL_WINDOW_OPENGL).
+- `gl_renderer_get_proc` (L8515) — A GL entry point of the implementation in use (driver or sgl), for code that draws into the renderer's context with its own GL table (ImGui).
+- `gl_renderer_impl` (L8517) — Returns which GL implementation is in use: 0 for the driver's OpenGL, 1 for sgl.
+- `gl_renderer_impl_name` (L8518) — "opengl" or "sdl_gpu (vulkan)" etc.
+- `gl_renderer_impl_probe` (L8524) — sdl_gpu: 1 when its GPU device can be made (made now, before the window, and kept); 0 = none here.
+- `gl_renderer_impl_window_flags` (L8531) — SDL window flags the sdl_gpu window needs ([video] sdl_gpu_driver / PSX_SGL_DRIVER: "vulkan", "direct3d12", "metal", "auto"); 0 without sgl.
+- `gl_renderer_set_sgl_driver` (L8538) — Chooses the SDL GPU driver name for the sgl renderer; does nothing when sgl is not built in.
+- `gl_renderer_sgl_json` (L8545) — sgl counters as JSON (TCP "sgl"); 0 when the renderer is not on sgl.
+- `gl_renderer_init_context` (L8553) — Create the GL context on a window made with SDL_WINDOW_OPENGL.
+- `gl_renderer_set_swap_interval` (L8660) — Set the GL swap interval (vsync mode): 1=vsync, 0=immediate, -1=adaptive.
+- `gl_renderer_get_swap_interval` (L8672) — Returns the current swap interval, or -2 when there is no context.
+- `gl_renderer_shutdown` (L8687) — Shuts the renderer down: stops the render thread, forgets the presented-image ring's GL names, then frees the GL resources.
+- `gl_renderer_present` (L8746) — CPU-readout present (24-bit FMV frames and the PSX_GL_FORCE_CPU_PRESENT diagnostic): full-window clear, then a quad into the letterbox rect.
+- `gl_renderer_present_blank` (L8859) — Clear to black + swap (display-disabled frame).
+- `gl_renderer_sync_cpu` (L8878) — Sync the authoritative FBO down into CPU VRAM (no-op when current).
+- `gl_renderer_invalidate_present` (L8883) — Mark the whole display dirty, drop present-path latches, reset frame- interpolation history, and force the next several SwapWindow calls even if VRAM tiles match the last present.
+- `gl_renderer_restage_vram_after_savestate` (L8893) — After savestate restore: push the CPU VRAM mirror into the GL FBO.
+- `gl_renderer_set_cpu_auth_dual` (L8916) — Netplay dual-raster: every GP0 also writes software VRAM @ 1× (snaps / digests / GPUREAD authority) while the OpenGL hr FBO keeps settings-scale SSAA for present-only.
+- `gl_renderer_set_hd_texture_mode` (L8925) — HD texture presentation uses an independent native SW VRAM authority.
+- `gl_renderer_cpu_auth_dual` (L8954) — Returns whether dual-raster netplay CPU authority is on.
+- `gl_renderer_present_probe_reset` (L8958) — Post-savestate freeze probe: skip/swap/dirty-mark counters (GL present path).
+- `gl_renderer_present_probe_take` (L8965) — Returns and resets the post-savestate present probe counters: skips, swaps, dirty marks and forced presents remaining.
+- `gl_renderer_present_rect_dirty` (L8978) — Returns 1 when any part of the display rectangle is dirty for presentation; 0 when not ready or empty.
+- `gl_renderer_flush_cpu_uploads` (L8984) — Land pending CPU→VRAM uploads into the FBO without reading the FBO back.
+- `gl_renderer_fbo_peek` (L8996) — Diagnostic (debug server "gl_fbo_peek"): read a rect of the GPU-side authoritative VRAM (via the pack pass + raw mirror) WITHOUT writing CPU VRAM — lets a probe diff FBO truth against CPU truth.
+- `gl_renderer_fbo_peek_deferred` (L9023) — fbo_peek at this point of the command stream without a sync point: with the render thread recording, the readback is queued and lands in out when the render thread reaches it (a reader of out must syn
+- `gl_renderer_vram_diff` (L9039) — Diagnostic (debug server "gl_vram_diff"): full-VRAM comparison of the GPU-side truth (FBO via pack) against the CPU array, WITHOUT writing either.
+- `gl_renderer_diag` (L9081) — Diagnostic state for the debug server: coherency flags + dirty rects.
+- `wide_free_all` (L9118) — Deletes every wide surface's framebuffer and texture, after flushing the queued mirrors that target them.
+- `wide_alloc_surface` (L9134) — Create a native-wide surface (colour texture, depth-stencil RB, FBO) at scale S, cleared to black with a zero stencil.
+- `wide_fbo_for` (L9164) — Lazily allocate (or find) the wide FBO+tex for base_x.
+- `glb_wide_set_view` (L9212) — Enable native-wide with a wide width + centering offset (native px), or disable (wide_w <= 0).
+- `glb_wide_configure` (L9223) — Sets the native-wide width and centring offset of the wide surfaces, flushing pending line batches first.
+- `glb_wide_set_target` (L9237) — Select the wide surface to mirror into for the back buffer at base_x.
+- `glb_wide_disable_target` (L9248) — Stop mirroring (offscreen draws that don't target a framebuffer).
+- `glb_wide_clear` (L9253) — Mirror a framebuffer clear: fill the full wide width over [y, y+h) of the surface for base_x, so the revealed margins are clean.
+- `glb_wide_clear_margins` (L9285) — Clear only the two synthetic reveal strips, preserving the centred canonical framebuffer.
+- `fb_prog_ready` (L9366) — Builds the framebuffer band copy program on first use; returns 1 when it is ready.
+- `fb_bind` (L9382) — Program, source texture and uniforms for one band copy (wide-local px).
+- `wide_index_existing` (L9399) — An existing wide surface for base_x; never allocates (nothing to copy yet).
+- `glb_wide_feedback_rect` (L9405) — Feedback copy of a rectangle inside the wide surface from src to dst, drawn with the given flat colour and semi flag.
+- `glb_render_wide_display` (L9446) — Present source: read the wide FBO for the displayed buffer (base_x) into the CPU present buffer as ARGB8888, byte-identical to sw_render_wide_display's output so the shared CPU present path consumes i
+- `glb_wide_dump_full` (L9502) — Dump the ENTIRE wide compositor surface for base_x (all double-buffer bands + both reveal margins), g_wide_w x VRAM_H at scale.
+- `gl_renderer_frame_gpu_totals` (L9612) — frame_perf's GPU timer queries (debug-tools builds), running totals over the frames read back: the scene draws' span (between two presents: an upper bound, idle gaps included) and the present (post ef
+- `gl_perf_yield` (L9621) — Ends the open scene GPU timer query so another timing user can measure.
+- `gl_perf_init` (L9625) — Sets up the frame performance GPU timing queries; does nothing in builds without debug tools.
+- `gl_perf_mirror_begin` (L9657) — Bracket ONE native-wide mirror pass (called from the wide-mirror draw sites).
+- `gl_perf_mirror_end` (L9664) — Closes a native-wide mirror pass timing bracket by recording its end timestamp.
+- `gl_perf_tex_begin` (L9671) — Starts timing a textured batch with a GPU query, when textured timing is on and no other timer owns the GPU clock.
+- `gl_perf_tex_end` (L9678) — Ends a textured batch timing bracket by recording its end timestamp.
+- `gl_renderer_perf_tex_timing` (L9685) — frame_perf "tex": time every textured batch's draws (GL timestamps) while on; perf_tex_gpu: their average GPU ms per frame and the frames measured.
+- `gl_perf_present_enter` (L9695) — Top of present (after flush_cpu_upload, before clear/blit).
+- `gl_perf_present_exit` (L9730) — End of present (after SwapWindow).
+- `gl_renderer_perf_prim_split` (L9794) — Aggregate the ring for the debug server.
+- `gl_renderer_perf_aggregate` (L9800) — frame_perf: aggregate the per-frame GPU/CPU phase-timing ring (debug server "frame_perf").
+- `gl_renderer_perf_tex_gpu` (L9836) — The textured batches' GPU time per frame over the ring (frame_perf "tex"): the average, and the frames that had it measured.
+- `gl_renderer_set_ws_ablate` (L9851) — Native-wide mirror ablation (perf attribution): see s_ws_ablate.
+- `gl_renderer_get_ws_ablate` (L9853) — Returns the native-wide mirror ablation mode used for performance attribution.
+- `interp_reset_history_unlocked` (L9855) — Clears the frame-interpolation history without taking the lock.
+- `interp_reset_history` (L9868) — Clears the frame-interpolation history.
+- `gl_renderer_set_interpolation` (L9872) — Turns frame interpolation on or off, given the host and target refresh rates, the source rate and the blend mode.
+- `gl_renderer_set_interpolation_blend` (L9901) — Change only the blend mode (0 linear, 1 change-adaptive, 2 hold), keeping the history and schedule; takes effect at the next present.
+- `gl_renderer_set_interpolation_suspended` (L9907) — Suspends or resumes frame interpolation; a change resets its history.
+- `gl_renderer_set_interpolation_source` (L9914) — Blend source: 0 = every guest VBlank is a source frame (default), 1 = only real display flips are (psx_mod_set_frame_interpolation_source).
+- `gl_renderer_interpolation_source_diag` (L9924) — Returns interpolation source diagnostics (source mode, flip period, captures, duplicates) through the pointers.
+- `interp_suspended_now` (L9939) — Returns whether interpolation is suspended now, including while an OpenXR session is active; resets history when that changes.
+- `gl_renderer_interpolation_owns_cadence` (L9945) — Returns 1 when interpolation controls the present cadence: context ready, enabled and not suspended.
+- `gl_renderer_interpolation_diag` (L9949) — Returns interpolation state (enabled, suspended, history frames, refresh rates, swap count) through the pointers.
+- `interp_capture` (L9964) — Copy a stable display image out of the mutable VRAM/wide render target.
+- `interp_draw_textures` (L10041) — Draws the previous and current frame textures blended by alpha onto the default framebuffer, in the given viewport rectangle.
+- `interp_present_pair` (L10072) — Presents a blend of two captured frames at fraction t; returns 0 when interpolation is off or has no history.
+- `interp_present` (L10107) — Presents the interpolated frame at alpha, or the held frame when hold is set.
+- `interp_wait_until` (L10114) — Waits on the host until the deadline (performance counter ticks) when native host pacing is on.
+- `interp_present_source_interval` (L10143) — Updates the source-frame interval diagnostics from the performance counter at each source frame.
+- `pass_cpu_vram_hash` (L10288) — The whole CPU VRAM: the guest-visible VRAM (GPUREAD, savestates, netplay digests and, in dual raster, the authoritative surface).
+- `gl_renderer_perf_ticks` (L10297) — Returns the current high-resolution performance counter value.
+- `gl_renderer_perf_frequency` (L10298) — Returns the performance counter frequency in ticks per second.
+- `pass_gens_invalidate` (L10300) — Marks all render pass generations invalid and not promoted, and clears the promotion target.
+- `gl_renderer_pass_begin_diag` (L10308) — Copies the last render pass begin diagnostics into out.
+- `pass_begin_refuse` (L10313) — Records a reason for refusing a render pass begin and returns 0.
+- `pass_gl_errors` (L10319) — Keep pre-existing errors separate from this allocation's errors.
+- `gl_renderer_pass_force_refuse` (L10328) — Debug: make the backend decline passes (PSX_RENDER_PASS_REFUSE=1 at start, render_pass_refuse over TCP), as a renderer mode without them would.
+- `pass_refusal_init` (L10333) — Reads the PSX_RENDER_PASS_REFUSE environment variable once to decide whether render passes are forced to refuse.
+- `gl_renderer_pass_unavailable` (L10343) — Why not: 0 ready, PSX_MOD_RENDER_PASS_NO_PRESENTER or _BACKEND (mod_plugins.h).
+- `gl_renderer_pass_ready` (L10369) — Render passes (render_pass.c; docs/RENDER_PASSES.md).
+- `pass_slot_cap` (L10375) — Slots per generation that fit a 256 MiB budget for the whole queue.
+- `gl_renderer_pass_plan` (L10383) — Plans the render pass schedule for one period: alpha values go into alpha_q16 (up to max) and the wanted count into wanted.
+- `gl_renderer_pass_plan_diag` (L10467) — Copies the latest render pass plan diagnostics into out.
+- `gl_renderer_pass_note_cost` (L10471) — Records the cost in ticks of a render pass, resetting the smoothed cost when the size changed.
+- `gl_renderer_pass_leaks` (L10486) — Returns how many render pass resource leaks were seen.
+- `gl_renderer_pass_verify_vram` (L10488) — Returns 1 when the last render pass VRAM verification passed.
+- `pass_wide_fbo_for` (L10492) — Returns the framebuffer of the existing wide surface for base_x, or 0 when there is none or no wide width.
+- `pass_make_color_fbo` (L10499) — Makes a colour framebuffer of size w by h with a texture and renderbuffer, keeping the existing one when the size matches; returns 1 when ready.
+- `pass_gen_release` (L10529) — Deletes the textures of render pass generation gi and clears its texture table.
+- `pass_gen_reserve` (L10539) — Make sure slots [0, need) of generation gi exist at w x h.
+- `pass_capture_into` (L10570) — Copy the rect as the presenter would see it into 'tex'.
+- `pass_blit` (L10602) — Copies a rectangle from the src to the dst framebuffer with the given mask, after flushing queued wide mirrors.
+- `pass_verify_read` (L10614) — Reads back the high-resolution and raw VRAM copies for render pass verification, flushing queued mirrors first.
+- `pass_free_color_fbo` (L10641) — Deletes a colour framebuffer with its texture and renderbuffer, and resets their names and size.
+- `pass_resources_release` (L10655) — Context teardown (gl_renderer_shutdown): free the pass images, backups and journal, and forget their names so a new context makes fresh ones.
+- `pass_journal_protect` (L10689) — Saves the current contents of a rectangle into the render pass journal so it can be rolled back; returns 0 when the journal is full.
+- `pass_journal_rollback` (L10713) — Restores the journaled rectangles, newest first, undoing the render pass writes that fell outside its rectangle.
+- `transaction_begin` (L10727) — kind: 0 temporal pass, 1 stereo eye, 2 netplay local view.
+- `transaction_restore_ex` (L10886) — keep_color: a committed netplay local view keeps the rect's presented colour (hr surface, native-wide band); everything else is put back.
+- `transaction_restore` (L10943) — Puts back the VRAM that the render pass transaction changed, discarding its colour.
+- `gl_renderer_local_view_unavailable` (L10945) — Netplay local view (psx_mod_render_local_view): the VRAM transaction with no generation.
+- `gl_renderer_local_view_begin` (L10955) — Starts a netplay local-view transaction over the rectangle and returns its result.
+- `gl_renderer_local_view_end` (L10959) — Ends the local-view transaction: flushes pending draws, then keeps or rolls back the view; returns 0 when none is active.
+- `gl_renderer_pass_begin` (L10968) — Starts a temporal render pass transaction over the rectangle, optionally opening a generation with period and reuse; returns its result.
+- `gl_renderer_stereo_begin` (L10973) — Starts a stereo-eye transaction over the rectangle with reuse; returns its result.
+- `gl_renderer_pass_end` (L10977) — Capture the drawn rect at alpha_q16 (keep) and roll the rect back.
+- `gl_renderer_stereo_unavailable` (L11000) — Stereo shares the VRAM transaction, not the temporal generation/schedule.
+- `gl_renderer_stereo_stage_reset` (L11009) — Clears the mask of the staging stereo pair that is not in use.
+- `gl_renderer_stereo_stage_readback` (L11013) — Reads back an eye's staged image into rgba at w by h; returns 0 when the eye, buffer or size is invalid (size up to 1024 by 512).
+- `stereo_invalidate` (L11041) — Marks the stereo pairs as invalid and clears their masks.
+- `gl_renderer_stereo_reset` (L11045) — Resets the stereo state: invalidates the pairs and clears the mode and dump and capture counters.
+- `gl_renderer_stereo_set_presentation` (L11051) — Sets the stereo presentation mode (0 or 1); returns 0 for any other value.
+- `stereo_resources_release` (L11057) — Frees the colour framebuffers of both stereo pairs and both eyes.
+- `gl_renderer_stereo_end` (L11065) — Ends a stereo eye: captures the drawn rectangle of the staging pair for that eye and keeps or rolls it back; returns the result.
+- `gl_renderer_stereo_diag` (L11087) — Fills out with stereo diagnostics for the current pair.
+- `gl_renderer_stereo_dump_arm` (L11098) — Arms a stereo dump into dir for the given number of pairs; a NULL or empty dir disarms it.
+- `gl_renderer_stereo_capture_records` (L11105) — Copies up to capacity stereo capture records into out and returns how many were recorded.
+- `stereo_dump` (L11113) — Writes a stereo pair's two eye images and a side-by-side image to the dump directory.
+- `gl_renderer_stereo_publish` (L11145) — Publishes the staged stereo pair with its id, cycle and the two view positions; returns 0 unless both eyes are complete and the same size.
+- `psx_mod_openxr_enable` (L11157) — Begin locates both views at one predicted time.
+- `psx_mod_openxr_recenter` (L11163) — Recentres the OpenXR view on the current head pose.
+- `psx_mod_openxr_quad` (L11165) — Frame-local UI surface: the fresh pair's left image is shown to both eyes on a head-relative quad.
+- `psx_mod_openxr_surface` (L11170) — Submits a CPU-side surface for OpenXR display; refused while a render pass is active.
+- `psx_mod_openxr_native_surface` (L11175) — Asks OpenXR to show the native-resolution surface at the given distance, width and units; refused while a pass or frame is open or the session is not compiled.
+- `psx_mod_openxr_begin` (L11185) — Starts an OpenXR frame at width by height (within the VRAM size) in the given units; returns 0 when refused.
+- `psx_mod_openxr_view` (L11192) — Fills view with the render view for one eye from OpenXR.
+- `psx_mod_openxr_input` (L11196) — Fills input with the OpenXR controller state; refused while a render pass is active.
+- `psx_mod_openxr_hands` (L11201) — Fills hands with a snapshot of the tracked hand state, which is also safe during replay.
+- `openxr_color_draw` (L11208) — The target stores display-encoded RGB for an sRGB swapchain, or explicitly decoded RGB for a linear-only runtime.
+- `openxr_surface_draw` (L11242) — Draws the submitted OpenXR surfaces for one eye; returns 1 when no surface is present.
+- `openxr_copy_eye` (L11301) — Copies the stereo pair's eye image into an OpenXR swapchain texture, drawing the surfaces first; returns 0 on failure.
+- `psx_mod_openxr_end` (L11335) — Ends the OpenXR frame, presenting the stereo pair when it was rendered and is fresh; returns the result.
+- `openxr_copy_native` (L11344) — Copies the native-surface image for one eye into an OpenXR texture, saving and restoring the GL state it touches.
+- `openxr_present_native` (L11384) — Presents the pending native surface to the window when OpenXR shows it and no pass is active, using its rectangle.
+- `stereo_present` (L11404) — Presents the current stereo pair to the window at w by h, shown only while the plugin keeps submitting; returns 1 when it presented.
+- `xr_mirror_mode` (L11462) — Returns the VR desktop mirror mode: 0 off, 1 on by default, 2 side-by-side, 3 right eye; read once from PSX_VR_DESKTOP_MIRROR.
+- `xr_mirror_active` (L11473) — Returns whether the desktop mirror is active: mirror mode on and an XR session running.
+- `pass_gen_present` (L11483) — Presents the render pass generation whose output is due by the deadline, blending between generations by time; returns 1 when it presented.
+- `gl_renderer_pass_service_presents` (L11513) — Present output deadlines that fell due while guest code ran.
+- `gl_renderer_pass_diag` (L11530) — promotions, presents, blended presents, expired, unmatched flips, presents made between VBlanks, smoothed pass cost (us), images in the shown frame, presents past the frame's planned end (the next fli
+- `gl_renderer_pass_journaled` (L11545) — Out-of-rect VRAM writes journaled and rolled back (lifetime count).
+- `gl_renderer_pass_backups_reused` (L11547) — Passes that reused the previous pass's VRAM backup (lifetime count).
+- `gl_renderer_pass_image_textures` (L11550) — Pass image textures allocated now (both generations) and their bytes.
+- `s_idle_ticks_accum_fwd` (L11563) — Adds ticks to the idle time accumulator and returns the new total.
+- `s_present_ticks_accum_fwd` (L11568) — Adds ticks to the present time accumulator, updates its smoothed cost, and returns the new total.
+- `gl_renderer_pass_set_flip_shown` (L11574) — Generations opened from now on are for a frame already on screen (1) or for the next flip (0, default); render_pass_gen_flip_matches.
+- `pass_note_new_frame` (L11579) — FLIP source saw a new frame: it is the flip a pending generation was built for (render_pass_gen_flip_matches) or a frame without passes.
+- `gl_renderer_pass_dump_arm` (L11603) — Debug: dump the images of the next 'generations' shown frames as PNGs.
+- `pass_dump_generation` (L11609) — Writes the images of render pass generation gi to dump files as RGB.
+- `pass_apply_promotion` (L11632) — Counts an interval and, when a promotion is pending, clears the valid flag of the current generation.
+- `gl_draw_osd_image` (L11668) — Draws an OSD image onto the frame with no blending.
+- `gl_draw_osd_image_blend` (L11674) — blend: the image carries alpha (a title's save state menu canvas): source over the composed frame.
+- `ptr_lock` (L11749) — Acquires the pointer image spinlock, spinning until it is free.
+- `ptr_unlock` (L11750) — Releases the pointer image spinlock.
+- `gl_renderer_set_pointer_image` (L11752) — A title's mouse pointer (mod_plugins.h psx_mod_set_pointer_image / psx_mod_set_pointer): set from the main thread, drawn last at every swap.
+- `gl_renderer_set_pointer_scale` (L11764) — Sets the mouse pointer scale; values outside 0.05 to 4 become 1.
+- `gl_renderer_set_pointer` (L11768) — Sets the mouse pointer visibility and position, to be drawn at the next swap.
+- `ptr_draw` (L11774) — Draws the mouse pointer image on the window at its position when it is visible.
+- `present_image_ring_gl_forget` (L11845) — The GL objects belong to the context: a renderer restart (lobby rematch, in-game menu -> match) makes new ones, so forget the old names.
+- `present_image_ring_capture_gl` (L11854) — Captures the current presented image into the ring through a pixel-buffer readback, when the ring is accepting.
+- `ov_image` (L11934) — Returns OSD image i and its size, from the recorded overlay during replay or the live source; returns 1 when there is a picture.
+- `ov_rewind_slide` (L11946) — Returns the rewind slide amount, from the replay record during replay or the live value.
+- `ov_savestate_blend` (L11949) — Returns whether the save state menu overlay is blended, from the replay record during replay or the live value.
+- `ov_needs_present` (L11952) — Returns whether the on-screen overlay needs a present, from the replay record during replay or the live OSD state.
+- `gl_renderer_set_present_thread` (L11980) — [video] present_thread (docs/RENDER_THREAD.md "Present thread"): set before gl_renderer_render_thread_start; with the render thread, composed frames go to 'slots' (2..4) offscreen slots and a present
+- `gl_renderer_present_thread_active` (L11984) — Returns 1 when the present thread is running.
+- `pt_target_fbo` (L11987) — Composing context: the current slot, (re)allocated at the window's size.
+- `pt_cb_ctx` (L12022) — Callback that makes the present thread's GL context current, or releases it; returns 0 on failure.
+- `gl_swap_self_heal` (L12047) — A wedged Windows/NVIDIA swap queue can block a swap for about 1.5 s per present: audio keeps playing while emulation and input look frozen.
+- `gl_window_swap` (L12059) — The one owned swap call: the composing thread's (direct) or the present thread's.
+- `pt_cb_present` (L12071) — Callback on the present thread that swaps in a queued slot, applying any swap interval change first; returns a fence token.
+- `pt_cb_dispose` (L12112) — Callback that deletes a GL fence sync object once it is no longer needed.
+- `pt_begin` (L12118) — Composing context current; 1 when the present thread runs.
+- `pt_end` (L12164) — Composing context current, render thread stopped.
+- `gl_present_swap` (L12185) — The swap: direct, or queued to the present thread.
+- `gl_renderer_present_thread_json` (L12203) — Writes present thread statistics as JSON into out (up to cap bytes) and returns the length.
+- `gl_swap_with_osd` (L12218) — Performs the swap, first presenting the native surface, then drawing host overlays on top.
+- `perf_note_swap` (L12409) — Records the time of a swap and whether it was a generated frame into the performance timeline ring.
+- `perf_u64_cmp` (L12416) — qsort comparison for 64-bit unsigned values, in ascending order.
+- `gl_renderer_present_pacing` (L12420) — Fills out with present pacing statistics over the last window_s seconds, taken from the present timeline.
+- `gl_renderer_gl_thread_cpu_ns` (L12452) — CPU time (ns) of the thread that swaps (the render thread, else the emulation thread), as of its last swap.
+- `phase_hold` (L12458) — The swap itself (and its accounting).
+- `phase_probe` (L12477) — Times the GPU work before each swap with a query ring, so the frame phase diagnostics know when a swap started (flagged as generated or real).
+- `gl_swap_now` (L12527) — Performs one owned swap for the frame and times the time blocked in it, for the dynamic resolution ledger.
+- `present_target_quad` (L12567) — tex_w/tex_h and x/y/w/h are in the texture's NATIVE units; src_scale is how many texels one native unit spans (the internal scale for the hr FBO and the wide surfaces, 1 for textures that hold native
+- `gl_renderer_set_bezel` (L12646) — Bezel art shown in the letterbox/pillarbox margins.
+- `gl_renderer_has_bezel` (L12666) — Returns 1 when a bezel image is loaded.
+- `present_bezel` (L12669) — Cover the drawable with the bezel before the game quad.
+- `gl_renderer_present_hold_last` (L12689) — §33: re-present the last Live frame captured before Swap (or from a VRAM snapshot when interpolation owned the last present).
+- `present_alloc_extent` (L12753) — The extent, in native units at 'scale', of a surface allocated at alloc_scale_for(scale) that holds 'units' native columns or rows: units itself unless dynamic resolution renders it below its allocati
+- `present_vram_impl` (L12759) — Presents a rectangle of VRAM to the window at the given size and filtering, applying the pass crop; force_4_3 forces the 4:3 framing.
+- `wide_blit_center` (L12885) — Native-wide fast path: authoritatively copy the canonical 4:3 framebuffer into the wide surface's CENTRE columns [g_wide_off, g_wide_off+native_w) for the displayed Y band, so the per-prim mirror coul
+- `present_wide_fbo_impl` (L12957) — GPU-direct native-wide present: blit the displayed buffer's wide FBO straight to the window (no glReadPixels / glFinish CPU round-trip).
+- `dyn_resources` (L13135) — Builds the dynamic-resolution programs and resources on first use; returns 1 when they are ready.
+- `dyn_eligible` (L13176) — Steps are available: the full-VRAM regime above 1x, CPU VRAM not authoritative over the GL surface.
+- `dyn_context_ready` (L13181) — After init_gpu_raster (every context): the allocation is the ceiling.
+- `gl_renderer_set_dynamic_resolution` (L13200) — Turns dynamic internal resolution on or off; ignored until the context is ready.
+- `gl_renderer_dynamic_resolution_ceiling` (L13216) — ---- Dynamic internal resolution ([video] dynamic_resolution) --------------- Opt-in.
+- `dyn_ms` (L13220) — Converts a performance counter interval from t0 to t1 into milliseconds.
+- `dyn_mark` (L13223) — Reads the performance counter, finishing GL work first when dynamic resolution timing is on.
+- `dyn_pass_begin` (L13229) — Fullscreen-triangle pass of 'prog' into dst_fbo over the viewport (x, y, w, h), no scissor/blend/stencil.
+- `dyn_pass_end` (L13242) — Finishes a fullscreen dynamic-resolution pass by drawing its triangle, then unbinds the vertex array and program.
+- `dyn_rescale_rect` (L13251) — Draw native rect (nx, ny, nw, nh) of dst_fbo at snew from src_tex, whose copy of that rect at sold starts at (sx, sy) texels.
+- `dyn_rescale_in_place` (L13270) — Rescale native columns [cx0, cx1) x rows [ry0, ry1) of a surface in place, in bands of rows through the scratch.
+- `dyn_stats_lock` (L13298) — static atomic_flag s_dyn_stats_lock = ATOMIC_FLAG_INIT; /* s_dyn_stats: render thread writes
+- `dyn_stats_unlock` (L13299) — Releases the dynamic-resolution statistics spinlock.
+- `dyn_apply` (L13302) — Steps the internal resolution to snew; refused in windowed high-resolution mode or when not ready, returning 0 in that case.
+- `dyn_after_present` (L13522) — Runs the dynamic-resolution step decision after a present, unless the step is being recorded for the render thread.
+- `dyn_record_step` (L13536) — Render thread: record the step in stream order (after the frame just closed, before the next one's first draw); the emulation side's level moves at once (s_rthm_scale), the backend's when the step is
+- `gl_renderer_request_internal_scale` (L13549) — Ask for a level: applied at the next post-present point outside a render pass (clamped to 1..ceiling).
+- `gl_renderer_set_internal_scale_ceiling` (L13567) — Move the live step ceiling (normally the scale allocated at start).
+- `gl_renderer_step_internal_scale_now` (L13578) — Step now (debug probes and tests): 1 when the level is 'scale' on return, 0 when refused or deferred (inside a render pass; it then applies after the next present).
+- `gl_renderer_dynres_stats` (L13587) — Copies dynamic-resolution statistics into out under the stats lock.
+- `gl_renderer_host_ledger` (L13599) — Copies the host time ledger for dynamic resolution into out.
+- `gl_renderer_present_vram` (L13605) — The perf meter (perf_meter.h) times the emulation thread's calls; the render thread replays the same entry points.
+- `gl_renderer_present_wide_fbo` (L13614) — GPU-direct native-wide present: blit the displayed buffer's wide FBO (key = disp_x) straight to the window, no CPU readback.
+- `rth_bd_flags` (L13677) — #define RTHF_BDQ_SHIFT 5 /* bits 5-12: its stretch share (backdrop images), 0 = the full one #define RTHF_FRONT 0x2000u /* in the ordering table's front (gpu_ot_front_now): UI #define RTHF_NOLIGHT 0x4
+- `rth_bd_value` (L13681) — Decodes the backdrop value from recorded primitive flags: the low bits plus the stretch share.
+- `rth_mirror_resync` (L13685) — Copies the current scale and wide-surface geometry into the render thread's mirror state.
+- `rth_mirror_wide_for` (L13698) — wide_fbo_for() as it will run on the render thread: the same lookup, limit check and slot allocation.
+- `rth_mirror_wide_present_ok` (L13710) — Returns 1 when a wide surface for base_x is known to the render thread mirror state.
+- `rth_rec_ints` (L13717) — Records a command carrying n 32-bit integers into the render thread stream; returns 0 when there is no space.
+- `rth_send_state` (L13728) — Native-wide stream state read by the fast-path gate (wide_fast_center_valid) and the backdrop gate; sent whenever it changes, before the call that would first observe the change.
+- `rth_prim_flags` (L13741) — Per-primitive widescreen tags, read by bd_prim_gate during replay.
+- `gl_rth_eligible` (L13756) — Returns 1 when this context may hand its drawing to the render thread: raster ready, not dual raster, and no depth24 skip or HD conflict.
+- `rth_hd_publish_private` (L13770) — HD texture authority keeps native VRAM on the CPU raster, which runs on the render thread's private copy: hand its result to gpu.c's array, the way ensure_cpu reads the FBO back otherwise.
+- `gl_rth_acquire` (L13775) — Takes the context for the render thread when it is on and this is the emulation thread, publishing the HD private copy first.
+- `gl_rth_release` (L13783) — Gives the context back from the render thread to the emulation thread once the render thread is held.
+- `rth_record_mode` (L13797) — Record this call (1) or run it directly (0).
+- `rth_record_present` (L13813) — Records a present command with its op and integers, plus any overlay image copies, into the render thread stream.
+- `rth_replay_present` (L13851) — extern int psx_presentation_fast_forward(void); /* main.cpp
+- `rth_present_payload` (L13874) — Present a recorded present's payload (header, overlay copies).
+- `host_now_ns_rthf` (L13930) — Returns the host monotonic time in nanoseconds, from the performance counter.
+- `rthf_publish` (L13935) — Publishes one real frame's cost into the render thread frame timing totals; the larger of CPU and GPU time counts when GPU time exists.
+- `rthf_poll` (L13950) — Read every finished query pair, oldest first, without waiting.
+- `rthf_begin` (L13968) — Begins a frame timing bracket, creating the timer queries on first use.
+- `rthf_pause` (L13994) — Frame generation draws between a frame's records: its work is not the frame's.
+- `rthf_resume` (L14001) — Resumes a paused frame timing bracket and adds the paused time to the exclusion total.
+- `rthf_end` (L14018) — Ends the frame timing bracket, resuming it first when paused, and publishes its cost.
+- `gl_renderer_render_thread_measure` (L14049) — Turns render-thread frame measurement on or off.
+- `rthf_owns_timer` (L14050) — Returns 1 when the render thread's frame timing owns the GPU timer: measurement or frame generation is wanted and the queries work.
+- `gl_renderer_render_thread_costs` (L14055) — Fills out with the render thread's frame count and cost totals.
+- `gl_renderer_gpu_totals` (L14067) — Fills out with running GPU time totals for real frames and generated frames.
+- `sgl_fg_fifo_sync` (L14120) — Smooth motion and the swap interval.
+- `fg_main_view` (L14191) — static int s_fg_replay_objects_only = 0; /* fg_replay: cars only static int s_fg_reprojected_now = 0; /* fg_compose: the wide image is complete static int s_fg_src_older = 0; /* the older frame is red
+- `fg_tl_note` (L14232) — Adds a frame generation timeline entry (type, phase and time) to the ring.
+- `fg_note_present` (L14236) — Records the present time for frame generation and advances its next due time.
+- `fg_now_s` (L14273) — Returns the current time in seconds from the runtime clock.
+- `fg_cost` (L14275) — Returns the frame generation cost model, initialised on first use with its spike clamp set by the reprojection mode.
+- `fg_recently_generated` (L14283) — Breaker trips only count while generation is what could have caused them: a generated frame in the last half second.
+- `fg_note_swap` (L14296) — Updates the smoothed swap time (exponential average, 0.9 old and 0.1 new) from a swap of ns nanoseconds.
+- `fg_note_real_cost` (L14308) — Updates the smoothed cost of real frames from the CPU time, and from the GPU time when it is available.
+- `fg_list_clear` (L14317) — Empties a recorded draw list and its primitive store.
+- `fg_state_capture` (L14322) — Saves the current draw state (semi-transparency, masks, texture window and more) into st.
+- `fg_state_apply` (L14337) — Restore draw state without the setters' side effects (stencil rebuilds, wide-surface allocation); batches were flushed by the caller.
+- `fg_list_append` (L14351) — Appends one record (op, flags and payload bytes) to a recorded list, growing it as needed; returns 0 on allocation failure.
+- `fg_raw_add` (L14374) — Adds a raw record to the raw store, growing it when full; returns 0 on failure.
+- `fg_op_kept` (L14387) — Which records a generated frame redraws: draw state and drawing, never transfers, copies, presents, steps or diagnostics.
+- `fg_tri_geom` (L14403) — Positions of a triangle record (absolute native px) and its key words.
+- `fg_buf_of` (L14470) — Returns the index of the frame buffer whose rectangle contains (x, y), or -1 when none does.
+- `rp_snap_slot` (L14485) — Returns the snapshot slot holding list li, or -1 when none does.
+- `rp_snapshot_list` (L14490) — Snapshots the drawn picture of list li into the free slot for reprojection, when reprojection, rendering and generation are all on.
+- `fg_rotate` (L14533) — Close the capturing list as the frame of its buffer; it becomes the newer frame, the newer one the older.
+- `vlog_drop_oldest` (L14551) — Drops the oldest VRAM upload log entry and frees its saved texels.
+- `vlog_note` (L14562) — Logs a VRAM upload rectangle and saves its old texels so the upload can be undone, when the size is within the limit.
+- `vlog_rewind` (L14586) — VRAM back to list l's start (fg_replay): every upload since, newest first, undone; what is there now is kept in *cur (one buffer per upload) for vlog_restore.
+- `vlog_restore` (L14612) — What vlog_rewind kept, put back (VRAM as it is now).
+- `fg_capture` (L14623) — Called for every replayed record (gl_rth_exec), before it executes.
+- `fg_area_meets` (L14703) — Returns 1 when the drawing area overlaps the display rectangle disp.
+- `fg_list_close` (L14709) — Close the capturing list as the frame of buffer disp (x, y, w, h).
+- `fg_list_open` (L14741) — Opens the capturing list for the current buffer: clears it and notes the VRAM log sequence.
+- `fg_invalidate` (L14751) — Invalidates the four recorded lists and the last-frame state, so generation waits for fresh frames.
+- `fg_surface_warm` (L14763) — A new surface's first touch (the driver backing its storage) happens here, when it is allocated, not inside the first generated frame; that frame's measured cost is discarded as well (cold).
+- `fg_surfaces_ensure` (L14777) — Surfaces for the generated image, at the current level.
+- `fg_surfaces_free` (L14804) — Deletes the frame generation surfaces (hr and wide framebuffers, textures and renderbuffers).
+- `fg_blit2` (L14819) — Colour only: a depth-stencil blit costs the CPU milliseconds on macOS (most of a generated frame at high levels).
+- `fg_blit2_stencil` (L14829) — The marks (stencil) of the same rect: only while a chain reads them (s_fg_marks), for the depth-stencil blit's cost (fg_blit2).
+- `fg_blit` (L14837) — Copies the colour of a rectangle from the src framebuffer to dst, with the scissor turned off.
+- `fg_draw_tri_at` (L14847) — Re-emits a recorded triangle record at the given positions (x and y per corner) into the draw list.
+- `fg_rect_meets` (L14898) — Returns 1 when the rectangle x, y, w, h overlaps the display rectangle disp.
+- `fg_rect_groups` (L14910) — Redraw list b at phase t (0 = a's positions, 1 = b's) into the surfaces currently bound as hr / the displayed wide surface.
+- `fg_replay` (L14959) — Redraws list b at phase t for the generated frame, using list a only for the HUD motion; each vertex is placed between the two frames.
+- `fg_edge_offsets` (L15273) — Measures per-view edge offsets from the two lists, using averaged segment offsets, so the generated frame's edges line up.
+- `fg_strip_copy` (L15336) — A strip copy (colour) from the newer frame at an offset (surface px).
+- `fg_effects_view` (L15356) — Builds the map from the newer frame's camera to the in-between camera for the effects view; returns 0 when there is no fit.
+- `fg_newer_to_between` (L15368) — The main view's map from the newer real frame's camera space to the in-between camera's (GTE: y down): P' = A P + b.
+- `fg_compose` (L15390) — The generated image composed like a real present (no hold-last, no interpolation capture, no present bookkeeping), then swapped.
+- `rp_resources` (L15550) — Builds the reprojection programs and resources on first use; returns 1 when ready.
+- `rp_push` (L15598) — Appends one vertex (position, depth and view) to the reprojection vertex list, growing it when full; returns 0 on failure.
+- `rp_push_quad` (L15610) — Appends a two-triangle quad covering the rectangle to the reprojection vertex list.
+- `rp_view_params` (L15618) — Projection centre and distance per view, from its camera-placed vertices (x = cx + h X / Z).
+- `rp_is_car` (L15645) — A triangle the fit called an object is a car only when it really moved against the world: corners whose older position is what the camera alone predicts (near road subdivided past the fit's pixel tole
+- `fg_reproject` (L15669) — Warps the newer real frame to the in-between time t by reprojection, drawing into dst_fbo; returns 0 on failure.
+- `rp_free` (L15930) — Everything reprojection allocated (programs, snapshots, depth image, buffers): released when Smooth motion goes off or redraw is chosen, so neither keeps any of it.
+- `rp_allocated` (L15955) — Tests: reprojection holds nothing (no program, surface or buffer).
+- `fgw_prepare` (L16002) — Ready to fill: the program, and the newer frame's depth over the picture (surface px: x0, y0, w, h of src_fbo) in a texture.
+- `fgw_strip` (L16041) — One strip piece (dst surface px rect), the shader's inputs set by the caller.
+- `fg_generate` (L16049) — Generates one in-between frame at phase t from the two recorded lists, swapping it when swap is set; returns 0 when not possible.
+- `fg_ceil` (L16351) — Returns the frame generation ceiling state, initialised on first use with a limit of 15 and a factor of 2.0.
+- `fg_trip` (L16356) — Records a frame generation breaker trip, counting late trips and backpressure trips by the reason text.
+- `fg_overload` (L16369) — The render thread a frame behind (a stale present, two frames queued): proportional, not a stop.
+- `fg_gen_cost_publish` (L16374) — Publishes one generated frame's cost into the running totals.
+- `fg_gen_cost_poll` (L16381) — Reads finished GPU timer queries for generated frames, oldest first, and publishes their costs.
+- `fg_generate_timed` (L16401) — One generated frame at phase t, timed (GPU query, CPU wall minus swap).
+- `fg_keep_real` (L16450) — Keep the composed back buffer (a real frame) for later.
+- `fg_present_real` (L16475) — Presents the waiting real frame when one was kept; clears the pending flag either way.
+- `fg_flush` (L16499) — Present the waiting real frame now (generated frames still due are dropped): a newer present, a sync point, the queue backing up.
+- `fg_tick` (L16505) — Frame generation tick: presents the waiting real frame or generates frames when they are due; returns 0 when nothing is pending.
+- `fg_on_present` (L16562) — A present record replayed with frame generation on.
+- `fg_hold_real` (L16793) — No in-between frames this game frame: right after one that had them, holds its real frame to the last interval for this one frame (else 0, shown as usual).
+- `fg_queue_real` (L16803) — Keep the composed real frame and show it after n in-between frames spread over 'slots' display intervals (n = 0: at the last of them).
+- `gl_renderer_set_frame_generation` (L16841) — ---- frame generation: public ----
+- `gl_renderer_frame_generation` (L16853) — Returns whether frame generation is on.
+- `gl_renderer_set_frame_generation_method` (L16858) — [video] frame_generation_method (PSX_FRAME_GEN_METHOD, resolved by the frontend): redraw, the default, draws the whole recorded list again per generated frame; reprojection (a title opts in) warps the
+- `gl_renderer_frame_generation_method` (L16866) — Returns the frame generation method: reprojection, or redraw by default.
+- `gl_renderer_fg_source` (L16870) — While recording, passes the reprojection source data (ids, camera matrix, heights and x, y per corner) to the render thread.
+- `gl_renderer_frame_gen_real_share` (L16884) — The share of a game frame the real frame may use so Smooth motion still fills every display interval: (0.85 flip - slots-1 generated frames and their swaps) / flip, never below 0.35.
+- `gl_renderer_frame_gen_configure` (L16902) — Stores the display refresh rate and, when above 1, the guest frame rate used by frame generation.
+- `gl_renderer_frame_gen_hold` (L16910) — Not a breaker trip: generation pauses while the real frames are under pressure (dynamic resolution over budget or stepping down) for the caller's short tail, without the breaker's escalating holds.
+- `fg_note_guest_frame` (L16928) — Emulation thread, once per frame boundary: the guest is late when it has slipped two intervals behind its own VBlank schedule.
+- `gl_renderer_frame_gen_counts` (L16936) — Smooth motion's atomically published running totals, for rate readouts.
+- `gl_renderer_frame_gen_costs` (L16941) — Generated frames so far, how many of them were timed, and the timed ones' summed cost (ns, GPU time or CPU wall, the larger): dynamic resolution counts what Smooth motion actually spent in its load.
+- `gl_renderer_frame_gen_prims_json` (L16957) — TCP frame_gen {"prims":1}: the older and newer closed lists' triangles (only those with no projection when only2d): index, key, view, which corners have a projection (bits), x, y.
+- `gl_renderer_frame_gen_json` (L16982) — Writes frame generation status as JSON into out (up to cap bytes), including whether the breaker is open; returns the length.
+- `rtb_init` (L17060) — Render-thread backend: initialises VRAM, syncing unless recording, and abandons any incomplete A0 transfer.
+- `rtb_set_scale` (L17068) — Render-thread backend: sets the internal resolution scale after a sync point.
+- `rtb_scale` (L17071) — The scale changes under a sync point, or by a recorded dynamic-resolution step: while recording, the level as of the recording position.
+- `rtb_set_texture_filter` (L17074) — Returns the internal scale; while recording, the level as of the recording position.
+- `rtb_texture_filter` (L17075) — Render-thread backend: sets the texture filter after a sync point.
+- `rtb_set_dither` (L17076) — Render-thread backend: returns the current texture filter.
+- `rtb_set_semi_transparency` (L17078) — Render-thread backend: records or applies the dither setting.
+- `rtb_set_mask_bits` (L17080) — Render-thread backend: records or applies the semi-transparency enable and mode.
+- `rtb_set_texture_window` (L17082) — Render-thread backend: records or applies the mask set and check flags.
+- `rtb_set_color_modulation` (L17084) — Render-thread backend: records or applies the texture window value r.
+- `rtb_set_precise_triangle` (L17086) — Render-thread backend: records or applies the colour modulation factors and raw flag.
+- `rtb_set_depth_triangle` (L17091) — Render-thread backend: records or applies the sub-pixel override for the next triangle, with its three vertices.
+- `rtb_set_perspective_triangle` (L17100) — Render-thread backend: records or applies the SZ depth values for the next triangle.
+- `rtb_fill_rect` (L17109) — Render-thread backend: records or applies the perspective q values for the next triangle.
+- `rtb_copy_rect` (L17111) — Render-thread backend: records or applies a fill of a rectangle with a colour.
+- `rtb_draw_flat_triangle` (L17113) — Render-thread backend: records or applies a VRAM copy.
+- `rtb_draw_gouraud_triangle` (L17117) — Render-thread backend: records or applies a flat-colour triangle.
+- `rtb_draw_textured_triangle` (L17122) — Render-thread backend: records or applies a Gouraud triangle with a colour at each corner.
+- `rtb_draw_shaded_textured_triangle` (L17129) — Render-thread backend: records or applies a textured triangle.
+- `rtb_draw_flat_rect` (L17139) — Render-thread backend: records or applies a textured triangle with a colour at each corner.
+- `rtb_draw_textured_rect` (L17143) — Render-thread backend: records or applies a flat rectangle.
+- `rtb_draw_textured_rect_scaled` (L17148) — Render-thread backend: records or applies a textured rectangle.
+- `rtb_draw_line` (L17154) — Render-thread backend: records or applies a textured rectangle with scaled texture coordinates.
+- `rtb_draw_shaded_line` (L17158) — Render-thread backend: records or applies a flat line.
+- `rtb_render_display` (L17162) — Render-thread backend: records or applies a line with a colour at each end.
+- `rtb_render_display_hires` (L17164) — Render-thread backend: renders the display into o after a sync point and returns the result.
+- `rtb_vram_write` (L17166) — Render-thread backend: renders the display at internal resolution into o after a sync point and returns the result.
+- `rtb_vram_read` (L17168) — Render-thread backend: records or applies a single VRAM pixel write.
+- `rtb_vram_transfer_in` (L17169) — Render-thread backend: reads one VRAM pixel after a sync point.
+- `hd_note_exec` (L17183) — Render-thread backend: records or applies a CPU-to-VRAM transfer of a rectangle.
+- `rtb_vram_upload_open` (L17193) — After the upload/draw it follows, in command order, against s_vram.
+- `rtb_hd_texture_note` (L17202) — Runs an HD texture bookkeeping operation (track or begin an upload, and related ops) for a rectangle.
+- `rtb_vram_transfer_out` (L17204) — Render-thread backend: records or runs an HD texture bookkeeping note for a rectangle.
+- `rtb_set_draw_area` (L17225) — Render-thread backend: reads a rectangle of VRAM out after a sync point.
+- `rtb_get_draw_area` (L17233) — Render-thread backend: records or applies the drawing area corners.
+- `rtb_set_draw_offset` (L17240) — Render-thread backend: returns the drawing area, from the recorded copy when the render thread runs asynchronously.
+- `rtb_wide_configure` (L17242) — Render-thread backend: records or applies the drawing offset.
+- `rtb_wide_set_view` (L17257) — Render-thread backend: records or applies the wide-screen width and offset.
+- `rtb_wide_set_target` (L17259) — Render-thread backend: records or applies the wide-screen view (enable, shift and padding).
+- `rtb_wide_disable_target` (L17267) — Render-thread backend: selects the wide surface for base_x, recording the choice when on the emulation side.
+- `rtb_wide_clear` (L17271) — Render-thread backend: stops wide-surface mirroring, recording it when on the emulation side.
+- `rtb_wide_clear_margins` (L17279) — Render-thread backend: records or applies a clear of the wide surface rows for base_x.
+- `rtb_wide_feedback_rect` (L17289) — Render-thread backend: records or applies a clear of the wide surface reveal margins for base_x.
+- `rtb_render_wide_display` (L17298) — Render-thread backend: records or applies the wide-surface feedback copy.
+- `rtb_wide_dump_full` (L17302) — Render-thread backend: renders the wide display band for base_x into out after a sync point and returns the result.
+- `gl_rth_exec` (L17343) — ---- replay (render thread) ----------------------------------------------
+- `gl_rth_ctx` (L17481) — Render-thread backend: dumps the full wide surface for base_x into out after a sync point.
+- `gl_renderer_render_thread_start` (L17502) — Render thread ([video] render_thread, docs/RENDER_THREAD.md).
+- `gl_renderer_render_thread_stop` (L17543) — Callback that makes the render thread's GL context current, or releases it.
+- `gl_renderer_render_thread_active` (L17558) — Stops the render thread, draining its work; the context comes back to the emulation thread, which is current again.
+- `gl_renderer_render_thread_frame_boundary` (L17563) — Frame boundary (once per vblank, after the present): hand the context back to the render thread when the frame may run asynchronously, take it when it may not, then close the frame (the in-flight boun
+- `gl_renderer_render_thread_sync` (L17579) — Explicit sync point for callers that read renderer-written host state without calling a GL entry point (debug rings).
+- `gl_renderer_render_thread_json` (L17581) — Returns 1 when the render thread is on.
+- `rth_ring_capture_now` (L17617) — Presented-image ring capture for --headless-opengl (main.cpp), at this point of the command stream: the native-wide surface slice when wide != 0, else the display rect at internal resolution.
+- `gl_renderer_ring_capture` (L17650) — Captures a presented image into the image ring, recording the request for the render thread when it is recording.
+- `gl_backend_get` (L17661) — Returns the GL backend table: the render-thread version when the render thread is on, else the direct one.
 
 ### runtime/src/gpu_hd_textures.cpp
 
@@ -5106,76 +5106,76 @@ Software rasterizer: draws PS1 primitives (triangles, rectangles, lines, texture
 - `put_opaque` (L262) — Write an opaque (untextured) pixel with semi-transparency if enabled
 - `put_textured` (L286) — Write a textured pixel — semi-trans only if texel bit 15 is set
 - `texel_fetch` (L335) — Fetches one texel at u,v applying the texture window and CLUT lookup for 4, 8 or 15-bit textures.
-- `bl_fetch` (L382) — Fetches one texel for bilinear sampling, with texture window wrap, returning the raw 15-bit value.
-- `texel_fetch_bilinear` (L402) — Bilinear texel sample, in RGB space (after the CLUT lookup — never interpolate palette indices).
-- `bilinear_center_shift_for_target` (L438) — Returns the sample offset for bilinear filtering on a target with the given scale, so texels are sampled at their centers.
-- `sw_tri_uv_limits` (L449) — Computes the sampled UV bounds of a textured triangle, from world-space UVs when perspective is valid, else affine.
-- `sw_rect_uv_limits` (L455) — Computes the sampled UV bounds of a textured rectangle from its corner UVs.
-- `sw_renderer_init` (L463) — Initialize software renderer
-- `sw_renderer_rebind_vram` (L483) — Point the rasterizer at another VRAM array without touching any draw state (the OpenGL render thread switches its upload source this way).
-- `hr_scratch_get` (L496) — Returns the reusable hi-res scratch buffer grown to at least n pixels, or NULL when it cannot grow.
-- `sw_renderer_set_scale` (L506) — Internal-resolution supersampling (SSAA).
-- `sw_renderer_scale` (L533) — Returns the current internal resolution scale factor of the software renderer.
-- `sw_set_faithful_authority` (L542) — Faithful authority (netplay): while this rasterizer writes the guest's authoritative VRAM -- the netplay dual-raster SW@1x mirror or the netplay software GPU -- it draws exactly what hardware draws.
-- `sw_faithful_authority` (L551) — Returns 1 when this rasterizer is the netplay authority that must draw exactly like hardware.
-- `sw_set_precise_triangle` (L553) — Stores sub-pixel vertex positions for the next triangle, used when precise triangle drawing is enabled.
-- `sw_set_perspective_triangle` (L563) — Enables perspective-correct UV weights for the next triangle from three Q values, unless faithful authority is on.
-- `sw_perspective_triangle_count` (L575) — Returns how many triangles have been drawn with perspective-correct UV weights.
-- `precise_scaled` (L579) — Returns a vertex coordinate at the given scale from its sub-pixel value, or the fallback integer when none is set.
-- `precise_wide_x` (L587) — Returns a vertex x coordinate in native-wide space from its sub-pixel value, offset by dx, or the fallback.
-- `precise_consumed` (L594) — Clears the sub-pixel and perspective overrides so they apply to exactly one triangle.
-- `sw_set_texture_filter` (L599) — Texture filtering. 0 = nearest (native PSX look, default), 1 = bilinear (smooths textures/2D backgrounds; blends in RGB after the CLUT lookup, transparency-aware).
-- `sw_texture_filter` (L603) — Returns the current texture filter mode (0 nearest, 1 bilinear).
-- `sw_set_semi_transparency` (L609) — Draw state — must be set by gpu.c before each primitive
-- `sw_set_mask_bits` (L614) — Stores the set-mask and check-mask bits used by the next primitives.
-- `sw_set_texture_window` (L619) — Decodes the raw GP0 texture window value into mask and offset values for X and Y.
-- `sw_set_color_modulation` (L626) — Stores the vertex color modulation factors for the next textured primitive, converted from 8-bit to the PS1 scale.
-- `sw_set_draw_area` (L641) — Set draw area and draw offset
-- `sw_get_draw_area` (L648) — Returns the current draw area clip corners through the four output pointers.
-- `sw_set_draw_offset` (L654) — Stores the draw offset applied to the coordinates of the next primitives.
-- `hr_fill_block` (L663) — Fills a native-sized block of the supersampled mirror with one color, scaled to the current scale factor.
-- `sw_fill_rect` (L678) — Drawing primitives — called from gpu.c command processing
-- `sw_copy_rect` (L700) — Copies a VRAM rectangle to another place in VRAM, handling overlap and mirroring the copy into the high-res mirror.
-- `raster_flat_triangle` (L765) — Rasterizes a flat-colored triangle into the target, sorting vertices by Y first.
-- `sw_draw_flat_triangle` (L794) — Draws a flat-colored triangle into native VRAM and mirrors it to the high-res and wide surfaces.
-- `raster_gouraud_triangle` (L822) — Rasterizes a triangle with per-vertex colors into the target by interpolating across scanlines.
-- `sw_draw_gouraud_triangle` (L915) — Draws a triangle with per-vertex colors into native VRAM and mirrors it to the high-res and wide surfaces.
-- `raster_textured_triangle` (L944) — Rasterizes a textured triangle into the target, sampling UVs with CLUT and texpage state.
-- `sw_draw_textured_triangle` (L1056) — Draws a textured triangle with CLUT and texpage into native VRAM and mirrors it to the other surfaces.
-- `color24_to_mod` (L1100) — Converts a 24-bit vertex color into the 5-bit per-channel modulation factors used for textures.
-- `sw_draw_shaded_textured_triangle` (L1242) — Draws a textured triangle with per-vertex colors, modulating the texel by the interpolated colors.
-- `raster_flat_rect` (L1300) — Fills a rectangle of the target with one color, row by row.
-- `sw_draw_flat_rect` (L1315) — Fills a flat rectangle in native VRAM and mirrors it into the high-res and wide surfaces.
-- `raster_textured_rect` (L1355) — Draws a textured rectangle into the target with UV stepping from its top-left corner.
-- `sw_draw_textured_rect` (L1384) — Draws a textured rectangle into native VRAM with CLUT and texpage, mirroring the result to the other surfaces.
-- `sw_wide_emit_tile` (L1423) — ---- MMX6 native-wide reveal-column tile (host-side, WIDE SURFACE ONLY) -------- Rasterize ONE 16x16 textured tile into the active wide surface for a given vertical band, leaving canonical VRAM AND th
-- `raster_textured_rect_scaled` (L1442) — Draws a textured rectangle that stretches its texture from u0,v0 to u1,v1 across the target area.
-- `sw_draw_textured_rect_scaled` (L1476) — Draws a stretched textured rectangle into native VRAM and mirrors the result to the other surfaces.
-- `hr_put_block_opaque` (L1511) — Writes an opaque native pixel as a scale-by-scale block into the high-resolution mirror.
-- `wide_put_block_opaque` (L1522) — Mirror a 1px line pixel into the active wide surface (s*s block, x-translated).
-- `sw_draw_line` (L1532) — Draws a one-pixel flat line between two points into native VRAM and mirrors it to the other surfaces.
-- `sw_draw_shaded_line` (L1553) — Draws a one-pixel line whose color interpolates from c0 to c1 into native VRAM and mirrors it.
-- `sw_vram_write` (L1593) — VRAM transfer (CPU->VRAM, VRAM->CPU)
-- `sw_vram_read` (L1609) — Reads one 15-bit pixel from canonical VRAM at x,y.
-- `hr_rebuild_from_vram` (L1620) — Rebuild the supersampled mirror from canonical VRAM after a bulk replace.
-- `sw_vram_transfer_in` (L1655) — Copies a CPU block of pixels into VRAM and updates the high-res mirror; a full-VRAM copy triggers one full rebuild.
-- `sw_vram_transfer_out` (L1703) — Copies a block of VRAM pixels out to a CPU buffer, with a fast path for the whole VRAM.
-- `rgb555_to_argb` (L1736) — Converts a 15-bit PS1 pixel to a 32-bit ARGB value with the top bits expanded to 8 bits per channel.
-- `sw_render_display` (L1747) — Renders the displayed VRAM rectangle into a 32-bit output buffer at native resolution; returns the pixel count.
-- `sw_render_display_hires` (L1765) — Renders the displayed area from the high-res mirror when scale is above 1, else falls back to native rendering.
-- `wide_free_all` (L1797) — Frees every native-wide surface and resets their base addresses.
-- `wide_surf_for` (L1805) — Returns the native-wide surface for base_x, allocating a free slot when none exists yet; NULL when wide mode is off.
-- `sw_wide_set_view` (L1833) — Enable native-wide with a wide width + centering offset (native px), or disable (wide_w <= 0).
-- `sw_wide_configure` (L1843) — Native-wide compositor (see gpu_sw_renderer.c).
-- `sw_wide_set_target` (L1851) — Select the wide surface to mirror into for the back buffer at base_x.
-- `sw_wide_disable_target` (L1857) — Stop mirroring (offscreen draws that don't target a framebuffer).
-- `sw_wide_clear` (L1861) — Mirror a framebuffer clear: fill the full wide width over [y, y+h) of the surface for base_x, so the revealed margins are clean (not stale).
-- `sw_wide_clear_margins` (L1878) — Clear only the synthetic columns outside the centred canonical framebuffer.
-- `wide_surf_existing` (L1898) — An existing wide surface for base_x (never allocates: a source that was not drawn yet has nothing to copy).
-- `sw_wide_feedback_rect` (L1908) — Band texels count as bit 15 set: the band columns' own bit 15 is not authoritative (margin fills write 0), and a framebuffer trail keeps the centre at bit 15 once it blends, so the bands blend exactly
-- `sw_render_wide_display` (L1940) — Present source: convert the wide surface for the displayed buffer (base_x) to ARGB.
-- `sw_wide_width` (L1962) — Returns the current native-wide width in native pixels.
-- `sw_wide_dump_full` (L1969) — Diagnostic: dump the ENTIRE active wide surface for base_x (full g_wide_w*scale × VRAM_HEIGHT*scale — BOTH double-buffer y-bands, all margins) to ARGB.
+- `bl_fetch` (L385) — Fetches one texel for bilinear sampling, with texture window wrap, returning the raw 15-bit value.
+- `texel_fetch_bilinear` (L405) — Bilinear texel sample, in RGB space (after the CLUT lookup — never interpolate palette indices).
+- `bilinear_center_shift_for_target` (L441) — Returns the sample offset for bilinear filtering on a target with the given scale, so texels are sampled at their centers.
+- `sw_tri_uv_limits` (L452) — Computes the sampled UV bounds of a textured triangle, from world-space UVs when perspective is valid, else affine.
+- `sw_rect_uv_limits` (L458) — Computes the sampled UV bounds of a textured rectangle from its corner UVs.
+- `sw_renderer_init` (L466) — Initialize software renderer
+- `sw_renderer_rebind_vram` (L486) — Point the rasterizer at another VRAM array without touching any draw state (the OpenGL render thread switches its upload source this way).
+- `hr_scratch_get` (L499) — Returns the reusable hi-res scratch buffer grown to at least n pixels, or NULL when it cannot grow.
+- `sw_renderer_set_scale` (L509) — Internal-resolution supersampling (SSAA).
+- `sw_renderer_scale` (L536) — Returns the current internal resolution scale factor of the software renderer.
+- `sw_set_faithful_authority` (L545) — Faithful authority (netplay): while this rasterizer writes the guest's authoritative VRAM -- the netplay dual-raster SW@1x mirror or the netplay software GPU -- it draws exactly what hardware draws.
+- `sw_faithful_authority` (L554) — Returns 1 when this rasterizer is the netplay authority that must draw exactly like hardware.
+- `sw_set_precise_triangle` (L556) — Stores sub-pixel vertex positions for the next triangle, used when precise triangle drawing is enabled.
+- `sw_set_perspective_triangle` (L566) — Enables perspective-correct UV weights for the next triangle from three Q values, unless faithful authority is on.
+- `sw_perspective_triangle_count` (L578) — Returns how many triangles have been drawn with perspective-correct UV weights.
+- `precise_scaled` (L582) — Returns a vertex coordinate at the given scale from its sub-pixel value, or the fallback integer when none is set.
+- `precise_wide_x` (L590) — Returns a vertex x coordinate in native-wide space from its sub-pixel value, offset by dx, or the fallback.
+- `precise_consumed` (L597) — Clears the sub-pixel and perspective overrides so they apply to exactly one triangle.
+- `sw_set_texture_filter` (L602) — Texture filtering. 0 = nearest (native PSX look, default), 1 = bilinear (smooths textures/2D backgrounds; blends in RGB after the CLUT lookup, transparency-aware).
+- `sw_texture_filter` (L606) — Returns the current texture filter mode (0 nearest, 1 bilinear).
+- `sw_set_semi_transparency` (L612) — Draw state — must be set by gpu.c before each primitive
+- `sw_set_mask_bits` (L617) — Stores the set-mask and check-mask bits used by the next primitives.
+- `sw_set_texture_window` (L622) — Decodes the raw GP0 texture window value into mask and offset values for X and Y.
+- `sw_set_color_modulation` (L629) — Stores the vertex color modulation factors for the next textured primitive, converted from 8-bit to the PS1 scale.
+- `sw_set_draw_area` (L644) — Set draw area and draw offset
+- `sw_get_draw_area` (L651) — Returns the current draw area clip corners through the four output pointers.
+- `sw_set_draw_offset` (L657) — Stores the draw offset applied to the coordinates of the next primitives.
+- `hr_fill_block` (L666) — Fills a native-sized block of the supersampled mirror with one color, scaled to the current scale factor.
+- `sw_fill_rect` (L681) — Drawing primitives — called from gpu.c command processing
+- `sw_copy_rect` (L703) — Copies a VRAM rectangle to another place in VRAM, handling overlap and mirroring the copy into the high-res mirror.
+- `raster_flat_triangle` (L768) — Rasterizes a flat-colored triangle into the target, sorting vertices by Y first.
+- `sw_draw_flat_triangle` (L797) — Draws a flat-colored triangle into native VRAM and mirrors it to the high-res and wide surfaces.
+- `raster_gouraud_triangle` (L825) — Rasterizes a triangle with per-vertex colors into the target by interpolating across scanlines.
+- `sw_draw_gouraud_triangle` (L918) — Draws a triangle with per-vertex colors into native VRAM and mirrors it to the high-res and wide surfaces.
+- `raster_textured_triangle` (L947) — Rasterizes a textured triangle into the target, sampling UVs with CLUT and texpage state.
+- `sw_draw_textured_triangle` (L1059) — Draws a textured triangle with CLUT and texpage into native VRAM and mirrors it to the other surfaces.
+- `color24_to_mod` (L1103) — Converts a 24-bit vertex color into the 5-bit per-channel modulation factors used for textures.
+- `sw_draw_shaded_textured_triangle` (L1245) — Draws a textured triangle with per-vertex colors, modulating the texel by the interpolated colors.
+- `raster_flat_rect` (L1303) — Fills a rectangle of the target with one color, row by row.
+- `sw_draw_flat_rect` (L1318) — Fills a flat rectangle in native VRAM and mirrors it into the high-res and wide surfaces.
+- `raster_textured_rect` (L1358) — Draws a textured rectangle into the target with UV stepping from its top-left corner.
+- `sw_draw_textured_rect` (L1387) — Draws a textured rectangle into native VRAM with CLUT and texpage, mirroring the result to the other surfaces.
+- `sw_wide_emit_tile` (L1426) — ---- MMX6 native-wide reveal-column tile (host-side, WIDE SURFACE ONLY) -------- Rasterize ONE 16x16 textured tile into the active wide surface for a given vertical band, leaving canonical VRAM AND th
+- `raster_textured_rect_scaled` (L1445) — Draws a textured rectangle that stretches its texture from u0,v0 to u1,v1 across the target area.
+- `sw_draw_textured_rect_scaled` (L1479) — Draws a stretched textured rectangle into native VRAM and mirrors the result to the other surfaces.
+- `hr_put_block_opaque` (L1514) — Writes an opaque native pixel as a scale-by-scale block into the high-resolution mirror.
+- `wide_put_block_opaque` (L1525) — Mirror a 1px line pixel into the active wide surface (s*s block, x-translated).
+- `sw_draw_line` (L1535) — Draws a one-pixel flat line between two points into native VRAM and mirrors it to the other surfaces.
+- `sw_draw_shaded_line` (L1556) — Draws a one-pixel line whose color interpolates from c0 to c1 into native VRAM and mirrors it.
+- `sw_vram_write` (L1596) — VRAM transfer (CPU->VRAM, VRAM->CPU)
+- `sw_vram_read` (L1612) — Reads one 15-bit pixel from canonical VRAM at x,y.
+- `hr_rebuild_from_vram` (L1623) — Rebuild the supersampled mirror from canonical VRAM after a bulk replace.
+- `sw_vram_transfer_in` (L1658) — Copies a CPU block of pixels into VRAM and updates the high-res mirror; a full-VRAM copy triggers one full rebuild.
+- `sw_vram_transfer_out` (L1706) — Copies a block of VRAM pixels out to a CPU buffer, with a fast path for the whole VRAM.
+- `rgb555_to_argb` (L1739) — Converts a 15-bit PS1 pixel to a 32-bit ARGB value with the top bits expanded to 8 bits per channel.
+- `sw_render_display` (L1750) — Renders the displayed VRAM rectangle into a 32-bit output buffer at native resolution; returns the pixel count.
+- `sw_render_display_hires` (L1768) — Renders the displayed area from the high-res mirror when scale is above 1, else falls back to native rendering.
+- `wide_free_all` (L1800) — Frees every native-wide surface and resets their base addresses.
+- `wide_surf_for` (L1808) — Returns the native-wide surface for base_x, allocating a free slot when none exists yet; NULL when wide mode is off.
+- `sw_wide_set_view` (L1836) — Enable native-wide with a wide width + centering offset (native px), or disable (wide_w <= 0).
+- `sw_wide_configure` (L1846) — Native-wide compositor (see gpu_sw_renderer.c).
+- `sw_wide_set_target` (L1854) — Select the wide surface to mirror into for the back buffer at base_x.
+- `sw_wide_disable_target` (L1860) — Stop mirroring (offscreen draws that don't target a framebuffer).
+- `sw_wide_clear` (L1864) — Mirror a framebuffer clear: fill the full wide width over [y, y+h) of the surface for base_x, so the revealed margins are clean (not stale).
+- `sw_wide_clear_margins` (L1881) — Clear only the synthetic columns outside the centred canonical framebuffer.
+- `wide_surf_existing` (L1901) — An existing wide surface for base_x (never allocates: a source that was not drawn yet has nothing to copy).
+- `sw_wide_feedback_rect` (L1911) — Band texels count as bit 15 set: the band columns' own bit 15 is not authoritative (margin fills write 0), and a framebuffer trail keeps the centre at bit 15 once it blends, so the bands blend exactly
+- `sw_render_wide_display` (L1943) — Present source: convert the wide surface for the displayed buffer (base_x) to ARGB.
+- `sw_wide_width` (L1965) — Returns the current native-wide width in native pixels.
+- `sw_wide_dump_full` (L1972) — Diagnostic: dump the ENTIRE active wide surface for base_x (full g_wide_w*scale × VRAM_HEIGHT*scale — BOTH double-buffer y-bands, all margins) to ARGB.
 
 ### runtime/src/gpu_timeline.c
 
