@@ -10569,6 +10569,7 @@ static void gpu_pass_scene_transfer(int restore) {
 static uint8_t  s_pass_regs[512];
 static uint32_t s_pass_regs_len;
 static uint32_t s_pass_poll_count;
+static uint32_t s_pass_data_last;   /* not in the snapshot format (savestates keep the latch only) */
 static int32_t  s_pass_doff_min, s_pass_doff_max;
 static uint32_t s_pass_doff_cnt;
 static GpuVerticalSplitTrace s_pass_split_this;
@@ -10581,6 +10582,7 @@ int gpu_pass_checkpoint_save(void) {
     if (!gpu_snap_emit(&w)) return 0;
     s_pass_regs_len = n;
     s_pass_poll_count = gpustat_poll_count;
+    s_pass_data_last = gpuread_data_last;
     s_pass_doff_min = g_doff_min_this;
     s_pass_doff_max = g_doff_max_this;
     s_pass_doff_cnt = g_doff_cnt_this;
@@ -10595,6 +10597,7 @@ void gpu_pass_checkpoint_restore(void) {
     if (!s_pass_regs_len) return;
     pst_r_init(&r, s_pass_regs, s_pass_regs_len);
     (void)gpu_snap_parse(&r);
+    gpuread_data_last = s_pass_data_last;
     gpustat_poll_count = s_pass_poll_count;
     g_doff_min_this = s_pass_doff_min;
     g_doff_max_this = s_pass_doff_max;
