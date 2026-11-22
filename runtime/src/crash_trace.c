@@ -457,6 +457,19 @@ void psx_crash_trace_dump(const char *reason, void *seh_info) {
             "  },\n",
             ct[0], ct[1], ct[2], ct[3], ct[5], ct[4]);
     }
+    /* What the overlay compile runs of this start did. A unit the
+     * compiler rejects runs interpreted and is not "degraded"; until this
+     * object existed the report could not show it, and a product has no debug
+     * server to ask. The object is built by autocompile.c, which never waits
+     * for a lock (this is also the crash path). */
+    {
+        static char ac_report[24 * 1024];
+        if (autocompile_report_json(ac_report, (int)sizeof(ac_report)) <= 0)
+            snprintf(ac_report, sizeof(ac_report), "{}");
+        append_str(buf, sizeof(buf), &pos, "  \"overlay_compile\": ");
+        append_str(buf, sizeof(buf), &pos, ac_report);
+        append_str(buf, sizeof(buf), &pos, ",\n");
+    }
 
 #ifdef _WIN32
     if (seh_info) {

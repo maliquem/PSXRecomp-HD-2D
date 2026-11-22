@@ -1554,50 +1554,54 @@ Background overlay compiler: runs the configured compile command as a child proc
 - `autocompile_now_ms` (L87) — Monotonic millisecond clock used for the retry back-off.
 - `autocompile_note_failure` (L118) — Counts a failed compile run and prints a one-time warning when the toolchain does not match the exe.
 - `autocompile_note_success` (L140) — Clears the failure streak and the retry back-off after a good run.
-- `autocompile_set_degraded` (L176) — Records why autocompile cannot work; only the first reason is kept.
-- `autocompile_degraded_reason` (L184) — Why overlay autocompile cannot work, or NULL if nothing is known to be wrong.
-- `autocompile_report_broken_once` (L238) — See the forward declaration above for why this is loud.
-- `shard_result_values` (L283) — Parse result markers while stdout is streaming, not from s_out after exit.
-- `shard_result_line_locked` (L313) — Parses one shard result line and stores its ok, failed and skipped counts; returns 1 if the line matched.
-- `child_line_locked` (L329) — Handles one complete child output line: a shard result line, or a published shard path to queue.
-- `publish_parse_locked` (L352) — Splits streamed child output into lines under the lock and passes each complete line on.
-- `publish_prepare_thread_main` (L378) — The pipe reader only queues paths.
-- `publish_ready_pop` (L481) — Takes the next prepared shard off the ready queue, or NULL when the queue is empty.
-- `publish_commit_finished` (L496) — Marks one shard commit as finished and wakes any waiting threads.
-- `publish_pending` (L503) — Returns 1 while any shard is queued, being prepared, or being committed.
-- `publish_note_load_failure` (L512) — Counts one shard that failed to load.
-- `publish_discard_all` (L518) — Drops all queued shards when the publisher is idle; returns 0 and changes nothing while a load is still running.
-- `out_append` (L549) — Appends child output to the tail buffer, keeping only the newest AC_OUT_CAP bytes, and parses the new lines.
-- `autocompile_test_feed_output` (L568) — Test hook: feeds fake compiler output into the output parser.
-- `autocompile_test_start_preparer` (L572) — Test hook: starts the shard preparer thread; returns 1 on success.
-- `autocompile_test_finish_input` (L582) — Test hook: marks the fake output as finished so the preparer thread can drain and exit.
-- `autocompile_test_join_preparer` (L589) — Test hook: waits up to timeout_ms for the preparer thread to end; returns 1 when it has.
-- `autocompile_test_ready_count` (L598) — Test hook: number of prepared shards waiting in the ready queue.
-- `autocompile_test_ready_highwater` (L607) — Test hook: the largest ready-queue length seen so far.
-- `autocompile_test_preparing_count` (L615) — Test hook: number of shards currently being prepared.
-- `autocompile_test_discard_all` (L623) — Test hook: discards all queued publish items.
-- `watch_thread` (L630) — Windows watcher: reads the compiler's output pipe until it closes, waits for the process, then records its exit code.
-- `posix_watch_thread` (L744) — POSIX watcher: reads the compiler's output until EOF, feeding each chunk to the output parser.
-- `autocompile_report_interpreter` (L783) — Name the interpreter the spawn will run, once, at configure time: the command's first token, resolved the way 'sh -c' resolves it.
-- `posix_kill_child_tree` (L812) — Kill the whole compile tree (sh -> python -> gcc share the child's process group), then reap it through the watcher.
-- `autocompile_check_path_args` (L925) — Pulls the path after each --recompiler or --runtime-include flag out of the command line so it can be checked.
-- `autocompile_configure` (L979) — Store the command line + working directory.
-- `autocompile_set_cache_paths` (L1033) — Pin the canonical overlay cache dir + captures file the LOADER actually uses (<exe>/cache and <exe>/overlay_captures.json — computed once in main.cpp).
-- `autocompile_configured` (L1038) — Returns 1 when a compile command has been set.
-- `autocompile_busy` (L1039) — 1 while a compile process is running.
-- `autocompile_toolchain_available` (L1046) — Probe PATH for a real C compiler (gcc/cc/clang).
-- `ac_pick_core` (L1096) — One core for the emulation thread: the one it is on, unless that is a slower class of core on a hybrid CPU.
-- `autocompile_test_pick_core` (L1108) — Test hook: runs the core-picking logic on the given masks and efficiency classes.
-- `ac_core_list` (L1115) — Lists the physical cores the process may use, with each core's efficiency class and affinity mask.
-- `ac_release_core` (L1143) — Gives back the reserved core: restores the game thread's affinity and clears the core masks.
-- `ac_reserve_core` (L1153) — Runs with the child still suspended, so nothing in the tree ever executes on the reserved core.
-- `ac_game_thread_tick` (L1193) — Records the game thread's current processor group and number, for choosing a core later.
-- `autocompile_request` (L1207) — Kick a compile if configured and idle.
-- `parse_shard_result` (L1531) — Scan the child-output tail ring for the LAST "PSX_SHARD_RESULT ok=N failed=M skipped=K" line and record the counts.
-- `autocompile_poll_main` (L1572) — Emu-thread tick: applies a finished compile (cache rescan on success).
-- `autocompile_shutdown` (L1663) — Process-shutdown teardown, emu thread only: stops the publication pipeline, kills the compiler process tree (job object), and JOINS the watcher and preparer threads — waiting out any in-flight LoadLib
-- `json_escape_into` (L1718) — Minimal JSON string escaper for the output tail.
-- `autocompile_status_json` (L1737) — JSON status blob for the debug server: state, run/fail counters, last exit code, and the output tail.
+- `autocompile_set_degraded` (L215) — Records why autocompile cannot work; only the first reason is kept.
+- `autocompile_degraded_reason` (L223) — Why overlay autocompile cannot work, or NULL if nothing is known to be wrong.
+- `autocompile_report_broken_once` (L277) — See the forward declaration above for why this is loud.
+- `shard_result_values` (L322) — Parse result markers while stdout is streaming, not from s_out after exit.
+- `shard_result_line_locked` (L352) — Parses one shard result line and stores its ok, failed and skipped counts; returns 1 if the line matched.
+- `fail_text_copy` (L362) — Copies one failure line into a bounded report field, skipping leading blanks.
+- `compile_report_line_locked` (L374) — One complete line of the driver's output, for the run report.
+- `child_line_locked` (L438) — Handles one complete child output line: a shard result line, or a published shard path to queue.
+- `publish_parse_locked` (L461) — Splits streamed child output into lines under the lock and passes each complete line on.
+- `publish_prepare_thread_main` (L489) — The pipe reader only queues paths.
+- `publish_ready_pop` (L592) — Takes the next prepared shard off the ready queue, or NULL when the queue is empty.
+- `publish_commit_finished` (L607) — Marks one shard commit as finished and wakes any waiting threads.
+- `publish_pending` (L614) — Returns 1 while any shard is queued, being prepared, or being committed.
+- `publish_note_load_failure` (L623) — Counts one shard that failed to load.
+- `publish_discard_all` (L629) — Drops all queued shards when the publisher is idle; returns 0 and changes nothing while a load is still running.
+- `out_append` (L660) — Appends child output to the tail buffer, keeping only the newest AC_OUT_CAP bytes, and parses the new lines.
+- `autocompile_test_feed_output` (L679) — Test hook: feeds fake compiler output into the output parser.
+- `autocompile_test_start_preparer` (L683) — Test hook: starts the shard preparer thread; returns 1 on success.
+- `autocompile_test_finish_input` (L693) — Test hook: marks the fake output as finished so the preparer thread can drain and exit.
+- `autocompile_test_join_preparer` (L700) — Test hook: waits up to timeout_ms for the preparer thread to end; returns 1 when it has.
+- `autocompile_test_ready_count` (L709) — Test hook: number of prepared shards waiting in the ready queue.
+- `autocompile_test_ready_highwater` (L718) — Test hook: the largest ready-queue length seen so far.
+- `autocompile_test_preparing_count` (L726) — Test hook: number of shards currently being prepared.
+- `autocompile_test_discard_all` (L734) — Test hook: discards all queued publish items.
+- `watch_thread` (L741) — Windows watcher: reads the compiler's output pipe until it closes, waits for the process, then records its exit code.
+- `posix_watch_thread` (L855) — POSIX watcher: reads the compiler's output until EOF, feeding each chunk to the output parser.
+- `autocompile_report_interpreter` (L894) — Name the interpreter the spawn will run, once, at configure time: the command's first token, resolved the way 'sh -c' resolves it.
+- `posix_kill_child_tree` (L923) — Kill the whole compile tree (sh -> python -> gcc share the child's process group), then reap it through the watcher.
+- `autocompile_check_path_args` (L1036) — Pulls the path after each --recompiler or --runtime-include flag out of the command line so it can be checked.
+- `autocompile_configure` (L1090) — Store the command line + working directory.
+- `autocompile_set_cache_paths` (L1144) — Pin the canonical overlay cache dir + captures file the LOADER actually uses (<exe>/cache and <exe>/overlay_captures.json — computed once in main.cpp).
+- `autocompile_configured` (L1149) — Returns 1 when a compile command has been set.
+- `autocompile_busy` (L1150) — 1 while a compile process is running.
+- `autocompile_toolchain_available` (L1157) — Probe PATH for a real C compiler (gcc/cc/clang).
+- `ac_pick_core` (L1207) — One core for the emulation thread: the one it is on, unless that is a slower class of core on a hybrid CPU.
+- `autocompile_test_pick_core` (L1219) — Test hook: runs the core-picking logic on the given masks and efficiency classes.
+- `ac_core_list` (L1226) — Lists the physical cores the process may use, with each core's efficiency class and affinity mask.
+- `ac_release_core` (L1254) — Gives back the reserved core: restores the game thread's affinity and clears the core masks.
+- `ac_reserve_core` (L1264) — Runs with the child still suspended, so nothing in the tree ever executes on the reserved core.
+- `ac_game_thread_tick` (L1304) — Records the game thread's current processor group and number, for choosing a core later.
+- `autocompile_request` (L1318) — Kick a compile if configured and idle.
+- `parse_shard_result` (L1646) — Scan the child-output tail ring for the LAST "PSX_SHARD_RESULT ok=N failed=M skipped=K" line and record the counts.
+- `autocompile_poll_main` (L1687) — Emu-thread tick: applies a finished compile (cache rescan on success).
+- `account_run_at_quit` (L1790) — A normal quit stops a compile run that is going and stores the state idle, and the run report is written after that.
+- `autocompile_shutdown` (L1802) — Process-shutdown teardown, emu thread only: stops the publication pipeline, kills the compiler process tree (job object), and JOINS the watcher and preparer threads — waiting out any in-flight LoadLib
+- `json_escape_into` (L1861) — Minimal JSON string escaper for the output tail.
+- `autocompile_status_json` (L1880) — JSON status blob for the debug server: state, run/fail counters, last exit code, and the output tail.
+- `autocompile_report_json` (L1977) — The compile results of this start, for the run report.
 
 ### runtime/src/autocompile_child_env.h
 
@@ -2270,13 +2274,61 @@ Writes one JSON crash report (psx_last_run_report.json) on a signal, SEH excepti
 - `crash_is_retaddr` (L259) — Windows: 1 when v inside the exe's text section follows a call instruction, so it looks like a return address.
 - `append_native_stack` (L273) — Windows: scan the native stack from start_sp and append the return addresses found in the exe's text section.
 - `psx_crash_trace_dump` (L356) — Manually trigger a crash dump.
-- `psx_fatal_halt` (L909) — Terminal stop for deliberate fatal sites (unhandled MMIO access, trap_crash, fail-fast unknown dispatch).
-- `psx_signal_handler` (L952) — Fatal signal handler: writes the crash report and the freeze-style ring dump.
-- `psx_soft_exit_handler` (L970) — Default SIGINT/SIGTERM terminate without running atexit, so GCC/LLVM never flush PGO profiles (train scripts use kill).
-- `psx_seh_handler` (L980) — Windows unhandled-exception handler: writes the crash report and the ring dump.
-- `psx_console_ctrl_handler` (L988) — Windows console Ctrl-C, Break or close: tags the exit origin and exits so atexit runs.
-- `psx_atexit_handler` (L1004) — atexit: writes an 'atexit' report unless a fatal path already wrote one.
-- `psx_crash_trace_install_handlers` (L1011) — Install signal/SEH/atexit handlers.
+- `psx_fatal_halt` (L922) — Terminal stop for deliberate fatal sites (unhandled MMIO access, trap_crash, fail-fast unknown dispatch).
+- `psx_signal_handler` (L965) — Fatal signal handler: writes the crash report and the freeze-style ring dump.
+- `psx_soft_exit_handler` (L983) — Default SIGINT/SIGTERM terminate without running atexit, so GCC/LLVM never flush PGO profiles (train scripts use kill).
+- `psx_seh_handler` (L993) — Windows unhandled-exception handler: writes the crash report and the ring dump.
+- `psx_console_ctrl_handler` (L1001) — Windows console Ctrl-C, Break or close: tags the exit origin and exits so atexit runs.
+- `psx_atexit_handler` (L1017) — atexit: writes an 'atexit' report unless a fatal path already wrote one.
+- `psx_crash_trace_install_handlers` (L1024) — Install signal/SEH/atexit handlers.
+
+### runtime/src/crash_trace.c
+
+Writes one JSON crash report (psx_last_run_report.json) on a signal, SEH exception, atexit or fatal halt, and makes SIGINT/SIGTERM exit cleanly so PGO profiles flush.
+
+- `append_str` (L127) — Append a string to the report buffer without allocating; returns 0 when it does not fit.
+- `append_fmt` (L136) — printf-style append to the report buffer; returns 0 when the text does not fit.
+- `json_escape` (L150) — Escape a string for use as a JSON string value: backslash and double-quote are backslash-escaped, control chars are dropped.
+- `crash_peek_guest` (L163) — Copy 'len' guest bytes at 'vaddr' into 'dst'.
+- `append_hex_bytes` (L185) — Append n bytes as lowercase hex to the report buffer.
+- `append_ram_peek` (L195) — Append a JSON object with the address, length and hex of up to 'want' guest bytes at vaddr.
+- `crash_jal_target_from_ra` (L207) — If the insn at $ra-8 is j/jal, return its target (live RAM, not AOT).
+- `hex32` (L221) — Serialize a single uint32_t hex value as a JSON string.
+- `psx_crash_trace_set_exit_origin` (L233) — Tag a deliberate exit() so the atexit report can attribute it (e.g.
+- `crash_is_retaddr` (L259) — Windows: 1 when v inside the exe's text section follows a call instruction, so it looks like a return address.
+- `append_native_stack` (L273) — Windows: scan the native stack from start_sp and append the return addresses found in the exe's text section.
+- `psx_crash_trace_dump` (L356) — Manually trigger a crash dump.
+- `psx_fatal_halt` (L922) — Terminal stop for deliberate fatal sites (unhandled MMIO access, trap_crash, fail-fast unknown dispatch).
+- `psx_signal_handler` (L965) — Fatal signal handler: writes the crash report and the freeze-style ring dump.
+- `psx_soft_exit_handler` (L983) — Default SIGINT/SIGTERM terminate without running atexit, so GCC/LLVM never flush PGO profiles (train scripts use kill).
+- `psx_seh_handler` (L993) — Windows unhandled-exception handler: writes the crash report and the ring dump.
+- `psx_console_ctrl_handler` (L1001) — Windows console Ctrl-C, Break or close: tags the exit origin and exits so atexit runs.
+- `psx_atexit_handler` (L1017) — atexit: writes an 'atexit' report unless a fatal path already wrote one.
+- `psx_crash_trace_install_handlers` (L1024) — Install signal/SEH/atexit handlers.
+
+### runtime/src/crash_trace.c
+
+Writes one JSON crash report (psx_last_run_report.json) on a signal, SEH exception, atexit or fatal halt, and makes SIGINT/SIGTERM exit cleanly so PGO profiles flush.
+
+- `append_str` (L127) — Append a string to the report buffer without allocating; returns 0 when it does not fit.
+- `append_fmt` (L136) — printf-style append to the report buffer; returns 0 when the text does not fit.
+- `json_escape` (L150) — Escape a string for use as a JSON string value: backslash and double-quote are backslash-escaped, control chars are dropped.
+- `crash_peek_guest` (L163) — Copy 'len' guest bytes at 'vaddr' into 'dst'.
+- `append_hex_bytes` (L185) — Append n bytes as lowercase hex to the report buffer.
+- `append_ram_peek` (L195) — Append a JSON object with the address, length and hex of up to 'want' guest bytes at vaddr.
+- `crash_jal_target_from_ra` (L207) — If the insn at $ra-8 is j/jal, return its target (live RAM, not AOT).
+- `hex32` (L221) — Serialize a single uint32_t hex value as a JSON string.
+- `psx_crash_trace_set_exit_origin` (L233) — Tag a deliberate exit() so the atexit report can attribute it (e.g.
+- `crash_is_retaddr` (L259) — Windows: 1 when v inside the exe's text section follows a call instruction, so it looks like a return address.
+- `append_native_stack` (L273) — Windows: scan the native stack from start_sp and append the return addresses found in the exe's text section.
+- `psx_crash_trace_dump` (L356) — Manually trigger a crash dump.
+- `psx_fatal_halt` (L922) — Terminal stop for deliberate fatal sites (unhandled MMIO access, trap_crash, fail-fast unknown dispatch).
+- `psx_signal_handler` (L965) — Fatal signal handler: writes the crash report and the freeze-style ring dump.
+- `psx_soft_exit_handler` (L983) — Default SIGINT/SIGTERM terminate without running atexit, so GCC/LLVM never flush PGO profiles (train scripts use kill).
+- `psx_seh_handler` (L993) — Windows unhandled-exception handler: writes the crash report and the ring dump.
+- `psx_console_ctrl_handler` (L1001) — Windows console Ctrl-C, Break or close: tags the exit origin and exits so atexit runs.
+- `psx_atexit_handler` (L1017) — atexit: writes an 'atexit' report unless a fatal path already wrote one.
+- `psx_crash_trace_install_handlers` (L1024) — Install signal/SEH/atexit handlers.
 
 ### runtime/src/crc32.c
 

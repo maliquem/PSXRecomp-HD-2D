@@ -1914,6 +1914,20 @@ if(BUILD_TESTING)
         add_test(NAME dirty_interp_semantics_test COMMAND dirty_interp_semantics_test)
     endif()
 
+    # The compile results of a start reach the run report. A driver
+    # that prints compile_overlays.py's own lines runs through the real spawn,
+    # pipe and parser on every platform.
+    add_executable(autocompile_report_test
+        tests/test_autocompile_report.c
+        src/autocompile.c)
+    target_include_directories(autocompile_report_test PRIVATE include)
+    if(NOT WIN32)
+        find_package(Threads REQUIRED)
+        target_link_libraries(autocompile_report_test PRIVATE Threads::Threads)
+    endif()
+    add_test(NAME autocompile_report_test COMMAND autocompile_report_test)
+    set_tests_properties(autocompile_report_test PROPERTIES TIMEOUT 120)
+
     # ---- previously-unregistered standalone tests -------------------------
     # These 16 existed in runtime/tests/ with no add_test() entry. Their only
     # build instructions were a gcc command line in each file's header comment,
