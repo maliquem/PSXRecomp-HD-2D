@@ -9928,78 +9928,79 @@ Models the PS1 Sound Processing Unit: its registers and DMA, the ADPCM voices wi
 - `spu_irq_check_enabled` (L320) — SPU RAM IRQ-address compare, called from EVERY SPU RAM access site (FIFO, DMA both directions, ADPCM block fetch, capture-buffer writes, reverb work-area reads/writes, and the transfer/IRQ-address/SPU
 - `spu_irq_check` (L341) — The SPUCNT test inline: every capture write and reverb access runs it, and with the IRQ off (the usual case) it is all they do here.
 - `cd_input_volume` (L346) — Reads a CD input volume register as a signed 16-bit gain.
-- `spu_cd_audio_reset` (L352) — Clears the CD audio ring buffer and resets its read and write positions.
-- `spu_cd_audio_push` (L362) — CD-ROM XA/CDDA input path.
-- `spu_cd_snapshot_bytes` (L404) — Returns the size in bytes of the CD audio ring snapshot.
-- `spu_cd_snapshot_write` (L405) — Writes the CD audio ring to a buffer: its frame count, then the queued stereo frames.
-- `spu_cd_snapshot_validate` (L416) — Pass-1 check of the CD-audio ring section: the frame count fits the ring and the length matches it.
-- `spu_cd_snapshot_read` (L422) — Restores the CD audio ring from a snapshot buffer; returns 0 when the length does not match.
-- `cd_audio_pop` (L438) — Takes one stereo CD audio frame off the ring; returns 0 when the ring is empty.
-- `decode_block` (L447) — Decodes one 16-byte SPU ADPCM block for a voice using its filter coefficients, then advances the voice's address.
-- `noise_clock_state` (L537) — ---- Noise generator ---------------------------------------------------- Documented LFSR update: the new low bit is the parity term (bit15 XOR bit12 XOR bit11 XOR bit10 XOR 1) and the register shifts
-- `noise_clock` (L552) — Advances the SPU noise generator using the SPU control register value.
-- `capture_write` (L555) — ---- Capture buffers -----------------------------------------------------
-- `rev_mul` (L602) — Signed Q0.15 volume multiply (the reverb pipeline's only multiply shape).
-- `rev_mbase` (L606) — Returns the reverb work-area base address in bytes, from the MBASE register.
-- `rev_ea` (L615) — Effective work-area address for an address register plus a byte bias (bias -2 implements the documented [x-2] taps, bias -dAPFn*8 the APF delay taps).
-- `rev_read` (L635) — Reads one signed 16-bit sample from the reverb work area at the given address plus bias, running the IRQ check.
-- `rev_write` (L646) — Work-area store, saturated to signed 16-bit.
-- `reverb_step` (L661) — One documented reverb step at 22050 Hz.
-- `rev_reconstruct` (L756) — ⚠ DOCUMENTED-GAP — the ONE known deliberate deviation from hardware.
-- `spu_shadow_tap_buffer` (L804) — Pointer to the tap array (SpuShadowFrameTapPub[]) and the number of valid frames filled by the most recent spu_render block.
-- `spu_shadow_tap_count` (L805) — Returns how many shadow tap frames were filled by the most recent render block.
-- `voice_adsr_raw` (L811) — What a voice's sample step reads from its registers.
-- `voice_is_noise` (L814) — Returns nonzero when the voice has its noise bit set, for a hardware or private voice.
-- `voice_pmon_mask` (L824) — PMON (0x1F801D90/92): bit x lets voice x-1's current post-ADSR sample, before its left/right volume, scale voice x's pitch.
-- `voice_pitch_mod` (L833) — The pitch counter's step from the full VxPITCH register.
-- `voice_pitch_step` (L840) — Returns the voice's pitch step for one sample, with pitch modulation from the previous voice when PMON allows it.
-- `voice_step` (L847) — One output sample of an active voice.
-- `voice_next_sample` (L948) — 'previous_sample' is voice idx-1's output this frame (for PMON).
-- `spu_voice_reads_written` (L981) — Could the voice's block fetches in the next 'frames' frames read SPU RAM this block writes (the capture area, and with SPUCNT.7 the reverb work area [rev_lo, end))?
-- `spu_voice_major_ok` (L1000) — Checks whether a block of frames can use the fast voice path; returns 0 for large blocks, IRQ enable set, or overlapping memory.
-- `spu_render_voices` (L1024) — Mixes all active voices for the given number of frames into the voice and reverb buffers.
-- `key_on` (L1100) — Starts the voices in the mask: each begins at its bank start address with its envelope reset, and events are recorded.
-- `key_off` (L1129) — KEYOFF triggers Release phase, NOT immediate silence.
-- `spu_private_voice_play` (L1143) — These opt-in voices never appear in hardware registers, KEYON/KEYOFF, capture channels or ENDX.
-- `spu_private_voice_stop` (L1157) — Key-off for the private voices selected by the mask, recording an off event for each active one.
-- `spu_private_voice_volume` (L1165) — Sets the left and right volume registers of a private voice; returns 0 for an invalid slot.
-- `spu_private_voice_active` (L1171) — Returns a bit mask of the active private voices, bit n for slot n.
-- `spu_init` (L1178) — Clears SPU RAM, frees the sample banks and resets voices, reverb and output state to power-on values.
-- `spu_render_block` (L1223) — Renders the given number of stereo frames of SPU output into the buffer, mixing voices, reverb and CD audio.
-- `spu_set_output_gate` (L1604) — Host gate: while it returns nonzero (rollback resimulation, FMV-skip mute) rendered samples advance SPU state but are not queued.
-- `spu_out_push` (L1606) — Appends stereo frames to the output queue; when the queue is full the oldest frame is dropped.
-- `spu_catch_up` (L1624) — Guest-clocked SPU: render every whole sample owed up to the current guest cycle (768 cycles per 44.1 kHz sample) into the output queue.
-- `spu_output_available` (L1651) — extern void (*spu_perf_observer)(int begin); /* perf_meter.c
-- `spu_output_pop` (L1653) — Copies up to max_frames queued stereo frames into the output buffer and returns how many were copied.
-- `spu_output_drop` (L1664) — Discards up to the given number of oldest frames from the output queue.
-- `spu_output_flush` (L1670) — void spu_output_drop(uint32_t frames); /* oldest first
-- `spu_output_overflow_drops` (L1671) — Returns how many output frames were dropped because the host fell behind.
-- `spu_debug_info` (L1673) — Fills an SpuDebugInfo struct with the control register, volumes and counters for the debug server.
-- `spu_read` (L1699) — MMIO read/write (0x1F801C00-0x1F801FFF)
-- `spu_write` (L1789) — Handles a guest write to an SPU register address, catching the render up before applying it.
-- `spu_dma_write` (L1897) — DMA channel 4 interface.
-- `spu_dma_read` (L1914) — DMA4 SPU->CPU direction: read one little-endian 32-bit word from SPU RAM at the transfer address, advance it by 4 and run the IRQ compare — the exact mirror of spu_dma_write.
-- `spu_dma_ready` (L1929) — Always returns 1; the SPU accepts DMA at once.
-- `spu_get_ram` (L1933) — Get pointer to SPU RAM for direct access (512KB)
-- `spu_get_voice_state` (L1937) — Copies the state of one voice into the output struct; zeroes it for an invalid index.
-- `spu_ram_peek` (L1962) — Debug peek into SPU RAM (spu_ram TCP command).
-- `spu_ctrl_read` (L1969) — SPUCNT (0x1F801DAA) alone.
-- `spu_get_global_state` (L1973) — Fills the output struct with the global SPU state: control, main volume and related registers.
-- `spu_event_total` (L2013) — Returns the total number of SPU events recorded so far.
-- `spu_event_get` (L2015) — Copies up to max_count of the most recent SPU events into the output array and returns how many were copied.
-- `spu_event_reset` (L2028) — uint32_t spu_event_get(SpuEvent* out, uint32_t max_count); /* most recent up to max_count
-- `spu_w_voice` (L2044) — Writes the state of one voice into the snapshot stream.
-- `spu_r_voice` (L2065) — Reads the state of one voice back from the snapshot stream.
-- `spu_snapshot_bytes_v1` (L2101) — + 4: guest-clock phase (cycles since the SPU's last whole sample).
-- `spu_snapshot_bytes` (L2104) — Returns the snapshot size: the v1 layout plus four bytes for the guest-clock phase.
-- `spu_snapshot_len_ok` (L2105) — Returns 1 when a snapshot length matches one of the accepted layouts.
-- `spu_voice_wire_ok` (L2117) — Saved voice values the mixer indexes with: the sample bank bindings, the decode cursor (at most one block ahead: voice_step decodes once and the Gaussian window holds 3 + 28 samples) and the 12-bit pi
-- `spu_snapshot_validate` (L2131) — Pass-1 check for boot_state's two-pass load: walks the snapshot without touching the SPU and refuses every value spu_snapshot_read would reject halfway or the SPU would later index out of range with.
-- `spu_snapshot_write` (L2156) — Catches the SPU up to the current cycle and writes its state snapshot into the buffer.
-- `spu_snapshot_read` (L2191) — Restores the SPU state from a snapshot buffer; returns 0 on a bad length or bad data.
-- `spu_get_ram_ptr` (L2245) — Returns a pointer to the 512 KB of SPU RAM.
-- `spu_get_ram_bytes` (L2246) — Returns the size in bytes of SPU RAM.
-- `spu_snapshot_part_digests` (L2248) — Computes checksums of the separate sections of the SPU snapshot and stores them in the output struct.
+- `cd_audio_reset_queue` (L352) — Empties the CD audio input queue without rendering anything; the whole-unit reset in spu_init uses it.
+- `spu_cd_audio_reset` (L362) — CD stop, seek or mode change: renders the samples already due from the old queue, then empties it.
+- `spu_cd_audio_push` (L370) — CD-ROM XA/CDDA input path.
+- `spu_cd_snapshot_bytes` (L412) — Returns the size in bytes of the CD audio ring snapshot.
+- `spu_cd_snapshot_write` (L413) — Writes the CD audio ring to a buffer: its frame count, then the queued stereo frames.
+- `spu_cd_snapshot_validate` (L424) — Pass-1 check of the CD-audio ring section: the frame count fits the ring and the length matches it.
+- `spu_cd_snapshot_read` (L430) — Restores the CD audio ring from a snapshot buffer; returns 0 when the length does not match.
+- `cd_audio_pop` (L446) — Takes one stereo CD audio frame off the ring; returns 0 when the ring is empty.
+- `decode_block` (L455) — Decodes one 16-byte SPU ADPCM block for a voice using its filter coefficients, then advances the voice's address.
+- `noise_clock_state` (L545) — ---- Noise generator ---------------------------------------------------- Documented LFSR update: the new low bit is the parity term (bit15 XOR bit12 XOR bit11 XOR bit10 XOR 1) and the register shifts
+- `noise_clock` (L560) — Advances the SPU noise generator using the SPU control register value.
+- `capture_write` (L563) — ---- Capture buffers -----------------------------------------------------
+- `rev_mul` (L610) — Signed Q0.15 volume multiply (the reverb pipeline's only multiply shape).
+- `rev_mbase` (L614) — Returns the reverb work-area base address in bytes, from the MBASE register.
+- `rev_ea` (L623) — Effective work-area address for an address register plus a byte bias (bias -2 implements the documented [x-2] taps, bias -dAPFn*8 the APF delay taps).
+- `rev_read` (L643) — Reads one signed 16-bit sample from the reverb work area at the given address plus bias, running the IRQ check.
+- `rev_write` (L654) — Work-area store, saturated to signed 16-bit.
+- `reverb_step` (L669) — One documented reverb step at 22050 Hz.
+- `rev_reconstruct` (L764) — ⚠ DOCUMENTED-GAP — the ONE known deliberate deviation from hardware.
+- `spu_shadow_tap_buffer` (L812) — Pointer to the tap array (SpuShadowFrameTapPub[]) and the number of valid frames filled by the most recent spu_render block.
+- `spu_shadow_tap_count` (L813) — Returns how many shadow tap frames were filled by the most recent render block.
+- `voice_adsr_raw` (L819) — What a voice's sample step reads from its registers.
+- `voice_is_noise` (L822) — Returns nonzero when the voice has its noise bit set, for a hardware or private voice.
+- `voice_pmon_mask` (L832) — PMON (0x1F801D90/92): bit x lets voice x-1's current post-ADSR sample, before its left/right volume, scale voice x's pitch.
+- `voice_pitch_mod` (L841) — The pitch counter's step from the full VxPITCH register.
+- `voice_pitch_step` (L848) — Returns the voice's pitch step for one sample, with pitch modulation from the previous voice when PMON allows it.
+- `voice_step` (L855) — One output sample of an active voice.
+- `voice_next_sample` (L956) — 'previous_sample' is voice idx-1's output this frame (for PMON).
+- `spu_voice_reads_written` (L989) — Could the voice's block fetches in the next 'frames' frames read SPU RAM this block writes (the capture area, and with SPUCNT.7 the reverb work area [rev_lo, end))?
+- `spu_voice_major_ok` (L1008) — Checks whether a block of frames can use the fast voice path; returns 0 for large blocks, IRQ enable set, or overlapping memory.
+- `spu_render_voices` (L1032) — Mixes all active voices for the given number of frames into the voice and reverb buffers.
+- `key_on` (L1108) — Starts the voices in the mask: each begins at its bank start address with its envelope reset, and events are recorded.
+- `key_off` (L1137) — KEYOFF triggers Release phase, NOT immediate silence.
+- `spu_private_voice_play` (L1151) — These opt-in voices never appear in hardware registers, KEYON/KEYOFF, capture channels or ENDX.
+- `spu_private_voice_stop` (L1165) — Key-off for the private voices selected by the mask, recording an off event for each active one.
+- `spu_private_voice_volume` (L1173) — Sets the left and right volume registers of a private voice; returns 0 for an invalid slot.
+- `spu_private_voice_active` (L1179) — Returns a bit mask of the active private voices, bit n for slot n.
+- `spu_init` (L1186) — Clears SPU RAM, frees the sample banks and resets voices, reverb and output state to power-on values.
+- `spu_render_block` (L1231) — Renders the given number of stereo frames of SPU output into the buffer, mixing voices, reverb and CD audio.
+- `spu_set_output_gate` (L1612) — Host gate: while it returns nonzero (rollback resimulation, FMV-skip mute) rendered samples advance SPU state but are not queued.
+- `spu_out_push` (L1614) — Appends stereo frames to the output queue; when the queue is full the oldest frame is dropped.
+- `spu_catch_up` (L1632) — Guest-clocked SPU: render every whole sample owed up to the current guest cycle (768 cycles per 44.1 kHz sample) into the output queue.
+- `spu_output_available` (L1659) — extern void (*spu_perf_observer)(int begin); /* perf_meter.c
+- `spu_output_pop` (L1661) — Copies up to max_frames queued stereo frames into the output buffer and returns how many were copied.
+- `spu_output_drop` (L1672) — Discards up to the given number of oldest frames from the output queue.
+- `spu_output_flush` (L1678) — void spu_output_drop(uint32_t frames); /* oldest first
+- `spu_output_overflow_drops` (L1679) — Returns how many output frames were dropped because the host fell behind.
+- `spu_debug_info` (L1681) — Fills an SpuDebugInfo struct with the control register, volumes and counters for the debug server.
+- `spu_read` (L1707) — MMIO read/write (0x1F801C00-0x1F801FFF)
+- `spu_write` (L1797) — Handles a guest write to an SPU register address, catching the render up before applying it.
+- `spu_dma_write` (L1905) — DMA channel 4 interface.
+- `spu_dma_read` (L1922) — DMA4 SPU->CPU direction: read one little-endian 32-bit word from SPU RAM at the transfer address, advance it by 4 and run the IRQ compare — the exact mirror of spu_dma_write.
+- `spu_dma_ready` (L1937) — Always returns 1; the SPU accepts DMA at once.
+- `spu_get_ram` (L1941) — Get pointer to SPU RAM for direct access (512KB)
+- `spu_get_voice_state` (L1945) — Copies the state of one voice into the output struct; zeroes it for an invalid index.
+- `spu_ram_peek` (L1970) — Debug peek into SPU RAM (spu_ram TCP command).
+- `spu_ctrl_read` (L1977) — SPUCNT (0x1F801DAA) alone.
+- `spu_get_global_state` (L1981) — Fills the output struct with the global SPU state: control, main volume and related registers.
+- `spu_event_total` (L2021) — Returns the total number of SPU events recorded so far.
+- `spu_event_get` (L2023) — Copies up to max_count of the most recent SPU events into the output array and returns how many were copied.
+- `spu_event_reset` (L2036) — uint32_t spu_event_get(SpuEvent* out, uint32_t max_count); /* most recent up to max_count
+- `spu_w_voice` (L2052) — Writes the state of one voice into the snapshot stream.
+- `spu_r_voice` (L2073) — Reads the state of one voice back from the snapshot stream.
+- `spu_snapshot_bytes_v1` (L2109) — + 4: guest-clock phase (cycles since the SPU's last whole sample).
+- `spu_snapshot_bytes` (L2112) — Returns the snapshot size: the v1 layout plus four bytes for the guest-clock phase.
+- `spu_snapshot_len_ok` (L2113) — Returns 1 when a snapshot length matches one of the accepted layouts.
+- `spu_voice_wire_ok` (L2125) — Saved voice values the mixer indexes with: the sample bank bindings, the decode cursor (at most one block ahead: voice_step decodes once and the Gaussian window holds 3 + 28 samples) and the 12-bit pi
+- `spu_snapshot_validate` (L2139) — Pass-1 check for boot_state's two-pass load: walks the snapshot without touching the SPU and refuses every value spu_snapshot_read would reject halfway or the SPU would later index out of range with.
+- `spu_snapshot_write` (L2164) — Catches the SPU up to the current cycle and writes its state snapshot into the buffer.
+- `spu_snapshot_read` (L2199) — Restores the SPU state from a snapshot buffer; returns 0 on a bad length or bad data.
+- `spu_get_ram_ptr` (L2253) — Returns a pointer to the 512 KB of SPU RAM.
+- `spu_get_ram_bytes` (L2254) — Returns the size in bytes of SPU RAM.
+- `spu_snapshot_part_digests` (L2256) — Computes checksums of the separate sections of the SPU snapshot and stores them in the output struct.
 
 ### runtime/src/spu_clone_music.c
 
