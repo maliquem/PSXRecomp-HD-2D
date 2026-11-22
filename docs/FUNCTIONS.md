@@ -2959,67 +2959,67 @@ Small MIPS interpreter that runs code written into RAM after boot, one basic blo
 - `dirty_ram_word_looks_decodable` (L905) — A dirty-RAM target only deserves interpretation if its first word decodes as a plausible MIPS instruction.
 - `dirty_ram_same_pc` (L948) — Returns 1 when two PCs refer to the same physical address, ignoring the segment bits.
 - `dirty_ram_pump_boundary` (L952) — Runs the interrupt check at a block boundary and records the safe resume PC; returns 1 when control was transferred.
-- `dirty_ram_finish_call_return` (L978) — Finishes a call by moving the PC to the return address and running the boundary check; returns 1 if control was transferred, else sets the next PC.
-- `dispatch_nonlocal_call` (L990) — Sends a call to a target outside the interpreted block through the compiled dispatcher and returns the next PC through an output parameter.
-- `psx_mixed_owner_enabled` (L1032) — ── Mixed interp<->compiled dispatch owner (host-stack recursion fix) ────── The dirty interpreter nests psx_dispatch_game_compiled when an interpreted block transfers into compiled code.
-- `interp_host_stack_used` (L1040) — #include <intrin.h> /* __readgsqword — fiber TEB StackBase
-- `psx_mixed_stack_watermark` (L1050) — Returns the host stack limit in bytes at which nesting of compiled calls stops, from PSX_MIXED_STACK_KB (default 700 KB, minimum 64 KB).
-- `xprobe_env_init` (L1130) — Reads the flight-recorder limits from environment variables, once.
-- `dirty_ram_xprobe_arm` (L1137) — Sets the flight-recorder trip limits (frame, stack KB, warmup) and re-arms the trip.
-- `xprobe_flush_frame` (L1142) — Stores the current frame's flight-recorder summary (crossings, depth, stack, cycles) into the summary ring.
-- `xprobe_watch_parse` (L1176) — Parses a comma or space separated list of watched physical addresses into the watch table.
-- `g_xprobe_watch` (L1194) — Env seeding is lazy so it works no matter which subsystem touches the ring first, and costs one branch after the first call.
-- `dirty_ram_xprobe_watch_set` (L1210) — Control plane for the 'xprobe_watch' TCP command.
-- `dirty_ram_xprobe_watch_get` (L1216) — Returns the watched address at an index through phys_out; returns 1 when the index is valid, otherwise 0.
-- `dirty_ram_xprobe_watch_count` (L1223) — Returns how many addresses are in the flight-recorder watch list.
-- `dirty_ram_xprobe_call_note` (L1230) — Watched-target call note for NON-interp call sites (overlay shard call-outs via dispatch_call).
-- `xprobe_event` (L1235) — Records one control-flow crossing in the flight recorder, flushing the previous frame's summary when the frame changes.
-- `dirty_ram_xprobe_json` (L1275) — Emit the flight-recorder rings as JSON (called by crash_trace).
-- `interp_enter_compiled` (L1371) — Hands a jump target to compiled code when its game text is native-ok and the host stack is not too deep; returns 0 so the interpreter runs it instead.
-- `exec_one` (L1402) — Fetches the instruction at a PC and executes it, returning the next PC through an output parameter.
-- `interp_reserved_primary` (L1408) — psx-spx "Illegal Opcodes": N/A primary opcodes raise RI; LWC0/SWC0 raise CpU.
-- `exec_delay_slot` (L1415) — Forward: helper for delay-slot execution on jumps/branches.
-- `exec_one_fetched` (L1455) — Executes one already-fetched instruction, first retiring any pending delayed load writeback.
-- `exec_one_fetched_inner` (L1558) — Decodes and executes one fetched MIPS instruction, updating registers, memory and the next PC.
-- `dirty_ram_dispatch` (L2544) — Public entry point. Caller (psx_dispatch) has translated 'addr' to a KSEG-stripped form already in some cases, so accept any address and mask.
-- `dirty_ram_span_get` (L2658) — The open span (0,0 = none), for landings that longjmp past its exit.
-- `dirty_ram_span_set` (L2663) — Sets the physical address range that the span-forced check tests against.
-- `dirty_ram_span_last_failure` (L2670) — Copies the reason and details of the last failed span run into the given structure.
-- `dirty_ram_run_span` (L2674) — Runs guest code from a start PC to a stop PC through the interpreter, up to a maximum instruction count; returns 1 on success and records a failure otherwise.
-- `precise_irq_deliverable` (L2731) — Is a hardware interrupt deliverable to the guest at this exact instruction boundary?
-- `precise_pc_dispatchable` (L2757) — Is 'pc' a point the TOP-LEVEL dispatcher can re-enter?
-- `psx_run_precise` (L2777) — Run the guest per-instruction from cpu->pc through the interpreter, taking any deliverable interrupt at the EXACT instruction boundary, until a safe resume point.
-- `psx_precise_slice_init_from_env` (L2938) — Reads PSX_PRECISE_SLICE from the environment to turn precise per-instruction slicing on or off.
-- `psx_slice_block_impl` (L2949) — Block-leader slice guard impl.
-- `dirty_ram_dispatch_inner` (L2986) — Dispatches a PC in dirty RAM: classifies its page and interprets the basic block there.
-- `ls_set_window` (L3767) — Arm the comparator over a guest-frame window [lo,hi].
-- `ls_set_record_only` (L3768) — Diagnostic: record blocks but skip the inline replay (to test whether the inline replay, not recording, is what perturbs the run).
-- `ls_func_set_window` (L3769) — Arms the dispatch-segment lockstep comparator over a frame window.
-- `ls_func_set_record_only` (L3770) — Turns record-only mode on or off for the dispatch-segment lockstep comparator.
-- `ls_note_exception_entry` (L3772) — Called at real IRQ exception entry.
-- `ls_shadow_record_begin` (L3777) — Side-effect-free whole-call trace used by the overlay differential gate.
-- `ls_shadow_record_end` (L3794) — Ends a shadow recording: returns 1 when it can be replayed, and reports the operation count and whether an exception was seen.
-- `ls_shadow_record_unreplayable` (L3803) — A recorded effect the replay cannot reproduce fails the record closed (the comparison is skipped, as for a device touch).
-- `ls_shadow_replay_begin` (L3807) — Starts replaying a recorded shadow trace; returns 0 when another owner or a replay is already active.
-- `ls_shadow_replay_end` (L3822) — Ends a shadow replay and reports whether it completed, plus any mismatch details; returns 0 when this is not the replay owner.
-- `ls_shadow_abort` (L3841) — Cancels any shadow record or replay and restores the normal memory-operation mode.
-- `ls_suppress_begin` (L3849) — Suppress lockstep memory recording while runtime/debug observers read guest RAM for diagnostics.
-- `ls_suppress_end` (L3853) — Ends one suppression of lockstep memory recording.
-- `ls_read_hook` (L3857) — Memory chokepoint hooks, called from the psx_read_ and psx_write_ funcs.
-- `ls_write_hook` (L3878) — Memory write hook for lockstep: during replay it checks the write against the trace, otherwise it records the write.
-- `ls_latch` (L3902) — Stores the first divergence found by the lockstep comparator; later divergences are ignored.
-- `ls_replay_and_compare` (L3912) — Re-interpret the just-recorded block from the entry snapshot, comparing the interp result to native (cpu == post-block native state).
-- `ls_same_phys` (L3972) — Returns 1 when two addresses are the same physical address, ignoring the segment bits.
-- `lsf_copy_div_trace` (L3976) — Copies up to 48 trace entries around a divergence into the dispatch-segment comparator record.
-- `lsf_latch` (L3984) — Stores the first divergence of the dispatch-segment comparator with its kind, frame, entry and details; later ones are ignored.
-- `lsf_compare_regs` (L4003) — Compares the replayed and native CPU states (PC and general registers) and records the first mismatch.
-- `lsf_replay_and_compare` (L4025) — Replays one dispatch segment through the interpreter from its entry and compares the result with the native state.
-- `ls_func_enter` (L4114) — Dispatch-segment comparator: wraps one clean psx_dispatch_game_compiled() invocation and replays the same callable through exec_one until it reaches the same returned cpu->pc.
-- `ls_func_exit` (L4140) — Ends a dispatch-segment comparison at the segment exit, comparing the result or skipping it on a conflict.
-- `ls_leader_armed` (L4177) — Whether ls_at_leader can act (debug_server.c: the block observer's gate).
-- `ls_at_leader` (L4179) — Per-basic-block-leader entry, called from debug_server_cyc_observe.
-- `ls_get_diverge_json` (L4227) — Drain the first-divergence record as JSON into buf.
-- `ls_get_func_json` (L4248) — Writes the dispatch-segment divergence record as JSON into a buffer and returns its length.
+- `dirty_ram_finish_call_return` (L989) — Finishes a call by moving the PC to the return address and running the boundary check; returns 1 if control was transferred, else sets the next PC.
+- `dispatch_nonlocal_call` (L1001) — Sends a call to a target outside the interpreted block through the compiled dispatcher and returns the next PC through an output parameter.
+- `psx_mixed_owner_enabled` (L1043) — ── Mixed interp<->compiled dispatch owner (host-stack recursion fix) ────── The dirty interpreter nests psx_dispatch_game_compiled when an interpreted block transfers into compiled code.
+- `interp_host_stack_used` (L1051) — #include <intrin.h> /* __readgsqword — fiber TEB StackBase
+- `psx_mixed_stack_watermark` (L1061) — Returns the host stack limit in bytes at which nesting of compiled calls stops, from PSX_MIXED_STACK_KB (default 700 KB, minimum 64 KB).
+- `xprobe_env_init` (L1141) — Reads the flight-recorder limits from environment variables, once.
+- `dirty_ram_xprobe_arm` (L1148) — Sets the flight-recorder trip limits (frame, stack KB, warmup) and re-arms the trip.
+- `xprobe_flush_frame` (L1153) — Stores the current frame's flight-recorder summary (crossings, depth, stack, cycles) into the summary ring.
+- `xprobe_watch_parse` (L1187) — Parses a comma or space separated list of watched physical addresses into the watch table.
+- `g_xprobe_watch` (L1205) — Env seeding is lazy so it works no matter which subsystem touches the ring first, and costs one branch after the first call.
+- `dirty_ram_xprobe_watch_set` (L1221) — Control plane for the 'xprobe_watch' TCP command.
+- `dirty_ram_xprobe_watch_get` (L1227) — Returns the watched address at an index through phys_out; returns 1 when the index is valid, otherwise 0.
+- `dirty_ram_xprobe_watch_count` (L1234) — Returns how many addresses are in the flight-recorder watch list.
+- `dirty_ram_xprobe_call_note` (L1241) — Watched-target call note for NON-interp call sites (overlay shard call-outs via dispatch_call).
+- `xprobe_event` (L1246) — Records one control-flow crossing in the flight recorder, flushing the previous frame's summary when the frame changes.
+- `dirty_ram_xprobe_json` (L1286) — Emit the flight-recorder rings as JSON (called by crash_trace).
+- `interp_enter_compiled` (L1382) — Hands a jump target to compiled code when its game text is native-ok and the host stack is not too deep; returns 0 so the interpreter runs it instead.
+- `exec_one` (L1413) — Fetches the instruction at a PC and executes it, returning the next PC through an output parameter.
+- `interp_reserved_primary` (L1419) — psx-spx "Illegal Opcodes": N/A primary opcodes raise RI; LWC0/SWC0 raise CpU.
+- `exec_delay_slot` (L1426) — Forward: helper for delay-slot execution on jumps/branches.
+- `exec_one_fetched` (L1466) — Executes one already-fetched instruction, first retiring any pending delayed load writeback.
+- `exec_one_fetched_inner` (L1569) — Decodes and executes one fetched MIPS instruction, updating registers, memory and the next PC.
+- `dirty_ram_dispatch` (L2555) — Public entry point. Caller (psx_dispatch) has translated 'addr' to a KSEG-stripped form already in some cases, so accept any address and mask.
+- `dirty_ram_span_get` (L2669) — The open span (0,0 = none), for landings that longjmp past its exit.
+- `dirty_ram_span_set` (L2674) — Sets the physical address range that the span-forced check tests against.
+- `dirty_ram_span_last_failure` (L2681) — Copies the reason and details of the last failed span run into the given structure.
+- `dirty_ram_run_span` (L2685) — Runs guest code from a start PC to a stop PC through the interpreter, up to a maximum instruction count; returns 1 on success and records a failure otherwise.
+- `precise_irq_deliverable` (L2742) — Is a hardware interrupt deliverable to the guest at this exact instruction boundary?
+- `precise_pc_dispatchable` (L2768) — Is 'pc' a point the TOP-LEVEL dispatcher can re-enter?
+- `psx_run_precise` (L2788) — Run the guest per-instruction from cpu->pc through the interpreter, taking any deliverable interrupt at the EXACT instruction boundary, until a safe resume point.
+- `psx_precise_slice_init_from_env` (L2949) — Reads PSX_PRECISE_SLICE from the environment to turn precise per-instruction slicing on or off.
+- `psx_slice_block_impl` (L2960) — Block-leader slice guard impl.
+- `dirty_ram_dispatch_inner` (L2997) — Dispatches a PC in dirty RAM: classifies its page and interprets the basic block there.
+- `ls_set_window` (L3784) — Arm the comparator over a guest-frame window [lo,hi].
+- `ls_set_record_only` (L3785) — Diagnostic: record blocks but skip the inline replay (to test whether the inline replay, not recording, is what perturbs the run).
+- `ls_func_set_window` (L3786) — Arms the dispatch-segment lockstep comparator over a frame window.
+- `ls_func_set_record_only` (L3787) — Turns record-only mode on or off for the dispatch-segment lockstep comparator.
+- `ls_note_exception_entry` (L3789) — Called at real IRQ exception entry.
+- `ls_shadow_record_begin` (L3794) — Side-effect-free whole-call trace used by the overlay differential gate.
+- `ls_shadow_record_end` (L3811) — Ends a shadow recording: returns 1 when it can be replayed, and reports the operation count and whether an exception was seen.
+- `ls_shadow_record_unreplayable` (L3820) — A recorded effect the replay cannot reproduce fails the record closed (the comparison is skipped, as for a device touch).
+- `ls_shadow_replay_begin` (L3824) — Starts replaying a recorded shadow trace; returns 0 when another owner or a replay is already active.
+- `ls_shadow_replay_end` (L3839) — Ends a shadow replay and reports whether it completed, plus any mismatch details; returns 0 when this is not the replay owner.
+- `ls_shadow_abort` (L3858) — Cancels any shadow record or replay and restores the normal memory-operation mode.
+- `ls_suppress_begin` (L3866) — Suppress lockstep memory recording while runtime/debug observers read guest RAM for diagnostics.
+- `ls_suppress_end` (L3870) — Ends one suppression of lockstep memory recording.
+- `ls_read_hook` (L3874) — Memory chokepoint hooks, called from the psx_read_ and psx_write_ funcs.
+- `ls_write_hook` (L3895) — Memory write hook for lockstep: during replay it checks the write against the trace, otherwise it records the write.
+- `ls_latch` (L3919) — Stores the first divergence found by the lockstep comparator; later divergences are ignored.
+- `ls_replay_and_compare` (L3929) — Re-interpret the just-recorded block from the entry snapshot, comparing the interp result to native (cpu == post-block native state).
+- `ls_same_phys` (L3989) — Returns 1 when two addresses are the same physical address, ignoring the segment bits.
+- `lsf_copy_div_trace` (L3993) — Copies up to 48 trace entries around a divergence into the dispatch-segment comparator record.
+- `lsf_latch` (L4001) — Stores the first divergence of the dispatch-segment comparator with its kind, frame, entry and details; later ones are ignored.
+- `lsf_compare_regs` (L4020) — Compares the replayed and native CPU states (PC and general registers) and records the first mismatch.
+- `lsf_replay_and_compare` (L4042) — Replays one dispatch segment through the interpreter from its entry and compares the result with the native state.
+- `ls_func_enter` (L4131) — Dispatch-segment comparator: wraps one clean psx_dispatch_game_compiled() invocation and replays the same callable through exec_one until it reaches the same returned cpu->pc.
+- `ls_func_exit` (L4157) — Ends a dispatch-segment comparison at the segment exit, comparing the result or skipping it on a conflict.
+- `ls_leader_armed` (L4194) — Whether ls_at_leader can act (debug_server.c: the block observer's gate).
+- `ls_at_leader` (L4196) — Per-basic-block-leader entry, called from debug_server_cyc_observe.
+- `ls_get_diverge_json` (L4244) — Drain the first-divergence record as JSON into buf.
+- `ls_get_func_json` (L4265) — Writes the dispatch-segment divergence record as JSON into a buffer and returns its length.
 
 ### runtime/src/disasm_shim.cpp
 
@@ -5777,33 +5777,34 @@ Interrupt and timing core of the emulated CPU: VBlank scheduling, interrupt deli
 - `psx_irq_arm_compiled_resume_pc` (L731) — Publish the known resume PC before the first post-load / flush_resume dispatch.
 - `psx_irq_compiled_resume_pc` (L741) — The host-fiber thread scheduler (traps.c) keeps the compiled resume latch per thread: it is set by a frame on that thread's native stack.
 - `psx_irq_set_compiled_resume_pc` (L742) — Sets the compiled resume latch of the current thread to pc.
-- `defer_switch_enabled` (L767) — A/B toggle: PSX_DEFER_SWITCH=0 forces the legacy immediate-switch behavior (longjmp the instant a mid-exception ChangeThread is detected, regardless of nesting) so the deferred-switch fix can be compa
-- `same_guest_pc` (L773) — True when two guest PCs match in their low 29 bits, ignoring the top segment bits.
-- `psx_get_in_exception` (L777) — Query whether we are currently inside an exception handler dispatch.
-- `psx_exception_nest_depth` (L778) — Returns how many exception deliveries are nested right now (1 = outermost handler).
-- `psx_note_changethread_in_handler_switch` (L779) — Marks that a ChangeThread inside the handler moved the current thread, so this delivery unwinds to the scheduler at once instead of deferring.
-- `interrupts_cosim_hash` (L790) — Co-sim (COSIM_ORACLE.md): fold the GENUINE guest-timing interrupt statics into the state hash.
-- `interrupts_cosim_dump` (L801) — Co-sim field dump: expose the exact irqctl-timing fields so a divergence can be field-diffed (is it cycles_since_vblank = VBLANK-raise-timing, or in_exception, ...).
-- `rfe_steps_over_gte_command` (L819) — Called by the recompiled 'rfe' opcode (after it pops the COP0 SR stack).
-- `psx_rfe_mark_escape` (L828) — Flags a pending RFE escape when an RFE runs outside the exception handler window; the flag is checked later.
-- `rfe_outside_window_unwind` (L853) — Called in the dispatch trampoline after a function returns (cpu->pc holds the real resume EPC).
-- `psx_rfe_escape_check` (L871) — If an RFE escape is pending outside the handler, unwinds the return back to the interrupted code and clears the flag.
-- `psx_get_freeze_diag` (L907) — Fills the out parameters with the interrupt counters and exception state used to diagnose a frozen emulator.
-- `interrupts_init` (L925) — Resets all interrupt dispatch state, exception nesting and the check counters to zero.
-- `interrupts_resync_after_restore` (L963) — Save-state restore: re-anchor host-only IRQ pacing after psx_cycle_count is overwritten from a snapshot.
-- `interrupts_log_last_vblank_irqctx` (L1015) — Netplay diag: last VBLANK irqctx exit/restore (+ v0) for peer diff.
-- `deferred_exception_longjmp` (L1062) — Defer a longjmp to the fiber that owns the current exception setjmp.
-- `psx_exception_longjmp` (L1082) — longjmp back to psx_check_interrupts, unwinding the exception handler.
-- `psx_restore_state_escape` (L1087) — longjmp back to psx_check_interrupts for RestoreState redirection.
-- `cycles_to_next_event` (L1109) — Cycle-budgeted precise event slicing — single source of truth.
-- `psx_interrupt_delivery_diag` (L1128) — Returns the counters of interrupt delivery decisions (deferred, delivered, and each reason for skipping).
-- `psx_interrupt_check_path_diag` (L1145) — Returns the counters for each path taken through the interrupt check.
-- `psx_interrupt_delivery_needed` (L1156) — Cheap block-edge predicate for generated/native code.
-- `poll_staged_user_snapshot` (L1183) — Applies a staged user save state at a safe point in the interrupt poll, when no exception is being handled.
-- `psx_check_interrupts` (L1192) — Called from the dispatch loop after each function returns.
-- `psx_check_interrupts_at` (L2401) — Compatibility shim: the ape-flavored generated code calls psx_check_interrupts_at(cpu, resume_pc); the mmx6-fw baseline runtime delivers interrupts via psx_check_interrupts (cpu->pc / scratch sentinel
-- `psx_interrupts_checked_at_current_cycle` (L2408) — True when the interrupt check already ran at this cycle for the given resume PC.
-- `psx_check_interrupts_dispatch_entry` (L2413) — Dispatch-entry check for re-enterable compiled PCs.
+- `psx_defer_switch_pending` (L761) — Nonzero while a thread switch taken in an exception handler waits for a site-0 poll.
+- `defer_switch_enabled` (L769) — A/B toggle: PSX_DEFER_SWITCH=0 forces the legacy immediate-switch behavior (longjmp the instant a mid-exception ChangeThread is detected, regardless of nesting) so the deferred-switch fix can be compa
+- `same_guest_pc` (L775) — True when two guest PCs match in their low 29 bits, ignoring the top segment bits.
+- `psx_get_in_exception` (L779) — Query whether we are currently inside an exception handler dispatch.
+- `psx_exception_nest_depth` (L780) — Returns how many exception deliveries are nested right now (1 = outermost handler).
+- `psx_note_changethread_in_handler_switch` (L781) — Marks that a ChangeThread inside the handler moved the current thread, so this delivery unwinds to the scheduler at once instead of deferring.
+- `interrupts_cosim_hash` (L792) — Co-sim (COSIM_ORACLE.md): fold the GENUINE guest-timing interrupt statics into the state hash.
+- `interrupts_cosim_dump` (L803) — Co-sim field dump: expose the exact irqctl-timing fields so a divergence can be field-diffed (is it cycles_since_vblank = VBLANK-raise-timing, or in_exception, ...).
+- `rfe_steps_over_gte_command` (L821) — Called by the recompiled 'rfe' opcode (after it pops the COP0 SR stack).
+- `psx_rfe_mark_escape` (L830) — Flags a pending RFE escape when an RFE runs outside the exception handler window; the flag is checked later.
+- `rfe_outside_window_unwind` (L855) — Called in the dispatch trampoline after a function returns (cpu->pc holds the real resume EPC).
+- `psx_rfe_escape_check` (L873) — If an RFE escape is pending outside the handler, unwinds the return back to the interrupted code and clears the flag.
+- `psx_get_freeze_diag` (L909) — Fills the out parameters with the interrupt counters and exception state used to diagnose a frozen emulator.
+- `interrupts_init` (L927) — Resets all interrupt dispatch state, exception nesting and the check counters to zero.
+- `interrupts_resync_after_restore` (L965) — Save-state restore: re-anchor host-only IRQ pacing after psx_cycle_count is overwritten from a snapshot.
+- `interrupts_log_last_vblank_irqctx` (L1017) — Netplay diag: last VBLANK irqctx exit/restore (+ v0) for peer diff.
+- `deferred_exception_longjmp` (L1064) — Defer a longjmp to the fiber that owns the current exception setjmp.
+- `psx_exception_longjmp` (L1084) — longjmp back to psx_check_interrupts, unwinding the exception handler.
+- `psx_restore_state_escape` (L1089) — longjmp back to psx_check_interrupts for RestoreState redirection.
+- `cycles_to_next_event` (L1111) — Cycle-budgeted precise event slicing — single source of truth.
+- `psx_interrupt_delivery_diag` (L1130) — Returns the counters of interrupt delivery decisions (deferred, delivered, and each reason for skipping).
+- `psx_interrupt_check_path_diag` (L1147) — Returns the counters for each path taken through the interrupt check.
+- `psx_interrupt_delivery_needed` (L1158) — Cheap block-edge predicate for generated/native code.
+- `poll_staged_user_snapshot` (L1185) — Applies a staged user save state at a safe point in the interrupt poll, when no exception is being handled.
+- `psx_check_interrupts` (L1194) — Called from the dispatch loop after each function returns.
+- `psx_check_interrupts_at` (L2403) — Compatibility shim: the ape-flavored generated code calls psx_check_interrupts_at(cpu, resume_pc); the mmx6-fw baseline runtime delivers interrupts via psx_check_interrupts (cpu->pc / scratch sentinel
+- `psx_interrupts_checked_at_current_cycle` (L2410) — True when the interrupt check already ran at this cycle for the given resume PC.
+- `psx_check_interrupts_dispatch_entry` (L2415) — Dispatch-entry check for re-enterable compiled PCs.
 
 ### runtime/src/iso_reader.cpp
 
