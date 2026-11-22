@@ -16,7 +16,8 @@ extern "C" {
  * when OSD is gated off.
  */
 
-/* Top-left text toast. duration_ms <= 0 uses 2000. */
+/* Top-left text toast. duration_ms <= 0 uses 2000. A message longer than a
+ * line breaks into at most three lines (host_osd_wrap.h). */
 void host_osd_push(const char *msg, int duration_ms);
 /* A title showing the toasts itself (psx_mod_set_osd_handler): push hands
  * each one to it first; it returns 1 when it took the toast. NULL = none. */

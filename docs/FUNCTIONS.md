@@ -694,6 +694,13 @@ Records always-on timing of host launch stages in a ring buffer that the debug T
 - `host_launch_timing_parent` (L102) — Returns this thread's current parent timing scope, so nested scopes link to the scope that encloses them.
 - `host_launch_now_us` (L106) — Returns the current steady-clock time in microseconds, used to stamp launch timing scopes.
 
+### runtime/include/host_osd_wrap.h
+
+(what this file is for)
+
+- `host_osd_wrap_fill` (L29) — Greedy fill of lines[first..] from text.
+- `host_osd_wrap` (L64) — Breaks msg into lines.
+
 ### runtime/include/internal_resolution.h
 
 Defines the Internal resolution presets, their persisted values, and the integer render scale each one asks the renderer for.
@@ -5660,27 +5667,28 @@ Host keyboard bindings: loads, stores and matches the [KeyMap] section that maps
 
 Host on-screen display: draws temporary text messages, the volume bar, and persistent status lines over the game, rendered through SDL or as ARGB images.
 
-- `clamp_pct` (L178) — Clamps a percentage to the range 0 to 100.
-- `msg_visible` (L184) — Returns 1 while the top-left text message is still within its display time; clears it once expired.
-- `vol_visible` (L196) — Returns 1 while the volume bar is still within its display time; clears it once expired.
-- `rasterize_text` (L207) — Renders the message text, up to three lines, into the ARGB text image used by the overlay.
-- `rasterize_volume` (L253) — Renders the volume bar image at its fixed size, filled to the current level.
-- `sdl_blit_argb` (L282) — Uploads an ARGB image to an SDL texture when its size changed, then draws it at the destination rectangle.
-- `sdl_logical_size` (L321) — Present uses SDL_RenderSetLogicalSize — position/size in logical pixels, not window/output pixels (GetRenderOutputSize mixed spaces and broke scale).
-- `host_osd_set_handler` (L343) — Sets the callback that receives top-left text messages; NULL turns it off.
-- `host_osd_push` (L347) — Top-left text toast. duration_ms <= 0 uses 2000.
-- `host_osd_set_status` (L362) — Persistent top-left status text.
-- `host_osd_set_diagnostics` (L381) — Independent diagnostic rows; NULL/empty clears a row.
-- `host_osd_set_volume_handler` (L398) — Sets the callback that receives volume bar updates; NULL turns it off.
-- `host_osd_show_volume` (L402) — Right-side vertical volume bar (percent clamped 0..100).
-- `host_volume_get` (L417) — Host master volume 0..100 (applied by the audio pump).
-- `host_volume_set` (L421) — Sets the host master volume to a percentage, clamped to 0 to 100.
-- `host_volume_adjust` (L425) — Changes the host master volume by delta percent, shows the volume bar, and returns the new level.
-- `host_osd_needs_present` (L431) — 1 while a toast/bar is visible, or one more frame is needed to clear it.
-- `host_osd_image` (L442) — Returns the ARGB pixels and size of the current text message image; returns 0 when there is no image.
-- `host_osd_volume_image` (L472) — Returns the ARGB pixels and size of the current volume bar image; returns 0 when there is no image.
-- `host_osd_present_done` (L493) — ARGB8888 images for the active overlays.
-- `host_osd_draw_sdl` (L501) — Draws the active text message, volume bar and status overlays onto the given SDL renderer.
+- `clamp_pct` (L181) — Clamps a percentage to the range 0 to 100.
+- `msg_visible` (L187) — Returns 1 while the top-left text message is still within its display time; clears it once expired.
+- `vol_visible` (L199) — Returns 1 while the volume bar is still within its display time; clears it once expired.
+- `rasterize_diagnostic_text` (L210) — Renders the status, diagnostic rows or a toast shown beside them, split at newlines into up to three 64-column lines, into the overlay's ARGB text image.
+- `rasterize_text` (L257) — Renders the message text, up to three lines, into the ARGB text image used by the overlay.
+- `rasterize_volume` (L303) — Renders the volume bar image at its fixed size, filled to the current level.
+- `sdl_blit_argb` (L332) — Uploads an ARGB image to an SDL texture when its size changed, then draws it at the destination rectangle.
+- `sdl_logical_size` (L371) — Present uses SDL_RenderSetLogicalSize — position/size in logical pixels, not window/output pixels (GetRenderOutputSize mixed spaces and broke scale).
+- `host_osd_set_handler` (L393) — Sets the callback that receives top-left text messages; NULL turns it off.
+- `host_osd_push` (L397) — Top-left text toast. duration_ms <= 0 uses 2000.
+- `host_osd_set_status` (L412) — Persistent top-left status text.
+- `host_osd_set_diagnostics` (L431) — Independent diagnostic rows; NULL/empty clears a row.
+- `host_osd_set_volume_handler` (L448) — Sets the callback that receives volume bar updates; NULL turns it off.
+- `host_osd_show_volume` (L452) — Right-side vertical volume bar (percent clamped 0..100).
+- `host_volume_get` (L467) — Host master volume 0..100 (applied by the audio pump).
+- `host_volume_set` (L471) — Sets the host master volume to a percentage, clamped to 0 to 100.
+- `host_volume_adjust` (L475) — Changes the host master volume by delta percent, shows the volume bar, and returns the new level.
+- `host_osd_needs_present` (L481) — 1 while a toast/bar is visible, or one more frame is needed to clear it.
+- `host_osd_image` (L492) — Returns the ARGB pixels and size of the current text message image; returns 0 when there is no image.
+- `host_osd_volume_image` (L528) — Returns the ARGB pixels and size of the current volume bar image; returns 0 when there is no image.
+- `host_osd_present_done` (L549) — ARGB8888 images for the active overlays.
+- `host_osd_draw_sdl` (L557) — Draws the active text message, volume bar and status overlays onto the given SDL renderer.
 
 ### runtime/src/host_overlay.c
 
@@ -6599,309 +6607,7 @@ Main memory map: RAM and scratchpad, address translation, MMIO register dispatch
 - `kbless_note_write` (L461) — A write landed in the kernel window: any entry whose body contains the written byte must re-verify before its next native dispatch.
 - `psx_kernel_bless_note_range` (L489) — Range write (DMA / EXE load / savestate restore) overlapping the window: bulk, rare events — reset every entry rather than per-byte scanning.
 - `psx_kernel_bless_stats` (L505) — Fills eight counters into out: kernel entries, clean and mismatched entries, native hits and related counts.
-- `psx_kernel_bless_paranoid_stats` (L530) — Paranoid mode for the run report: [0] on, [1] dispatches re-compared, [2] bytes compared, [3] rows marked clean over bytes that differ (must be 0), [4] rows marked mismatched over bytes that match (a 
-- `psx_kernel_bless_table_fits` (L542) — Does the active image's bless table fit kbless_state?
-- `psx_kernel_bless_state` (L551) — Bless latch for the run report: -1 not decided yet (no kernel-window dispatch so far), 0 off (PSX_KERNEL_BLESS=0 or an image with no bless window), 1 on.
-- `psx_kernel_bless_resync_after_restore` (L555) — After a savestate restore, marks every kernel bless entry unknown so it is verified again.
-- `psx_kernel_bless_reset_for_boot` (L564) — Soft-return rematch / BIOS switch: drop latched SCPH↔OpenBIOS window + CLEAN/MISMATCH so the next kbless_on() re-reads psx_bios_image.
-- `dirty_ram_mark_kernel_write` (L578) — Marks a kernel-window RAM page dirty after a write and notes the write for the kernel bless checks.
-- `dirty_ram_clear_image_baseline` (L601) — Clears the dirty bits of the game EXE text pages, so the loaded image becomes the clean baseline.
-- `text_line_marked` (L648) — Returns 1 when the text-guard line holding an offset is marked as changed.
-- `text_line_mark` (L657) — Marks the text-guard line holding an offset, bumping the validation generation when it was not marked before.
-- `text_lines_mark_range` (L664) — Marks every text-guard line that overlaps a physical range inside the reference image.
-- `text_lines_recompute` (L673) — Every line of the reference range that differs, from the bytes.
-- `dirty_ram_register_text_image` (L694) — Registers the reference copy of the game text for divergence checks and clears the modified and diverged bitmaps.
-- `dirty_ram_text_image_registered` (L715) — Returns 1 when a reference text image is registered.
-- `text_guard_note_write` (L717) — On a store into the reference text, marks the page modified and the line changed when the stored value differs from the reference.
-- `dirty_ram_text_native_ok` (L737) — Returns 1 when native code may run at this physical address: its text page has not diverged and no runtime write dirtied it.
-- `dirty_ram_text_native_ok_ranges_from` (L804) — Checks a list of address ranges for native safety, with a cache so a passing check repeats cheaply; returns 1 when all are safe.
-- `dirty_ram_text_native_ok_ranges` (L911) — Preserve the generated-code ABI used by existing game projects.
-- `dirty_ram_text_exact_mismatch_stats` (L916) — Reports the exact text mismatch count and the last mismatch details into out.
-- `dirty_ram_text_bless` (L938) — Bless an INTENTIONAL data patch into the reference image so the text-divergence guard does not mistake it for self-modifying code.
-- `dirty_ram_text_native_blocked` (L957) — Returns how many native dispatches the text guard has blocked.
-- `dirty_ram_text_diverged_pages` (L958) — Returns how many text pages have diverged from the reference.
-- `dirty_ram_text_modified_bitmap_word` (L959) — Returns one 32-bit word of the text-modified page bitmap, or 0 past the end.
-- `dirty_ram_text_diverged_bitmap_word` (L963) — Returns one 32-bit word of the text-diverged page bitmap, or 0 past the end.
-- `dirty_ram_mark_executable_range` (L976) — Marks a physical range as executable code: its pages become dirty and its text lines are marked.
-- `dirty_ram_force_interp` (L997) — Force-interp mode (tooling): PSX_FORCE_INTERP=1 makes ALL RAM above the kernel window report dirty, so every dispatch into game/overlay text routes to the dirty-RAM interpreter (the SAME path overlays
-- `dirty_ram_shellwin_interp` (L1010) — DIAGNOSTIC ONLY (class-B reproduction, NOT a fix — Rule -1): PSX_SHELLWIN_INTERP=1 reports the BIOS shell-copy relocated RAM window [0x30000, 0x5AFFF] as dirty, so the compiled dispatch (full_function
-- `dirty_ram_is_dirty` (L1023) — Test whether a given physical kernel-RAM address is in a page that was written-to since boot.
-- `dirty_ram_get_bitmap` (L1042) — Returns the first word of the dirty-page bitmap.
-- `dirty_ram_get_bitmap_word` (L1044) — Returns one word of the dirty-page bitmap, or 0 past the end.
-- `dirty_ram_get_bitmap_word_count` (L1052) — Serialized (savestate / netplay digest) extent: the LIVE RAM's pages only, so a retail session's dirty-bitmap section is unchanged by the 8 MiB host backing.
-- `dirty_ram_set_bitmap_words` (L1056) — Replaces the dirty-page bitmap with saved words and bumps the code generation so cached results are dropped.
-- `dirty_ram_reset_for_boot` (L1083) — Rematch / session_reboot: wipe host dirty tracking so dig0 matches a cold process (memory_init clears RAM but used to leave these bitmaps sticky).
-- `overlay_watch_set_range` (L1098) — Marks the pages covering a physical range as watched overlay code and forgets their store-path cache.
-- `overlay_watch_clear_range` (L1110) — Unmarks the watched overlay pages covering a physical range.
-- `overlay_watch_pagegen_sum` (L1123) — Sum of generation counters over the pages spanning [phys, phys+len).
-- `dirty_ram_text_guard_resync_after_restore` (L1138) — Savestate restores RAM via memcpy and never hits the store chokepoint that bumps overlay_page_gen.
-- `overlay_watch_invalidate_after_ram_restore` (L1178) — After bulk RAM restore (savestate): bump overlay page gens + lazy-miss epoch so native overlays re-hash against restored bytes; clear the exec pc/page bitmaps and dispatch evidence so pre-load PCs never bind to restored bytes; also drop sticky text_diverged/modified bitmaps (host-only — restored RA
-- `overlay_watch_note_write` (L1193) — Records a guest store to a watched overlay page and drops the PC evidence for the written words only.
-- `memory_ctrl_snapshot_bytes` (L1248) — Size of the BS_SEC_MEMCTL payload: 18 u32 (memory control, RAM size, cache control).
-- `memory_ctrl_snapshot_write` (L1249) — Writes mem_ctrl[16], the RAM size register and cache control as u32 LE for BS_SEC_MEMCTL.
-- `memory_ctrl_snapshot_validate` (L1256) — Pass 1 check of BS_SEC_MEMCTL: the payload must be exactly 18 u32.
-- `memory_ctrl_snapshot_read` (L1259) — Restores mem_ctrl[16], the RAM size register and cache control from BS_SEC_MEMCTL.
-- `imask_trace_record` (L1330) — Records an interrupt mask write in the trace ring, with old and new values, width, caller and store PC.
-- `interrupt_write_stat_masked` (L1359) — Acknowledges the interrupt status bits written by the guest (a 1 clears), counts vblank acks and refreshes the IP2 cause.
-- `interrupt_write_mask_masked` (L1367) — Applies a guest write to the interrupt mask, traces it, notifies the SIO card handoff and refreshes the IP2 cause.
-- `memory_get_imask_bit7_set_count` (L1381) — Getters for debug server
-- `memory_get_imask_bit7_clear_count` (L1382) — Returns how many times interrupt mask bit 7 was cleared, for the debug server.
-- `memory_get_imask_trace` (L1383) — Returns the interrupt mask trace ring, with its current index and count through the out pointers.
-- `effective_store_pc` (L1414) — Returns the PC to credit a store to: the DMA initiator while DMA runs, otherwise the last store PC.
-- `read_ram_word` (L1422) — Reads a 32-bit little-endian word from RAM at a physical address.
-- `read_ram_half` (L1428) — Reads a 16-bit little-endian value from RAM at a physical address.
-- `scph1001_active` (L1443) — The active BIOS image is SCPH-1001.
-- `scph1001_relocated_store` (L1451) — Returns 1 when a store at pc is SCPH-1001's own BIOS store from ROM offset rom, so its legacy key still applies.
-- `memory_set_sr_ptr` (L1466) — Stores the pointer to the CPU status register that memory_get_sr reads.
-- `memory_get_sr` (L1467) — Returns the CPU status register through the stored pointer, or 0 when none is set.
-- `memory_get_bios_checksum` (L1470) — Returns the checksum of the loaded BIOS image.
-- `memory_init` (L1474) — static uint32_t psx_mem_gate_flags(void); /* below, with psx_store_fast_ptr extern int g_psx_store_page_audit; /* below, with psx_store_page_kind
-- `unmapped_fatal` (L1524) — Does nothing for an unmapped address: the BIOS probes these on purpose, so it is treated as open bus.
-- `mmio_read32_impl` (L1534) — Performs a 32-bit MMIO read, selecting the register by address region: memory control, SIO, RAM size and the other devices.
-- `mmio_hist` (L1590) — Counts an MMIO access in a histogram bucket by register region, separately for reads and writes.
-- `mmio_read32` (L1603) — 32-bit MMIO read: syncs devices, applies render-pass read rules, and returns the register value.
-- `mmio_write32` (L1612) — 32-bit MMIO write: records the histogram, syncs devices, traces the write and routes the value to its register.
-- `mmio_read16_impl` (L1680) — 16-bit MMIO read, including the halfword lanes of the 32-bit memory control registers.
-- `mmio_read16` (L1728) — 16-bit MMIO read: syncs devices, applies render-pass read rules, and returns the register value.
-- `mmio_write16` (L1737) — 16-bit MMIO write: records the histogram, syncs devices and routes the value to its register.
-- `mmio_read8_impl` (L1805) — 8-bit MMIO read by register region, taking the byte lane of the 32-bit registers.
-- `mmio_read8` (L1850) — 8-bit MMIO read: syncs devices, applies render-pass read rules, and returns the byte.
-- `mmio_write8` (L1859) — 8-bit MMIO write; memory control registers get a read-modify-write of the byte lane.
-- `psx_read_word` (L1955) — data-shard capture feed (data_shards.c): record guest reads/writes while a capture window is armed.
-- `psx_read_word_raw` (L1976) — Physical address of a CPU/DMA main-RAM access.
-- `pgxp_untracked_store` (L2079) — DMA and host stores have no instruction hook to carry or reset a PGXP shadow.
-- `cpu_store_isolated` (L2084) — Returns 1 when a CPU store should only touch the cache: cache isolation is on and no DMA or host store is running.
-- `isc_store` (L2089) — Handles a store made while the cache is isolated: updates the instruction cache and the data cache, not RAM.
-- `render_pass_mmio_write` (L2109) — Writes an MMIO register at the given width (4, 2 or 1 bytes) during a render pass.
-- `rp_mod_journal` (L2131) — Saves the original contents of each arena page a write touches, once per page, so a render pass can roll it back; returns 0 if journaling failed.
-- `render_pass_mod_store` (L2155) — 1 when the store landed in a mod arena (journaled and written).
-- `render_pass_mod_arenas_rollback` (L2176) — Restores every journaled arena page to its saved contents and clears the journal.
-- `render_pass_mod_arenas_hash` (L2187) — FNV-1a over the used part of both arenas (PSX_RENDER_PASS_VERIFY).
-- `render_pass_store` (L2195) — Routes a store during a render pass: mod arena writes are journaled, and everything else goes through the render pass policy to RAM or scratchpad.
-- `psx_write_word` (L2219) — Guest 32-bit store entry point: flushes pending cycles, takes the fast path when possible, and otherwise handles render-pass, lockstep and recording cases.
-- `psx_write_word_raw` (L2235) — Performs a 32-bit store to RAM, scratchpad or a device, after updating the store counters and last-store tracking.
-- `psx_read_half` (L2384) — Guest 16-bit load: records it for recording or lockstep when active, then reads the value.
-- `psx_read_half_raw` (L2395) — Reads 16 bits from RAM or a device at the address, ignoring KSEG2 accesses.
-- `psx_write_half` (L2432) — Guest 16-bit store entry point, with the same fast path and special cases as the word store.
-- `psx_write_half_raw` (L2448) — Performs a 16-bit store to RAM or a device, honouring cache isolation and KSEG2.
-- `psx_read_byte` (L2515) — Guest 8-bit load entry point, with the same recording and lockstep checks as the other loads.
-- `psx_read_byte_raw` (L2526) — Reads one byte from RAM or a device at the address, ignoring KSEG2 accesses.
-- `psx_load_charge_cycles` (L2586) — Charges the cycles of a load to the emulated clock, through the CPU charge when the fast cycle path is not active.
-- `psx_mmio_read_wait` (L2610) — Beetle MemRW device-region READ wait (libretro.cpp:859-1131), the device-dependent part of a load's access cost (added to the timestamp before the +completion).
-- `psx_cyc_readmem` (L2617) — Beetle ReadMemory data-access timing (cpu.cpp:369-448), after §1/deps/DO_LDS.
-- `psx_load_delay_enabled` (L2640) — Resolve PSX_LOAD_DELAY once (shared with inlined psx_cyc.h helpers).
-- `psx_cyc_load_timing` (L2654) — The interlock half of a load (§1+deps+(cancel)+DO_LDS+ReadMemory).
-- `psx_cyc_main_ram_fast_addr` (L2684) — Returns 1 and the physical address when an access is a plain main RAM hit with no tracing active; 0 otherwise.
-- `psx_cyc_load_word_slow` (L2706) — Slow paths for the inlined helpers in psx_cyc.h (MMIO / lockstep / shards).
-- `psx_cyc_load_half_slow` (L2710) — Slow path for a timed 16-bit load: charges the load timing, then reads the halfword.
-- `psx_cyc_load_word_timing_only` (L2714) — Charges the timing of a 32-bit load without reading the value.
-- `psx_cyc_load_byte` (L2718) — Timed 8-bit load for generated code: charges the load timing, then returns the byte from RAM or the full read.
-- `psx_cyc_lwc2_read_slow` (L2730) — LWC2 (GTE load): §1/DO_LDS done by psx_cyc_step(cpu,0); the GTE deadline stall by psx_gte_stall — both emitted before this call.
-- `psx_guest_read_word` (L2750) — Deprecated uncharged passthroughs (the +4 flat wait-state model is gone; load timing now lives in psx_cyc_load_*).
-- `psx_guest_read_half` (L2751) — Untimed 16-bit read for guest code, with no load timing charged.
-- `psx_guest_read_byte` (L2752) — Untimed 8-bit read for guest code, with no load timing charged.
-- `psx_cyc_load_word_host` (L2758) — The overlay DLLs' timed loads (overlay_loader.c callbacks): the same entries the main program inlines (psx_cyc.h), main RAM and scratchpad on the short path, everything else on the slow one.
-- `psx_cyc_load_half_host` (L2761) — Timed 16-bit load for overlay DLLs, the same as the main program's inline load.
-- `psx_cyc_load_byte_host` (L2764) — Timed 8-bit load for overlay DLLs, using the fast byte-load path.
-- `psx_cyc_lwc2_read_host` (L2767) — Timed GTE load for overlay DLLs: reads a word for LWC2 with its timing.
-- `psx_blk_load_slow` (L2773) — [recompiler] cpu_timing = "block": a load outside main RAM and the scratchpad (psx_cyc.h psx_blk_load_*): its access cost, then the read.
-- `psx_write_byte` (L2783) — Guest 8-bit store entry point, with the same fast path and special cases as the word store.
-- `psx_host_write_word` (L2802) — Host stores: the same paths as a guest store, but never cache-isolated (cpu_store_isolated).
-- `psx_host_write_half` (L2808) — Host 16-bit store: works like a guest store, but is never cache-isolated.
-- `psx_host_write_byte` (L2814) — Host 8-bit store: works like a guest store, but is never cache-isolated.
-- `psx_write_byte_raw` (L2821) — Performs an 8-bit store to RAM or a device, honouring cache isolation and KSEG2.
-- `psx_mem_gate_value` (L2906) — psx_mem_gate.h (g_psx_mem_gate lives in psx_cycles.c): raised by every writer that sets one of the stores' global gates; lowered here once all are clear.
-- `__attribute__` (L2919) — The gate was raised: lower it if every flag is clear (1: the short path may go on).
-- `psx_mem_gate_flags` (L2926) — Returns the combined store gate flags that decide whether the fast store path may be used.
-- `psx_store_pages_forget_all` (L2931) — Clears every cached store-page classification so each page is recomputed on its next store.
-- `psx_store_page_kind` (L2936) — 1: every aligned store to the page is a plain store here; 2: one is when its text line is already marked (text_line_mark would do nothing); 0: neither (kernel window, executed code, watched overlay pa
-- `psx_store_pages_audit` (L2947) — Debug check: aborts if a cached page classification no longer matches the current state.
-- `psx_store_fast_ptr` (L2964) — Where a plain store may go directly: main RAM (above the kernel window, on a page no code watcher acts on) or the scratchpad, which the full path writes with nothing else to do (no mod aperture reache
-- `psx_store_try_word` (L3000) — Tries a 32-bit store through the fast path; returns 1 when it wrote the value, 0 to fall back to the full path.
-- `psx_store_try_half` (L3012) — Tries a 16-bit store through the fast path; returns 1 when handled, 0 to fall back.
-- `psx_store_try_byte` (L3021) — Tries an 8-bit store through the fast path; returns 1 when handled, 0 to fall back.
-
-### runtime/src/memory.c
-
-Main memory map: RAM and scratchpad, address translation, MMIO register dispatch for loads and stores, dirty-page and text-guard tracking, and mod memory arenas.
-
-- `psx_mod_memory_snapshot_bytes` (L71) — Allocations are fixed during activation.
-- `psx_mod_memory_layout_cookie` (L76) — Returns a compatibility cookie for the mod memory layout; saves with a different cookie are rejected before RAM is applied.
-- `psx_mod_memory_snapshot_write` (L83) — Writes the mod memory snapshot header and both arenas into out.
-- `psx_mod_memory_snapshot_validate` (L96) — Non-mutating pre-check for boot_state's two-pass load; the reader runs it.
-- `psx_mod_memory_snapshot_read` (L107) — Restores both mod memory arenas from a snapshot, after validating it; journals the live image first when a render pass is active.
-- `psx_mod_memory_alloc` (L129) — Trusted mods may opt into host-backed guest memory in Expansion 1.
-- `mod_memory_offset` (L141) — Converts a physical address in the mod arena to an offset, if an access of width bytes fits in the used part.
-- `psx_mod_gpu_dma_memory_alloc` (L150) — Allocates zeroed memory in the GPU DMA aperture with a power-of-two alignment up to 4096; returns the guest address or 0.
-- `mod_gpu_dma_memory_offset` (L164) — Converts a physical address in the GPU DMA aperture to an offset for an access of the given width.
-- `psx_mod_gpu_dma_resolve_address` (L170) — Resolves a guest address inside the GPU DMA aperture to its final address.
-- `psx_mod_gpu_dma_memory_contains` (L175) — A complete range in the allocated GPU packet aperture (CPU or tag address).
-- `psx_gpu_packet_key` (L179) — Returns a key for a GPU packet address in the DMA aperture, used to identify packets.
-- `psx_phys_addr` (L194) — Physical address translation for guest accesses.
-- `psx_phys_addr_store` (L198) — Returns the physical address for a guest store, through the RAM write map.
-- `memory_get_ram_ptr` (L203) — Expose RAM pointer for oracle comparison (find_first_divergence).
-- `memory_get_scratchpad_ptr` (L204) — Returns a pointer to the 1 KB scratchpad memory.
-- `psx_peek_word` (L210) — Side-effect-FREE aligned word peek for the debug/observability path ONLY: main RAM (every KUSEG/KSEG0/KSEG1 mirror), scratchpad and BIOS ROM.
-- `dirty_ram_mark_page` (L267) — static void text_lines_mark_range(uint32_t lo, uint32_t len); /* below
-- `kbless_on` (L339) — Decides once whether kernel native dispatch (bless) is enabled, reading PSX_KERNEL_BLESS and the BIOS window.
-- `psx_kernel_patch_range_ends_at` (L398) — Declared patch ranges (psx_bios_kernel_patch_ranges, emitted from the profile's [[recompiler.install_slots]]): kernel-RAM words the guest is EXPECTED to overwrite at boot.
-- `kbless_find` (L403) — Binary search the (key-sorted) body table.
-- `psx_kernel_bless_dispatchable` (L416) — Dispatch-time query: may 'phys' run its static native function?
-- `kbless_note_write` (L461) — A write landed in the kernel window: any entry whose body contains the written byte must re-verify before its next native dispatch.
-- `psx_kernel_bless_note_range` (L489) — Range write (DMA / EXE load / savestate restore) overlapping the window: bulk, rare events — reset every entry rather than per-byte scanning.
-- `psx_kernel_bless_stats` (L505) — Fills eight counters into out: kernel entries, clean and mismatched entries, native hits and related counts.
-- `psx_kernel_bless_paranoid_stats` (L530) — Paranoid mode for the run report: [0] on, [1] dispatches re-compared, [2] bytes compared, [3] rows marked clean over bytes that differ (must be 0), [4] rows marked mismatched over bytes that match (a 
-- `psx_kernel_bless_table_fits` (L542) — Does the active image's bless table fit kbless_state?
-- `psx_kernel_bless_state` (L551) — Bless latch for the run report: -1 not decided yet (no kernel-window dispatch so far), 0 off (PSX_KERNEL_BLESS=0 or an image with no bless window), 1 on.
-- `psx_kernel_bless_resync_after_restore` (L555) — After a savestate restore, marks every kernel bless entry unknown so it is verified again.
-- `psx_kernel_bless_reset_for_boot` (L564) — Soft-return rematch / BIOS switch: drop latched SCPH↔OpenBIOS window + CLEAN/MISMATCH so the next kbless_on() re-reads psx_bios_image.
-- `dirty_ram_mark_kernel_write` (L578) — Marks a kernel-window RAM page dirty after a write and notes the write for the kernel bless checks.
-- `dirty_ram_clear_image_baseline` (L601) — Clears the dirty bits of the game EXE text pages, so the loaded image becomes the clean baseline.
-- `text_line_marked` (L648) — Returns 1 when the text-guard line holding an offset is marked as changed.
-- `text_line_mark` (L657) — Marks the text-guard line holding an offset, bumping the validation generation when it was not marked before.
-- `text_lines_mark_range` (L664) — Marks every text-guard line that overlaps a physical range inside the reference image.
-- `text_lines_recompute` (L673) — Every line of the reference range that differs, from the bytes.
-- `dirty_ram_register_text_image` (L694) — Registers the reference copy of the game text for divergence checks and clears the modified and diverged bitmaps.
-- `dirty_ram_text_image_registered` (L715) — Returns 1 when a reference text image is registered.
-- `text_guard_note_write` (L717) — On a store into the reference text, marks the page modified and the line changed when the stored value differs from the reference.
-- `dirty_ram_text_native_ok` (L737) — Returns 1 when native code may run at this physical address: its text page has not diverged and no runtime write dirtied it.
-- `dirty_ram_text_native_ok_ranges_from` (L804) — Checks a list of address ranges for native safety, with a cache so a passing check repeats cheaply; returns 1 when all are safe.
-- `dirty_ram_text_native_ok_ranges` (L911) — Preserve the generated-code ABI used by existing game projects.
-- `dirty_ram_text_exact_mismatch_stats` (L916) — Reports the exact text mismatch count and the last mismatch details into out.
-- `dirty_ram_text_bless` (L938) — Bless an INTENTIONAL data patch into the reference image so the text-divergence guard does not mistake it for self-modifying code.
-- `dirty_ram_text_native_blocked` (L957) — Returns how many native dispatches the text guard has blocked.
-- `dirty_ram_text_diverged_pages` (L958) — Returns how many text pages have diverged from the reference.
-- `dirty_ram_text_modified_bitmap_word` (L959) — Returns one 32-bit word of the text-modified page bitmap, or 0 past the end.
-- `dirty_ram_text_diverged_bitmap_word` (L963) — Returns one 32-bit word of the text-diverged page bitmap, or 0 past the end.
-- `dirty_ram_mark_executable_range` (L976) — Marks a physical range as executable code: its pages become dirty and its text lines are marked.
-- `dirty_ram_force_interp` (L997) — Force-interp mode (tooling): PSX_FORCE_INTERP=1 makes ALL RAM above the kernel window report dirty, so every dispatch into game/overlay text routes to the dirty-RAM interpreter (the SAME path overlays
-- `dirty_ram_shellwin_interp` (L1010) — DIAGNOSTIC ONLY (class-B reproduction, NOT a fix — Rule -1): PSX_SHELLWIN_INTERP=1 reports the BIOS shell-copy relocated RAM window [0x30000, 0x5AFFF] as dirty, so the compiled dispatch (full_function
-- `dirty_ram_is_dirty` (L1023) — Test whether a given physical kernel-RAM address is in a page that was written-to since boot.
-- `dirty_ram_get_bitmap` (L1042) — Returns the first word of the dirty-page bitmap.
-- `dirty_ram_get_bitmap_word` (L1044) — Returns one word of the dirty-page bitmap, or 0 past the end.
-- `dirty_ram_get_bitmap_word_count` (L1052) — Serialized (savestate / netplay digest) extent: the LIVE RAM's pages only, so a retail session's dirty-bitmap section is unchanged by the 8 MiB host backing.
-- `dirty_ram_set_bitmap_words` (L1056) — Replaces the dirty-page bitmap with saved words and bumps the code generation so cached results are dropped.
-- `dirty_ram_reset_for_boot` (L1083) — Rematch / session_reboot: wipe host dirty tracking so dig0 matches a cold process (memory_init clears RAM but used to leave these bitmaps sticky).
-- `overlay_watch_set_range` (L1098) — Marks the pages covering a physical range as watched overlay code and forgets their store-path cache.
-- `overlay_watch_clear_range` (L1110) — Unmarks the watched overlay pages covering a physical range.
-- `overlay_watch_pagegen_sum` (L1123) — Sum of generation counters over the pages spanning [phys, phys+len).
-- `dirty_ram_text_guard_resync_after_restore` (L1138) — Savestate restores RAM via memcpy and never hits the store chokepoint that bumps overlay_page_gen.
-- `overlay_watch_invalidate_after_ram_restore` (L1178) — After bulk RAM restore (savestate): bump overlay page gens + lazy-miss epoch so native overlays re-hash against restored bytes; clear the exec pc/page bitmaps and dispatch evidence so pre-load PCs never bind to restored bytes; also drop sticky text_diverged/modified bitmaps (host-only — restored RA
-- `overlay_watch_note_write` (L1193) — Records a guest store to a watched overlay page and drops the PC evidence for the written words only.
-- `memory_ctrl_snapshot_bytes` (L1248) — Size of the BS_SEC_MEMCTL payload: 18 u32 (memory control, RAM size, cache control).
-- `memory_ctrl_snapshot_write` (L1249) — Writes mem_ctrl[16], the RAM size register and cache control as u32 LE for BS_SEC_MEMCTL.
-- `memory_ctrl_snapshot_validate` (L1256) — Pass 1 check of BS_SEC_MEMCTL: the payload must be exactly 18 u32.
-- `memory_ctrl_snapshot_read` (L1259) — Restores mem_ctrl[16], the RAM size register and cache control from BS_SEC_MEMCTL.
-- `imask_trace_record` (L1330) — Records an interrupt mask write in the trace ring, with old and new values, width, caller and store PC.
-- `interrupt_write_stat_masked` (L1359) — Acknowledges the interrupt status bits written by the guest (a 1 clears), counts vblank acks and refreshes the IP2 cause.
-- `interrupt_write_mask_masked` (L1367) — Applies a guest write to the interrupt mask, traces it, notifies the SIO card handoff and refreshes the IP2 cause.
-- `memory_get_imask_bit7_set_count` (L1381) — Getters for debug server
-- `memory_get_imask_bit7_clear_count` (L1382) — Returns how many times interrupt mask bit 7 was cleared, for the debug server.
-- `memory_get_imask_trace` (L1383) — Returns the interrupt mask trace ring, with its current index and count through the out pointers.
-- `effective_store_pc` (L1414) — Returns the PC to credit a store to: the DMA initiator while DMA runs, otherwise the last store PC.
-- `read_ram_word` (L1422) — Reads a 32-bit little-endian word from RAM at a physical address.
-- `read_ram_half` (L1428) — Reads a 16-bit little-endian value from RAM at a physical address.
-- `scph1001_active` (L1443) — The active BIOS image is SCPH-1001.
-- `scph1001_relocated_store` (L1451) — Returns 1 when a store at pc is SCPH-1001's own BIOS store from ROM offset rom, so its legacy key still applies.
-- `memory_set_sr_ptr` (L1466) — Stores the pointer to the CPU status register that memory_get_sr reads.
-- `memory_get_sr` (L1467) — Returns the CPU status register through the stored pointer, or 0 when none is set.
-- `memory_get_bios_checksum` (L1470) — Returns the checksum of the loaded BIOS image.
-- `memory_init` (L1474) — static uint32_t psx_mem_gate_flags(void); /* below, with psx_store_fast_ptr extern int g_psx_store_page_audit; /* below, with psx_store_page_kind
-- `unmapped_fatal` (L1524) — Does nothing for an unmapped address: the BIOS probes these on purpose, so it is treated as open bus.
-- `mmio_read32_impl` (L1534) — Performs a 32-bit MMIO read, selecting the register by address region: memory control, SIO, RAM size and the other devices.
-- `mmio_hist` (L1590) — Counts an MMIO access in a histogram bucket by register region, separately for reads and writes.
-- `mmio_read32` (L1603) — 32-bit MMIO read: syncs devices, applies render-pass read rules, and returns the register value.
-- `mmio_write32` (L1612) — 32-bit MMIO write: records the histogram, syncs devices, traces the write and routes the value to its register.
-- `mmio_read16_impl` (L1680) — 16-bit MMIO read, including the halfword lanes of the 32-bit memory control registers.
-- `mmio_read16` (L1728) — 16-bit MMIO read: syncs devices, applies render-pass read rules, and returns the register value.
-- `mmio_write16` (L1737) — 16-bit MMIO write: records the histogram, syncs devices and routes the value to its register.
-- `mmio_read8_impl` (L1805) — 8-bit MMIO read by register region, taking the byte lane of the 32-bit registers.
-- `mmio_read8` (L1850) — 8-bit MMIO read: syncs devices, applies render-pass read rules, and returns the byte.
-- `mmio_write8` (L1859) — 8-bit MMIO write; memory control registers get a read-modify-write of the byte lane.
-- `psx_read_word` (L1955) — data-shard capture feed (data_shards.c): record guest reads/writes while a capture window is armed.
-- `psx_read_word_raw` (L1976) — Physical address of a CPU/DMA main-RAM access.
-- `pgxp_untracked_store` (L2079) — DMA and host stores have no instruction hook to carry or reset a PGXP shadow.
-- `cpu_store_isolated` (L2084) — Returns 1 when a CPU store should only touch the cache: cache isolation is on and no DMA or host store is running.
-- `isc_store` (L2089) — Handles a store made while the cache is isolated: updates the instruction cache and the data cache, not RAM.
-- `render_pass_mmio_write` (L2109) — Writes an MMIO register at the given width (4, 2 or 1 bytes) during a render pass.
-- `rp_mod_journal` (L2131) — Saves the original contents of each arena page a write touches, once per page, so a render pass can roll it back; returns 0 if journaling failed.
-- `render_pass_mod_store` (L2155) — 1 when the store landed in a mod arena (journaled and written).
-- `render_pass_mod_arenas_rollback` (L2176) — Restores every journaled arena page to its saved contents and clears the journal.
-- `render_pass_mod_arenas_hash` (L2187) — FNV-1a over the used part of both arenas (PSX_RENDER_PASS_VERIFY).
-- `render_pass_store` (L2195) — Routes a store during a render pass: mod arena writes are journaled, and everything else goes through the render pass policy to RAM or scratchpad.
-- `psx_write_word` (L2219) — Guest 32-bit store entry point: flushes pending cycles, takes the fast path when possible, and otherwise handles render-pass, lockstep and recording cases.
-- `psx_write_word_raw` (L2235) — Performs a 32-bit store to RAM, scratchpad or a device, after updating the store counters and last-store tracking.
-- `psx_read_half` (L2384) — Guest 16-bit load: records it for recording or lockstep when active, then reads the value.
-- `psx_read_half_raw` (L2395) — Reads 16 bits from RAM or a device at the address, ignoring KSEG2 accesses.
-- `psx_write_half` (L2432) — Guest 16-bit store entry point, with the same fast path and special cases as the word store.
-- `psx_write_half_raw` (L2448) — Performs a 16-bit store to RAM or a device, honouring cache isolation and KSEG2.
-- `psx_read_byte` (L2515) — Guest 8-bit load entry point, with the same recording and lockstep checks as the other loads.
-- `psx_read_byte_raw` (L2526) — Reads one byte from RAM or a device at the address, ignoring KSEG2 accesses.
-- `psx_load_charge_cycles` (L2586) — Charges the cycles of a load to the emulated clock, through the CPU charge when the fast cycle path is not active.
-- `psx_mmio_read_wait` (L2610) — Beetle MemRW device-region READ wait (libretro.cpp:859-1131), the device-dependent part of a load's access cost (added to the timestamp before the +completion).
-- `psx_cyc_readmem` (L2617) — Beetle ReadMemory data-access timing (cpu.cpp:369-448), after §1/deps/DO_LDS.
-- `psx_load_delay_enabled` (L2640) — Resolve PSX_LOAD_DELAY once (shared with inlined psx_cyc.h helpers).
-- `psx_cyc_load_timing` (L2654) — The interlock half of a load (§1+deps+(cancel)+DO_LDS+ReadMemory).
-- `psx_cyc_main_ram_fast_addr` (L2684) — Returns 1 and the physical address when an access is a plain main RAM hit with no tracing active; 0 otherwise.
-- `psx_cyc_load_word_slow` (L2706) — Slow paths for the inlined helpers in psx_cyc.h (MMIO / lockstep / shards).
-- `psx_cyc_load_half_slow` (L2710) — Slow path for a timed 16-bit load: charges the load timing, then reads the halfword.
-- `psx_cyc_load_word_timing_only` (L2714) — Charges the timing of a 32-bit load without reading the value.
-- `psx_cyc_load_byte` (L2718) — Timed 8-bit load for generated code: charges the load timing, then returns the byte from RAM or the full read.
-- `psx_cyc_lwc2_read_slow` (L2730) — LWC2 (GTE load): §1/DO_LDS done by psx_cyc_step(cpu,0); the GTE deadline stall by psx_gte_stall — both emitted before this call.
-- `psx_guest_read_word` (L2750) — Deprecated uncharged passthroughs (the +4 flat wait-state model is gone; load timing now lives in psx_cyc_load_*).
-- `psx_guest_read_half` (L2751) — Untimed 16-bit read for guest code, with no load timing charged.
-- `psx_guest_read_byte` (L2752) — Untimed 8-bit read for guest code, with no load timing charged.
-- `psx_cyc_load_word_host` (L2758) — The overlay DLLs' timed loads (overlay_loader.c callbacks): the same entries the main program inlines (psx_cyc.h), main RAM and scratchpad on the short path, everything else on the slow one.
-- `psx_cyc_load_half_host` (L2761) — Timed 16-bit load for overlay DLLs, the same as the main program's inline load.
-- `psx_cyc_load_byte_host` (L2764) — Timed 8-bit load for overlay DLLs, using the fast byte-load path.
-- `psx_cyc_lwc2_read_host` (L2767) — Timed GTE load for overlay DLLs: reads a word for LWC2 with its timing.
-- `psx_blk_load_slow` (L2773) — [recompiler] cpu_timing = "block": a load outside main RAM and the scratchpad (psx_cyc.h psx_blk_load_*): its access cost, then the read.
-- `psx_write_byte` (L2783) — Guest 8-bit store entry point, with the same fast path and special cases as the word store.
-- `psx_host_write_word` (L2802) — Host stores: the same paths as a guest store, but never cache-isolated (cpu_store_isolated).
-- `psx_host_write_half` (L2808) — Host 16-bit store: works like a guest store, but is never cache-isolated.
-- `psx_host_write_byte` (L2814) — Host 8-bit store: works like a guest store, but is never cache-isolated.
-- `psx_write_byte_raw` (L2821) — Performs an 8-bit store to RAM or a device, honouring cache isolation and KSEG2.
-- `psx_mem_gate_value` (L2906) — psx_mem_gate.h (g_psx_mem_gate lives in psx_cycles.c): raised by every writer that sets one of the stores' global gates; lowered here once all are clear.
-- `__attribute__` (L2919) — The gate was raised: lower it if every flag is clear (1: the short path may go on).
-- `psx_mem_gate_flags` (L2926) — Returns the combined store gate flags that decide whether the fast store path may be used.
-- `psx_store_pages_forget_all` (L2931) — Clears every cached store-page classification so each page is recomputed on its next store.
-- `psx_store_page_kind` (L2936) — 1: every aligned store to the page is a plain store here; 2: one is when its text line is already marked (text_line_mark would do nothing); 0: neither (kernel window, executed code, watched overlay pa
-- `psx_store_pages_audit` (L2947) — Debug check: aborts if a cached page classification no longer matches the current state.
-- `psx_store_fast_ptr` (L2964) — Where a plain store may go directly: main RAM (above the kernel window, on a page no code watcher acts on) or the scratchpad, which the full path writes with nothing else to do (no mod aperture reache
-- `psx_store_try_word` (L3000) — Tries a 32-bit store through the fast path; returns 1 when it wrote the value, 0 to fall back to the full path.
-- `psx_store_try_half` (L3012) — Tries a 16-bit store through the fast path; returns 1 when handled, 0 to fall back.
-- `psx_store_try_byte` (L3021) — Tries an 8-bit store through the fast path; returns 1 when handled, 0 to fall back.
-
-### runtime/src/memory.c
-
-Main memory map: RAM and scratchpad, address translation, MMIO register dispatch for loads and stores, dirty-page and text-guard tracking, and mod memory arenas.
-
-- `psx_mod_memory_snapshot_bytes` (L71) — Allocations are fixed during activation.
-- `psx_mod_memory_layout_cookie` (L76) — Returns a compatibility cookie for the mod memory layout; saves with a different cookie are rejected before RAM is applied.
-- `psx_mod_memory_snapshot_write` (L83) — Writes the mod memory snapshot header and both arenas into out.
-- `psx_mod_memory_snapshot_validate` (L96) — Non-mutating pre-check for boot_state's two-pass load; the reader runs it.
-- `psx_mod_memory_snapshot_read` (L107) — Restores both mod memory arenas from a snapshot, after validating it; journals the live image first when a render pass is active.
-- `psx_mod_memory_alloc` (L129) — Trusted mods may opt into host-backed guest memory in Expansion 1.
-- `mod_memory_offset` (L141) — Converts a physical address in the mod arena to an offset, if an access of width bytes fits in the used part.
-- `psx_mod_gpu_dma_memory_alloc` (L150) — Allocates zeroed memory in the GPU DMA aperture with a power-of-two alignment up to 4096; returns the guest address or 0.
-- `mod_gpu_dma_memory_offset` (L164) — Converts a physical address in the GPU DMA aperture to an offset for an access of the given width.
-- `psx_mod_gpu_dma_resolve_address` (L170) — Resolves a guest address inside the GPU DMA aperture to its final address.
-- `psx_mod_gpu_dma_memory_contains` (L175) — A complete range in the allocated GPU packet aperture (CPU or tag address).
-- `psx_gpu_packet_key` (L179) — Returns a key for a GPU packet address in the DMA aperture, used to identify packets.
-- `psx_phys_addr` (L194) — Physical address translation for guest accesses.
-- `psx_phys_addr_store` (L198) — Returns the physical address for a guest store, through the RAM write map.
-- `memory_get_ram_ptr` (L203) — Expose RAM pointer for oracle comparison (find_first_divergence).
-- `memory_get_scratchpad_ptr` (L204) — Returns a pointer to the 1 KB scratchpad memory.
-- `psx_peek_word` (L210) — Side-effect-FREE aligned word peek for the debug/observability path ONLY: main RAM (every KUSEG/KSEG0/KSEG1 mirror), scratchpad and BIOS ROM.
-- `dirty_ram_mark_page` (L267) — static void text_lines_mark_range(uint32_t lo, uint32_t len); /* below
-- `kbless_on` (L339) — Decides once whether kernel native dispatch (bless) is enabled, reading PSX_KERNEL_BLESS and the BIOS window.
-- `psx_kernel_patch_range_ends_at` (L398) — Declared patch ranges (psx_bios_kernel_patch_ranges, emitted from the profile's [[recompiler.install_slots]]): kernel-RAM words the guest is EXPECTED to overwrite at boot.
-- `kbless_find` (L403) — Binary search the (key-sorted) body table.
-- `psx_kernel_bless_dispatchable` (L416) — Dispatch-time query: may 'phys' run its static native function?
-- `kbless_note_write` (L461) — A write landed in the kernel window: any entry whose body contains the written byte must re-verify before its next native dispatch.
-- `psx_kernel_bless_note_range` (L489) — Range write (DMA / EXE load / savestate restore) overlapping the window: bulk, rare events — reset every entry rather than per-byte scanning.
-- `psx_kernel_bless_stats` (L505) — Fills eight counters into out: kernel entries, clean and mismatched entries, native hits and related counts.
-- `psx_kernel_bless_paranoid_stats` (L530) — Paranoid mode for the run report: [0] on, [1] dispatches re-compared, [2] bytes compared, [3] rows marked clean over bytes that differ (must be 0), [4] rows marked mismatched over bytes that match (a 
+- `psx_kernel_bless_paranoid_stats` (L530) — Paranoid mode for the run report: [0] on, [1] dispatches re-compared, [2] bytes compared, [3] rows marked clean over bytes that differ (must be 0), [4] rows marked mismatched over bytes that match (a
 - `psx_kernel_bless_table_fits` (L542) — Does the active image's bless table fit kbless_state?
 - `psx_kernel_bless_state` (L551) — Bless latch for the run report: -1 not decided yet (no kernel-window dispatch so far), 0 off (PSX_KERNEL_BLESS=0 or an image with no bless window), 1 on.
 - `psx_kernel_bless_resync_after_restore` (L555) — After a savestate restore, marks every kernel bless entry unknown so it is verified again.
