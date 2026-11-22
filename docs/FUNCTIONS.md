@@ -2101,69 +2101,70 @@ PS1 CD-ROM controller: register interface, command handling, sector reads, CD-DA
 - `deliver_read_sector` (L1938) — Reads the next sector of the data stream into the buffers, advances the position and raises the data-ready interrupt.
 - `deliver_read_sector_without_irq` (L1968) — A continuing DMA needs the newly filled slot immediately.
 - `cd_bisect_cmd_log` (L1982) — §93 P1: cmd timeline under PSX_RB_CD_BISECT (window via netplay).
-- `try_execute_queued_command` (L2055) — Runs a queued command once the interrupt line is clear.
-- `queue_or_exec_command` (L2074) — Runs a command now if the interrupt line is clear, otherwise queues it.
-- `pause_complete_delay_cycles` (L2108) — Pause (0x09) completion latency — Beetle PS_CDC::Command_Pause.
-- `reject_audio_disc_data_read` (L2127) — Audio-only media cannot satisfy a data read.
-- `exec_command` (L2138) — Runs one CD-ROM controller command, setting its response and timing; the core of the command dispatcher.
-- `process_pending` (L2667) — Completes a pending command response once its due cycle has passed.
-- `warm_route_consumer_blocked` (L2774) — Route-only HLE producer/consumer handshake.
-- `authentic_sector_period` (L2815) — Returns the sector period at the real drive speed, halved in double-speed mode.
-- `accelerated_read_active` (L2820) — Returns 1 when reads run faster than the real drive speed, not during XA or filter modes.
-- `accelerated_consumer_blocked` (L2825) — Returns 1 when an accelerated read must wait for the CPU to take the last sector or interrupt.
-- `process_read_stream` (L2832) — Advances the data read stream by the elapsed cycles, delivering sectors when due and waiting for the CPU when it is behind.
-- `present_pending_dataready` (L2917) — Present a pended data-ready INT1 the moment the guest fully acks the previous INT (Beetle CheckAIP: async results present as soon as the IRQ register clears).
-- `cdrom_init` (L2933) — Starts the CD-ROM controller: clears its FIFOs and buffers, then mounts the disc image from the cue path.
-- `cdrom_has_disc` (L3027) — Did cdrom_init() actually mount an image?
-- `cdrom_read` (L3031) — MMIO read/write (0x1F801800-0x1F801803)
-- `cdrom_write` (L3081) — Handles a CPU write to the CD-ROM registers, tracing it and dispatching by register and index.
-- `cdrom_cycles_to_irq` (L3170) — Cycle-budgeted precise event slicing: guest CPU cycles until the CD-ROM raises a DELIVERABLE IRQ (bit2 unmasked in i_mask).
-- `cdrom_advance` (L3202) — Advance CD-ROM state machine by guest CPU cycles.
-- `cdrom_tick` (L3225) — Legacy frame-paced entry point for interpreter/oracle builds.
-- `cdrom_dma_read` (L3229) — DMA channel 3 interface
-- `cdrom_dma_ready` (L3241) — Returns 1 when DMA can take data now, first loading any announced sector into the FIFO.
-- `cdrom_dma_sector_word_count` (L3250) — Returns the word count for a CD DMA transfer, using one sector's size when the count is zero.
-- `cdrom_debug_snapshot` (L3263) — Copies the controller's registers and state into a debug struct.
-- `cdrom_debug_get_trace` (L3318) — Returns the register trace ring and its total count.
-- `cdrom_debug_clear_trace` (L3323) — Clears the register trace ring.
-- `cdrom_debug_get_command_history` (L3328) — Returns the command history ring and its total count.
-- `cdrom_debug_clear_command_history` (L3333) — Clears the command history ring.
-- `cdrom_debug_get_sector_history` (L3338) — Returns the sector history ring and its total count.
-- `cdrom_debug_clear_sector_history` (L3343) — Clears the sector history ring.
-- `cdrom_debug_copy_last_sector` (L3348) — Copies part of the last sector read into a buffer and fills in its debug state.
-- `cdrom_load_in_progress` (L3377) — Load-in-progress predicate for turbo-through-loads (step 4).
-- `cdrom_data_read_active` (L3388) — Physical non-XA data-read command state, without the logical load gap bridge used by cdrom_load_in_progress().
-- `cdrom_apply_savestate_delay_caps` (L3401) — Limits long pending and interrupt delays after a savestate load so the game does not stall.
-- `cdrom_accelerate_after_savestate` (L3426) — After savestate restore: clamp long CD second-response / read-start delays and arm a short boost window so post-load ReadTOC/seek/Init waits do not freeze the picture for ~1s+.
-- `cdrom_savestate_boost_vblank` (L3437) — Call once per host vblank while the boost window is armed.
-- `cdrom_savestate_cd_wait_active` (L3443) — Non-zero while boost is armed AND a CD wait is outstanding (pending second response or non-XA read).
-- `cdrom_savestate_boost_vblanks_remaining` (L3450) — Remaining boost vblanks (0 when idle).
-- `cdrom_snap_emit` (L3464) — Writes the CD-ROM controller state into a snapshot writer, in the legacy or extended layout.
-- `cdrom_snap_parse` (L3542) — Reads the CD-ROM controller state from a snapshot reader, in the legacy or extended layout.
-- `cdrom_snapshot_level_bytes` (L3636) — Returns the wire size of the snapshot layout at a given level (0 = legacy, CDROM_SNAP_LEVEL_CURRENT = newest).
-- `cdrom_snapshot_level` (L3643) — Maps a snapshot block length to its layout level; -1 when no level has that size.
-- `cdrom_snapshot_legacy_bytes` (L3649) — Returns the size of the legacy snapshot layout.
-- `cdrom_snapshot_fifos_ok` (L3655) — The parameter and response FIFO cursors index param_fifo / response_fifo; every layout starts with the legacy prefix, so this applies to all of them.
-- `cdrom_snapshot_validate` (L3665) — Checks that a snapshot block has a length matching the legacy or current layout.
-- `cdrom_snapshot_prepare_disc` (L3711) — A state taken on another disc of the roster: open that disc's image now, while the load can still be refused, so applying it cannot fail.
-- `cdrom_snapshot_drop_prepared` (L3724) — Close a disc image opened for a state that was then refused.
-- `cdrom_snapshot_disc_matches` (L3734) — 0 when the state was taken on another disc of this game's roster than the one mounted now: its LBAs, TOC and file table belong to that other disc.
-- `cdrom_snapshot_bytes` (L3741) — boot_state / netplay digest — full controller FSM (sector FIFOs included).
-- `cdrom_snapshot_write` (L3744) — Writes the current CD-ROM snapshot block into a buffer.
-- `cdrom_snapshot_read` (L3750) — Reads a CD-ROM snapshot block, checking its length first; returns 1 on success.
-- `begin_tray_open_cycle` (L3783) — Open the tray: stop every transfer in flight, hide the media, and arm the timed close.
-- `debug_force_cd_reinsert` (L3799) — Simulates a disc swap by opening the tray, which hides the media until the timed close. — Notify the guest that the mounted disc was reinserted.
-- `cdrom_disc_roster_set` (L3803) — Sets the list of disc image paths the player can switch between, and which one is selected.
-- `cdrom_disc_roster_count` (L3823) — Returns how many discs are in the roster.
-- `cdrom_mounted_sector_count` (L3825) — TOC of the image currently mounted; 0 when the drive is empty.
-- `cdrom_mounted_track_count` (L3829) — Returns the number of tracks in the mounted image, 0 when the drive is empty.
-- `cdrom_disc_selected` (L3833) — Returns the 1-based number of the selected disc.
-- `cdrom_disc_roster_path` (L3835) — Returns the path of a disc in the roster by 1-based index, or NULL if out of range.
-- `swap_image` (L3853) — Change the mounted image mid-session, the way a player changes a disc.
-- `cdrom_disc_select` (L3871) — Change the mounted image mid-session, the way a player changes a disc.
-- `cdrom_disc_mount_quiet` (L3902) — The same image swap without the lid: no ShellOpen, no 2 s wait, transfers and position kept.
-- `cdrom_disc_set_pending_quiet` (L3913) — Mount disc N quietly right before the next command that positions the drive (Setloc, Play, ReadN, ReadS, SeekL, SeekP); 0 cancels.
-- `cdrom_disc_pending_quiet` (L3918) — Disc waiting to be mounted quietly before the next positioning command, 0 none.
+- `try_execute_queued_command` (L2067) — Runs a held command once its pickup deadline after the acknowledge has passed and the interrupt line is clear.
+- `queue_or_exec_command` (L2088) — Runs a command now if the interrupt line is clear, otherwise queues it.
+- `pause_complete_delay_cycles` (L2122) — Pause (0x09) completion latency — Beetle PS_CDC::Command_Pause.
+- `reject_audio_disc_data_read` (L2141) — Audio-only media cannot satisfy a data read.
+- `exec_command` (L2152) — Runs one CD-ROM controller command, setting its response and timing; the core of the command dispatcher.
+- `process_pending` (L2681) — Completes a pending command response once its due cycle has passed.
+- `warm_route_consumer_blocked` (L2788) — Route-only HLE producer/consumer handshake.
+- `authentic_sector_period` (L2829) — Returns the sector period at the real drive speed, halved in double-speed mode.
+- `accelerated_read_active` (L2834) — Returns 1 when reads run faster than the real drive speed, not during XA or filter modes.
+- `accelerated_consumer_blocked` (L2839) — Returns 1 when an accelerated read must wait for the CPU to take the last sector or interrupt.
+- `process_read_stream` (L2846) — Advances the data read stream by the elapsed cycles, delivering sectors when due and waiting for the CPU when it is behind.
+- `present_pending_dataready` (L2931) — Present a pended data-ready INT1 the moment the guest fully acks the previous INT (Beetle CheckAIP: async results present as soon as the IRQ register clears).
+- `cdrom_init` (L2947) — Starts the CD-ROM controller: clears its FIFOs and buffers, then mounts the disc image from the cue path.
+- `cdrom_has_disc` (L3042) — Did cdrom_init() actually mount an image?
+- `cdrom_read` (L3046) — MMIO read/write (0x1F801800-0x1F801803)
+- `cdrom_write` (L3096) — Handles a CPU write to the CD-ROM registers, tracing it and dispatching by register and index.
+- `cdrom_cycles_to_irq` (L3187) — Cycle-budgeted precise event slicing: guest CPU cycles until the CD-ROM raises a DELIVERABLE IRQ (bit2 unmasked in i_mask).
+- `cdrom_advance` (L3225) — Advance CD-ROM state machine by guest CPU cycles.
+- `cdrom_tick` (L3248) — Legacy frame-paced entry point for interpreter/oracle builds.
+- `cdrom_dma_read` (L3252) — DMA channel 3 interface
+- `cdrom_dma_ready` (L3264) — Returns 1 when DMA can take data now, first loading any announced sector into the FIFO.
+- `cdrom_dma_sector_word_count` (L3273) — Returns the word count for a CD DMA transfer, using one sector's size when the count is zero.
+- `cdrom_debug_snapshot` (L3286) — Copies the controller's registers and state into a debug struct.
+- `cdrom_debug_get_trace` (L3341) — Returns the register trace ring and its total count.
+- `cdrom_debug_clear_trace` (L3346) — Clears the register trace ring.
+- `cdrom_debug_get_command_history` (L3351) — Returns the command history ring and its total count.
+- `cdrom_debug_clear_command_history` (L3356) — Clears the command history ring.
+- `cdrom_debug_get_sector_history` (L3361) — Returns the sector history ring and its total count.
+- `cdrom_debug_clear_sector_history` (L3366) — Clears the sector history ring.
+- `cdrom_debug_copy_last_sector` (L3371) — Copies part of the last sector read into a buffer and fills in its debug state.
+- `cdrom_load_in_progress` (L3400) — Load-in-progress predicate for turbo-through-loads (step 4).
+- `cdrom_data_read_active` (L3411) — Physical non-XA data-read command state, without the logical load gap bridge used by cdrom_load_in_progress().
+- `cdrom_apply_savestate_delay_caps` (L3424) — Limits long pending and interrupt delays after a savestate load so the game does not stall.
+- `cdrom_accelerate_after_savestate` (L3449) — After savestate restore: clamp long CD second-response / read-start delays and arm a short boost window so post-load ReadTOC/seek/Init waits do not freeze the picture for ~1s+.
+- `cdrom_savestate_boost_vblank` (L3460) — Call once per host vblank while the boost window is armed.
+- `cdrom_savestate_cd_wait_active` (L3466) — Non-zero while boost is armed AND a CD wait is outstanding (pending second response or non-XA read).
+- `cdrom_savestate_boost_vblanks_remaining` (L3473) — Remaining boost vblanks (0 when idle).
+- `cdrom_snap_emit` (L3487) — Writes the CD-ROM controller state into a snapshot writer, in the legacy or extended layout.
+- `cdrom_snap_parse` (L3571) — Reads the CD-ROM controller state from a snapshot reader, in the legacy or extended layout.
+- `cdrom_snapshot_level_bytes` (L3674) — Returns the wire size of the snapshot layout at a given level (0 = legacy, CDROM_SNAP_LEVEL_CURRENT = newest).
+- `cdrom_snapshot_level` (L3681) — Maps a snapshot block length to its layout level; -1 when no level has that size.
+- `cdrom_snapshot_disc_byte` (L3689) — The CDF6 disc byte is the last byte of a level-5 state; later levels only append after it.
+- `cdrom_snapshot_legacy_bytes` (L3693) — Returns the size of the legacy snapshot layout.
+- `cdrom_snapshot_fifos_ok` (L3699) — The parameter and response FIFO cursors index param_fifo / response_fifo; every layout starts with the legacy prefix, so this applies to all of them.
+- `cdrom_snapshot_validate` (L3709) — Checks that a snapshot block has a length matching the legacy or current layout.
+- `cdrom_snapshot_prepare_disc` (L3761) — A state taken on another disc of the roster: open that disc's image now, while the load can still be refused, so applying it cannot fail.
+- `cdrom_snapshot_drop_prepared` (L3774) — Close a disc image opened for a state that was then refused.
+- `cdrom_snapshot_disc_matches` (L3784) — 0 when the state was taken on another disc of this game's roster than the one mounted now: its LBAs, TOC and file table belong to that other disc.
+- `cdrom_snapshot_bytes` (L3791) — boot_state / netplay digest — full controller FSM (sector FIFOs included).
+- `cdrom_snapshot_write` (L3794) — Writes the current CD-ROM snapshot block into a buffer.
+- `cdrom_snapshot_read` (L3800) — Reads a CD-ROM snapshot block, checking its length first; returns 1 on success.
+- `begin_tray_open_cycle` (L3833) — Open the tray: stop every transfer in flight, hide the media, and arm the timed close.
+- `debug_force_cd_reinsert` (L3849) — Simulates a disc swap by opening the tray, which hides the media until the timed close. — Notify the guest that the mounted disc was reinserted.
+- `cdrom_disc_roster_set` (L3853) — Sets the list of disc image paths the player can switch between, and which one is selected.
+- `cdrom_disc_roster_count` (L3873) — Returns how many discs are in the roster.
+- `cdrom_mounted_sector_count` (L3875) — TOC of the image currently mounted; 0 when the drive is empty.
+- `cdrom_mounted_track_count` (L3879) — Returns the number of tracks in the mounted image, 0 when the drive is empty.
+- `cdrom_disc_selected` (L3883) — Returns the 1-based number of the selected disc.
+- `cdrom_disc_roster_path` (L3885) — Returns the path of a disc in the roster by 1-based index, or NULL if out of range.
+- `swap_image` (L3903) — Change the mounted image mid-session, the way a player changes a disc.
+- `cdrom_disc_select` (L3921) — Change the mounted image mid-session, the way a player changes a disc.
+- `cdrom_disc_mount_quiet` (L3952) — The same image swap without the lid: no ShellOpen, no 2 s wait, transfers and position kept.
+- `cdrom_disc_set_pending_quiet` (L3963) — Mount disc N quietly right before the next command that positions the drive (Setloc, Play, ReadN, ReadS, SeekL, SeekP); 0 cancels.
+- `cdrom_disc_pending_quiet` (L3968) — Disc waiting to be mounted quietly before the next positioning command, 0 none.
 
 ### runtime/src/cdrom_irq.h
 

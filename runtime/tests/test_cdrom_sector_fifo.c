@@ -374,11 +374,12 @@ static void snapshot_disc_identity(void) {
     setup();
     cdrom_disc_roster_set(paths, 2, 1);
     const uint32_t size = cdrom_snapshot_bytes();
-    CHECK(size == cdrom_snapshot_level_bytes(4) + 5u);
+    CHECK(size == cdrom_snapshot_level_bytes(4) + 5u + 8u); /* CDF6, CDF7 */
+    const uint32_t disc = cdrom_snapshot_level_bytes(5) - 1u; /* CDF6 disc byte */
     uint8_t *wire = malloc(size);
     CHECK(wire);
     cdrom_snapshot_write(wire);
-    CHECK(wire[size - 1u] == 1);
+    CHECK(wire[disc] == 1);
     CHECK(cdrom_snapshot_validate(wire, size) && cdrom_snapshot_read(wire, size));
     CHECK(cdrom_disc_selected() == 1); /* checked, never restored */
     s_disc_selected = 2; /* the player swapped discs after saving */
@@ -387,17 +388,17 @@ static void snapshot_disc_identity(void) {
     uint32_t old_len;
     uint8_t *old = emit_level(4, &old_len); /* CDF5: no disc byte */
     CHECK(cdrom_snapshot_disc_matches(old, old_len) && cdrom_snapshot_read(old, old_len));
-    wire[size - 1u] = 0; /* taken with no roster disc mounted */
+    wire[disc] = 0; /* taken with no roster disc mounted */
     CHECK(cdrom_snapshot_validate(wire, size));
-    wire[size - 1u] = CDROM_MAX_DISCS + 1; /* out of range */
+    wire[disc] = CDROM_MAX_DISCS + 1; /* out of range */
     CHECK(!cdrom_snapshot_validate(wire, size));
-    wire[size - 5u] ^= 1; /* CDF6 marker */
-    wire[size - 1u] = 2;
+    wire[disc - 4u] ^= 1; /* CDF6 marker */
+    wire[disc] = 2;
     CHECK(!cdrom_snapshot_validate(wire, size));
-    wire[size - 5u] ^= 1;
+    wire[disc - 4u] ^= 1;
     CHECK(cdrom_snapshot_validate(wire, size));
     cdrom_disc_roster_set(paths, 1, 1); /* single disc: never refused */
-    wire[size - 1u] = 1; s_disc_selected = 0;
+    wire[disc] = 1; s_disc_selected = 0;
     CHECK(cdrom_snapshot_validate(wire, size));
     cdrom_disc_roster_set(NULL, 0, 0);
     free(wire); free(old);

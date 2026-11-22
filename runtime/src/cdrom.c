@@ -2052,8 +2052,22 @@ static void cd_bisect_cmd_log(const char *kind, uint8_t cmd,
     fflush(stderr);
 }
 
+/* A command sent while an INT is pending is executed by the controller in a
+ * following mainloop cycle once the INT is acknowledged, not inside the
+ * acknowledging write (PSX-SPX cdromdrive, "First Response (INT3) (or INT5 if
+ * failed)"), and a Data Request issued shortly after the acknowledge still
+ * belongs to the old interrupt (PSX-SPX cdromdrive, "CDROM Incoming Data /
+ * Buffer Overrun Timings"). The held command is therefore picked up
+ * CDROM_IRQ_PRESENT_DELAY cycles after the ack, the latency a newly written
+ * command already gets before its response. Running it inside the ack let a
+ * held ReadN restart the read and empty the sector buffer before the ISR's
+ * BFRD, and PsyQ CD_getsector then polled DRQSTS forever (issue #873). */
+static uint64_t queued_release_due;   /* absolute cycle; 0 = not armed */
+
 static void try_execute_queued_command(void) {
     if (!queued_cmd.pending || irq_flag != 0) return;
+    if (queued_release_due == 0 || psx_cycle_count < queued_release_due) return;
+    queued_release_due = 0;
 
     uint8_t cmd = queued_cmd.cmd;
     int count = queued_cmd.param_count;
@@ -2982,6 +2996,7 @@ void cdrom_init(const char* cue_path) {
      * pending.pending=0 / reading=0 and fork the CD digest at dig0. */
     memset(&pending, 0, sizeof(pending));
     memset(&queued_cmd, 0, sizeof(queued_cmd));
+    queued_release_due = 0;
     cdrom_clear_pending_dataready();
     read_min = read_sec = read_sect = 0;
     reading = 0;
@@ -3148,11 +3163,13 @@ void cdrom_write(uint32_t addr, uint32_t value) {
              * installing the next response and read slot before the ISR has
              * set up its DMA makes that DMA drain the wrong sector. Then a
              * second-response already past due_cyc; a queued command waits
-             * behind. */
+             * behind and is picked up CDROM_IRQ_PRESENT_DELAY after the
+             * latest full ack. */
             if (pending_dataready && pending_present_due == 0)
                 pending_present_due = psx_cycle_count + CDROM_PEND_PRESENT_DELAY;
             process_pending(0);
-            try_execute_queued_command();
+            if (had_active_irq && queued_cmd.pending && (irq_flag & 0x1F) == 0)
+                queued_release_due = psx_cycle_count + CDROM_IRQ_PRESENT_DELAY;
         }
         break;
 
@@ -3186,6 +3203,12 @@ uint32_t cdrom_cycles_to_irq(uint32_t i_mask) {
         } else if (irq_flag == 0 && 0u < best) {
             best = 0u;
         }
+    }
+    /* A held command can run at its pickup deadline only while no new INT
+     * blocks it. A blocked, overdue pickup must not force one-cycle slices. */
+    if (irq_flag == 0 && queued_cmd.pending && queued_release_due != 0) {
+        uint32_t d = (uint32_t)cycles_until_due(queued_release_due);
+        if (d < best) best = d;
     }
     /* Scheduled release of a pended data-ready. */
     if (pending_present_due != 0) {
@@ -3529,6 +3552,12 @@ static int cdrom_snap_emit(PstW *w, int extended) {
             WU(0x36464443u);
             W8(s_disc_selected);
         }
+        if (extended >= 6) {
+            /* CDF7: the pickup deadline of a held command, relative like
+             * pending_present_due (0 = not armed). */
+            WU(0x37464443u);
+            WI(queued_release_due ? cycles_until_due(queued_release_due) + 1 : 0);
+        }
     }
 
 #undef W8
@@ -3570,6 +3599,9 @@ static int cdrom_snap_parse(PstR *r, int extended) {
     s_sector_ring[0] = s_data_fifo;
     s_ring_read = s_ring_write = pending_dataready_slot = 0;
     pending_present_due = 0;
+    /* Older states cannot hold a released-but-unexecuted command: the
+     * pre-CDF6 runtime executed it inside the ack store. */
+    queued_release_due = 0;
 
     RB(last_sector_buffer); RI(last_sector_lba); RI(last_sector_size);
     last_sector_header_stale = 0;
@@ -3614,6 +3646,11 @@ static int cdrom_snap_parse(PstR *r, int extended) {
             RU(u); /* validated CDF6 marker */
             if (!pst_r_u8(r, &b)) return 0; /* disc: checked, not restored */
         }
+        if (extended >= 6) {
+            RU(u); /* validated CDF7 marker */
+            RI(i);
+            queued_release_due = i > 0 ? psx_cycle_count + (uint32_t)(i - 1) : 0;
+        }
     }
 
 #undef R8
@@ -3629,9 +3666,10 @@ static int cdrom_snap_parse(PstR *r, int extended) {
     return 1;
 }
 
-/* Wire levels: 0 legacy, 1 CDF2, 2 CDF3, 3 CDF4, 4 CDF5, 5 CDF6. Each level
- * only appends, so every level has its own length and the length names it. */
-#define CDROM_SNAP_LEVEL_CURRENT 5
+/* Wire levels: 0 legacy, 1 CDF2, 2 CDF3, 3 CDF4, 4 CDF5, 5 CDF6, 6 CDF7.
+ * Each level only appends, so every level has its own length and the length
+ * names it. */
+#define CDROM_SNAP_LEVEL_CURRENT 6
 
 static uint32_t cdrom_snapshot_level_bytes(int level) {
     PstW w;
@@ -3644,6 +3682,12 @@ static int cdrom_snapshot_level(uint32_t len) {
     for (int level = 0; level <= CDROM_SNAP_LEVEL_CURRENT; level++)
         if (len == cdrom_snapshot_level_bytes(level)) return level;
     return -1;
+}
+
+/* The CDF6 disc byte is the last byte of a level-5 state; later levels only
+ * append after it. Call only on a state of level 5 or above. */
+static uint8_t cdrom_snapshot_disc_byte(const uint8_t *p) {
+    return p[cdrom_snapshot_level_bytes(5) - 1u];
 }
 
 static uint32_t cdrom_snapshot_legacy_bytes(void) {
@@ -3701,8 +3745,14 @@ int cdrom_snapshot_validate(const uint8_t *p, uint32_t len) {
         if (!pst_r_u32(&r, &magic) || magic != 0x36464443u ||
             !pst_r_u8(&r, &disc) || disc > CDROM_MAX_DISCS) return 0;
     }
+    if (level >= 6) {
+        int32_t delay;
+        if (!pst_r_u32(&r, &magic) || magic != 0x37464443u ||
+            !pst_r_i32(&r, &delay) || delay < 0 ||
+            delay > CDROM_IRQ_PRESENT_DELAY + 1) return 0;
+    }
     return r.p == r.end && (cdrom_snapshot_disc_matches(p, len) ||
-                            (s_snap_next && s_snap_next_disc == p[len - 1u]));
+                            (s_snap_next && s_snap_next_disc == cdrom_snapshot_disc_byte(p)));
 }
 
 /* A state taken on another disc of the roster: open that disc's image now,
@@ -3710,7 +3760,7 @@ int cdrom_snapshot_validate(const uint8_t *p, uint32_t len) {
  * image is missing (the load must be refused). */
 int cdrom_snapshot_prepare_disc(const uint8_t *p, uint32_t len) {
     if (cdrom_snapshot_disc_matches(p, len)) return 1;
-    const int disc = p[len - 1u];
+    const int disc = cdrom_snapshot_disc_byte(p);
     if (s_snap_next && s_snap_next_disc == disc) return 1;
     cdrom_snapshot_drop_prepared();
     const char *path = cdrom_disc_roster_path(disc);
@@ -3733,7 +3783,7 @@ void cdrom_snapshot_drop_prepared(void) {
  * disc, and single-disc runs always match. */
 int cdrom_snapshot_disc_matches(const uint8_t *p, uint32_t len) {
     if (!p || cdrom_snapshot_level(len) < 5) return 1;
-    const uint8_t saved = p[len - 1u]; /* CDF6 ends with the disc byte */
+    const uint8_t saved = cdrom_snapshot_disc_byte(p);
     return saved == 0 || s_disc_roster_count <= 1 ||
            saved == (uint8_t)s_disc_selected;
 }

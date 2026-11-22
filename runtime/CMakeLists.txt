@@ -1857,6 +1857,9 @@ if(BUILD_TESTING)
     file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/data_shards_load_scratch)
     add_test(NAME data_shards_load_test COMMAND data_shards_load_test
              WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/data_shards_load_scratch)
+    add_executable(cdrom_held_command_pickup_test tests/test_cdrom_held_command_pickup.c)
+    target_include_directories(cdrom_held_command_pickup_test PRIVATE include src)
+    add_test(NAME cdrom_held_command_pickup_test COMMAND cdrom_held_command_pickup_test)
 
     add_executable(cdrom_read_motor_test tests/test_cdrom_read_motor.c)
     target_include_directories(cdrom_read_motor_test PRIVATE include src)
