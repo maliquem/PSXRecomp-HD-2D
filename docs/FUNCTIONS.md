@@ -9781,136 +9781,136 @@ Compiles GLSL to SPIR-V with glslang, caches the result on disk, and builds SDL_
 
 Emulates the console serial port: the controller and memory card protocols, the multitap, their interrupts, diagnostics and the save-state snapshot of all of it.
 
-- `sio_debug_poll_maybe` (L41) — Calls the debug server poll once every 1024 SIO register accesses.
-- `sio_multitap_active` (L191) — ---- Logical pad ↔ physical SIO port mapping ---- Multitap off (default / PSX_MAX_PLAYERS==2): physical 0 → logical 0, physical 1 → logical 1 Single multitap (PSX_MAX_PLAYERS 5..7) on Port 1 (sio_mult
-- `sio_dual_multitap` (L200) — Dual SCPH-1070 when the build can host 8 pads.
-- `mtap_slot_a_logical` (L208) — Returns the logical pad slot of the multitap's first slot, depending on the selected slot or console port.
-- `mtap_standalone_logical` (L214) — Returns the logical pad slot of a lone pad on the opposite console port, or -1 in dual multitap mode.
-- `pad_logical_for_port` (L220) — Maps a physical console port 0 or 1 to its logical pad slot, or -1 for an invalid port.
-- `pad_port_has_device` (L234) — Physical port answers when a device is present.
-- `selected_is_mtap_port` (L244) — Returns 1 when the selected device slot sits on the multitap port.
-- `mtap_finish_42` (L252) — After a completed 0x42 on the multitap port, arm the next response mode from the REQ bit seen this transfer and what we just returned (psx-spx).
-- `pad_protocol_id` (L269) — Returns the protocol ID byte a pad reports for its current mode: config, JogCon, NeGcon, DualShock or digital.
-- `pad_fill_negcon_poll` (L280) — NeGcon (NPC-101) poll payload: buttons, twist, then analog I, II and L (Mednafen psx/input/negcon.cpp).
-- `pad_fill_jogcon_poll` (L293) — Poll payload for the JogCon.
-- `pad_fill_status8` (L312) — Fill 8-byte per-pad status block used in multitap bulk 0x42 responses.
-- `mc_save_slot` (L415) — Save working mc_ vars back to the slot state for the given slot.
-- `mc_load_slot` (L430) — Load slot state into working mc_ vars.
-- `sio_get_trace` (L464) — Get pointer to ring buffer and current write index.
-- `sio_get_seq` (L470) — Current SIO byte sequence — used by SIO PC tracer for cross-referencing.
-- `sio_memcard_reinsert` (L474) — Report card 'card' (0 or 1) as freshly inserted: its next access returns the "new card" FLAG, as after a real swap.
-- `sio_card_protocol_active` (L485) — Returns 1 if a memcard protocol exchange is in progress on either slot.
-- `card_handoff_push` (L506) — Appends one card handoff trace entry with its kind, byte, interrupt mask, PC and control and status registers to a ring buffer.
-- `sio_card_handoff_on_imask` (L526) — Diagnostic only: guest writes own the interrupt mask.
-- `sio_get_card_handoff` (L534) — Returns the card handoff ring buffer and writes its current index and count through the pointers when given.
-- `sio_card_handoff_cap` (L539) — Returns the capacity of the card handoff ring buffer.
-- `sio_card_handoff_armed` (L540) — Returns 1 while the card handoff trace is armed.
-- `sio_hold_present_for_card` (L548) — Netplay deferred-present coexistence: 1 while native memcard SIO is busy and still making progress.
-- `sr_record` (L614) — Records one SIO event with its kind, transmitted byte, received byte and registers into the starvation ring for diagnostics.
-- `sio_get_card_txns` (L641) — Returns ring buffer + next-write index + whether a live txn is currently open.
-- `sio_get_card_txn_live` (L648) — Returns pointer to live (open) txn, or NULL if none.
-- `txn_open` (L653) — Open a new txn. Caller must have ensured none is currently open.
-- `txn_record_byte` (L666) — Append the just-processed byte to the current txn.
-- `txn_close` (L682) — Close the current txn into the ring.
-- `sio_get_irq_ring` (L713) — Returns the SIO interrupt ring buffer, its write index and its sequence number.
-- `sio_card_arm_audit_record` (L747) — Counts one card or pad arming attempt, armed or not, with the control and status values before and after it.
-- `sio_get_card_arm_audit` (L770) — Copies the arming audit counters into a 3 by 7 table with one row each for card, pad and none.
-- `sio_get_card_arm_countdown_after` (L786) — Returns the countdown value recorded after the last card arming.
-- `sio_get_mc_probe_count` (L790) — Returns how many memory card probes were seen.
-- `sio_get_mc_ack_count` (L791) — Returns how many memory card ACK replies were sent.
-- `sio_get_mc_cmd_count` (L792) — Returns how many memory card command bytes were handled.
-- `sio_get_mc_read_count` (L793) — Returns how many memory card read operations were started.
-- `sio_get_mc_read_done` (L794) — Returns how many memory card reads ran to completion.
-- `sio_get_mc_last_caller` (L795) — Returns the guest return address recorded at the last memory card access.
-- `sio_get_mc_abort_count` (L796) — Returns how many memory card transactions were aborted.
-- `sio_get_mc_abort_state` (L797) — Returns the memory card state recorded at the last abort.
-- `sio_get_mc_abort_ctrl` (L798) — Returns the control register value recorded at the last memory card abort.
-- `sio_get_mc_max_state` (L799) — Returns the highest memory card state reached since the counter was last reset.
-- `sio_get_tx_writes` (L800) — Returns how many transmit writes reached the serial port.
-- `sio_get_tx_gated` (L801) — Returns how many transmit writes were held back by the gate.
-- `sio_get_last_ctrl_on_tx` (L802) — Returns the control register value at the last transmit write.
-- `sio_init` (L856) — Resets all serial port registers and the pad and memory card state to power-on values.
-- `sio_cycles_to_irq` (L934) — Cycle-budgeted precise event slicing: guest CPU cycles until SIO raises a DELIVERABLE IRQ (bit7 unmasked in i_mask).
-- `sio_set_multitap` (L950) — SCPH-1070 multitap. Off by default.
-- `sio_get_multitap` (L964) — Returns 1 when the multitap is active.
-- `sio_set_multitap_port` (L968) — phys_port: 0 = console Port 1, 1 = console Port 2.
-- `sio_get_multitap_port` (L980) — Returns the console port the multitap is on, 0 or 1; always 0 when the build cannot host a multitap.
-- `sio_set_multitap_analog` (L988) — Opt-in DualShock-on-tap hack.
-- `sio_get_multitap_analog` (L992) — Returns 1 when the DualShock-on-multitap hack is enabled.
-- `sio_pad_on_multitap` (L996) — 1 when multitap is armed and 'logical_slot' is a tap pad (not the lone pad on the opposite console port).
-- `sio_tap_force_digital` (L1011) — Tap seat that must stay digital unless the analog hack is armed.
-- `sio_connect_pad` (L1015) — Connect / disconnect a logical pad (0 ..
-- `sio_netplay_canonicalize_session_pads` (L1020) — Netplay / rematch: force a peer-identical pad topology + idle bus.
-- `sio_set_pad_connected` (L1078) — Marks a logical pad slot connected or disconnected and resets its rumble and JogCon motor state.
-- `sio_set_pad_config_capable` (L1092) — Declare whether the pad on a logical slot is a config-capable DualShock (1) or a plain digital controller (0).
-- `sio_get_pad_jogcon_motor` (L1105) — JogCon motor: last command nibble and strength (0..15) the guest sent; 0, 0 unless the slot is a connected JogCon.
-- `sio_get_pad_rumble` (L1116) — Read the raw DualShock motor state selected by the guest's 0x4D rumble map and most recent 0x42 poll.
-- `sio_set_pad_state` (L1126) — logical pad 0 .. PSX_MAX_PLAYERS-1.
-- `sio_set_pad_state_slot` (L1130) — Sets the button state of a logical pad slot; out-of-range slots are ignored.
-- `pad_type_is_device_swap` (L1141) — Entering or leaving NeGcon swaps the controller on the port; it is not the DualShock analog button.
-- `pad_commit_type` (L1145) — Applies a new pad type to a slot and resets its JogCon steering and motor state when the type changes.
-- `sio_set_pad_type` (L1169) — Direct set of pad type + sticks.
-- `sio_set_pad_analog` (L1186) — Sets a slot to DualShock analog mode with the given stick values, or to digital mode when disabled.
-- `sio_set_pad_sticks` (L1193) — Per-frame stick update (does not touch the reported pad type).
-- `sio_set_pad_negcon` (L1199) — NeGcon analog buttons I, II and L for the next poll (0 released ..
-- `sio_get_pad_negcon` (L1206) — Writes the three NeGcon analog values I, II and L of a slot into out; zeros for an invalid slot.
-- `sio_get_pad_mode_locked` (L1215) — 1 while the game has locked the pad's analog mode (0x44 lock byte 0x03).
-- `sio_request_pad_type` (L1222) — Per-frame type request (the emulated controller type).
-- `sio_get_pad_buttons` (L1236) — Return current pad button state (for debug server).
-- `sio_get_pad_buttons_slot` (L1240) — Returns the button state of a logical pad slot, or 0xFFFF for an invalid slot.
-- `sio_get_pad_connected` (L1244) — Debug accessors: is a logical pad connected, and is it in analog mode.
-- `sio_get_pad_analog` (L1249) — Returns the pad type of a logical slot, or 0 for an invalid slot.
-- `sio_get_pad_sticks` (L1253) — Writes the four stick bytes of a slot into out, using centered 0x80 values for an invalid slot.
-- `sio_get_legacy_cfg` (L1317) — Returns the Tomba legacy pad config flag, 1 when it is on.
-- `sio_set_legacy_cfg` (L1318) — Tomba-only legacy pad config path ([controller] legacy_pad_config).
-- `pad_process_byte` (L1326) — Handles one byte of the controller protocol and sets the reply byte, applying any pending pad type change only while the bus is idle.
-- `mc_process_byte` (L1741) — Handles one byte of the memory card protocol and sets the reply byte while advancing the card state machine.
-- `sio_process_byte` (L1974) — Routes one byte sent by the guest to the pad or memory card, then records the reply and trace data.
-- `sio_read` (L2150) — MMIO read/write (0x1F801040-0x1F80104E)
-- `sio_peek_stat` (L2214) — Side-effect-FREE SIO register peeks for the debug/observability path ONLY.
-- `sio_peek_ctrl` (L2215) — Returns the serial control register without side effects.
-- `sio_peek_rx_data` (L2216) — Returns the received byte without side effects.
-- `sio_peek_ack_visible_reads` (L2217) — SIO_STAT reads left before a visible ACK clears (side-effect free).
-- `sio_write` (L2219) — Handles a guest write to a serial port register, advancing the timing first and the delayed IRQ after.
-- `sio_get_freeze_diag` (L2466) — Writes the pending interrupt and countdown, the status and control registers and card activity through the output pointers.
-- `sio_get_burst_stats` (L2513) — Copies the burst drain counters into a 10-entry array.
-- `sio_consume_ack_event` (L2549) — ---- Phase 1.0c-v2: cycle-paced sio_tick helpers (inert in 1.0c-v2) --- In 1.0c-v2, the TX path is still synchronous and nothing arms sio_shift_active or sio_pending_ack.
-- `sio_fire_ack_irq` (L2555) — Sets the ACK status bit and raises the serial interrupt for a card or pad ACK; the SPU interrupt bit is left alone.
-- `sio_handle_shift_complete` (L2610) — Runs when a byte finishes shifting: records the event, processes the byte and sets receive-ready in the status.
-- `sio_get_advance_called` (L2666) — Telemetry counters for sio_advance.
-- `sio_get_advance_with_work` (L2667) — Returns how many timing advance calls found work pending.
-- `sio_pace_walk` (L2671) — Consume every elapsed device deadline.
-- `sio_advance` (L2708) — Phase 1.0e-e1: peripheral-only cycle advance.
-- `sio_tick` (L2722) — Advance SIO timing by 'cycles' PSX cycles.
-- `sio_tick_quantum` (L2778) — Convenience: advance SIO by the dispatch-loop quantum.
-- `sio_get_pace_state` (L2785) — Telemetry accessor for pace_state TCP probe.
-- `sio_w_mcslot` (L2811) — Writes one memory card slot state into the snapshot stream; returns 0 when the write fails.
-- `sio_r_mcslot` (L2818) — Reads one memory card slot state from the snapshot stream; returns 0 when the data is short.
-- `sio_snap_emit_regs` (L2834) — Snapshot wire is emitted in four sections so netplay diags can CRC each independently (regs / pads / memcard / shift+irq FSM) — a single SIO digest could not say WHICH subsystem forked a resim.
-- `sio_snap_emit_pads` (L2840) — Writes the pad state to the snapshot stream: types, connection, buttons and the response buffer.
-- `sio_snap_emit_mc` (L2857) — Writes the memory card state of both slots and the active device to the snapshot stream.
-- `sio_snap_emit_fsm_pace` (L2870) — Load-bearing pacing state (guest-visible IRQ timing).
-- `sio_snap_emit_fsm_meta` (L2891) — Audit/diag metadata — must not drive netplay digests (byte_seq tracks the host-local sio_trace_seq counter, which is not itself a guest register).
-- `sio_snap_emit_rumble` (L2899) — DualShock rumble map/motors — appended after meta so pre-rumble snapshots remain loadable and netplay digests that stop at fsm_pace stay stable.
-- `sio_snap_emit_jogcon` (L2905) — Writes the JogCon steering and motor state to the snapshot stream.
-- `sio_snap_emit_pad_mode` (L2915) — 0x44 mode lock and the analog-capable device behind each port.
-- `sio_snap_emit_hold` (L2922) — writes the present-hold window (seq, progress cycle, armed flag) as the last SIO snapshot block.
-- `sio_snap_emit_mtap` (L2930) — writes the multitap block: address latch, per-port next/returned Slot-A/bulk/garbage modes, req flags, active logical pad and response bytes 8..33.
-- `sio_pad_mode_legacy_defaults` (L2942) — Sets the 0x44 lock and analog device state from the pad types, for loading older snapshots that lack them.
-- `sio_snap_emit_fsm` (L2951) — Writes the shift and interrupt state machine sections to the snapshot stream: pacing first, then metadata.
-- `sio_snap_emit` (L2955) — Writes the full serial port state to the snapshot stream in its fixed section order; returns 0 on failure.
-- `sio_snapshot_section_ends` (L2966) — Cumulative section end offsets in the snapshot wire: out[0]=regs, out[1]=pads, out[2]=memcard, out[3]=fsm_pace (netplay), out[4]=full including fsm metadata, rumble, JogCon and pad-mode state.
-- `sio_hold_legacy_defaults` (L2986) — disarms the present-hold window when a snapshot predates the hold block.
-- `sio_snap_parse_blocks` (L2992) — reads every snapshot block in order, stopping cleanly at the end of each older layout; reports whether the multitap block was present.
-- `sio_mtap_legacy_defaults` (L3143) — Pre-multitap snapshots: the active pad comes from the port, the latch restarts at Slot A, and a bulk response (only 8 of 34 bytes stored) is aborted rather than fed truncated.
-- `sio_snap_parse` (L3157) — reads the snapshot blocks, then applies the pre-multitap defaults when the multitap block is absent; returns 0 when the data is short.
-- `sio_snapshot_bytes` (L3164) — Returns the size in bytes of the serial port state snapshot.
-- `sio_snapshot_write` (L3171) — Writes the serial port state snapshot into the buffer p.
-- `sio_mc_cursor_ok` (L3181) — A saved card cursor must stay inside mc_data for every byte its state can still exchange: READ_DATA/WRITE_DATA touch mc_data[idx], WRITE_LSB_ECHO writes idx and hands idx+1 to WRITE_DATA.
-- `sio_snapshot_ranges_ok` (L3189) — Refuses a SIO snapshot whose pad/card states, selected slot, card cursors, active device or bus owner are out of range.
-- `sio_snapshot_tail_ok` (L3218) — range check for the trailing hold and multitap blocks when the accepted length includes them.
-- `sio_snapshot_validate` (L3241) — Non-mutating pre-check for boot_state's two-pass load: a section that passes cannot fail sio_snapshot_read (the parser only reads fixed-width fields, and both accepted lengths end exactly where one of
-- `sio_snapshot_read` (L3263) — Restores the serial port state from a snapshot buffer after validating it; returns 0 on failure.
+- `sio_debug_poll_maybe` (L46) — Calls the debug server poll once every 1024 SIO register accesses.
+- `sio_multitap_active` (L196) — ---- Logical pad ↔ physical SIO port mapping ---- Multitap off (default / PSX_MAX_PLAYERS==2): physical 0 → logical 0, physical 1 → logical 1 Single multitap (PSX_MAX_PLAYERS 5..7) on Port 1 (sio_mult
+- `sio_dual_multitap` (L205) — Dual SCPH-1070 when the build can host 8 pads.
+- `mtap_slot_a_logical` (L213) — Returns the logical pad slot of the multitap's first slot, depending on the selected slot or console port.
+- `mtap_standalone_logical` (L219) — Returns the logical pad slot of a lone pad on the opposite console port, or -1 in dual multitap mode.
+- `pad_logical_for_port` (L225) — Maps a physical console port 0 or 1 to its logical pad slot, or -1 for an invalid port.
+- `pad_port_has_device` (L239) — Physical port answers when a device is present.
+- `selected_is_mtap_port` (L249) — Returns 1 when the selected device slot sits on the multitap port.
+- `mtap_finish_42` (L257) — After a completed 0x42 on the multitap port, arm the next response mode from the REQ bit seen this transfer and what we just returned (psx-spx).
+- `pad_protocol_id` (L274) — Returns the protocol ID byte a pad reports for its current mode: config, JogCon, NeGcon, DualShock or digital.
+- `pad_fill_negcon_poll` (L285) — NeGcon (NPC-101) poll payload: buttons, twist, then analog I, II and L (Mednafen psx/input/negcon.cpp).
+- `pad_fill_jogcon_poll` (L298) — Poll payload for the JogCon.
+- `pad_fill_status8` (L317) — Fill 8-byte per-pad status block used in multitap bulk 0x42 responses.
+- `mc_save_slot` (L420) — Save working mc_ vars back to the slot state for the given slot.
+- `mc_load_slot` (L435) — Load slot state into working mc_ vars.
+- `sio_get_trace` (L469) — Get pointer to ring buffer and current write index.
+- `sio_get_seq` (L475) — Current SIO byte sequence — used by SIO PC tracer for cross-referencing.
+- `sio_memcard_reinsert` (L479) — Report card 'card' (0 or 1) as freshly inserted: its next access returns the "new card" FLAG, as after a real swap.
+- `sio_card_protocol_active` (L490) — Returns 1 if a memcard protocol exchange is in progress on either slot.
+- `card_handoff_push` (L511) — Appends one card handoff trace entry with its kind, byte, interrupt mask, PC and control and status registers to a ring buffer.
+- `sio_card_handoff_on_imask` (L531) — Diagnostic only: guest writes own the interrupt mask.
+- `sio_get_card_handoff` (L539) — Returns the card handoff ring buffer and writes its current index and count through the pointers when given.
+- `sio_card_handoff_cap` (L544) — Returns the capacity of the card handoff ring buffer.
+- `sio_card_handoff_armed` (L545) — Returns 1 while the card handoff trace is armed.
+- `sio_hold_present_for_card` (L553) — Netplay deferred-present coexistence: 1 while native memcard SIO is busy and still making progress.
+- `sr_record` (L619) — Records one SIO event with its kind, transmitted byte, received byte and registers into the starvation ring for diagnostics.
+- `sio_get_card_txns` (L646) — Returns ring buffer + next-write index + whether a live txn is currently open.
+- `sio_get_card_txn_live` (L653) — Returns pointer to live (open) txn, or NULL if none.
+- `txn_open` (L658) — Open a new txn. Caller must have ensured none is currently open.
+- `txn_record_byte` (L671) — Append the just-processed byte to the current txn.
+- `txn_close` (L687) — Close the current txn into the ring.
+- `sio_get_irq_ring` (L718) — Returns the SIO interrupt ring buffer, its write index and its sequence number.
+- `sio_card_arm_audit_record` (L752) — Counts one card or pad arming attempt, armed or not, with the control and status values before and after it.
+- `sio_get_card_arm_audit` (L775) — Copies the arming audit counters into a 3 by 7 table with one row each for card, pad and none.
+- `sio_get_card_arm_countdown_after` (L791) — Returns the countdown value recorded after the last card arming.
+- `sio_get_mc_probe_count` (L795) — Returns how many memory card probes were seen.
+- `sio_get_mc_ack_count` (L796) — Returns how many memory card ACK replies were sent.
+- `sio_get_mc_cmd_count` (L797) — Returns how many memory card command bytes were handled.
+- `sio_get_mc_read_count` (L798) — Returns how many memory card read operations were started.
+- `sio_get_mc_read_done` (L799) — Returns how many memory card reads ran to completion.
+- `sio_get_mc_last_caller` (L800) — Returns the guest return address recorded at the last memory card access.
+- `sio_get_mc_abort_count` (L801) — Returns how many memory card transactions were aborted.
+- `sio_get_mc_abort_state` (L802) — Returns the memory card state recorded at the last abort.
+- `sio_get_mc_abort_ctrl` (L803) — Returns the control register value recorded at the last memory card abort.
+- `sio_get_mc_max_state` (L804) — Returns the highest memory card state reached since the counter was last reset.
+- `sio_get_tx_writes` (L805) — Returns how many transmit writes reached the serial port.
+- `sio_get_tx_gated` (L806) — Returns how many transmit writes were held back by the gate.
+- `sio_get_last_ctrl_on_tx` (L807) — Returns the control register value at the last transmit write.
+- `sio_init` (L861) — Resets all serial port registers and the pad and memory card state to power-on values.
+- `sio_cycles_to_irq` (L942) — Cycle-budgeted precise event slicing: guest CPU cycles until SIO raises a DELIVERABLE IRQ (bit7 unmasked in i_mask).
+- `sio_set_multitap` (L958) — SCPH-1070 multitap. Off by default.
+- `sio_get_multitap` (L972) — Returns 1 when the multitap is active.
+- `sio_set_multitap_port` (L976) — phys_port: 0 = console Port 1, 1 = console Port 2.
+- `sio_get_multitap_port` (L988) — Returns the console port the multitap is on, 0 or 1; always 0 when the build cannot host a multitap.
+- `sio_set_multitap_analog` (L996) — Opt-in DualShock-on-tap hack.
+- `sio_get_multitap_analog` (L1000) — Returns 1 when the DualShock-on-multitap hack is enabled.
+- `sio_pad_on_multitap` (L1004) — 1 when multitap is armed and 'logical_slot' is a tap pad (not the lone pad on the opposite console port).
+- `sio_tap_force_digital` (L1019) — Tap seat that must stay digital unless the analog hack is armed.
+- `sio_connect_pad` (L1023) — Connect / disconnect a logical pad (0 ..
+- `sio_netplay_canonicalize_session_pads` (L1028) — Netplay / rematch: force a peer-identical pad topology + idle bus.
+- `sio_set_pad_connected` (L1086) — Marks a logical pad slot connected or disconnected and resets its rumble and JogCon motor state.
+- `sio_set_pad_config_capable` (L1100) — Declare whether the pad on a logical slot is a config-capable DualShock (1) or a plain digital controller (0).
+- `sio_get_pad_jogcon_motor` (L1113) — JogCon motor: last command nibble and strength (0..15) the guest sent; 0, 0 unless the slot is a connected JogCon.
+- `sio_get_pad_rumble` (L1124) — Read the raw DualShock motor state selected by the guest's 0x4D rumble map and most recent 0x42 poll.
+- `sio_set_pad_state` (L1134) — logical pad 0 .. PSX_MAX_PLAYERS-1.
+- `sio_set_pad_state_slot` (L1138) — Sets the button state of a logical pad slot; out-of-range slots are ignored.
+- `pad_type_is_device_swap` (L1149) — Entering or leaving NeGcon swaps the controller on the port; it is not the DualShock analog button.
+- `pad_commit_type` (L1153) — Applies a new pad type to a slot and resets its JogCon steering and motor state when the type changes.
+- `sio_set_pad_type` (L1177) — Direct set of pad type + sticks.
+- `sio_set_pad_analog` (L1194) — Sets a slot to DualShock analog mode with the given stick values, or to digital mode when disabled.
+- `sio_set_pad_sticks` (L1201) — Per-frame stick update (does not touch the reported pad type).
+- `sio_set_pad_negcon` (L1207) — NeGcon analog buttons I, II and L for the next poll (0 released ..
+- `sio_get_pad_negcon` (L1214) — Writes the three NeGcon analog values I, II and L of a slot into out; zeros for an invalid slot.
+- `sio_get_pad_mode_locked` (L1223) — 1 while the game has locked the pad's analog mode (0x44 lock byte 0x03).
+- `sio_request_pad_type` (L1230) — Per-frame type request (the emulated controller type).
+- `sio_get_pad_buttons` (L1244) — Return current pad button state (for debug server).
+- `sio_get_pad_buttons_slot` (L1248) — Returns the button state of a logical pad slot, or 0xFFFF for an invalid slot.
+- `sio_get_pad_connected` (L1252) — Debug accessors: is a logical pad connected, and is it in analog mode.
+- `sio_get_pad_analog` (L1257) — Returns the pad type of a logical slot, or 0 for an invalid slot.
+- `sio_get_pad_sticks` (L1261) — Writes the four stick bytes of a slot into out, using centered 0x80 values for an invalid slot.
+- `sio_get_legacy_cfg` (L1325) — Returns the Tomba legacy pad config flag, 1 when it is on.
+- `sio_set_legacy_cfg` (L1326) — Tomba-only legacy pad config path ([controller] legacy_pad_config).
+- `pad_process_byte` (L1334) — Handles one byte of the controller protocol and sets the reply byte, applying any pending pad type change only while the bus is idle.
+- `mc_process_byte` (L1778) — Handles one byte of the memory card protocol and sets the reply byte while advancing the card state machine.
+- `sio_process_byte` (L2011) — Routes one byte sent by the guest to the pad or memory card, then records the reply and trace data.
+- `sio_read` (L2187) — MMIO read/write (0x1F801040-0x1F80104E)
+- `sio_peek_stat` (L2260) — Side-effect-FREE SIO register peeks for the debug/observability path ONLY.
+- `sio_peek_ctrl` (L2261) — Returns the serial control register without side effects.
+- `sio_peek_rx_data` (L2262) — Returns the received byte without side effects.
+- `sio_peek_ack_visible_reads` (L2263) — SIO_STAT reads left before a visible ACK clears (side-effect free).
+- `sio_write` (L2265) — Handles a guest write to a serial port register, advancing the timing first and the delayed IRQ after.
+- `sio_get_freeze_diag` (L2524) — Writes the pending interrupt and countdown, the status and control registers and card activity through the output pointers.
+- `sio_get_burst_stats` (L2571) — Copies the burst drain counters into a 10-entry array.
+- `sio_consume_ack_event` (L2607) — ---- Phase 1.0c-v2: cycle-paced sio_tick helpers (inert in 1.0c-v2) --- In 1.0c-v2, the TX path is still synchronous and nothing arms sio_shift_active or sio_pending_ack.
+- `sio_fire_ack_irq` (L2613) — Sets the ACK status bit and raises the serial interrupt for a card or pad ACK; the SPU interrupt bit is left alone.
+- `sio_handle_shift_complete` (L2676) — Runs when a byte finishes shifting: records the event, processes the byte and sets receive-ready in the status.
+- `sio_get_advance_called` (L2732) — Telemetry counters for sio_advance.
+- `sio_get_advance_with_work` (L2733) — Returns how many timing advance calls found work pending.
+- `sio_pace_walk` (L2737) — Consume every elapsed device deadline.
+- `sio_advance` (L2774) — Phase 1.0e-e1: peripheral-only cycle advance.
+- `sio_tick` (L2788) — Advance SIO timing by 'cycles' PSX cycles.
+- `sio_tick_quantum` (L2847) — Convenience: advance SIO by the dispatch-loop quantum.
+- `sio_get_pace_state` (L2854) — Telemetry accessor for pace_state TCP probe.
+- `sio_w_mcslot` (L2880) — Writes one memory card slot state into the snapshot stream; returns 0 when the write fails.
+- `sio_r_mcslot` (L2887) — Reads one memory card slot state from the snapshot stream; returns 0 when the data is short.
+- `sio_snap_emit_regs` (L2903) — Snapshot wire is emitted in four sections so netplay diags can CRC each independently (regs / pads / memcard / shift+irq FSM) — a single SIO digest could not say WHICH subsystem forked a resim.
+- `sio_snap_emit_pads` (L2909) — Writes the pad state to the snapshot stream: types, connection, buttons and the response buffer.
+- `sio_snap_emit_mc` (L2926) — Writes the memory card state of both slots and the active device to the snapshot stream.
+- `sio_snap_emit_fsm_pace` (L2939) — Load-bearing pacing state (guest-visible IRQ timing).
+- `sio_snap_emit_fsm_meta` (L2960) — Audit/diag metadata — must not drive netplay digests (byte_seq tracks the host-local sio_trace_seq counter, which is not itself a guest register).
+- `sio_snap_emit_rumble` (L2968) — DualShock rumble map/motors — appended after meta so pre-rumble snapshots remain loadable and netplay digests that stop at fsm_pace stay stable.
+- `sio_snap_emit_jogcon` (L2974) — Writes the JogCon steering and motor state to the snapshot stream.
+- `sio_snap_emit_pad_mode` (L2984) — 0x44 mode lock and the analog-capable device behind each port.
+- `sio_snap_emit_hold` (L2991) — writes the present-hold window (seq, progress cycle, armed flag) as the last SIO snapshot block.
+- `sio_snap_emit_mtap` (L2999) — writes the multitap block: address latch, per-port next/returned Slot-A/bulk/garbage modes, req flags, active logical pad and response bytes 8..33.
+- `sio_pad_mode_legacy_defaults` (L3011) — Sets the 0x44 lock and analog device state from the pad types, for loading older snapshots that lack them.
+- `sio_snap_emit_fsm` (L3020) — Writes the shift and interrupt state machine sections to the snapshot stream: pacing first, then metadata.
+- `sio_snap_emit` (L3024) — Writes the full serial port state to the snapshot stream in its fixed section order; returns 0 on failure.
+- `sio_snapshot_section_ends` (L3035) — Cumulative section end offsets in the snapshot wire: out[0]=regs, out[1]=pads, out[2]=memcard, out[3]=fsm_pace (netplay), out[4]=full including fsm metadata, rumble, JogCon and pad-mode state.
+- `sio_hold_legacy_defaults` (L3055) — disarms the present-hold window when a snapshot predates the hold block.
+- `sio_snap_parse_blocks` (L3061) — reads every snapshot block in order, stopping cleanly at the end of each older layout; reports whether the multitap block was present.
+- `sio_mtap_legacy_defaults` (L3212) — Pre-multitap snapshots: the active pad comes from the port, the latch restarts at Slot A, and a bulk response (only 8 of 34 bytes stored) is aborted rather than fed truncated.
+- `sio_snap_parse` (L3226) — reads the snapshot blocks, then applies the pre-multitap defaults when the multitap block is absent; returns 0 when the data is short.
+- `sio_snapshot_bytes` (L3233) — Returns the size in bytes of the serial port state snapshot.
+- `sio_snapshot_write` (L3240) — Writes the serial port state snapshot into the buffer p.
+- `sio_mc_cursor_ok` (L3250) — A saved card cursor must stay inside mc_data for every byte its state can still exchange: READ_DATA/WRITE_DATA touch mc_data[idx], WRITE_LSB_ECHO writes idx and hands idx+1 to WRITE_DATA.
+- `sio_snapshot_ranges_ok` (L3258) — Refuses a SIO snapshot whose pad/card states, selected slot, card cursors, active device or bus owner are out of range.
+- `sio_snapshot_tail_ok` (L3287) — range check for the trailing hold and multitap blocks when the accepted length includes them.
+- `sio_snapshot_validate` (L3310) — Non-mutating pre-check for boot_state's two-pass load: a section that passes cannot fail sio_snapshot_read (the parser only reads fixed-width fields, and both accepted lengths end exactly where one of
+- `sio_snapshot_read` (L3332) — Restores the serial port state from a snapshot buffer after validating it; returns 0 on failure.
 
 ### runtime/src/spu.c
 

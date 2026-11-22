@@ -270,6 +270,18 @@ if(BUILD_TESTING)
         src/psx_video_timing.c)
     target_include_directories(sio_state_bounds_test PRIVATE include)
     add_test(NAME sio_state_bounds_test COMMAND sio_state_bounds_test)
+    add_executable(sio1_latch_test tests/test_sio1_latch.c
+        src/psx_video_timing.c)
+    target_include_directories(sio1_latch_test PRIVATE include)
+    add_test(NAME sio1_latch_test COMMAND sio1_latch_test)
+    add_executable(sio_dualshock_p2_p3_test tests/test_sio_dualshock_p2_p3.c
+        src/psx_video_timing.c)
+    target_include_directories(sio_dualshock_p2_p3_test PRIVATE include)
+    add_test(NAME sio_dualshock_p2_p3_test COMMAND sio_dualshock_p2_p3_test)
+    add_executable(sio_dualshock_config_replies_test tests/test_sio_dualshock_config_replies.c
+        src/psx_video_timing.c)
+    target_include_directories(sio_dualshock_config_replies_test PRIVATE include)
+    add_test(NAME sio_dualshock_config_replies_test COMMAND sio_dualshock_config_replies_test)
     add_executable(sio_card_irq_integrity_test tests/test_sio_card_irq_integrity.c
         src/psx_video_timing.c)
     target_include_directories(sio_card_irq_integrity_test PRIVATE include)
