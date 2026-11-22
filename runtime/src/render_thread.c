@@ -88,6 +88,13 @@ static void cpu_relax(void) {
 #define WAKE_BYTES   (128u * 1024u)
 #define WAKE_RECORDS 256u
 #define SPIN_LOOPS   4096   /* consumer polls this long before sleeping */
+/* Producer-side publish batching: committed records become visible to the
+ * render thread (one release store of wpos) every this many records / bytes,
+ * and always before the producer waits, at a frame end, drain or sync point.
+ * One store per record made the emulation thread and the render thread trade
+ * the position cache line ~12,000 times a frame on R4's race. */
+#define PUBLISH_BYTES   (16u * 1024u)
+#define PUBLISH_RECORDS 32u   /* PSX_RENDER_THREAD_PUBLISH=N overrides; 1 = every record */
 
 #define ACQ_RING 64
 
@@ -118,7 +125,10 @@ static struct {
     _Atomic int released;      /* read unlocked by emu_wait's first check */
 
     /* producer-only */
-    _Alignas(128) uint64_t pend_start, pend_size, pend_payload_off;
+    _Alignas(128) uint64_t wlocal;   /* committed write position, published or not */
+    uint64_t unpub_bytes, unpub_records;
+    uint64_t publish_records;  /* PUBLISH_RECORDS or PSX_RENDER_THREAD_PUBLISH */
+    uint64_t pend_start, pend_size, pend_payload_off;
     uint16_t pend_op, pend_flags;
     uint32_t pend_payload;
     int      pending;
@@ -284,11 +294,19 @@ static void *render_main(void *arg)
 
 /* ---- producer ------------------------------------------------------------ */
 
+/* Make every committed record visible to the render thread. */
+static void publish(void) {
+    if (!R.unpub_records && !R.unpub_bytes) return;
+    atomic_store_explicit(&R.wpos, R.wlocal, memory_order_release);
+    R.unpub_bytes = R.unpub_records = 0;
+}
+
 static void wake_render(int force) {
+    if (force) publish();
     if (!force && R.unwoken_bytes < WAKE_BYTES && R.unwoken_records < WAKE_RECORDS)
         return;
     R.unwoken_bytes = R.unwoken_records = 0;
-    /* wpos is published with a release store (rt_cmd_commit): order it before
+    /* wpos is published with a release store (publish): order it before
      * the sleeping-flag load, as the consumer orders its flag store before its
      * wpos load, so one of the two always sees the other. */
     atomic_thread_fence(memory_order_seq_cst);
@@ -333,7 +351,7 @@ void *rt_cmd_begin(uint16_t op, uint16_t flags, uint32_t payload_bytes) {
     if (!rt_running() || R.pending || op == OP_PAD) return NULL;
     uint64_t size = align_up(sizeof(RtCmd) + (uint64_t)payload_bytes);
     if (size > R.cap / 2) { R.oversize++; return NULL; }
-    uint64_t w = atomic_load_explicit(&R.wpos, memory_order_relaxed);
+    uint64_t w = R.wlocal;
     uint64_t off = w & R.mask;
     uint64_t pad = (off + size > R.cap) ? R.cap - off : 0;
     if (!space_seen(w + pad + size)) {
@@ -365,7 +383,9 @@ void rt_cmd_commit(void) {
     if (!R.pending) return;
     R.pending = 0;
     uint64_t end = R.pend_start + R.pend_size;
-    atomic_store_explicit(&R.wpos, end, memory_order_release);
+    R.unpub_bytes += end - R.wlocal;   /* includes a pad record before it */
+    R.unpub_records++;
+    R.wlocal = end;
     R.records++;
     R.bytes += R.pend_size;
     if (end - R.rpos_seen > R.high_water) {   /* a new high only if the real depth says so */
@@ -375,17 +395,22 @@ void rt_cmd_commit(void) {
     }
     R.unwoken_bytes += R.pend_size;
     R.unwoken_records++;
+    if (R.unpub_records >= R.publish_records || R.unpub_bytes >= PUBLISH_BYTES)
+        publish();
     wake_render(0);
 }
 
 static void commit_marker(uint16_t flags) {
-    uint64_t w = atomic_load_explicit(&R.wpos, memory_order_relaxed);
+    uint64_t w = R.wlocal;
     uint64_t off = w & R.mask;
     uint64_t size = sizeof(RtCmd);
     if (!pred_space(w + size)) emu_wait(pred_space, w + size);
     RtCmd *c = (RtCmd *)(R.ring + off);   /* 16 bytes always fit before the end */
     c->size = (uint32_t)size; c->op = OP_PAD; c->flags = flags; c->payload = 0; c->seq = R.seq++;
-    atomic_store_explicit(&R.wpos, w + size, memory_order_release);
+    R.wlocal = w + size;
+    R.unpub_bytes += size;
+    R.unpub_records++;
+    publish();
 }
 
 void rt_frame_end(void) {
@@ -422,7 +447,8 @@ int rt_frames_ahead(void) {
 
 void rt_drain(void) {
     if (!rt_running() || R.held) return;
-    uint64_t w = atomic_load(&R.wpos);
+    publish();
+    uint64_t w = R.wlocal;
     emu_wait(pred_drained, w);
 }
 
@@ -475,6 +501,12 @@ int rt_start(const RtConfig *cfg) {
     R.user = cfg->user;
     R.tick = cfg->tick;
     R.tick_at = 0;
+    R.publish_records = PUBLISH_RECORDS;
+    {
+        const char *e = getenv("PSX_RENDER_THREAD_PUBLISH");
+        const long n = (e && *e) ? strtol(e, NULL, 10) : 0;
+        if (n >= 1 && n <= 4096) R.publish_records = (uint64_t)n;
+    }
     mtx_init(&R.mtx);
     cnd_init(&R.cv_work);
     cnd_init(&R.cv_emu);
