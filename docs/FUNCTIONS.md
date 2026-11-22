@@ -2262,13 +2262,13 @@ Writes one JSON crash report (psx_last_run_report.json) on a signal, SEH excepti
 - `crash_is_retaddr` (L259) — Windows: 1 when v inside the exe's text section follows a call instruction, so it looks like a return address.
 - `append_native_stack` (L273) — Windows: scan the native stack from start_sp and append the return addresses found in the exe's text section.
 - `psx_crash_trace_dump` (L356) — Manually trigger a crash dump.
-- `psx_fatal_halt` (L842) — Terminal stop for deliberate fatal sites (unhandled MMIO access, trap_crash, fail-fast unknown dispatch).
-- `psx_signal_handler` (L885) — Fatal signal handler: writes the crash report and the freeze-style ring dump.
-- `psx_soft_exit_handler` (L903) — Default SIGINT/SIGTERM terminate without running atexit, so GCC/LLVM never flush PGO profiles (train scripts use kill).
-- `psx_seh_handler` (L913) — Windows unhandled-exception handler: writes the crash report and the ring dump.
-- `psx_console_ctrl_handler` (L921) — Windows console Ctrl-C, Break or close: tags the exit origin and exits so atexit runs.
-- `psx_atexit_handler` (L937) — atexit: writes an 'atexit' report unless a fatal path already wrote one.
-- `psx_crash_trace_install_handlers` (L944) — Install signal/SEH/atexit handlers.
+- `psx_fatal_halt` (L866) — Terminal stop for deliberate fatal sites (unhandled MMIO access, trap_crash, fail-fast unknown dispatch).
+- `psx_signal_handler` (L909) — Fatal signal handler: writes the crash report and the freeze-style ring dump.
+- `psx_soft_exit_handler` (L927) — Default SIGINT/SIGTERM terminate without running atexit, so GCC/LLVM never flush PGO profiles (train scripts use kill).
+- `psx_seh_handler` (L937) — Windows unhandled-exception handler: writes the crash report and the ring dump.
+- `psx_console_ctrl_handler` (L945) — Windows console Ctrl-C, Break or close: tags the exit origin and exits so atexit runs.
+- `psx_atexit_handler` (L961) — atexit: writes an 'atexit' report unless a fatal path already wrote one.
+- `psx_crash_trace_install_handlers` (L968) — Install signal/SEH/atexit handlers.
 
 ### runtime/src/crc32.c
 
@@ -2423,459 +2423,459 @@ TCP debug server for the recompiled PS1 runtime: a non-blocking JSON-over-newlin
 - `handle_restore_trace_window` (L4081) — Handles restore_trace_window: returns the restore events around one byte sequence number.
 - `handle_restore_trace_clear` (L4118) — Handles restore_trace_clear: empties the restore trace and replies ok.
 - `thread_kind_name` (L4126) — Maps a thread-trace kind code to its name, such as save, restore, change_enter or same.
-- `append_thread_entry` (L4156) — Appends one thread-trace entry as JSON to a buffer at a position and returns the new position.
-- `handle_thread_ctx_ring` (L4215) — Handles thread_ctx_ring: returns the most recent thread context records, up to the requested count.
-- `handle_thread_trace` (L4251) — Handles thread_trace: returns the most recent thread switch events, capped at 2048.
-- `handle_thread_trace_clear` (L4360) — Handles thread_trace_clear: empties the thread trace and replies ok.
-- `handle_sreg_trace_stats` (L4368) — Handles sreg_trace_stats: reports the total, available and capacity counts of the saved-register trace.
-- `handle_sreg_trace_clear` (L4379) — Handles sreg_trace_clear: empties the saved-register trace and its per-thread slots, then replies ok.
-- `sreg_trace_yield_func` (L4388) — Returns 1 for the three thread-yield functions that saved-register tracing treats specially.
-- `append_sreg_compact` (L4393) — Appends one saved-register trace entry in compact JSON form to a buffer and returns the new position.
-- `handle_sreg_trace_find` (L4414) — Handles sreg_trace_find: searches the saved-register trace for matching entries and returns them.
-- `handle_sreg_trace_dump` (L4506) — Handles sreg_trace_dump: returns the most recent saved-register trace entries, capped at 4096.
-- `emit_probe_entry` (L4635) — Writes one PC probe trace entry as a JSON object with its PC, function, store PC and registers.
-- `handle_probe_trace` (L4654) — Handles probe_trace: returns the most recent PC probe entries, up to the requested count.
-- `handle_probe_clear` (L4676) — Handles probe_clear: empties the probe trace and replies ok.
-- `set_nonblocking` (L4745) — ---- Platform helpers ----
-- `json_get_str` (L4758) — Finds a key in a JSON request line and copies its string value into out; returns NULL when the key is missing.
-- `json_get_int` (L4803) — Finds a key in a JSON request line and returns its integer value, bare or quoted, decimal or hex; returns def when missing.
-- `hex_to_u32` (L4820) — Parses a hex string, with an optional 0x prefix, into a 32-bit value.
-- `debug_server_get_tcp_stall_ms` (L4837) — TCP serve-stall telemetry: cumulative main-thread ms spent inside bounded TCP sends, and clients dropped for exceeding the send budget.
-- `debug_server_get_tcp_drops` (L4838) — Returns how many TCP clients were dropped for exceeding the send time budget.
-- `monotonic_ms` (L4840) — Returns a monotonic millisecond clock for timing, using GetTickCount64 on Windows and clock_gettime elsewhere.
-- `send_all_blocking` (L4864) — Sends a whole buffer to a socket in blocking mode within a time budget; returns 1 when every byte was sent.
-- `debug_server_send_line` (L4912) — Append a response line to s_resp_buf (the I/O thread sends it).
-- `debug_server_send_fmt` (L4934) — printf-style: formats a response line of any length on the heap and queues it for the I/O thread to send.
-- `debug_server_dirty_break_maybe_pause` (L4962) — Dirty-RAM dispatch break.
-- `send_ok` (L4992) — Queues a success reply for the given request id.
-- `send_err` (L4997) — Queues an error reply for the given request id, carrying a message.
-- `handle_ping` (L5004) — Handles ping: replies with the request id and reports accumulated dispatch misses, so they are not missed silently.
-- `handle_frame` (L5022) — Handles frame: replies with the current guest frame counter.
-- `debug_server_note_savestate_loaded` (L5043) — frame_fingerprint reset_on_load: called when a savestate load completes.
-- `handle_golden` (L5056) — golden — tools/golden.py: {"on":1|0} arms/disarms now, {"arm_on_load":1} from the next savestate load (frame 0 = the first frame after it), {"dump":1,"from":F,"count":N} returns the per-frame hashes (
-- `handle_frame_fingerprint` (L5085) — Handles frame_fingerprint: arms reset-on-load, or returns the per-frame write fingerprint ring, up to the requested count.
-- `handle_record_frame` (L5137) — Layer-2: arm the frame-gated write recorder for a guest frame.
-- `rec_kind_str` (L5146) — Maps a recorder event kind code (RAM write, SP write, MMIO read or write, RAM read) to a short name.
-- `handle_record_frame_dump` (L5163) — Layer-2: dump the recorded frame's UNIFIED ordered access log (paged).
-- `handle_record_reads_dump` (L5196) — Layer-2 companion: dump only the device-register READS from the unified log, preserving their execution-order index 'i'.
-- `handle_get_registers` (L5226) — Handles get_registers: returns the guest CPU registers and PC as JSON, or an error when no CPU is attached.
-- `handle_disasm` (L5266) — Handles disasm: disassembles guest instructions at a hex address and returns the text; built only with debug tools.
-- `handle_read_ram` (L5312) — Handles read_ram: returns len bytes of guest memory at a hex address, as hex text.
-- `handle_write_ram` (L5355) — Handles write_ram: writes a value into guest memory at a hex address.
-- `handle_geom_correction` (L5379) — geom_correction — is [video] geometry_correction / perspective_texturing actually doing anything on THIS title?
-- `host_profile_cmp` (L5476) — host_profile — histogram of the always-on host CPU sampler (host_sampler.c) over a window of the ring: {"cmd":"host_profile","since":SEQ} or {"cmd":"host_profile","frames":N} (the last N guest frames)
-- `handle_host_profile` (L5481) — Handles host_profile: builds a histogram of host CPU samples over a window of frames or since a sequence number, listing the top entries.
-- `handle_pgxp_shadow` (L5555) — pgxp_shadow — read PGXP shadow slots: {"cmd":"pgxp_shadow","addr":A, "count":N} walks N guest words from A (RAM / scratchpad); "space":"gpr" or "gte" with "index"/"count" reads register shadows instea
-- `handle_pgxp_miss_ring` (L5588) — pgxp_miss_ring — the newest refused perspective-depth lookups (always-on ring, PGXP_MISS_RING_CAP deep): {"cmd":"pgxp_miss_ring","count":N}.
-- `handle_pgxp_tri_ring` (L5627) — pgxp_tri_ring — the always-on ring of geometry-corrected triangles: {"cmd":"pgxp_tri_ring","frame":F,"pass":0|1,"x0":..,"y0":..,"x1":.., "y1":..,"count":N}.
-- `handle_pgxp_store_ring` (L5688) — pgxp_store_ring — the always-on ring of shadowed memory writes: {"cmd":"pgxp_store_ring","addr_lo":"0x..","addr_hi":"0x..","pc":"0x..", "frame":F,"count":N}.
-- `handle_pgxp` (L5741) — pgxp — live-tune the value-propagation engine for one-toggle isolation runs without a rebuild: {"cmd":"pgxp","cpu_mode":0|1,"tolerance":F, "position_fallback":0|1,"preserve_projection":0|1,"culling":0
-- `handle_ws_backdrop_images` (L5806) — {"cmd":"ws_backdrop_images"}: the backdrop images of the last linked list (gpu.c, gpu_ws_set_backdrop_images): extent, primitives, stretch share q (0 = as it is, 255 = the full stretch), filled sides
-- `handle_gpu_state` (L5816) — Handles gpu_state: reports the GPU display area, the status register and the CRTC debug values.
-- `handle_ws_aspect_cone_site` (L5919) — Handles ws_aspect_cone_site: reports the widescreen aspect-cone debug data for one code address.
-- `handle_mem_words` (L5947) — Handles mem_words: returns 32-bit words of guest memory starting at a hex address.
-- `handle_cycles_to_next_event` (L5984) — Precise-event-slicing validation: report the cycle distance to the next deliverable interrupt, broken down per source.
-- `handle_core_rates` (L6004) — core_rates: cumulative counts of the emulation core's per-event work, to be differenced over a window (tools: per VBlank): device services and MMIO syncs, the out-of-line interrupt checks (block edges
-- `handle_spu_shadow` (L6058) — spu_shadow: the float SPU shadow's verifier (spu_shadow.h): whether it ever substitutes (proven) and whether it gave up (never proven in time).
-- `handle_vram_drawn_check` (L6072) — vram_drawn_check: gpu_vram_peek's cells against a renderer read (gpu.h).
-- `handle_irq_state` (L6081) — Handles irq_state: reports the interrupt status, mask, pending bits and the COP0 status fields.
-- `handle_vblank_rate` (L6103) — vblank_rate: report the ONE cycle-paced VBlank authority's raise/deliver counts, the (normally-off) GPUSTAT-poll fallback raise count, and the per-frame GP0(E5) draw-offset-Y range/count.
-- `handle_timers_state` (L6129) — Handles timers_state: reports counter, mode, target and IRQ line of the three root counters.
-- `cdrom_trace_kind_name` (L6150) — GPU opcode counter — defined in gpu.c
-- `handle_cdrom_state` (L6173) — Handles cdrom_state: reports the CD-ROM controller state, such as disc presence, index and status byte.
-- `handle_cdrom_sector_dump` (L6223) — Handles cdrom_sector_dump: returns a slice of the last CD sector as hex, from an offset with a length of at most 2340 bytes.
-- `append_hex_bytes` (L6268) — Writes len bytes as two-digit hex text into a bounded buffer and advances the position.
-- `handle_cdrom_sector_history` (L6276) — Handles cdrom_sector_history: returns recent CD sector reads, optionally filtered by LBA, up to the requested count.
-- `handle_cdrom_sector_history_clear` (L6337) — Handles cdrom_sector_history_clear: empties the CD sector history and replies ok.
-- `cdrom_command_kind_name` (L6344) — Maps a CD-ROM command kind ('C' exec, 'Q' queued) to its name.
-- `handle_cdrom_command_history` (L6353) — Handles cdrom_command_history: returns recent CD-ROM commands, optionally filtered by frame range, up to the requested count.
-- `handle_cdrom_command_history_clear` (L6428) — Handles cdrom_command_history_clear: empties the CD command history and replies ok.
-- `handle_cdrom_trace_clear` (L6435) — Handles cdrom_trace_clear: empties the CD-ROM trace and replies ok.
-- `handle_cdrom_trace_dump` (L6442) — Handles cdrom_trace_dump: returns recent CD-ROM trace entries, optionally filtered by frame range.
-- `dma_trace_kind_name` (L6502) — Maps a DMA trace kind code ('S' start, 'C' complete, 'W' write) to its name.
-- `handle_dma_state` (L6512) — Handles dma_state: reports the DMA channel state as JSON.
-- `handle_dma_trace_clear` (L6587) — Handles dma_trace_clear: empties the DMA trace and replies ok.
-- `handle_dma_trace_dump` (L6594) — Handles dma_trace_dump: returns recent DMA trace entries, up to the requested count.
-- `append_word_array` (L6639) — Appends a JSON array of 32-bit hex words to a bounded buffer at the running position.
-- `handle_dma_cdrom_history` (L6650) — Handles dma_cdrom_history: returns recent CD-ROM DMA transfers, optionally filtered by frame range.
-- `handle_a0_history` (L6728) — Handles a0_history: returns the recent GPU A0 (CPU to VRAM) transfer records in a heap buffer.
-- `handle_c0_history` (L6769) — Handles c0_history: returns the recent GPU C0 (VRAM to CPU) read records and the total count.
-- `handle_gpu_opcodes` (L6790) — Handles gpu_opcodes: reports the non-zero GP0 opcode counts.
-- `handle_gpu_ring_stats` (L6809) — Handles gpu_ring_stats: reports the GP0 ring total, capacity, word limit and oldest and newest frame.
-- `handle_gpu_frame_dump` (L6823) — Handles gpu_frame_dump: returns the GP0 command words recorded for one frame, up to count entries.
-- `handle_capture_quads` (L6877) — Handles capture_quads: arms capture of the next shaded quads and replies ok.
-- `handle_get_quads` (L6884) — Handles get_quads: returns the captured shaded quad primitives.
-- `handle_gte_state` (L6906) — Handles gte_state: returns the GTE execution count and the 32 GTE control registers.
-- `handle_gte_ring_dump` (L6930) — Dump recent GTE RTPS/RTPT projections (inputs + outputs) from the always-on GTE ring.
-- `handle_gte_intpl_dump` (L6960) — INTPL (vertex-lerp) ring: inputs (ir0 blend, in=IR1-3 pose A, fc=pose B) and outputs (mac / out=IR1-3 / flag) per op.
-- `handle_gte_frame_stats` (L6988) — Per-frame GTE projection stats (nproj / nsat / nflat) over recent frames — shows the alternating flat/normal render pattern.
-- `handle_gte_latch_dump` (L7003) — Latched degenerate (saturated-output) GTE projections with full inputs.
-- `handle_sio_state` (L7018) — Handles sio_state: reports the serial port (SIO) memory-card probe, command and read counters.
-- `json_escape_string` (L7074) — ---- Memory card disk-load status (per-slot) ----
-- `handle_mc_status` (L7102) — Handles mc_status: reports each memory card slot's presence, dirty flag and disk-load status.
-- `handle_spu_status` (L7129) — Handles spu_status: reports the SPU state, including the DSP fidelity state (IRQ, reverb, noise and sweeps).
-- `handle_spu_voices` (L7197) — ---- Per-voice SPU snapshot.
-- `handle_spu_ram` (L7262) — ---- SPU RAM peek: {"addr":N,"len":M} -> hex bytes.
-- `handle_spu_events` (L7281) — ---- SPU event ring dump.
-- `handle_spu_events_reset` (L7332) — Handles spu_events_reset: clears the SPU event ring and replies ok.
-- `handle_audio_stats` (L7353) — Handles audio_stats: reports the audio trace statistics, such as buffer fill, target latency, correction and underruns.
-- `handle_audio_turbo` (L7418) — Handles audio_turbo: optionally sets the turbo audio mode, then reports the grain, ratio and jump counters.
-- `handle_audio_turbo_kons` (L7442) — audio_turbo_kons: the last 256 key-ons mode 2 saw, each voice | music<<7 | start address (bytes) << 8 (audio_music.c g_am_kon).
-- `handle_audio_wav` (L7456) — Handles audio_wav: writes the recorded samples of a chosen audio tap to a WAV file at the given path.
-- `handle_audio_events` (L7489) — Handles audio_events: returns recent audio trace events, up to 8192, read into a heap array.
-- `handle_pace_state` (L7546) — Phase 1.0c-v2 telemetry: cycle-paced SIO state snapshot.
-- `handle_sio_burst_stats` (L7585) — Handles sio_burst_stats: reports serial burst counters and the reason the last burst ended.
-- `handle_sio_arm_audit` (L7606) — Handles sio_arm_audit: reports the memory-card arm audit per device (card, pad, none) and the countdown after the last card access.
-- `handle_card_buffer_dump` (L7627) — ---- Memory card raw buffer dump (in-memory cards[].data) ---- Used by the audit harness to verify that what the runtime loaded matches the on-disk file byte-for-byte.
-- `handle_imask_trace` (L7676) — Handles imask_trace: returns recent interrupt-mask writes, optionally only those at address 0xB7C.
-- `handle_card_handoff` (L7712) — Post-probe SIO/INTC handoff; records hardware state, not game RAM.
-- `handle_sio_trace` (L7745) — Handles sio_trace: returns the most recent serial port (SIO) trace entries, up to the requested count.
-- `handle_sio_trace_window` (L7788) — Handles sio_trace_window: returns SIO trace entries around one sequence number, with before and after context.
-- `txn_end_reason_str` (L7844) — ---- Card transaction ring dump ---- Returns the most recent N closed transactions plus the live (open) txn if there is one.
-- `emit_card_txn_json` (L7857) — Writes one memory-card transaction as JSON: slot, command, sector, byte counts, end reason and transferred bytes.
-- `emit_evcb_snapshot_json` (L7889) — ---- EvCB ring TCP cmds ---- evcb_snapshot — one-shot read of current EvCB table from RAM evcb_walk_dump — recent always-on snapshots (paired entry + exit per DeliverEvent call) evcb_walk_stats — coun
-- `handle_evcb_snapshot` (L7916) — Handles evcb_snapshot: takes a one-shot snapshot of the event control block table from RAM without adding it to the ring.
-- `handle_evcb_walk_dump` (L7957) — Handles evcb_walk_dump: returns the most recent event control block entry and exit records, up to the requested count.
-- `handle_evcb_walk_stats` (L7983) — Handles evcb_walk_stats: reports the event control block entry, exit and unwind counts and the ring capacity.
-- `sio_irq_src_str` (L8003) — ---- SIO IRQ ring dump ---- Returns the most recent N IRQ #7 fires with timing/source/state context.
-- `handle_sio_irq_dump` (L8011) — Handles sio_irq_dump: returns recent serial IRQ 7 events, optionally filtered by source.
-- `handle_sio_irq_window` (L8054) — Handles sio_irq_window: returns serial IRQ events around one byte sequence number, optionally filtered by source.
-- `handle_card_txn_dump` (L8100) — Handles card_txn_dump: returns recent memory-card transactions, optionally for one slot.
-- `handle_card_read_summary` (L8143) — Handles card_read_summary: reports a summary of the memory-card read operations.
-- `handle_card_read_summary_reset` (L8180) — Handles card_read_summary_reset: clears the memory-card read summary and replies ok.
-- `handle_card_data_writes` (L8187) — Handles card_data_writes: returns recent memory-card data write records, up to the requested count.
-- `handle_card_data_writes_reset` (L8228) — Handles card_data_writes_reset: clears the memory-card data write records and replies ok.
-- `handle_watch` (L8235) — Handles watch: arms a memory watchpoint at a hex address so that writes to it are reported.
-- `handle_unwatch` (L8256) — Handles unwatch: removes the memory watchpoint at a hex address.
-- `clamp_u8_arg` (L8286) — Clamps an int argument to the 0 to 255 range, or returns the default when the argument is negative.
-- `handle_set_input` (L8291) — Handles set_input: overrides the emulated controller's buttons, sticks, pad type and connection state.
-- `debug_server_get_trigger_override` (L8351) — Returns 1 and the left and right trigger values when a trigger override is active, otherwise 0.
-- `handle_press` (L8359) — Handles press: holds the given pad buttons for a number of frames by setting an input override.
-- `handle_rewind_status` (L8404) — Local Rewind: enabled, panel open, title block (psx_mod_set_rewind_blocked) and the snapshots held, so scripted runs can check capture and opening.
-- `handle_pad_status` (L8415) — Handles pad_status: reports the current button and stick state of both controller ports.
-- `clear_input_overrides` (L8454) — port: 0 = both, 1 or 2.
-- `handle_clear_input` (L8477) — Handles clear_input: removes the input overrides for a port (0 means both) and replies ok.
-- `handle_input_route_clear` (L8483) — Handles input_route_clear: empties the scripted input route and replies ok.
-- `handle_input_route_append` (L8493) — Handles input_route_append: adds one step, buttons held for a number of frames, to the scripted input route.
-- `handle_input_route_start` (L8516) — Handles input_route_start: starts playback of the scripted input route, refusing an empty route.
-- `handle_input_route_stop` (L8537) — Handles input_route_stop: stops input route playback and replies ok.
-- `handle_input_route_status` (L8545) — Handles input_route_status: reports whether the input route is active, with its step count, index and remaining frames.
-- `handle_netplay_status` (L8563) — Live A/B for the native-wide HUD corner gate: {"cmd":"ws_hud_mode","tag_rects":0|1} tag_rects=1 lets TAGGED rect-family prims re-anchor too (Tomba's AP counter renders through the tagged sprite funnel
-- `handle_host_launch_timings` (L8587) — Startup host work recorded before TCP was initialized; always-on, read-only.
-- `handle_mod_counters` (L8632) — Handles mod_counters: reports the counters kept by loaded mods, with their names, counts and last frames.
-- `handle_resident_status` (L8672) — Resident disc packs prepared by seamless-loading adapters (mod_resident.h): {"cmd":"resident_status"} -> packs: [{title, format, state, error, path, files, modified, derived, blobs, bytes, ms}]
-- `handle_resident_events` (L8700) — Always-on resident-loading service ring (psx_resident_record): {"cmd":"resident_events","frame_lo":a,"frame_hi":b,"count":n} -> total, capacity, entries [{seq, frame, cycle, op, file, lba, bytes, serv
-- `handle_ws_hud_mode` (L8731) — Handles ws_hud_mode: sets whether tagged rectangle HUD elements re-anchor in native-wide mode.
-- `handle_ws_tag_stats` (L8744) — Explicit HUD-anchor / background tag pipeline counters (always on): {"cmd":"ws_tag_stats"} -> hud / background: tag_calls, tag_rejected, hit, stale, guard_mismatch, last_tag_frame, last_hit_frame.
-- `handle_kernel_bless` (L8771) — Kernel-image bless state: {"cmd":"kernel_bless"} -> entries/clean/mismatch/native_hits/verifies/invalidations, plus the declared kernel patch ranges and the segments they made the verifier skip (psx_b
-- `handle_ws_margin` (L8787) — Handles ws_margin: sets or clears the native-wide X margin override and reports the resulting margin.
-- `handle_synth_recurse` (L8809) — frame_perf: per-frame GPU/CPU phase timing (gpu_gl_renderer.c frame_perf ring).
-- `handle_bloom` (L8829) — post_aa: post-process anti-aliasing, live.
-- `handle_post_shader` (L8849) — post_shader: {"cmd":"post_shader","path":"x.pfx"} sets the [video] post_shader chain live ("" = none; an env override still wins); {"cmd":"post_shader"} reads whether one is loaded.
-- `handle_marks_lean` (L8862) — extra_shader: {"cmd":"extra_shader","slot":0,"path":"x.pfx"} sets one of the extra file-chain slots live ("" = none), e.g.
-- `handle_extra_shader` (L8874) — Handles extra_shader: sets the shader file path for one extra post-process slot.
-- `handle_shadow_cache` (L8888) — post_uniform: {"cmd":"post_uniform","uniform":"u_x","v":"a b c d"} sets a file-chain uniform live (1..4 floats; every pass that declares it).
-- `sun_area_json` (L8913) — sun_area: the light per area (gpu_shadow_light_set), for a tool that tunes it while the game runs.
-- `handle_sun_area` (L8921) — Handles sun_area: reads or sets the sun light for the current or a given area, including the time of day (night, day or auto).
-- `handle_area_lights` (L8980) — area_lights: the lights placed by hand per area (area_lights.h), for a tool that places them while the game runs.
-- `handle_sprite_dump` (L9053) — sprite_dump: the foot points and 2D pieces of the picture on screen (sprite shadows, gl_renderer_sprite_dump_json).
-- `handle_shadow_hide` (L9066) — postfx_timing: {"on":1,"reset":1} starts measuring; {} reads the means (GPU microseconds per stage and pass of the post-effect chains).
-- `handle_postfx_cuts` (L9089) — postfx_cuts: {"on":0} draws the effects the old way (every stage from a copy of the window, the mask cleared by a quad), {"on":1} back; {} reads.
-- `handle_postfx_timing` (L9098) — Handles postfx_timing: turns post-effect GPU timing on or off, optionally resets it, and reports the mean times.
-- `handle_post_uniform` (L9106) — Handles post_uniform: sets a named uniform of the post-process chain to up to four float values.
-- `handle_post_aa` (L9124) — Handles post_aa: optionally sets the post-process anti-aliasing mode, then reports mode, pass count and GPU time.
-- `handle_fmv_chroma` (L9135) — fmv_chroma: {"cmd":"fmv_chroma"} reads, {"cmd":"fmv_chroma","on":0|1} sets [video] fmv_chroma_smoothing live.
-- `hdr_json_float` (L9153) — hdr: {"cmd":"hdr"} reads the HDR output state (PSX_HDR, gl_hdr.inc): float buffer, the display's SDR white and headroom as SDL reports them, the paper white and peak in use, the boost and the last pro
-- `handle_hdr` (L9166) — Handles hdr: reports the HDR output state, with an optional probe string.
-- `handle_fmv_enhance` (L9192) — fmv_enhance: {"cmd":"fmv_enhance"} reads, {"cmd":"fmv_enhance","on":0|1} sets [video] fmv_enhance live.
-- `handle_texture_lod` (L9208) — texture_lod: {"cmd":"texture_lod"} reads, {"cmd":"texture_lod","mode":0|1, "aniso":1..16} sets [video] texture_lod / anisotropic_filtering live.
-- `handle_accurate_blending` (L9221) — accurate_blending: {"cmd":"accurate_blending"} reads, {"cmd": "accurate_blending","on":0|1} sets [video] accurate_blending live.
-- `handle_texture_filter` (L9234) — texture_filter: {"cmd":"texture_filter"} reads, {"cmd":"texture_filter", "mode":0..10} sets it live (PSX_TEXTURE_FILTER_*: the world, and sprites and UI where they follow it); {"class":0|1|2,"filter":
-- `handle_dithering` (L9255) — dithering: {"cmd":"dithering"} reads, {"cmd":"dithering","mode":0|1|2} sets [video] dithering live (0 off, 1 on = native grid, 2 fine).
-- `handle_frame_perf` (L9262) — Handles frame_perf: reports the per-frame GPU and CPU phase timings, optionally turning on textured batch timing.
-- `handle_batch_sites` (L9319) — batch_sites: cumulative non-empty batch flushes by caller line in gpu_gl_renderer.c, "tex" and "flat" as [line,count] pairs.
-- `handle_gl_ws_ablate` (L9342) — gl_ws_ablate mode=<0..3>: native-wide mirror ablation for perf attribution.
-- `handle_gl_interp` (L9349) — Handles gl_interp: reports the GL interpolation state (enabled, suspended and history).
-- `handle_render_pass_stats` (L9375) — render_pass_stats: host-timed render passes (docs/RENDER_PASSES.md).
-- `handle_render_pass_refuse` (L9501) — render_pass_refuse on=<0|1>: make the OpenGL backend decline render passes (status BACKEND), as a renderer mode without them would; for testing a plugin's fallback.
-- `handle_openxr_stats` (L9509) — Handles openxr_stats: reports the OpenXR runtime state, frame and submission counters and the last failure details.
-- `handle_openxr_views` (L9534) — Handles openxr_views: reports the predicted time and the submitted views for both eyes.
-- `handle_openxr_control` (L9558) — Handles openxr_control: optionally recenters or enables OpenXR, then replies with the OpenXR stats.
-- `handle_openxr_input` (L9566) — Snapshot only: querying never syncs actions or consumes a controller sample.
-- `handle_openxr_hands` (L9582) — Read-only controller poses from the eye frame's predicted time.
-- `handle_openxr_hands_override` (L9610) — Handles openxr_hands_override: sets or clears a simulated grip or aim pose for one hand, for tests.
-- `handle_openxr_input_override` (L9682) — Handles openxr_input_override: sets or clears simulated OpenXR focus and controller activity, for tests.
-- `handle_stereo_stats` (L9723) — Handles stereo_stats: reports stereo rendering statistics and the captured stereo records.
-- `handle_stereo_dump` (L9776) — Bounded PNG evidence capture.
-- `handle_render_pass_dump` (L9788) — render_pass_dump path=<dir> count=<n>: write the images (the game's own frame, then each render pass in phase order) of the next n frames that get render passes, as <dir>/g<frame>_<index>_a<phase q16>
-- `handle_gl_wide_fast` (L9803) — Handles gl_wide_fast: optionally sets the wide fast path on or off and reports its state.
-- `handle_gl_texwin_batch` (L9816) — Handles gl_texwin_batch: optionally sets texture-window batching on or off and reports its state.
-- `handle_ws_aspect` (L9828) — Handles ws_aspect: sets the display aspect ratio the GTE uses for native-wide rendering, live.
-- `handle_display_aspect` (L9838) — Handles display_aspect: sets the debug display aspect ratio (4:3 or wider), with an optional adaptive mode.
-- `handle_window_size` (L9848) — Handles window_size: resizes the game window to the given width and height, within 64 to 16384.
-- `handle_debug_key` (L9861) — Handles debug_key: sends a debug hotkey (digits 0 to 9 or F10 to F12) to the game and returns its message.
-- `handle_host_pause` (L9874) — Handles host_pause: pushes or pops a host pause and replies with the pause depth.
-- `handle_menu_host` (L9887) — Handles menu_host: returns the host menu state as JSON.
-- `handle_host_key` (L9897) — Handles host_key: sends a named key press, release or both to the host.
-- `handle_host_mouse` (L9911) — Handles host_mouse: sends a mouse button press, release, move or wheel event to the host.
-- `handle_ws_nw` (L9925) — Handles ws_nw: turns native-wide mode on or off and sets its projection correction, then reports the corrected vertex count.
-- `handle_scanline` (L9950) — Handles scanline: turns the scanline overlay on or off and sets its strength in percent, then reports the state.
-- `handle_ws_backdrop_ring` (L9967) — ws_backdrop_ring: dump the always-on auto_backdrop rewrite ring (which windows fire, live extent/DL-count, orig vs final bound).
-- `handle_ws_ui_groups` (L9992) — ws_ui_groups: dump the auto_ui_squash partition for the last UI prepass — per primitive its op / key / raw key inputs (y, h, derived band and family) / union-find root / final anchor.
-- `handle_ws_backdrop_margin` (L10008) — ws_backdrop_margin [m=<N>]: live-tune the far-backdrop widen strategy without a rebuild.
-- `handle_ws_backdrop_stretch` (L10022) — ws_backdrop_stretch [on=0/1] [pct=N] [thresh=N]: live-tune the native-wide 2D-backdrop x-stretch (GL renderer).
-- `handle_ws_dbg_stretch` (L10048) — prim<->pixel correlation gate (ws_dbg_stretch).
-- `handle_ws_far_threshold` (L10080) — Handles ws_far_threshold: optionally sets the far depth threshold and reports the depth statistics.
-- `handle_ws_dome` (L10095) — Handles ws_dome: turns dome vertex expansion on or off for a given aspect ratio.
-- `handle_ws_dome_probe` (L10110) — Handles ws_dome_probe: arms the dome probe and returns the functions it hit, with their counts and max depths.
-- `handle_ws_census` (L10132) — Handles ws_census: starts, stops or dumps the widescreen primitive census.
-- `handle_mmx6_freshfix` (L10151) — Handles mmx6_freshfix: toggles the MMX6 fresh-fix widescreen option and reports its validation results.
-- `handle_savestate` (L10171) — Save-state save/load via the debug server.
-- `handle_savestate_status` (L10218) — Deterministic harness receipt: unlike the savestate acknowledgement above, this reports the safe-boundary completion generation after savestate_poll has actually applied or rejected the request.
-- `handle_boot_state_stats` (L10229) — EST-17: timings and rejects of the latest boot_state load (was a stderr line per load).
-- `handle_interp_faults` (L10249) — Oracle interpreter faults (NULL jump, unknown COP0/COP2); zeros in the native build, which links stub_interpreter.c.
-- `handle_snapshot_status` (L10261) — Handles snapshot_status: reports whether a callback is active, the host call depth and whether a snapshot is safe now.
-- `handle_turbo` (L10273) — Handles turbo: sets turbo mode on or off from the enabled or on field.
-- `handle_turbo_state` (L10287) — Handles turbo_state: reports whether turbo mode is enabled.
-- `handle_pause` (L10315) — pause / continue / step / run_to_frame: REMOVED.
-- `handle_continue` (L10320) — Replies with an error, because the continue command has been removed.
-- `handle_step` (L10325) — Replies with an error, because the step command has been removed.
-- `handle_run_to_frame` (L10330) — Replies with an error, because the run_to_frame command has been removed.
-- `handle_dirty_break_range` (L10335) — Handles dirty_break_range: arms a break on dirty-RAM writes within a hex address range.
-- `handle_dirty_break_clear` (L10370) — Handles dirty_break_clear: disarms the dirty-RAM break and replies ok.
-- `handle_dirty_break_state` (L10377) — Handles dirty_break_state: reports whether the dirty break is armed, its range, hit count and the registers at the last hit.
-- `handle_history` (L10398) — Handles history: reports the frame history count with the oldest and newest frames still kept.
-- `handle_get_frame` (L10410) — Handles get_frame: returns the saved state of one frame from the frame history, if that frame is still kept.
-- `handle_frame_range` (L10463) — Handles frame_range: returns frame history entries for a start to end span, at most 200 frames.
-- `handle_frame_timeseries` (L10508) — Handles frame_timeseries: returns a per-frame series over a start to end span, at most 200 frames.
-- `handle_first_failure` (L10553) — Handles first_failure: scans the frame history for the first frame that recorded a failure and reports it.
-- `handle_read_frame_ram` (L10571) — Handles read_frame_ram: reads guest RAM bytes at an address from a recorded frame in the history.
-- `handle_set_snapshot` (L10617) — Handles set_snapshot: stores a RAM address in one of the four snapshot slots.
-- `handle_get_snapshots` (L10633) — Handles get_snapshots: reports the four RAM snapshot slots with their addresses and active state.
-- `disp_ring_capture` (L10701) — Captures the current displayed VRAM into the display ring, unless continuous capture has been turned off.
-- `handle_display_ring_aux` (L10747) — Dump an entry's full-VRAM capture as a raw little-endian u16 blob (1024x512 row-major).
-- `handle_display_ring_stats` (L10769) — Handles display_ring_stats: reports the oldest and newest captured frames and the number of valid entries.
-- `handle_display_ring_get` (L10787) — Handles display_ring_get: writes the captured display frame for a given frame number to the given path.
-- `handle_screenshot_file` (L10823) — Handles screenshot_file: saves the current display area to an image file, or replies with an error when the display is disabled.
-- `handle_screenshot_hires` (L10887) — screenshot_hires — capture the SUPERSAMPLED surface, not native VRAM.
-- `handle_hd_textures` (L10978) — video_info — the Internal resolution state end to end: the preset and its reference height, the scale requested of the backend, the scale the GL hr surface was actually allocated at (after the driver/
-- `handle_dynres` (L11044) — Dynamic internal resolution ([video] dynamic_resolution; docs/TCP_COMMANDS.md).
-- `handle_dynres_force` (L11055) — dynres_force {"scale":N}: pin the level (clamped to floor..ceiling); {"scale":0} releases the pin.
-- `dynres_vram_hash` (L11066) — FNV-1a over the guest-visible VRAM (the CPU array after a GL sync).
-- `handle_dynres_check` (L11082) — dynres_check {"seq":"9,8,3,10"}: hash the guest-visible VRAM, step through seq inside this one handler (no guest code runs in between), hash after each step, then step back to the level it started at.
-- `handle_video_info` (L11115) — Handles video_info: reports the internal resolution state, its preset and scale, and the window and pixel sizes.
-- `handle_screenshot_wide_hires` (L11159) — screenshot_wide_hires — the displayed band of the native-wide surface at internal resolution (GL): wide_w*S x h*S.
-- `handle_present_shot` (L11227) — present_shot — PNG of the COMPOSED renderer output: the frame after SDL fits the display buffer into the logical surface, i.e.
-- `handle_present_shot_seq` (L11248) — present_shot_seq — completion counter for the staged capture above.
-- `handle_host_osd_shot` (L11259) — Capture host text independently of a visible present surface.
-- `handle_dump_buffer` (L11289) — dump_buffer: dump a raw 512x240 VRAM region starting at display Y = 'y' to a PNG, regardless of what the game currently displays.
-- `write_wide_png` (L11333) — wide_shot: capture the NATIVE-WIDE present surface (post-compositor, what the window actually shows in 16:9) to a PNG — unlike screenshot_file, which dumps the canonical 320 VRAM region (pre-composito
-- `handle_wide_shot` (L11386) — Handles wide_shot: saves the native-wide presented surface to a PNG at the given path, defaulting to psx_wide.png.
-- `debug_server_write_wide_picture` (L11401) — The bug report's PSX picture (bug_report.c): the presented native-wide surface, 0 when none is (the report then reads the display area).
-- `handle_bug_report` (L11414) — Player bug reports (bug_report.h), for tests without a keyboard: {"cmd":"bug_report","op":"status"|"open"|"save"|"discard"} {"cmd":"bug_report","op":"text","chars":"..."} typed text {"cmd":"bug_report
-- `debug_server_capture_mark` (L11431) — Operator capture mark.
-- `handle_render_thread` (L11451) — Render thread ([video] render_thread, docs/RENDER_THREAD.md): {"cmd":"render_thread"} -> active, held, frames produced/consumed, presents (and stale presents skipped), sync points (acquires) with the
-- `handle_sgl` (L11463) — The renderer on SDL_GPU ([video] renderer = "sdl_gpu", docs/SDL_GPU_RENDERER_PLAN.md): {"cmd":"sgl"} -> implementation, device, cached pipelines and counters (draws, render passes, uploads, copies, bl
-- `handle_frame_gen` (L11488) — Smooth motion (frame generation; [video] frame_generation, docs/FRAME_GENERATION.md): {"cmd":"frame_gen"} -> enabled, active, generated / real presents, flips, the last plan (in-between frames per gam
-- `handle_perf_summary` (L11511) — Handles perf_summary: returns the performance meter summary as JSON.
-- `handle_perf_frames` (L11525) — perf_frames: {"since":N} -> the perf meter's records from N (perf_meter.h), each [seq, frame, wall, game, gpu_emu, present, audio, wait, debug, vblank, render_cpu, gpu, gpu_post, render_frames, gpu_fr
-- `handle_present_image_ring_stats` (L11539) — Presented-image ring (see present_image_ring.h): {"cmd":"present_image_ring_stats"} -> oldest, newest, count, frozen {"cmd":"present_image_ring_get","frame":N,"path":"x.png"}
-- `handle_present_image_ring_get` (L11551) — Handles present_image_ring_get: saves a presented image from the ring, chosen by frame or sequence, to the given path.
-- `handle_capture_mark` (L11582) — {"cmd":"capture_mark","op":"status"|"mark"|"release"} status -> frozen, mark_frame, count, wide_path/wide_ok, and the frozen display-ring / GP0-ring frame spans to query.
-- `handle_present_screenshot` (L11617) — screenshot: capture what the player is actually being shown.
-- `handle_wide_full` (L11632) — wide_full: dump the ENTIRE active wide compositor surface (both double-buffer y-bands, full width incl.
-- `handle_vram_peek` (L11679) — Handles vram_peek: returns a rectangle of 16-bit VRAM pixels at x and y, with the given width and height.
-- `handle_gl_fbo_peek` (L11709) — Handles gl_fbo_peek: returns a rectangle of VRAM pixels read back from the GL framebuffer, with the given position and size.
-- `handle_gl_vram_diff` (L11744) — Handles gl_vram_diff: compares GL VRAM with the CPU copy and reports the changed bounds and sample pixels.
-- `gl_coh_kind_name` (L11769) — GL-backend coherency event ring: dump the last n events (default 200), optionally only events from frame >= frame_min.
-- `handle_gl_coh_ring` (L11787) — Handles gl_coh_ring: returns recent GL coherency events, optionally only from a minimum frame.
-- `handle_gl_present_ring` (L11825) — Handles gl_present_ring: returns recent GL present records, with the path each present took (vram, wide, cpu, blank, interp, stereo).
-- `handle_present_phase` (L11859) — Presents held to the screen's refresh grid (present_phase.h): {"cmd":"present_phase"}
-- `handle_present_ring` (L11876) — Present-classification ring (all backends; see present_ring.h): how each present was classified — 4:3 pillarbox / native-wide / canonical — and whether a native-wide present fell back to the canonical
-- `handle_nclip_stats` (L11916) — Precise-NCLIP attribution (gte_nclip_stats.h).
-- `handle_gpu_timeline` (L11957) — GPU frame timeline (gpu_timeline.h): cycle-ordered vblank / flip / draw-area / linked-list DMA / present events.
-- `wtrace_fill_entry` (L11994) — Fills one write-trace entry with the address, old and new values, width, return address and the DMA context.
-- `capture_frozen` (L12044) — Returns 1 once the capture freeze frame has been reached, so the write trace stops recording.
-- `wtrace_record` (L12049) — Records a RAM write in the main write trace ring, unless capture is frozen.
-- `wtrace_boot_record` (L12058) — Records a RAM write in the boot trace when its address falls inside one of the boot ranges.
-- `wtrace_all_record` (L12079) — Always-on catch-all recorder.
-- `wtrace_transition_record` (L12093) — Records a RAM write that changes a value, when its address falls inside a transition range.
-- `debug_server_log_call_entry_cpu` (L12132) — Compat no-op: ape-flavored generated code emits debug_server_log_call_entry_cpu at JAL sites (call-entry logging).
-- `is_card_critical_addr` (L12148) — Returns 1 when a physical address is one of the memory-card critical addresses, such as the card event control blocks.
-- `card_trace_record` (L12159) — Records a write to a memory-card critical address with its old and new values, PC, return address and function.
-- `handle_card_trace_dump` (L12172) — Handles card_trace_dump: returns recent memory-card critical writes, optionally filtered by an address range, up to count.
-- `debug_server_trace_write_check` (L12213) — Multi-range check called from memory.c write paths.
-- `debug_server_trace_mmio_write` (L12251) — MMIO write trace — called from memory.c mmio_write32/16/8.
-- `debug_server_trace_mmio_read` (L12300) — MMIO read trace — called from memory.c mmio_read32/16/8 wrappers AFTER the value is computed.
-- `handle_wtrace_range` (L12341) — Handles wtrace_range: sets write-trace slot 0 to the given address range and clears the other slots.
-- `handle_wtrace_add` (L12356) — Handles wtrace_add: adds a write-trace address range in a free slot, up to eight ranges.
-- `handle_wtrace_del` (L12371) — Handles wtrace_del: removes the write-trace range in the given slot and shifts the remaining ranges down.
-- `handle_wtrace_disarm_all` (L12386) — Normalized verb: disarm every range in one shot.
-- `handle_wtrace_ranges` (L12393) — Handles wtrace_ranges: lists the active write-trace address ranges.
-- `cyc_watch_arm` (L12417) — Arm cyc_watch: clear the ring, mask the anchor(s) to physical, start recording.
-- `handle_cyc_watch` (L12440) — cyc_watch — arm an anchor PC.
-- `handle_cyc_watch_dump` (L12461) — cyc_watch_dump — return the recorded ring as JSON.
-- `handle_cyc_watch_clear` (L12489) — cyc_watch_clear — disarm and zero the ring.
-- `handle_pc_probe_arm` (L12506) — pc_probe_arm — {"pcs":"0xA,0xB", "n":32, "nd_intro":1..5} or empty pcs+nd_intro.
-- `handle_pc_probe_dump` (L12532) — Handles pc_probe_dump: reports whether the PC probe is armed, how many PCs it watches, and the samples per slot.
-- `handle_pc_probe_clear` (L12572) — Handles pc_probe_clear: clears the PC probe state and replies ok.
-- `handle_irq_exc_stats` (L12598) — irq_exc_stats: cumulative per-source exception accounting since boot (interrupts.c), with guest cycles from entry to exit restore.
-- `handle_dma_hold_stats` (L12626) — dma_hold_stats: cumulative totals for CPU holds on kicked GPU linked-list walks (dma.c), split by kicks made inside an exception handler.
-- `handle_dma_hold_ring` (L12643) — dma_hold_ring: newest 'count' held kicks (default 256, max ring cap), optionally windowed by frame_lo/frame_hi.
-- `handle_irqctx_ring` (L12683) — Handles irqctx_ring: returns recent interrupt delivery context records (DMA state, COP0 state) from the ring.
-- `handle_sp_ring` (L12743) — sp_ring — dump the always-on stack-domain transition ring (fntrace.c).
-- `handle_disp_ring` (L12774) — disp_ring — dump the always-on dispatch tail ring (fntrace.c).
-- `handle_freeze_check` (L12803) — Handles freeze_check: reports memory-card state and recent activity to help diagnose a freeze, over a window of records.
-- `handle_wtrace_stats` (L13046) — Handles wtrace_stats: reports the write-trace total, capacity, oldest and newest sequence and range count.
-- `handle_wtrace_clear` (L13058) — Handles wtrace_clear: empties the write trace and replies ok.
-- `handle_wtrace_boot_stats` (L13067) — Handles wtrace_boot_stats: reports boot write-trace totals, capacity, range count and the environment range parse status.
-- `handle_wtrace_boot_clear` (L13081) — Handles wtrace_boot_clear: empties the boot write trace and replies ok.
-- `handle_wtrace_boot_dump` (L13092) — Handles wtrace_boot_dump: returns boot write-trace entries, optionally filtered by an address range.
-- `handle_wtrace_boot_summary` (L13182) — Handles wtrace_boot_summary: summarizes the boot write trace by address, optionally within an address filter.
-- `handle_wtrace_all_stats` (L13331) — Handles wtrace_all_stats: reports the catch-all write trace totals, capacity and sequence range.
-- `handle_wtrace_all_reset` (L13343) — Handles wtrace_all_reset: empties the catch-all write trace and replies ok.
-- `handle_wtrace_all_dump` (L13354) — Handles wtrace_all_dump: returns catch-all write trace entries, optionally filtered by an address range.
-- `handle_wtrace_trans_stats` (L13413) — Handles wtrace_trans_stats: reports the transition write-trace totals, capacity, range count and sequence range.
-- `handle_wtrace_trans_reset` (L13428) — Handles wtrace_trans_reset: empties the transition write trace and replies ok.
-- `handle_wtrace_trans_dump` (L13439) — Handles wtrace_trans_dump: returns transition write-trace entries, optionally filtered by address range.
-- `handle_call_focus_stats` (L13525) — Handles call_focus_stats: reports the call-focus ring totals, capacity and sequence range.
-- `handle_call_focus_reset` (L13537) — Handles call_focus_reset: empties the call-focus ring and replies ok.
-- `handle_call_focus_dump` (L13547) — Handles call_focus_dump: returns recent call-focus records, the calls made to the focused functions.
-- `handle_wtrace_dump` (L13665) — Handles wtrace_dump: returns main write-trace entries, optionally filtered by an address range.
-- `handle_mmio_dump` (L13763) — Handles mmio_dump: returns MMIO trace entries, optionally filtered by address.
-- `handle_mmio_clear` (L13828) — Handles mmio_clear: empties the MMIO trace and replies ok.
-- `handle_capture_freeze` (L13841) — capture_freeze: freeze the deep high-traffic rings (wtrace RAM writes, MMIO read/write traces) at frame N so a post-window event storm cannot evict the causal window before a probe reads it.
-- `handle_rtrace_dump` (L13853) — ---- rtrace (MMIO-READ trace) command handlers ---- Field names of the dumped entries are a SUPERSET of the oracle's rtrace_dump (addr/val/pc/ra/frame/w common; func/cpu_pc/sr/epc/i_stat/i_mask extra)
-- `handle_rtrace_clear` (L13917) — Handles rtrace_clear: empties the MMIO read trace and replies ok.
-- `handle_rtrace_arm` (L13926) — Handles rtrace_arm: adds an MMIO read-trace address range in a free slot, up to the maximum number of ranges.
-- `handle_rtrace_ranges` (L13941) — Handles rtrace_ranges: lists the active MMIO read-trace address ranges.
-- `handle_rtrace_stats` (L13954) — Handles rtrace_stats: reports the MMIO read-trace totals, capacity, sequence range and range count.
-- `handle_gp1_dump` (L13971) — gp1_dump — dump the dedicated GP1 display-control ring.
-- `mdec_event_kind_name` (L14026) — Maps an MDEC event kind code (reset, ctrl_write, cmd_begin, cmd_done, decode_done) to its name.
-- `handle_mdec_state` (L14044) — Handles mdec_state: reports the MDEC decoder state: current command, expected and input counts, and output position.
-- `handle_fmv_state` (L14075) — fmv_state: report the RESOLVED FMV-skip + config state — the runtime truth for "is the FMV-skip feature on / what config actually loaded", so we observe instead of inferring from the .toml on disk.
-- `handle_mdec_trace` (L14108) — Handles mdec_trace: returns MDEC events in a sequence range, by default the last 256.
-- `handle_mdec_trace_clear` (L14157) — Handles mdec_trace_clear: empties the MDEC event trace and replies ok.
-- `handle_quit` (L14164) — Handles quit: replies ok, records the exit origin as tcp_quit, shuts the debug server down and exits the process.
-- `handle_dispatch_stats` (L14178) — dispatch_stats: static hit vs.
-- `handle_segment_misses` (L14203) — segment_misses: static game text entered at a PC whose physical word has a compiled row only in another segment (docs/SEGMENT_AWARE_CODE.md §5.5), kind "game": each ran interpreted.
-- `handle_dispatch_check` (L14247) — dispatch_check: check if a specific address was ever dispatched
-- `handle_dispatch_tail` (L14257) — dispatch_tail: dump the last N dispatched function addresses
-- `handle_card_mgr_trace` (L14278) — Handles card_mgr_trace: returns memory-card manager call records, paged by a before sequence, optionally newest first.
-- `handle_card_mgr_clear` (L14345) — Handles card_mgr_clear: empties the memory-card manager trace and replies ok.
-- `handle_fn_filter` (L14354) — Handles fn_filter: sets the function-trace address range from hex lo and hi values and turns function tracing on.
-- `handle_fn_disable` (L14365) — Handles fn_disable: turns function tracing off and replies ok.
-- `handle_fn_clear` (L14371) — Handles fn_clear: resets the function entry and exit rings and the shadow stack counters, then replies ok.
-- `handle_fn_stats` (L14388) — Handles fn_stats: reports function entry and exit totals, stack depth, unmatched returns, overflows, tail calls and the filter range.
-- `fn_dump_parse` (L14420) — Helper: parse filter / range / count for fn_*_dump.
-- `handle_fn_entry_dump` (L14442) — Handles fn_entry_dump: returns function entry records filtered by sequence and address range, up to a maximum count.
-- `handle_fn_entry_tail` (L14488) — Handles fn_entry_tail: returns the most recent function entry records, up to 256.
-- `handle_fn_exit_dump` (L14528) — Handles fn_exit_dump: returns function exit records filtered by sequence and address range, up to a maximum count.
-- `handle_cd_read_log` (L14576) — cd_read_log: dump the CD DMA transfer ring.
-- `handle_disc_select` (L14626) — disc_select: report the multi-disc roster, and optionally mount a different entry of it while the game runs.
-- `handle_cd_reinsert` (L14672) — cd_reinsert: run the tray open/close cycle on the SAME image, which is what the reinsert hotkey does.
-- `handle_cdrom_instant_rate` (L14686) — cdrom_instant_rate: get/set the 'instant' per-frame sector-IRQ budget (step 3 tunable).
-- `handle_cd_overwrite` (L14696) — CD response-overwrite (dropped-response) accounting — proves the instant-mode race: a new controller response clobbering an unacked one.
-- `handle_turbo_loads` (L14716) — turbo_loads: get/set the turbo-through-loads enable (step 4).
-- `handle_turbo_audio_sink` (L14732) — turbo_audio_sink: opt-in host-output discard while turbo loads run.
-- `handle_load_transitions` (L14748) — load_transitions: state-edge log for physical reads, the bridged logical load predicate, and host-side turbo pacing.
-- `handle_cdrom_bursts` (L14773) — cdrom_bursts: dump the always-on CD load-burst ring, newest first.
-- `handle_cdrom_timing` (L14800) — cdrom_timing: passive L1.5 physical deadline -> buffer -> INT1 exposure summary.
-- `handle_cdrom_timing_dump` (L14814) — cdrom_timing_dump: per-sector records from the L1.5 timing ring.
-- `handle_autocompile_status` (L14857) — autocompile_status: variant-capture automation state — autocapture enable/trigger counters + the background compile's state and output tail (in-memory ring; no log files).
-- `handle_autocompile_run` (L14916) — autocompile_run: manually kick the active code provider's batch production (gcc: spawn the configured background compile).
-- `handle_overlay_rescan` (L14927) — overlay_rescan: re-scan the DLL cache and clear the checked-regions memo so newly compiled DLLs load on the next dispatch.
-- `handle_overlay_capture_dump` (L14938) — overlay_capture_dump: flush overlay_captures.json on demand (does not require a clean window-close).
-- `handle_overlay_loader_status` (L14950) — overlay_loader_status: report the dynamic overlay DLL loader state — whether active, how many functions are registered, which regions have been checked, and the most recent load event.
-- `handle_overlay_candidates` (L15086) — overlay_candidates: dump the per-entry candidate table (addr, state, stored vs live code hash, generation) so reload-on-return can be inspected directly.
-- `handle_overlay_static_entries` (L15110) — overlay_static_entries: always-on per-entry dispatch counts of the build-time static overlay dispatcher (generated overlays_static.c).
-- `handle_overlay_native_ring` (L15179) — overlay_native_ring: dump the always-on ring of native overlay calls + the in-progress entry (freeze-inside-native detector).
-- `handle_overlay_diff_on` (L15198) — overlay_diff_on/off: same-state native↔interp differential.
-- `handle_overlay_diff_off` (L15205) — Handles overlay_diff_off: turns off the overlay native-versus-interpreter differential mode and replies ok.
-- `handle_overlay_shadow_dump` (L15212) — Handles overlay_shadow_dump: returns the overlay shadow-run comparison data as JSON.
-- `handle_overlay_shadow_detail` (L15221) — Handles overlay_shadow_detail: returns the detailed overlay shadow-run comparison as JSON.
-- `handle_overlay_irq_suppress_on` (L15234) — overlay_irq_suppress_on/off: drop native overlay code's per-block interrupt checks (cadence ~ interpreter) to test whether the parity divergence is interrupt-delivery timing rather than codegen.
-- `handle_overlay_irq_suppress_off` (L15241) — Handles overlay_irq_suppress_off: turns off the suppression of per-block interrupt checks in native overlay code and replies ok.
-- `handle_overlay_irq_ratelimit` (L15257) — overlay_irq_ratelimit <n>: arm native per-block interrupt checks at a rate-limited cadence — the real check fires every Nth block, the rest are dropped.
-- `handle_overlay_native_event_granularity` (L15272) — overlay_native_event_granularity <conservative|normal>: when conservative, psx_advance_cycles splits a batched (N>1) cycle advance into N single-cycle steps so device events fire at their true due-cyc
-- `handle_overlay_fp_dump` (L15288) — overlay_fp_dump: dump the native↔interp execution-fingerprint log (per candidate function: in/out register CRC, native flag) for offline diffing.
-- `handle_dirty_insn_gate` (L15301) — dirty_insn_gate <lo> <hi>: extra phys PC range the per-insn interp log records (on top of the hardwired kernel ranges).
-- `handle_insn_freeze` (L15314) — insn_freeze <addr> <nth>: freeze the insn ring immediately BEFORE the Nth candidate dispatch of phys <addr>, preserving the pre-divergence window.
-- `handle_insn_freeze_status` (L15328) — Handles insn_freeze_status: reports the instruction-freeze address, count, frozen flag and instruction log sequence.
-- `handle_s3_smear_watch` (L15351) — insn_freeze_target <target>: freeze the insn ring the instant an interpreted instruction transfers to (or falls through to) <target>.
-- `handle_callret_watch` (L15386) — callret_watch lo=<hex> hi=<hex> — arm the call-resolution ring (dirty_ram_interp.c): every interp JALR whose call PC lies in [lo,hi) records its resolution tier + full post-call outcome.
-- `handle_insn_freeze_target` (L15491) — Handles insn_freeze_target: sets the target address that freezes the instruction ring when reached, and unfreezes the log.
-- `handle_insn_freeze_snapshot` (L15508) — insn_freeze_snapshot: report the register file captured at the jr/jalr that hit the watched wild target (g_insn_freeze_on_target).
-- `handle_ra_load_watch` (L15538) — ra_load_watch <value>: arm/read capture of the instruction that sets $ra to <value> (the wild target).
-- `handle_event_ring_dump` (L15571) — event_ring_dump: write the whole live event-timeline ring (IRQ deliver/gate, I_STAT raises/changes, DMA kick/done, each tagged cycle/pc/func/mode/overlay) to a JSON file for offline diffing of native-
-- `handle_event_ring_tail` (L15584) — event_ring_tail: inline JSON tail of the most-recent N events for a quick eyeball / first-output validation (default 64).
-- `handle_event_ring_clear` (L15600) — event_ring_clear: reset the ring to isolate a fresh capture window.
-- `handle_overlay_native_on` (L15611) — overlay_native_on / overlay_native_off: toggle native overlay EXECUTION at runtime (validity tracking still runs).
-- `handle_overlay_native_off` (L15618) — Handles overlay_native_off: turns native overlay execution off and replies with native_exec 0.
-- `handle_overlay_native_block` (L15633) — overlay_native_block: per-function native-disable for bisection.
-- `handle_overlay_cps_probe` (L15660) — overlay_cps_probe: arm/dump the CPS interior-continuation dispatch probe.
-- `handle_overlay_dump` (L15688) — overlay_dump: extract RAM regions that dirty_ram has marked executable above a threshold physical address.
-- `debug_server_freeze_dump_wtrace_all_json` (L15784) — ---- Freeze auto-dump accessors ---- Called from the freeze_heartbeat thread (NOT from TCP).
-- `debug_server_freeze_dump_wtrace_json` (L15815) — Writes the write-trace entries as a JSON array to the freeze dump file, up to max_count entries.
-- `debug_server_freeze_dump_frame_history_json` (L15852) — Writes the frame history entries as a JSON array to the freeze dump file, up to max_count entries.
-- `debug_server_freeze_dump_sio_pc_json` (L15895) — Writes the SIO PC trace entries as a JSON array to the freeze dump file, up to max_count entries.
-- `debug_server_freeze_dump_thread_trace_json` (L15920) — Writes the thread trace entries as a JSON array to the freeze dump file, up to max_count entries.
-- `debug_server_freeze_dump_restore_trace_json` (L15957) — Writes the restore trace entries as a JSON array to the freeze dump file, up to max_count entries.
-- `debug_server_freeze_dump_fn_entry_json` (L15989) — Writes the function entry trace as a JSON array to the freeze dump file, up to max_count entries.
-- `debug_server_freeze_dump_dirty_block_json` (L16018) — Writes the dirty-RAM block log entries as a JSON array to the freeze dump file, up to max_count entries.
-- `handle_game_options` (L16050) — Handles game_options: returns the game option settings as JSON.
-- `handle_xlate` (L16062) — On-the-fly string translation (text_xlate.cpp).
-- `handle_stack_profile` (L16077) — Live host-stack-usage profile (RECURSION_BUG.md §17): read the always-on ring while the game is still responsive to distinguish a gradual cross-frame leak (used_kb climbs linearly with frame) from a w
-- `handle_xprobe` (L16090) — Live boundary control-flow flight recorder (RECURSION_BUG.md §18): per-frame crossing/depth summary + per-crossing onset detail.
-- `handle_ce_profile` (L16104) — §19 compiled-entry depth profile: per-frame max host-stack-used sampled at EVERY compiled function entry.
-- `handle_xprobe_watch` (L16123) — Arm the §18 boundary trip at runtime once the idle baseline is known: xprobe_arm {"frame_trip":N,"stk_kb":K,"warmup":F}.
-- `handle_xprobe_arm` (L16148) — Handles xprobe_arm: arms the control-flow flight recorder trip with frame, stack and warmup limits.
-- `handle_latency` (L16162) — "latency": input->photon latency summary from the always-on latency ring.
-- `handle_vk_perf` (L16182) — "vk_perf": last N Vulkan per-frame op counters (allocs/submits/pack/blit/...).
-- `handle_lockstep` (L16191) — Handles lockstep: arms the block-level compiled versus interpreter comparator over a frame window and reports the first divergence.
-- `handle_lockstep_func` (L16207) — Handles lockstep_func: arms the same comparison per dispatch segment and reports its first divergence.
-- `phot_add_to` (L16273) — Adds an address to a hashed histogram table using a bounded number of probes, counting a drop when the table is full.
-- `phot_add` (L16287) — Adds one sampled address to the phase profiler's histogram.
-- `phase_sampler_main` (L16293) — Background thread body that samples the guest's current code address at a fixed interval into the phase histograms.
-- `phase_sampler_start` (L16343) — Starts the phase sampler background thread.
-- `handle_phase_profile` (L16355) — Handles phase_profile: reports the time split (interpreted, native, static, GPU, exception) over a window of whole seconds.
-- `handle_gcp_ring` (L16404) — gcp_ring: always-on guest-cycle profile ring (guest_cycle_profile.c).
-- `handle_phase_hot` (L16493) — phase_hot: top guest functions by native wall-time samples (cumulative since boot — diff two snapshots for a window).
-- `handle_idle_skip` (L16546) — idle_skip: idle-loop cycle-skip status + runtime toggle.
-- `handle_starv_ring` (L16569) — starv_ring: query the always-on starvation/PC-sample ring (16K entries, continuous since boot).
-- `handle_data_shards` (L16615) — data_shards: memoized pure-function replay counters (data_shards.c).
-- `handle_vsync_query_hle` (L16627) — vsync_query_hle: cycle-faithful VSync(-1) query acceleration counters.
-- `handle_warm_cd_route` (L16647) — warm_cd_route: live A/B toggle and fail-closed route counters.
-- `debug_server_set_restricted` (L17068) — Restricted mode (psx_mod_set_debug_tools_restricted): refuse every command that reads or changes guest state or drives input.
-- `restricted_allows` (L17078) — Returns 1 if a command name is on the allowed list while restricted debug mode is on, otherwise 0.
-- `process_command` (L17093) — Parses one request line, takes the command name from its JSON or plain text, and dispatches it to the matching handler.
-- `spu_keyon_ctx` (L17140) — CPUState *debug_cpu_ptr = NULL; /* Global, used by memory.c watchpoints spu_events: where the guest keyed each voice on (ra, sp, SR, stack words).
-- `debug_guest_ra` (L17155) — Guest $ra accessor for other TUs (e.g.
-- `debug_guest_sp` (L17156) — Returns the guest stack pointer of the bound CPU, or 0 before a CPU is bound.
-- `debug_server_set_cpu` (L17158) — Set the CPU state pointer for register queries.
-- `wtrace_apply_env_ranges` (L17169) — Parse PSX_WTRACE_BOOT_RANGES (see debug_server_init).
-- `debug_server_port` (L17231) — The port it listens on (the default when init had none).
-- `debug_server_init` (L17233) — Initialize the server.
-- `recv_line` (L17769) — Read one '\n'-terminated line from a blocking socket into buf.
-- `io_thread_main` (L17778) — The TCP I/O thread: owns accept/recv/send.
-- `debug_server_get_status` (L17826) — Current listener status for heartbeat diagnostics.
-- `debug_server_set_passive_policy` (L17833) — Passive recorders: what lets a probe that connects late look back (the catch-all RAM write ring, 128 MB; the frame fingerprint; the memory card traces; the host CPU sampler).
-- `debug_server_passive_active` (L17834) — Returns 1 while the passive recorders are active, otherwise 0.
-- `write_trace_live_refresh` (L17839) — Whether a store can be recorded (g_debug_write_trace_live): after init, after every command (they arm and disarm the recorders) and when the passive recorders or FMV quiet change.
-- `passive_on_first_request` (L17853) — Policy 2: the first request turns the passive recorders on (on the emulation thread, which the sampler must start from).
-- `debug_server_poll` (L17872) — Poll for incoming connections and commands.
-- `debug_server_record_frame` (L17912) — Record the current frame's state into the ring buffer.
-- `debug_server_wait_if_paused` (L18002) — Block while paused, polling TCP + SDL events.
-- `debug_server_check_watchpoints` (L18010) — Checks each active watchpoint against guest memory and sends a report to the connected client when the byte value changes.
-- `debug_server_shutdown` (L18030) — Graceful shutdown. Call at exit.
-- `debug_server_is_connected` (L18053) — Check if a TCP client is connected.
-- `debug_server_get_input_override` (L18058) — Returns >= 0 if the debug server wants to override pad input, -1 if no override is active.
-- `debug_server_get_input_override_port2` (L18082) — Port-2 override word (set_input/press "port":2), or -1.
-- `debug_server_get_axis_override` (L18092) — Optional analog-stick override set alongside set_input (lx/ly/rx/ry, 0..255, 0x80 = centre).
-- `debug_server_get_host_pad` (L18100) — Returns 1 and the host pad buttons, stick axes and trigger values when the host input layer is active, otherwise 0.
-- `debug_server_get_pad_type_override` (L18111) — Optional debug-only emulated controller identity set by set_input/press: -1 follows normal device selection; otherwise 0=digital, 1=DualShock, 2=JogCon.
-- `debug_server_get_pad_connected_override` (L18116) — set_input/press connected: -1 leaves device selection unchanged; 0/1 unplug/plug the serial endpoint for that injected sample.
-- `debug_server_turbo_enabled` (L18121) — TCP-controlled turbo mode.
+- `append_thread_entry` (L4157) — Appends one thread-trace entry as JSON to a buffer at a position and returns the new position.
+- `handle_thread_ctx_ring` (L4216) — Handles thread_ctx_ring: returns the most recent thread context records, up to the requested count.
+- `handle_thread_trace` (L4252) — Handles thread_trace: returns the most recent thread switch events, capped at 2048.
+- `handle_thread_trace_clear` (L4361) — Handles thread_trace_clear: empties the thread trace and replies ok.
+- `handle_sreg_trace_stats` (L4369) — Handles sreg_trace_stats: reports the total, available and capacity counts of the saved-register trace.
+- `handle_sreg_trace_clear` (L4380) — Handles sreg_trace_clear: empties the saved-register trace and its per-thread slots, then replies ok.
+- `sreg_trace_yield_func` (L4389) — Returns 1 for the three thread-yield functions that saved-register tracing treats specially.
+- `append_sreg_compact` (L4394) — Appends one saved-register trace entry in compact JSON form to a buffer and returns the new position.
+- `handle_sreg_trace_find` (L4415) — Handles sreg_trace_find: searches the saved-register trace for matching entries and returns them.
+- `handle_sreg_trace_dump` (L4507) — Handles sreg_trace_dump: returns the most recent saved-register trace entries, capped at 4096.
+- `emit_probe_entry` (L4636) — Writes one PC probe trace entry as a JSON object with its PC, function, store PC and registers.
+- `handle_probe_trace` (L4655) — Handles probe_trace: returns the most recent PC probe entries, up to the requested count.
+- `handle_probe_clear` (L4677) — Handles probe_clear: empties the probe trace and replies ok.
+- `set_nonblocking` (L4746) — ---- Platform helpers ----
+- `json_get_str` (L4759) — Finds a key in a JSON request line and copies its string value into out; returns NULL when the key is missing.
+- `json_get_int` (L4804) — Finds a key in a JSON request line and returns its integer value, bare or quoted, decimal or hex; returns def when missing.
+- `hex_to_u32` (L4821) — Parses a hex string, with an optional 0x prefix, into a 32-bit value.
+- `debug_server_get_tcp_stall_ms` (L4838) — TCP serve-stall telemetry: cumulative main-thread ms spent inside bounded TCP sends, and clients dropped for exceeding the send budget.
+- `debug_server_get_tcp_drops` (L4839) — Returns how many TCP clients were dropped for exceeding the send time budget.
+- `monotonic_ms` (L4841) — Returns a monotonic millisecond clock for timing, using GetTickCount64 on Windows and clock_gettime elsewhere.
+- `send_all_blocking` (L4865) — Sends a whole buffer to a socket in blocking mode within a time budget; returns 1 when every byte was sent.
+- `debug_server_send_line` (L4913) — Append a response line to s_resp_buf (the I/O thread sends it).
+- `debug_server_send_fmt` (L4935) — printf-style: formats a response line of any length on the heap and queues it for the I/O thread to send.
+- `debug_server_dirty_break_maybe_pause` (L4963) — Dirty-RAM dispatch break.
+- `send_ok` (L4993) — Queues a success reply for the given request id.
+- `send_err` (L4998) — Queues an error reply for the given request id, carrying a message.
+- `handle_ping` (L5005) — Handles ping: replies with the request id and reports accumulated dispatch misses, so they are not missed silently.
+- `handle_frame` (L5023) — Handles frame: replies with the current guest frame counter.
+- `debug_server_note_savestate_loaded` (L5044) — frame_fingerprint reset_on_load: called when a savestate load completes.
+- `handle_golden` (L5057) — golden — tools/golden.py: {"on":1|0} arms/disarms now, {"arm_on_load":1} from the next savestate load (frame 0 = the first frame after it), {"dump":1,"from":F,"count":N} returns the per-frame hashes (
+- `handle_frame_fingerprint` (L5086) — Handles frame_fingerprint: arms reset-on-load, or returns the per-frame write fingerprint ring, up to the requested count.
+- `handle_record_frame` (L5138) — Layer-2: arm the frame-gated write recorder for a guest frame.
+- `rec_kind_str` (L5147) — Maps a recorder event kind code (RAM write, SP write, MMIO read or write, RAM read) to a short name.
+- `handle_record_frame_dump` (L5164) — Layer-2: dump the recorded frame's UNIFIED ordered access log (paged).
+- `handle_record_reads_dump` (L5197) — Layer-2 companion: dump only the device-register READS from the unified log, preserving their execution-order index 'i'.
+- `handle_get_registers` (L5227) — Handles get_registers: returns the guest CPU registers and PC as JSON, or an error when no CPU is attached.
+- `handle_disasm` (L5267) — Handles disasm: disassembles guest instructions at a hex address and returns the text; built only with debug tools.
+- `handle_read_ram` (L5313) — Handles read_ram: returns len bytes of guest memory at a hex address, as hex text.
+- `handle_write_ram` (L5356) — Handles write_ram: writes a value into guest memory at a hex address.
+- `handle_geom_correction` (L5380) — geom_correction — is [video] geometry_correction / perspective_texturing actually doing anything on THIS title?
+- `host_profile_cmp` (L5477) — host_profile — histogram of the always-on host CPU sampler (host_sampler.c) over a window of the ring: {"cmd":"host_profile","since":SEQ} or {"cmd":"host_profile","frames":N} (the last N guest frames)
+- `handle_host_profile` (L5482) — Handles host_profile: builds a histogram of host CPU samples over a window of frames or since a sequence number, listing the top entries.
+- `handle_pgxp_shadow` (L5556) — pgxp_shadow — read PGXP shadow slots: {"cmd":"pgxp_shadow","addr":A, "count":N} walks N guest words from A (RAM / scratchpad); "space":"gpr" or "gte" with "index"/"count" reads register shadows instea
+- `handle_pgxp_miss_ring` (L5589) — pgxp_miss_ring — the newest refused perspective-depth lookups (always-on ring, PGXP_MISS_RING_CAP deep): {"cmd":"pgxp_miss_ring","count":N}.
+- `handle_pgxp_tri_ring` (L5628) — pgxp_tri_ring — the always-on ring of geometry-corrected triangles: {"cmd":"pgxp_tri_ring","frame":F,"pass":0|1,"x0":..,"y0":..,"x1":.., "y1":..,"count":N}.
+- `handle_pgxp_store_ring` (L5689) — pgxp_store_ring — the always-on ring of shadowed memory writes: {"cmd":"pgxp_store_ring","addr_lo":"0x..","addr_hi":"0x..","pc":"0x..", "frame":F,"count":N}.
+- `handle_pgxp` (L5742) — pgxp — live-tune the value-propagation engine for one-toggle isolation runs without a rebuild: {"cmd":"pgxp","cpu_mode":0|1,"tolerance":F, "position_fallback":0|1,"preserve_projection":0|1,"culling":0
+- `handle_ws_backdrop_images` (L5807) — {"cmd":"ws_backdrop_images"}: the backdrop images of the last linked list (gpu.c, gpu_ws_set_backdrop_images): extent, primitives, stretch share q (0 = as it is, 255 = the full stretch), filled sides
+- `handle_gpu_state` (L5817) — Handles gpu_state: reports the GPU display area, the status register and the CRTC debug values.
+- `handle_ws_aspect_cone_site` (L5920) — Handles ws_aspect_cone_site: reports the widescreen aspect-cone debug data for one code address.
+- `handle_mem_words` (L5948) — Handles mem_words: returns 32-bit words of guest memory starting at a hex address.
+- `handle_cycles_to_next_event` (L5985) — Precise-event-slicing validation: report the cycle distance to the next deliverable interrupt, broken down per source.
+- `handle_core_rates` (L6005) — core_rates: cumulative counts of the emulation core's per-event work, to be differenced over a window (tools: per VBlank): device services and MMIO syncs, the out-of-line interrupt checks (block edges
+- `handle_spu_shadow` (L6059) — spu_shadow: the float SPU shadow's verifier (spu_shadow.h): whether it ever substitutes (proven) and whether it gave up (never proven in time).
+- `handle_vram_drawn_check` (L6073) — vram_drawn_check: gpu_vram_peek's cells against a renderer read (gpu.h).
+- `handle_irq_state` (L6082) — Handles irq_state: reports the interrupt status, mask, pending bits and the COP0 status fields.
+- `handle_vblank_rate` (L6104) — vblank_rate: report the ONE cycle-paced VBlank authority's raise/deliver counts, the (normally-off) GPUSTAT-poll fallback raise count, and the per-frame GP0(E5) draw-offset-Y range/count.
+- `handle_timers_state` (L6130) — Handles timers_state: reports counter, mode, target and IRQ line of the three root counters.
+- `cdrom_trace_kind_name` (L6151) — GPU opcode counter — defined in gpu.c
+- `handle_cdrom_state` (L6174) — Handles cdrom_state: reports the CD-ROM controller state, such as disc presence, index and status byte.
+- `handle_cdrom_sector_dump` (L6224) — Handles cdrom_sector_dump: returns a slice of the last CD sector as hex, from an offset with a length of at most 2340 bytes.
+- `append_hex_bytes` (L6269) — Writes len bytes as two-digit hex text into a bounded buffer and advances the position.
+- `handle_cdrom_sector_history` (L6277) — Handles cdrom_sector_history: returns recent CD sector reads, optionally filtered by LBA, up to the requested count.
+- `handle_cdrom_sector_history_clear` (L6338) — Handles cdrom_sector_history_clear: empties the CD sector history and replies ok.
+- `cdrom_command_kind_name` (L6345) — Maps a CD-ROM command kind ('C' exec, 'Q' queued) to its name.
+- `handle_cdrom_command_history` (L6354) — Handles cdrom_command_history: returns recent CD-ROM commands, optionally filtered by frame range, up to the requested count.
+- `handle_cdrom_command_history_clear` (L6429) — Handles cdrom_command_history_clear: empties the CD command history and replies ok.
+- `handle_cdrom_trace_clear` (L6436) — Handles cdrom_trace_clear: empties the CD-ROM trace and replies ok.
+- `handle_cdrom_trace_dump` (L6443) — Handles cdrom_trace_dump: returns recent CD-ROM trace entries, optionally filtered by frame range.
+- `dma_trace_kind_name` (L6503) — Maps a DMA trace kind code ('S' start, 'C' complete, 'W' write) to its name.
+- `handle_dma_state` (L6513) — Handles dma_state: reports the DMA channel state as JSON.
+- `handle_dma_trace_clear` (L6588) — Handles dma_trace_clear: empties the DMA trace and replies ok.
+- `handle_dma_trace_dump` (L6595) — Handles dma_trace_dump: returns recent DMA trace entries, up to the requested count.
+- `append_word_array` (L6640) — Appends a JSON array of 32-bit hex words to a bounded buffer at the running position.
+- `handle_dma_cdrom_history` (L6651) — Handles dma_cdrom_history: returns recent CD-ROM DMA transfers, optionally filtered by frame range.
+- `handle_a0_history` (L6729) — Handles a0_history: returns the recent GPU A0 (CPU to VRAM) transfer records in a heap buffer.
+- `handle_c0_history` (L6770) — Handles c0_history: returns the recent GPU C0 (VRAM to CPU) read records and the total count.
+- `handle_gpu_opcodes` (L6791) — Handles gpu_opcodes: reports the non-zero GP0 opcode counts.
+- `handle_gpu_ring_stats` (L6810) — Handles gpu_ring_stats: reports the GP0 ring total, capacity, word limit and oldest and newest frame.
+- `handle_gpu_frame_dump` (L6824) — Handles gpu_frame_dump: returns the GP0 command words recorded for one frame, up to count entries.
+- `handle_capture_quads` (L6878) — Handles capture_quads: arms capture of the next shaded quads and replies ok.
+- `handle_get_quads` (L6885) — Handles get_quads: returns the captured shaded quad primitives.
+- `handle_gte_state` (L6907) — Handles gte_state: returns the GTE execution count and the 32 GTE control registers.
+- `handle_gte_ring_dump` (L6931) — Dump recent GTE RTPS/RTPT projections (inputs + outputs) from the always-on GTE ring.
+- `handle_gte_intpl_dump` (L6961) — INTPL (vertex-lerp) ring: inputs (ir0 blend, in=IR1-3 pose A, fc=pose B) and outputs (mac / out=IR1-3 / flag) per op.
+- `handle_gte_frame_stats` (L6989) — Per-frame GTE projection stats (nproj / nsat / nflat) over recent frames — shows the alternating flat/normal render pattern.
+- `handle_gte_latch_dump` (L7004) — Latched degenerate (saturated-output) GTE projections with full inputs.
+- `handle_sio_state` (L7019) — Handles sio_state: reports the serial port (SIO) memory-card probe, command and read counters.
+- `json_escape_string` (L7075) — ---- Memory card disk-load status (per-slot) ----
+- `handle_mc_status` (L7103) — Handles mc_status: reports each memory card slot's presence, dirty flag and disk-load status.
+- `handle_spu_status` (L7130) — Handles spu_status: reports the SPU state, including the DSP fidelity state (IRQ, reverb, noise and sweeps).
+- `handle_spu_voices` (L7198) — ---- Per-voice SPU snapshot.
+- `handle_spu_ram` (L7263) — ---- SPU RAM peek: {"addr":N,"len":M} -> hex bytes.
+- `handle_spu_events` (L7282) — ---- SPU event ring dump.
+- `handle_spu_events_reset` (L7333) — Handles spu_events_reset: clears the SPU event ring and replies ok.
+- `handle_audio_stats` (L7354) — Handles audio_stats: reports the audio trace statistics, such as buffer fill, target latency, correction and underruns.
+- `handle_audio_turbo` (L7419) — Handles audio_turbo: optionally sets the turbo audio mode, then reports the grain, ratio and jump counters.
+- `handle_audio_turbo_kons` (L7443) — audio_turbo_kons: the last 256 key-ons mode 2 saw, each voice | music<<7 | start address (bytes) << 8 (audio_music.c g_am_kon).
+- `handle_audio_wav` (L7457) — Handles audio_wav: writes the recorded samples of a chosen audio tap to a WAV file at the given path.
+- `handle_audio_events` (L7490) — Handles audio_events: returns recent audio trace events, up to 8192, read into a heap array.
+- `handle_pace_state` (L7547) — Phase 1.0c-v2 telemetry: cycle-paced SIO state snapshot.
+- `handle_sio_burst_stats` (L7586) — Handles sio_burst_stats: reports serial burst counters and the reason the last burst ended.
+- `handle_sio_arm_audit` (L7607) — Handles sio_arm_audit: reports the memory-card arm audit per device (card, pad, none) and the countdown after the last card access.
+- `handle_card_buffer_dump` (L7628) — ---- Memory card raw buffer dump (in-memory cards[].data) ---- Used by the audit harness to verify that what the runtime loaded matches the on-disk file byte-for-byte.
+- `handle_imask_trace` (L7677) — Handles imask_trace: returns recent interrupt-mask writes, optionally only those at address 0xB7C.
+- `handle_card_handoff` (L7713) — Post-probe SIO/INTC handoff; records hardware state, not game RAM.
+- `handle_sio_trace` (L7746) — Handles sio_trace: returns the most recent serial port (SIO) trace entries, up to the requested count.
+- `handle_sio_trace_window` (L7789) — Handles sio_trace_window: returns SIO trace entries around one sequence number, with before and after context.
+- `txn_end_reason_str` (L7845) — ---- Card transaction ring dump ---- Returns the most recent N closed transactions plus the live (open) txn if there is one.
+- `emit_card_txn_json` (L7858) — Writes one memory-card transaction as JSON: slot, command, sector, byte counts, end reason and transferred bytes.
+- `emit_evcb_snapshot_json` (L7890) — ---- EvCB ring TCP cmds ---- evcb_snapshot — one-shot read of current EvCB table from RAM evcb_walk_dump — recent always-on snapshots (paired entry + exit per DeliverEvent call) evcb_walk_stats — coun
+- `handle_evcb_snapshot` (L7917) — Handles evcb_snapshot: takes a one-shot snapshot of the event control block table from RAM without adding it to the ring.
+- `handle_evcb_walk_dump` (L7958) — Handles evcb_walk_dump: returns the most recent event control block entry and exit records, up to the requested count.
+- `handle_evcb_walk_stats` (L7984) — Handles evcb_walk_stats: reports the event control block entry, exit and unwind counts and the ring capacity.
+- `sio_irq_src_str` (L8004) — ---- SIO IRQ ring dump ---- Returns the most recent N IRQ #7 fires with timing/source/state context.
+- `handle_sio_irq_dump` (L8012) — Handles sio_irq_dump: returns recent serial IRQ 7 events, optionally filtered by source.
+- `handle_sio_irq_window` (L8055) — Handles sio_irq_window: returns serial IRQ events around one byte sequence number, optionally filtered by source.
+- `handle_card_txn_dump` (L8101) — Handles card_txn_dump: returns recent memory-card transactions, optionally for one slot.
+- `handle_card_read_summary` (L8144) — Handles card_read_summary: reports a summary of the memory-card read operations.
+- `handle_card_read_summary_reset` (L8181) — Handles card_read_summary_reset: clears the memory-card read summary and replies ok.
+- `handle_card_data_writes` (L8188) — Handles card_data_writes: returns recent memory-card data write records, up to the requested count.
+- `handle_card_data_writes_reset` (L8229) — Handles card_data_writes_reset: clears the memory-card data write records and replies ok.
+- `handle_watch` (L8236) — Handles watch: arms a memory watchpoint at a hex address so that writes to it are reported.
+- `handle_unwatch` (L8257) — Handles unwatch: removes the memory watchpoint at a hex address.
+- `clamp_u8_arg` (L8287) — Clamps an int argument to the 0 to 255 range, or returns the default when the argument is negative.
+- `handle_set_input` (L8292) — Handles set_input: overrides the emulated controller's buttons, sticks, pad type and connection state.
+- `debug_server_get_trigger_override` (L8352) — Returns 1 and the left and right trigger values when a trigger override is active, otherwise 0.
+- `handle_press` (L8360) — Handles press: holds the given pad buttons for a number of frames by setting an input override.
+- `handle_rewind_status` (L8405) — Local Rewind: enabled, panel open, title block (psx_mod_set_rewind_blocked) and the snapshots held, so scripted runs can check capture and opening.
+- `handle_pad_status` (L8416) — Handles pad_status: reports the current button and stick state of both controller ports.
+- `clear_input_overrides` (L8455) — port: 0 = both, 1 or 2.
+- `handle_clear_input` (L8478) — Handles clear_input: removes the input overrides for a port (0 means both) and replies ok.
+- `handle_input_route_clear` (L8484) — Handles input_route_clear: empties the scripted input route and replies ok.
+- `handle_input_route_append` (L8494) — Handles input_route_append: adds one step, buttons held for a number of frames, to the scripted input route.
+- `handle_input_route_start` (L8517) — Handles input_route_start: starts playback of the scripted input route, refusing an empty route.
+- `handle_input_route_stop` (L8538) — Handles input_route_stop: stops input route playback and replies ok.
+- `handle_input_route_status` (L8546) — Handles input_route_status: reports whether the input route is active, with its step count, index and remaining frames.
+- `handle_netplay_status` (L8564) — Live A/B for the native-wide HUD corner gate: {"cmd":"ws_hud_mode","tag_rects":0|1} tag_rects=1 lets TAGGED rect-family prims re-anchor too (Tomba's AP counter renders through the tagged sprite funnel
+- `handle_host_launch_timings` (L8588) — Startup host work recorded before TCP was initialized; always-on, read-only.
+- `handle_mod_counters` (L8633) — Handles mod_counters: reports the counters kept by loaded mods, with their names, counts and last frames.
+- `handle_resident_status` (L8673) — Resident disc packs prepared by seamless-loading adapters (mod_resident.h): {"cmd":"resident_status"} -> packs: [{title, format, state, error, path, files, modified, derived, blobs, bytes, ms}]
+- `handle_resident_events` (L8701) — Always-on resident-loading service ring (psx_resident_record): {"cmd":"resident_events","frame_lo":a,"frame_hi":b,"count":n} -> total, capacity, entries [{seq, frame, cycle, op, file, lba, bytes, serv
+- `handle_ws_hud_mode` (L8732) — Handles ws_hud_mode: sets whether tagged rectangle HUD elements re-anchor in native-wide mode.
+- `handle_ws_tag_stats` (L8745) — Explicit HUD-anchor / background tag pipeline counters (always on): {"cmd":"ws_tag_stats"} -> hud / background: tag_calls, tag_rejected, hit, stale, guard_mismatch, last_tag_frame, last_hit_frame.
+- `handle_kernel_bless` (L8772) — Kernel-image bless state: {"cmd":"kernel_bless"} -> entries/clean/mismatch/native_hits/verifies/invalidations, plus the declared kernel patch ranges and the segments they made the verifier skip (psx_b
+- `handle_ws_margin` (L8788) — Handles ws_margin: sets or clears the native-wide X margin override and reports the resulting margin.
+- `handle_synth_recurse` (L8810) — frame_perf: per-frame GPU/CPU phase timing (gpu_gl_renderer.c frame_perf ring).
+- `handle_bloom` (L8830) — post_aa: post-process anti-aliasing, live.
+- `handle_post_shader` (L8850) — post_shader: {"cmd":"post_shader","path":"x.pfx"} sets the [video] post_shader chain live ("" = none; an env override still wins); {"cmd":"post_shader"} reads whether one is loaded.
+- `handle_marks_lean` (L8863) — extra_shader: {"cmd":"extra_shader","slot":0,"path":"x.pfx"} sets one of the extra file-chain slots live ("" = none), e.g.
+- `handle_extra_shader` (L8875) — Handles extra_shader: sets the shader file path for one extra post-process slot.
+- `handle_shadow_cache` (L8889) — post_uniform: {"cmd":"post_uniform","uniform":"u_x","v":"a b c d"} sets a file-chain uniform live (1..4 floats; every pass that declares it).
+- `sun_area_json` (L8914) — sun_area: the light per area (gpu_shadow_light_set), for a tool that tunes it while the game runs.
+- `handle_sun_area` (L8922) — Handles sun_area: reads or sets the sun light for the current or a given area, including the time of day (night, day or auto).
+- `handle_area_lights` (L8981) — area_lights: the lights placed by hand per area (area_lights.h), for a tool that places them while the game runs.
+- `handle_sprite_dump` (L9054) — sprite_dump: the foot points and 2D pieces of the picture on screen (sprite shadows, gl_renderer_sprite_dump_json).
+- `handle_shadow_hide` (L9067) — postfx_timing: {"on":1,"reset":1} starts measuring; {} reads the means (GPU microseconds per stage and pass of the post-effect chains).
+- `handle_postfx_cuts` (L9090) — postfx_cuts: {"on":0} draws the effects the old way (every stage from a copy of the window, the mask cleared by a quad), {"on":1} back; {} reads.
+- `handle_postfx_timing` (L9099) — Handles postfx_timing: turns post-effect GPU timing on or off, optionally resets it, and reports the mean times.
+- `handle_post_uniform` (L9107) — Handles post_uniform: sets a named uniform of the post-process chain to up to four float values.
+- `handle_post_aa` (L9125) — Handles post_aa: optionally sets the post-process anti-aliasing mode, then reports mode, pass count and GPU time.
+- `handle_fmv_chroma` (L9136) — fmv_chroma: {"cmd":"fmv_chroma"} reads, {"cmd":"fmv_chroma","on":0|1} sets [video] fmv_chroma_smoothing live.
+- `hdr_json_float` (L9154) — hdr: {"cmd":"hdr"} reads the HDR output state (PSX_HDR, gl_hdr.inc): float buffer, the display's SDR white and headroom as SDL reports them, the paper white and peak in use, the boost and the last pro
+- `handle_hdr` (L9167) — Handles hdr: reports the HDR output state, with an optional probe string.
+- `handle_fmv_enhance` (L9193) — fmv_enhance: {"cmd":"fmv_enhance"} reads, {"cmd":"fmv_enhance","on":0|1} sets [video] fmv_enhance live.
+- `handle_texture_lod` (L9209) — texture_lod: {"cmd":"texture_lod"} reads, {"cmd":"texture_lod","mode":0|1, "aniso":1..16} sets [video] texture_lod / anisotropic_filtering live.
+- `handle_accurate_blending` (L9222) — accurate_blending: {"cmd":"accurate_blending"} reads, {"cmd": "accurate_blending","on":0|1} sets [video] accurate_blending live.
+- `handle_texture_filter` (L9235) — texture_filter: {"cmd":"texture_filter"} reads, {"cmd":"texture_filter", "mode":0..10} sets it live (PSX_TEXTURE_FILTER_*: the world, and sprites and UI where they follow it); {"class":0|1|2,"filter":
+- `handle_dithering` (L9256) — dithering: {"cmd":"dithering"} reads, {"cmd":"dithering","mode":0|1|2} sets [video] dithering live (0 off, 1 on = native grid, 2 fine).
+- `handle_frame_perf` (L9263) — Handles frame_perf: reports the per-frame GPU and CPU phase timings, optionally turning on textured batch timing.
+- `handle_batch_sites` (L9320) — batch_sites: cumulative non-empty batch flushes by caller line in gpu_gl_renderer.c, "tex" and "flat" as [line,count] pairs.
+- `handle_gl_ws_ablate` (L9343) — gl_ws_ablate mode=<0..3>: native-wide mirror ablation for perf attribution.
+- `handle_gl_interp` (L9350) — Handles gl_interp: reports the GL interpolation state (enabled, suspended and history).
+- `handle_render_pass_stats` (L9376) — render_pass_stats: host-timed render passes (docs/RENDER_PASSES.md).
+- `handle_render_pass_refuse` (L9502) — render_pass_refuse on=<0|1>: make the OpenGL backend decline render passes (status BACKEND), as a renderer mode without them would; for testing a plugin's fallback.
+- `handle_openxr_stats` (L9510) — Handles openxr_stats: reports the OpenXR runtime state, frame and submission counters and the last failure details.
+- `handle_openxr_views` (L9535) — Handles openxr_views: reports the predicted time and the submitted views for both eyes.
+- `handle_openxr_control` (L9559) — Handles openxr_control: optionally recenters or enables OpenXR, then replies with the OpenXR stats.
+- `handle_openxr_input` (L9567) — Snapshot only: querying never syncs actions or consumes a controller sample.
+- `handle_openxr_hands` (L9583) — Read-only controller poses from the eye frame's predicted time.
+- `handle_openxr_hands_override` (L9611) — Handles openxr_hands_override: sets or clears a simulated grip or aim pose for one hand, for tests.
+- `handle_openxr_input_override` (L9683) — Handles openxr_input_override: sets or clears simulated OpenXR focus and controller activity, for tests.
+- `handle_stereo_stats` (L9724) — Handles stereo_stats: reports stereo rendering statistics and the captured stereo records.
+- `handle_stereo_dump` (L9777) — Bounded PNG evidence capture.
+- `handle_render_pass_dump` (L9789) — render_pass_dump path=<dir> count=<n>: write the images (the game's own frame, then each render pass in phase order) of the next n frames that get render passes, as <dir>/g<frame>_<index>_a<phase q16>
+- `handle_gl_wide_fast` (L9804) — Handles gl_wide_fast: optionally sets the wide fast path on or off and reports its state.
+- `handle_gl_texwin_batch` (L9817) — Handles gl_texwin_batch: optionally sets texture-window batching on or off and reports its state.
+- `handle_ws_aspect` (L9829) — Handles ws_aspect: sets the display aspect ratio the GTE uses for native-wide rendering, live.
+- `handle_display_aspect` (L9839) — Handles display_aspect: sets the debug display aspect ratio (4:3 or wider), with an optional adaptive mode.
+- `handle_window_size` (L9849) — Handles window_size: resizes the game window to the given width and height, within 64 to 16384.
+- `handle_debug_key` (L9862) — Handles debug_key: sends a debug hotkey (digits 0 to 9 or F10 to F12) to the game and returns its message.
+- `handle_host_pause` (L9875) — Handles host_pause: pushes or pops a host pause and replies with the pause depth.
+- `handle_menu_host` (L9888) — Handles menu_host: returns the host menu state as JSON.
+- `handle_host_key` (L9898) — Handles host_key: sends a named key press, release or both to the host.
+- `handle_host_mouse` (L9912) — Handles host_mouse: sends a mouse button press, release, move or wheel event to the host.
+- `handle_ws_nw` (L9926) — Handles ws_nw: turns native-wide mode on or off and sets its projection correction, then reports the corrected vertex count.
+- `handle_scanline` (L9951) — Handles scanline: turns the scanline overlay on or off and sets its strength in percent, then reports the state.
+- `handle_ws_backdrop_ring` (L9968) — ws_backdrop_ring: dump the always-on auto_backdrop rewrite ring (which windows fire, live extent/DL-count, orig vs final bound).
+- `handle_ws_ui_groups` (L9993) — ws_ui_groups: dump the auto_ui_squash partition for the last UI prepass — per primitive its op / key / raw key inputs (y, h, derived band and family) / union-find root / final anchor.
+- `handle_ws_backdrop_margin` (L10009) — ws_backdrop_margin [m=<N>]: live-tune the far-backdrop widen strategy without a rebuild.
+- `handle_ws_backdrop_stretch` (L10023) — ws_backdrop_stretch [on=0/1] [pct=N] [thresh=N]: live-tune the native-wide 2D-backdrop x-stretch (GL renderer).
+- `handle_ws_dbg_stretch` (L10049) — prim<->pixel correlation gate (ws_dbg_stretch).
+- `handle_ws_far_threshold` (L10081) — Handles ws_far_threshold: optionally sets the far depth threshold and reports the depth statistics.
+- `handle_ws_dome` (L10096) — Handles ws_dome: turns dome vertex expansion on or off for a given aspect ratio.
+- `handle_ws_dome_probe` (L10111) — Handles ws_dome_probe: arms the dome probe and returns the functions it hit, with their counts and max depths.
+- `handle_ws_census` (L10133) — Handles ws_census: starts, stops or dumps the widescreen primitive census.
+- `handle_mmx6_freshfix` (L10152) — Handles mmx6_freshfix: toggles the MMX6 fresh-fix widescreen option and reports its validation results.
+- `handle_savestate` (L10172) — Save-state save/load via the debug server.
+- `handle_savestate_status` (L10219) — Deterministic harness receipt: unlike the savestate acknowledgement above, this reports the safe-boundary completion generation after savestate_poll has actually applied or rejected the request.
+- `handle_boot_state_stats` (L10230) — EST-17: timings and rejects of the latest boot_state load (was a stderr line per load).
+- `handle_interp_faults` (L10250) — Oracle interpreter faults (NULL jump, unknown COP0/COP2); zeros in the native build, which links stub_interpreter.c.
+- `handle_snapshot_status` (L10262) — Handles snapshot_status: reports whether a callback is active, the host call depth and whether a snapshot is safe now.
+- `handle_turbo` (L10274) — Handles turbo: sets turbo mode on or off from the enabled or on field.
+- `handle_turbo_state` (L10288) — Handles turbo_state: reports whether turbo mode is enabled.
+- `handle_pause` (L10316) — pause / continue / step / run_to_frame: REMOVED.
+- `handle_continue` (L10321) — Replies with an error, because the continue command has been removed.
+- `handle_step` (L10326) — Replies with an error, because the step command has been removed.
+- `handle_run_to_frame` (L10331) — Replies with an error, because the run_to_frame command has been removed.
+- `handle_dirty_break_range` (L10336) — Handles dirty_break_range: arms a break on dirty-RAM writes within a hex address range.
+- `handle_dirty_break_clear` (L10371) — Handles dirty_break_clear: disarms the dirty-RAM break and replies ok.
+- `handle_dirty_break_state` (L10378) — Handles dirty_break_state: reports whether the dirty break is armed, its range, hit count and the registers at the last hit.
+- `handle_history` (L10399) — Handles history: reports the frame history count with the oldest and newest frames still kept.
+- `handle_get_frame` (L10411) — Handles get_frame: returns the saved state of one frame from the frame history, if that frame is still kept.
+- `handle_frame_range` (L10464) — Handles frame_range: returns frame history entries for a start to end span, at most 200 frames.
+- `handle_frame_timeseries` (L10509) — Handles frame_timeseries: returns a per-frame series over a start to end span, at most 200 frames.
+- `handle_first_failure` (L10554) — Handles first_failure: scans the frame history for the first frame that recorded a failure and reports it.
+- `handle_read_frame_ram` (L10572) — Handles read_frame_ram: reads guest RAM bytes at an address from a recorded frame in the history.
+- `handle_set_snapshot` (L10618) — Handles set_snapshot: stores a RAM address in one of the four snapshot slots.
+- `handle_get_snapshots` (L10634) — Handles get_snapshots: reports the four RAM snapshot slots with their addresses and active state.
+- `disp_ring_capture` (L10702) — Captures the current displayed VRAM into the display ring, unless continuous capture has been turned off.
+- `handle_display_ring_aux` (L10748) — Dump an entry's full-VRAM capture as a raw little-endian u16 blob (1024x512 row-major).
+- `handle_display_ring_stats` (L10770) — Handles display_ring_stats: reports the oldest and newest captured frames and the number of valid entries.
+- `handle_display_ring_get` (L10788) — Handles display_ring_get: writes the captured display frame for a given frame number to the given path.
+- `handle_screenshot_file` (L10824) — Handles screenshot_file: saves the current display area to an image file, or replies with an error when the display is disabled.
+- `handle_screenshot_hires` (L10888) — screenshot_hires — capture the SUPERSAMPLED surface, not native VRAM.
+- `handle_hd_textures` (L10979) — video_info — the Internal resolution state end to end: the preset and its reference height, the scale requested of the backend, the scale the GL hr surface was actually allocated at (after the driver/
+- `handle_dynres` (L11045) — Dynamic internal resolution ([video] dynamic_resolution; docs/TCP_COMMANDS.md).
+- `handle_dynres_force` (L11056) — dynres_force {"scale":N}: pin the level (clamped to floor..ceiling); {"scale":0} releases the pin.
+- `dynres_vram_hash` (L11067) — FNV-1a over the guest-visible VRAM (the CPU array after a GL sync).
+- `handle_dynres_check` (L11083) — dynres_check {"seq":"9,8,3,10"}: hash the guest-visible VRAM, step through seq inside this one handler (no guest code runs in between), hash after each step, then step back to the level it started at.
+- `handle_video_info` (L11116) — Handles video_info: reports the internal resolution state, its preset and scale, and the window and pixel sizes.
+- `handle_screenshot_wide_hires` (L11160) — screenshot_wide_hires — the displayed band of the native-wide surface at internal resolution (GL): wide_w*S x h*S.
+- `handle_present_shot` (L11228) — present_shot — PNG of the COMPOSED renderer output: the frame after SDL fits the display buffer into the logical surface, i.e.
+- `handle_present_shot_seq` (L11249) — present_shot_seq — completion counter for the staged capture above.
+- `handle_host_osd_shot` (L11260) — Capture host text independently of a visible present surface.
+- `handle_dump_buffer` (L11290) — dump_buffer: dump a raw 512x240 VRAM region starting at display Y = 'y' to a PNG, regardless of what the game currently displays.
+- `write_wide_png` (L11334) — wide_shot: capture the NATIVE-WIDE present surface (post-compositor, what the window actually shows in 16:9) to a PNG — unlike screenshot_file, which dumps the canonical 320 VRAM region (pre-composito
+- `handle_wide_shot` (L11387) — Handles wide_shot: saves the native-wide presented surface to a PNG at the given path, defaulting to psx_wide.png.
+- `debug_server_write_wide_picture` (L11402) — The bug report's PSX picture (bug_report.c): the presented native-wide surface, 0 when none is (the report then reads the display area).
+- `handle_bug_report` (L11415) — Player bug reports (bug_report.h), for tests without a keyboard: {"cmd":"bug_report","op":"status"|"open"|"save"|"discard"} {"cmd":"bug_report","op":"text","chars":"..."} typed text {"cmd":"bug_report
+- `debug_server_capture_mark` (L11432) — Operator capture mark.
+- `handle_render_thread` (L11452) — Render thread ([video] render_thread, docs/RENDER_THREAD.md): {"cmd":"render_thread"} -> active, held, frames produced/consumed, presents (and stale presents skipped), sync points (acquires) with the
+- `handle_sgl` (L11464) — The renderer on SDL_GPU ([video] renderer = "sdl_gpu", docs/SDL_GPU_RENDERER_PLAN.md): {"cmd":"sgl"} -> implementation, device, cached pipelines and counters (draws, render passes, uploads, copies, bl
+- `handle_frame_gen` (L11489) — Smooth motion (frame generation; [video] frame_generation, docs/FRAME_GENERATION.md): {"cmd":"frame_gen"} -> enabled, active, generated / real presents, flips, the last plan (in-between frames per gam
+- `handle_perf_summary` (L11512) — Handles perf_summary: returns the performance meter summary as JSON.
+- `handle_perf_frames` (L11526) — perf_frames: {"since":N} -> the perf meter's records from N (perf_meter.h), each [seq, frame, wall, game, gpu_emu, present, audio, wait, debug, vblank, render_cpu, gpu, gpu_post, render_frames, gpu_fr
+- `handle_present_image_ring_stats` (L11540) — Presented-image ring (see present_image_ring.h): {"cmd":"present_image_ring_stats"} -> oldest, newest, count, frozen {"cmd":"present_image_ring_get","frame":N,"path":"x.png"}
+- `handle_present_image_ring_get` (L11552) — Handles present_image_ring_get: saves a presented image from the ring, chosen by frame or sequence, to the given path.
+- `handle_capture_mark` (L11583) — {"cmd":"capture_mark","op":"status"|"mark"|"release"} status -> frozen, mark_frame, count, wide_path/wide_ok, and the frozen display-ring / GP0-ring frame spans to query.
+- `handle_present_screenshot` (L11618) — screenshot: capture what the player is actually being shown.
+- `handle_wide_full` (L11633) — wide_full: dump the ENTIRE active wide compositor surface (both double-buffer y-bands, full width incl.
+- `handle_vram_peek` (L11680) — Handles vram_peek: returns a rectangle of 16-bit VRAM pixels at x and y, with the given width and height.
+- `handle_gl_fbo_peek` (L11710) — Handles gl_fbo_peek: returns a rectangle of VRAM pixels read back from the GL framebuffer, with the given position and size.
+- `handle_gl_vram_diff` (L11745) — Handles gl_vram_diff: compares GL VRAM with the CPU copy and reports the changed bounds and sample pixels.
+- `gl_coh_kind_name` (L11770) — GL-backend coherency event ring: dump the last n events (default 200), optionally only events from frame >= frame_min.
+- `handle_gl_coh_ring` (L11788) — Handles gl_coh_ring: returns recent GL coherency events, optionally only from a minimum frame.
+- `handle_gl_present_ring` (L11826) — Handles gl_present_ring: returns recent GL present records, with the path each present took (vram, wide, cpu, blank, interp, stereo).
+- `handle_present_phase` (L11860) — Presents held to the screen's refresh grid (present_phase.h): {"cmd":"present_phase"}
+- `handle_present_ring` (L11877) — Present-classification ring (all backends; see present_ring.h): how each present was classified — 4:3 pillarbox / native-wide / canonical — and whether a native-wide present fell back to the canonical
+- `handle_nclip_stats` (L11917) — Precise-NCLIP attribution (gte_nclip_stats.h).
+- `handle_gpu_timeline` (L11958) — GPU frame timeline (gpu_timeline.h): cycle-ordered vblank / flip / draw-area / linked-list DMA / present events.
+- `wtrace_fill_entry` (L11995) — Fills one write-trace entry with the address, old and new values, width, return address and the DMA context.
+- `capture_frozen` (L12045) — Returns 1 once the capture freeze frame has been reached, so the write trace stops recording.
+- `wtrace_record` (L12050) — Records a RAM write in the main write trace ring, unless capture is frozen.
+- `wtrace_boot_record` (L12059) — Records a RAM write in the boot trace when its address falls inside one of the boot ranges.
+- `wtrace_all_record` (L12080) — Always-on catch-all recorder.
+- `wtrace_transition_record` (L12094) — Records a RAM write that changes a value, when its address falls inside a transition range.
+- `debug_server_log_call_entry_cpu` (L12133) — Compat no-op: ape-flavored generated code emits debug_server_log_call_entry_cpu at JAL sites (call-entry logging).
+- `is_card_critical_addr` (L12149) — Returns 1 when a physical address is one of the memory-card critical addresses, such as the card event control blocks.
+- `card_trace_record` (L12160) — Records a write to a memory-card critical address with its old and new values, PC, return address and function.
+- `handle_card_trace_dump` (L12173) — Handles card_trace_dump: returns recent memory-card critical writes, optionally filtered by an address range, up to count.
+- `debug_server_trace_write_check` (L12214) — Multi-range check called from memory.c write paths.
+- `debug_server_trace_mmio_write` (L12252) — MMIO write trace — called from memory.c mmio_write32/16/8.
+- `debug_server_trace_mmio_read` (L12301) — MMIO read trace — called from memory.c mmio_read32/16/8 wrappers AFTER the value is computed.
+- `handle_wtrace_range` (L12342) — Handles wtrace_range: sets write-trace slot 0 to the given address range and clears the other slots.
+- `handle_wtrace_add` (L12357) — Handles wtrace_add: adds a write-trace address range in a free slot, up to eight ranges.
+- `handle_wtrace_del` (L12372) — Handles wtrace_del: removes the write-trace range in the given slot and shifts the remaining ranges down.
+- `handle_wtrace_disarm_all` (L12387) — Normalized verb: disarm every range in one shot.
+- `handle_wtrace_ranges` (L12394) — Handles wtrace_ranges: lists the active write-trace address ranges.
+- `cyc_watch_arm` (L12418) — Arm cyc_watch: clear the ring, mask the anchor(s) to physical, start recording.
+- `handle_cyc_watch` (L12441) — cyc_watch — arm an anchor PC.
+- `handle_cyc_watch_dump` (L12462) — cyc_watch_dump — return the recorded ring as JSON.
+- `handle_cyc_watch_clear` (L12490) — cyc_watch_clear — disarm and zero the ring.
+- `handle_pc_probe_arm` (L12507) — pc_probe_arm — {"pcs":"0xA,0xB", "n":32, "nd_intro":1..5} or empty pcs+nd_intro.
+- `handle_pc_probe_dump` (L12533) — Handles pc_probe_dump: reports whether the PC probe is armed, how many PCs it watches, and the samples per slot.
+- `handle_pc_probe_clear` (L12573) — Handles pc_probe_clear: clears the PC probe state and replies ok.
+- `handle_irq_exc_stats` (L12599) — irq_exc_stats: cumulative per-source exception accounting since boot (interrupts.c), with guest cycles from entry to exit restore.
+- `handle_dma_hold_stats` (L12627) — dma_hold_stats: cumulative totals for CPU holds on kicked GPU linked-list walks (dma.c), split by kicks made inside an exception handler.
+- `handle_dma_hold_ring` (L12644) — dma_hold_ring: newest 'count' held kicks (default 256, max ring cap), optionally windowed by frame_lo/frame_hi.
+- `handle_irqctx_ring` (L12684) — Handles irqctx_ring: returns recent interrupt delivery context records (DMA state, COP0 state) from the ring.
+- `handle_sp_ring` (L12744) — sp_ring — dump the always-on stack-domain transition ring (fntrace.c).
+- `handle_disp_ring` (L12775) — disp_ring — dump the always-on dispatch tail ring (fntrace.c).
+- `handle_freeze_check` (L12804) — Handles freeze_check: reports memory-card state and recent activity to help diagnose a freeze, over a window of records.
+- `handle_wtrace_stats` (L13047) — Handles wtrace_stats: reports the write-trace total, capacity, oldest and newest sequence and range count.
+- `handle_wtrace_clear` (L13059) — Handles wtrace_clear: empties the write trace and replies ok.
+- `handle_wtrace_boot_stats` (L13068) — Handles wtrace_boot_stats: reports boot write-trace totals, capacity, range count and the environment range parse status.
+- `handle_wtrace_boot_clear` (L13082) — Handles wtrace_boot_clear: empties the boot write trace and replies ok.
+- `handle_wtrace_boot_dump` (L13093) — Handles wtrace_boot_dump: returns boot write-trace entries, optionally filtered by an address range.
+- `handle_wtrace_boot_summary` (L13183) — Handles wtrace_boot_summary: summarizes the boot write trace by address, optionally within an address filter.
+- `handle_wtrace_all_stats` (L13332) — Handles wtrace_all_stats: reports the catch-all write trace totals, capacity and sequence range.
+- `handle_wtrace_all_reset` (L13344) — Handles wtrace_all_reset: empties the catch-all write trace and replies ok.
+- `handle_wtrace_all_dump` (L13355) — Handles wtrace_all_dump: returns catch-all write trace entries, optionally filtered by an address range.
+- `handle_wtrace_trans_stats` (L13414) — Handles wtrace_trans_stats: reports the transition write-trace totals, capacity, range count and sequence range.
+- `handle_wtrace_trans_reset` (L13429) — Handles wtrace_trans_reset: empties the transition write trace and replies ok.
+- `handle_wtrace_trans_dump` (L13440) — Handles wtrace_trans_dump: returns transition write-trace entries, optionally filtered by address range.
+- `handle_call_focus_stats` (L13526) — Handles call_focus_stats: reports the call-focus ring totals, capacity and sequence range.
+- `handle_call_focus_reset` (L13538) — Handles call_focus_reset: empties the call-focus ring and replies ok.
+- `handle_call_focus_dump` (L13548) — Handles call_focus_dump: returns recent call-focus records, the calls made to the focused functions.
+- `handle_wtrace_dump` (L13666) — Handles wtrace_dump: returns main write-trace entries, optionally filtered by an address range.
+- `handle_mmio_dump` (L13764) — Handles mmio_dump: returns MMIO trace entries, optionally filtered by address.
+- `handle_mmio_clear` (L13829) — Handles mmio_clear: empties the MMIO trace and replies ok.
+- `handle_capture_freeze` (L13842) — capture_freeze: freeze the deep high-traffic rings (wtrace RAM writes, MMIO read/write traces) at frame N so a post-window event storm cannot evict the causal window before a probe reads it.
+- `handle_rtrace_dump` (L13854) — ---- rtrace (MMIO-READ trace) command handlers ---- Field names of the dumped entries are a SUPERSET of the oracle's rtrace_dump (addr/val/pc/ra/frame/w common; func/cpu_pc/sr/epc/i_stat/i_mask extra)
+- `handle_rtrace_clear` (L13918) — Handles rtrace_clear: empties the MMIO read trace and replies ok.
+- `handle_rtrace_arm` (L13927) — Handles rtrace_arm: adds an MMIO read-trace address range in a free slot, up to the maximum number of ranges.
+- `handle_rtrace_ranges` (L13942) — Handles rtrace_ranges: lists the active MMIO read-trace address ranges.
+- `handle_rtrace_stats` (L13955) — Handles rtrace_stats: reports the MMIO read-trace totals, capacity, sequence range and range count.
+- `handle_gp1_dump` (L13972) — gp1_dump — dump the dedicated GP1 display-control ring.
+- `mdec_event_kind_name` (L14027) — Maps an MDEC event kind code (reset, ctrl_write, cmd_begin, cmd_done, decode_done) to its name.
+- `handle_mdec_state` (L14045) — Handles mdec_state: reports the MDEC decoder state: current command, expected and input counts, and output position.
+- `handle_fmv_state` (L14076) — fmv_state: report the RESOLVED FMV-skip + config state — the runtime truth for "is the FMV-skip feature on / what config actually loaded", so we observe instead of inferring from the .toml on disk.
+- `handle_mdec_trace` (L14109) — Handles mdec_trace: returns MDEC events in a sequence range, by default the last 256.
+- `handle_mdec_trace_clear` (L14158) — Handles mdec_trace_clear: empties the MDEC event trace and replies ok.
+- `handle_quit` (L14165) — Handles quit: replies ok, records the exit origin as tcp_quit, shuts the debug server down and exits the process.
+- `handle_dispatch_stats` (L14179) — dispatch_stats: static hit vs.
+- `handle_segment_misses` (L14204) — segment_misses: static game text entered at a PC whose physical word has a compiled row only in another segment (docs/SEGMENT_AWARE_CODE.md §5.5), kind "game": each ran interpreted.
+- `handle_dispatch_check` (L14248) — dispatch_check: check if a specific address was ever dispatched
+- `handle_dispatch_tail` (L14258) — dispatch_tail: dump the last N dispatched function addresses
+- `handle_card_mgr_trace` (L14279) — Handles card_mgr_trace: returns memory-card manager call records, paged by a before sequence, optionally newest first.
+- `handle_card_mgr_clear` (L14346) — Handles card_mgr_clear: empties the memory-card manager trace and replies ok.
+- `handle_fn_filter` (L14355) — Handles fn_filter: sets the function-trace address range from hex lo and hi values and turns function tracing on.
+- `handle_fn_disable` (L14366) — Handles fn_disable: turns function tracing off and replies ok.
+- `handle_fn_clear` (L14372) — Handles fn_clear: resets the function entry and exit rings and the shadow stack counters, then replies ok.
+- `handle_fn_stats` (L14389) — Handles fn_stats: reports function entry and exit totals, stack depth, unmatched returns, overflows, tail calls and the filter range.
+- `fn_dump_parse` (L14421) — Helper: parse filter / range / count for fn_*_dump.
+- `handle_fn_entry_dump` (L14443) — Handles fn_entry_dump: returns function entry records filtered by sequence and address range, up to a maximum count.
+- `handle_fn_entry_tail` (L14489) — Handles fn_entry_tail: returns the most recent function entry records, up to 256.
+- `handle_fn_exit_dump` (L14529) — Handles fn_exit_dump: returns function exit records filtered by sequence and address range, up to a maximum count.
+- `handle_cd_read_log` (L14577) — cd_read_log: dump the CD DMA transfer ring.
+- `handle_disc_select` (L14627) — disc_select: report the multi-disc roster, and optionally mount a different entry of it while the game runs.
+- `handle_cd_reinsert` (L14673) — cd_reinsert: run the tray open/close cycle on the SAME image, which is what the reinsert hotkey does.
+- `handle_cdrom_instant_rate` (L14687) — cdrom_instant_rate: get/set the 'instant' per-frame sector-IRQ budget (step 3 tunable).
+- `handle_cd_overwrite` (L14697) — CD response-overwrite (dropped-response) accounting — proves the instant-mode race: a new controller response clobbering an unacked one.
+- `handle_turbo_loads` (L14717) — turbo_loads: get/set the turbo-through-loads enable (step 4).
+- `handle_turbo_audio_sink` (L14733) — turbo_audio_sink: opt-in host-output discard while turbo loads run.
+- `handle_load_transitions` (L14749) — load_transitions: state-edge log for physical reads, the bridged logical load predicate, and host-side turbo pacing.
+- `handle_cdrom_bursts` (L14774) — cdrom_bursts: dump the always-on CD load-burst ring, newest first.
+- `handle_cdrom_timing` (L14801) — cdrom_timing: passive L1.5 physical deadline -> buffer -> INT1 exposure summary.
+- `handle_cdrom_timing_dump` (L14815) — cdrom_timing_dump: per-sector records from the L1.5 timing ring.
+- `handle_autocompile_status` (L14858) — autocompile_status: variant-capture automation state — autocapture enable/trigger counters + the background compile's state and output tail (in-memory ring; no log files).
+- `handle_autocompile_run` (L14917) — autocompile_run: manually kick the active code provider's batch production (gcc: spawn the configured background compile).
+- `handle_overlay_rescan` (L14928) — overlay_rescan: re-scan the DLL cache and clear the checked-regions memo so newly compiled DLLs load on the next dispatch.
+- `handle_overlay_capture_dump` (L14939) — overlay_capture_dump: flush overlay_captures.json on demand (does not require a clean window-close).
+- `handle_overlay_loader_status` (L14951) — overlay_loader_status: report the dynamic overlay DLL loader state — whether active, how many functions are registered, which regions have been checked, and the most recent load event.
+- `handle_overlay_candidates` (L15087) — overlay_candidates: dump the per-entry candidate table (addr, state, stored vs live code hash, generation) so reload-on-return can be inspected directly.
+- `handle_overlay_static_entries` (L15111) — overlay_static_entries: always-on per-entry dispatch counts of the build-time static overlay dispatcher (generated overlays_static.c).
+- `handle_overlay_native_ring` (L15180) — overlay_native_ring: dump the always-on ring of native overlay calls + the in-progress entry (freeze-inside-native detector).
+- `handle_overlay_diff_on` (L15199) — overlay_diff_on/off: same-state native↔interp differential.
+- `handle_overlay_diff_off` (L15206) — Handles overlay_diff_off: turns off the overlay native-versus-interpreter differential mode and replies ok.
+- `handle_overlay_shadow_dump` (L15213) — Handles overlay_shadow_dump: returns the overlay shadow-run comparison data as JSON.
+- `handle_overlay_shadow_detail` (L15222) — Handles overlay_shadow_detail: returns the detailed overlay shadow-run comparison as JSON.
+- `handle_overlay_irq_suppress_on` (L15235) — overlay_irq_suppress_on/off: drop native overlay code's per-block interrupt checks (cadence ~ interpreter) to test whether the parity divergence is interrupt-delivery timing rather than codegen.
+- `handle_overlay_irq_suppress_off` (L15242) — Handles overlay_irq_suppress_off: turns off the suppression of per-block interrupt checks in native overlay code and replies ok.
+- `handle_overlay_irq_ratelimit` (L15258) — overlay_irq_ratelimit <n>: arm native per-block interrupt checks at a rate-limited cadence — the real check fires every Nth block, the rest are dropped.
+- `handle_overlay_native_event_granularity` (L15273) — overlay_native_event_granularity <conservative|normal>: when conservative, psx_advance_cycles splits a batched (N>1) cycle advance into N single-cycle steps so device events fire at their true due-cyc
+- `handle_overlay_fp_dump` (L15289) — overlay_fp_dump: dump the native↔interp execution-fingerprint log (per candidate function: in/out register CRC, native flag) for offline diffing.
+- `handle_dirty_insn_gate` (L15302) — dirty_insn_gate <lo> <hi>: extra phys PC range the per-insn interp log records (on top of the hardwired kernel ranges).
+- `handle_insn_freeze` (L15315) — insn_freeze <addr> <nth>: freeze the insn ring immediately BEFORE the Nth candidate dispatch of phys <addr>, preserving the pre-divergence window.
+- `handle_insn_freeze_status` (L15329) — Handles insn_freeze_status: reports the instruction-freeze address, count, frozen flag and instruction log sequence.
+- `handle_s3_smear_watch` (L15352) — insn_freeze_target <target>: freeze the insn ring the instant an interpreted instruction transfers to (or falls through to) <target>.
+- `handle_callret_watch` (L15387) — callret_watch lo=<hex> hi=<hex> — arm the call-resolution ring (dirty_ram_interp.c): every interp JALR whose call PC lies in [lo,hi) records its resolution tier + full post-call outcome.
+- `handle_insn_freeze_target` (L15492) — Handles insn_freeze_target: sets the target address that freezes the instruction ring when reached, and unfreezes the log.
+- `handle_insn_freeze_snapshot` (L15509) — insn_freeze_snapshot: report the register file captured at the jr/jalr that hit the watched wild target (g_insn_freeze_on_target).
+- `handle_ra_load_watch` (L15539) — ra_load_watch <value>: arm/read capture of the instruction that sets $ra to <value> (the wild target).
+- `handle_event_ring_dump` (L15572) — event_ring_dump: write the whole live event-timeline ring (IRQ deliver/gate, I_STAT raises/changes, DMA kick/done, each tagged cycle/pc/func/mode/overlay) to a JSON file for offline diffing of native-
+- `handle_event_ring_tail` (L15585) — event_ring_tail: inline JSON tail of the most-recent N events for a quick eyeball / first-output validation (default 64).
+- `handle_event_ring_clear` (L15601) — event_ring_clear: reset the ring to isolate a fresh capture window.
+- `handle_overlay_native_on` (L15612) — overlay_native_on / overlay_native_off: toggle native overlay EXECUTION at runtime (validity tracking still runs).
+- `handle_overlay_native_off` (L15619) — Handles overlay_native_off: turns native overlay execution off and replies with native_exec 0.
+- `handle_overlay_native_block` (L15634) — overlay_native_block: per-function native-disable for bisection.
+- `handle_overlay_cps_probe` (L15661) — overlay_cps_probe: arm/dump the CPS interior-continuation dispatch probe.
+- `handle_overlay_dump` (L15689) — overlay_dump: extract RAM regions that dirty_ram has marked executable above a threshold physical address.
+- `debug_server_freeze_dump_wtrace_all_json` (L15785) — ---- Freeze auto-dump accessors ---- Called from the freeze_heartbeat thread (NOT from TCP).
+- `debug_server_freeze_dump_wtrace_json` (L15816) — Writes the write-trace entries as a JSON array to the freeze dump file, up to max_count entries.
+- `debug_server_freeze_dump_frame_history_json` (L15853) — Writes the frame history entries as a JSON array to the freeze dump file, up to max_count entries.
+- `debug_server_freeze_dump_sio_pc_json` (L15896) — Writes the SIO PC trace entries as a JSON array to the freeze dump file, up to max_count entries.
+- `debug_server_freeze_dump_thread_trace_json` (L15921) — Writes the thread trace entries as a JSON array to the freeze dump file, up to max_count entries.
+- `debug_server_freeze_dump_restore_trace_json` (L15958) — Writes the restore trace entries as a JSON array to the freeze dump file, up to max_count entries.
+- `debug_server_freeze_dump_fn_entry_json` (L15990) — Writes the function entry trace as a JSON array to the freeze dump file, up to max_count entries.
+- `debug_server_freeze_dump_dirty_block_json` (L16019) — Writes the dirty-RAM block log entries as a JSON array to the freeze dump file, up to max_count entries.
+- `handle_game_options` (L16051) — Handles game_options: returns the game option settings as JSON.
+- `handle_xlate` (L16063) — On-the-fly string translation (text_xlate.cpp).
+- `handle_stack_profile` (L16078) — Live host-stack-usage profile (RECURSION_BUG.md §17): read the always-on ring while the game is still responsive to distinguish a gradual cross-frame leak (used_kb climbs linearly with frame) from a w
+- `handle_xprobe` (L16091) — Live boundary control-flow flight recorder (RECURSION_BUG.md §18): per-frame crossing/depth summary + per-crossing onset detail.
+- `handle_ce_profile` (L16105) — §19 compiled-entry depth profile: per-frame max host-stack-used sampled at EVERY compiled function entry.
+- `handle_xprobe_watch` (L16124) — Arm the §18 boundary trip at runtime once the idle baseline is known: xprobe_arm {"frame_trip":N,"stk_kb":K,"warmup":F}.
+- `handle_xprobe_arm` (L16149) — Handles xprobe_arm: arms the control-flow flight recorder trip with frame, stack and warmup limits.
+- `handle_latency` (L16163) — "latency": input->photon latency summary from the always-on latency ring.
+- `handle_vk_perf` (L16183) — "vk_perf": last N Vulkan per-frame op counters (allocs/submits/pack/blit/...).
+- `handle_lockstep` (L16192) — Handles lockstep: arms the block-level compiled versus interpreter comparator over a frame window and reports the first divergence.
+- `handle_lockstep_func` (L16208) — Handles lockstep_func: arms the same comparison per dispatch segment and reports its first divergence.
+- `phot_add_to` (L16274) — Adds an address to a hashed histogram table using a bounded number of probes, counting a drop when the table is full.
+- `phot_add` (L16288) — Adds one sampled address to the phase profiler's histogram.
+- `phase_sampler_main` (L16294) — Background thread body that samples the guest's current code address at a fixed interval into the phase histograms.
+- `phase_sampler_start` (L16344) — Starts the phase sampler background thread.
+- `handle_phase_profile` (L16356) — Handles phase_profile: reports the time split (interpreted, native, static, GPU, exception) over a window of whole seconds.
+- `handle_gcp_ring` (L16405) — gcp_ring: always-on guest-cycle profile ring (guest_cycle_profile.c).
+- `handle_phase_hot` (L16494) — phase_hot: top guest functions by native wall-time samples (cumulative since boot — diff two snapshots for a window).
+- `handle_idle_skip` (L16547) — idle_skip: idle-loop cycle-skip status + runtime toggle.
+- `handle_starv_ring` (L16570) — starv_ring: query the always-on starvation/PC-sample ring (16K entries, continuous since boot).
+- `handle_data_shards` (L16616) — data_shards: memoized pure-function replay counters (data_shards.c).
+- `handle_vsync_query_hle` (L16628) — vsync_query_hle: cycle-faithful VSync(-1) query acceleration counters.
+- `handle_warm_cd_route` (L16648) — warm_cd_route: live A/B toggle and fail-closed route counters.
+- `debug_server_set_restricted` (L17069) — Restricted mode (psx_mod_set_debug_tools_restricted): refuse every command that reads or changes guest state or drives input.
+- `restricted_allows` (L17079) — Returns 1 if a command name is on the allowed list while restricted debug mode is on, otherwise 0.
+- `process_command` (L17094) — Parses one request line, takes the command name from its JSON or plain text, and dispatches it to the matching handler.
+- `spu_keyon_ctx` (L17141) — CPUState *debug_cpu_ptr = NULL; /* Global, used by memory.c watchpoints spu_events: where the guest keyed each voice on (ra, sp, SR, stack words).
+- `debug_guest_ra` (L17156) — Guest $ra accessor for other TUs (e.g.
+- `debug_guest_sp` (L17157) — Returns the guest stack pointer of the bound CPU, or 0 before a CPU is bound.
+- `debug_server_set_cpu` (L17159) — Set the CPU state pointer for register queries.
+- `wtrace_apply_env_ranges` (L17170) — Parse PSX_WTRACE_BOOT_RANGES (see debug_server_init).
+- `debug_server_port` (L17232) — The port it listens on (the default when init had none).
+- `debug_server_init` (L17234) — Initialize the server.
+- `recv_line` (L17770) — Read one '\n'-terminated line from a blocking socket into buf.
+- `io_thread_main` (L17779) — The TCP I/O thread: owns accept/recv/send.
+- `debug_server_get_status` (L17827) — Current listener status for heartbeat diagnostics.
+- `debug_server_set_passive_policy` (L17834) — Passive recorders: what lets a probe that connects late look back (the catch-all RAM write ring, 128 MB; the frame fingerprint; the memory card traces; the host CPU sampler).
+- `debug_server_passive_active` (L17835) — Returns 1 while the passive recorders are active, otherwise 0.
+- `write_trace_live_refresh` (L17840) — Whether a store can be recorded (g_debug_write_trace_live): after init, after every command (they arm and disarm the recorders) and when the passive recorders or FMV quiet change.
+- `passive_on_first_request` (L17854) — Policy 2: the first request turns the passive recorders on (on the emulation thread, which the sampler must start from).
+- `debug_server_poll` (L17873) — Poll for incoming connections and commands.
+- `debug_server_record_frame` (L17913) — Record the current frame's state into the ring buffer.
+- `debug_server_wait_if_paused` (L18003) — Block while paused, polling TCP + SDL events.
+- `debug_server_check_watchpoints` (L18011) — Checks each active watchpoint against guest memory and sends a report to the connected client when the byte value changes.
+- `debug_server_shutdown` (L18031) — Graceful shutdown. Call at exit.
+- `debug_server_is_connected` (L18054) — Check if a TCP client is connected.
+- `debug_server_get_input_override` (L18059) — Returns >= 0 if the debug server wants to override pad input, -1 if no override is active.
+- `debug_server_get_input_override_port2` (L18083) — Port-2 override word (set_input/press "port":2), or -1.
+- `debug_server_get_axis_override` (L18093) — Optional analog-stick override set alongside set_input (lx/ly/rx/ry, 0..255, 0x80 = centre).
+- `debug_server_get_host_pad` (L18101) — Returns 1 and the host pad buttons, stick axes and trigger values when the host input layer is active, otherwise 0.
+- `debug_server_get_pad_type_override` (L18112) — Optional debug-only emulated controller identity set by set_input/press: -1 follows normal device selection; otherwise 0=digital, 1=DualShock, 2=JogCon.
+- `debug_server_get_pad_connected_override` (L18117) — set_input/press connected: -1 leaves device selection unchanged; 0/1 unplug/plug the serial endpoint for that injected sample.
+- `debug_server_turbo_enabled` (L18122) — TCP-controlled turbo mode.
 
 ### runtime/src/debug_socket_io.h
 
@@ -5757,51 +5757,53 @@ Interrupt and timing core of the emulated CPU: VBlank scheduling, interrupt deli
 - `interrupts_get_cycles_since_vblank` (L528) — VBlank phase within the current frame (0 ..
 - `interrupts_set_cycles_since_vblank` (L532) — Sets the cycles elapsed since the last VBlank; used when a save state is restored.
 - `interrupts_advance_cycles` (L536) — Accumulate emitted PSX cycles toward the next VBlank trigger.
-- `psx_exception_setjmp_epoch` (L625) — Returns the current exception setjmp epoch, which identifies the target of each longjmp.
-- `psx_last_irq_check_pc` (L648) — Most recent block-leader IRQ-check guest PC / compiled resume latch.
-- `psx_compiled_irq_resume_pc` (L649) — Returns the resume PC latched by the last compiled block-leader interrupt check.
-- `psx_last_irq_check_cycle` (L650) — Returns the cycle count at the most recent interrupt check.
-- `psx_interrupt_total_checks` (L651) — Returns how many interrupt checks have run since start.
-- `psx_interrupt_fast_maintenance` (L652) — Returns how many fast-path maintenance steps ran inside interrupt checks.
-- `psx_irq_resume_context_snapshot_site` (L653) — Returns the dirty-pump site id recorded for the current snapshot, 0 when none is active.
-- `psx_snapshot_host_call_begin` (L659) — A host adapter that preserves registers outside guest RAM is not a serializable continuation.
-- `psx_snapshot_host_call_end` (L660) — Leaves one host call that keeps register state outside guest RAM, lowering the nesting depth by one.
-- `psx_snapshot_host_call_reset` (L663) — Clears the host-call nesting depth to zero.
-- `psx_snapshot_host_call_depth` (L664) — Returns the current host-call nesting depth.
-- `psx_snapshot_host_call_restore` (L665) — Sets the host-call nesting depth back to a saved value.
-- `reset_dirty_snapshot_scope` (L667) — Clears the dirty-snapshot resume PC and dirty pump site, since a restore can leave the pump's epilogue behind.
-- `psx_irq_resume_context_snapshot_pc` (L674) — Returns the safe resume PC recorded for the dirty snapshot.
-- `psx_irq_resume_context_snapshot_safe_at` (L679) — Returns 1 when a snapshot at resume_pc can be taken now: no mod function is running and no host call is in progress.
-- `psx_irq_resume_context_snapshot_safe` (L713) — True when the current IRQ poll has a materialized CPUState/register context matching its resume PC.
-- `psx_irq_clear_resume_latches` (L718) — Soft-return / netplay BYE: drop sticky resume latches so rematch dig0 snaps cannot inherit a prior-match game PC (see pick_snap_resume_pc).
-- `psx_irq_arm_compiled_resume_pc` (L729) — Publish the known resume PC before the first post-load / flush_resume dispatch.
-- `psx_irq_compiled_resume_pc` (L739) — The host-fiber thread scheduler (traps.c) keeps the compiled resume latch per thread: it is set by a frame on that thread's native stack.
-- `psx_irq_set_compiled_resume_pc` (L740) — Sets the compiled resume latch of the current thread to pc.
-- `defer_switch_enabled` (L765) — A/B toggle: PSX_DEFER_SWITCH=0 forces the legacy immediate-switch behavior (longjmp the instant a mid-exception ChangeThread is detected, regardless of nesting) so the deferred-switch fix can be compa
-- `same_guest_pc` (L771) — True when two guest PCs match in their low 29 bits, ignoring the top segment bits.
-- `psx_get_in_exception` (L775) — Query whether we are currently inside an exception handler dispatch.
-- `interrupts_cosim_hash` (L784) — Co-sim (COSIM_ORACLE.md): fold the GENUINE guest-timing interrupt statics into the state hash.
-- `interrupts_cosim_dump` (L795) — Co-sim field dump: expose the exact irqctl-timing fields so a divergence can be field-diffed (is it cycles_since_vblank = VBLANK-raise-timing, or in_exception, ...).
-- `rfe_steps_over_gte_command` (L813) — Called by the recompiled 'rfe' opcode (after it pops the COP0 SR stack).
-- `psx_rfe_mark_escape` (L822) — Flags a pending RFE escape when an RFE runs outside the exception handler window; the flag is checked later.
-- `rfe_outside_window_unwind` (L847) — Called in the dispatch trampoline after a function returns (cpu->pc holds the real resume EPC).
-- `psx_rfe_escape_check` (L865) — If an RFE escape is pending outside the handler, unwinds the return back to the interrupted code and clears the flag.
-- `psx_get_freeze_diag` (L901) — Fills the out parameters with the interrupt counters and exception state used to diagnose a frozen emulator.
-- `interrupts_init` (L919) — Resets all interrupt dispatch state, exception nesting and the check counters to zero.
-- `interrupts_resync_after_restore` (L956) — Save-state restore: re-anchor host-only IRQ pacing after psx_cycle_count is overwritten from a snapshot.
-- `interrupts_log_last_vblank_irqctx` (L1007) — Netplay diag: last VBLANK irqctx exit/restore (+ v0) for peer diff.
-- `deferred_exception_longjmp` (L1054) — Defer a longjmp to the fiber that owns the current exception setjmp.
-- `psx_exception_longjmp` (L1074) — longjmp back to psx_check_interrupts, unwinding the exception handler.
-- `psx_restore_state_escape` (L1079) — longjmp back to psx_check_interrupts for RestoreState redirection.
-- `cycles_to_next_event` (L1101) — Cycle-budgeted precise event slicing — single source of truth.
-- `psx_interrupt_delivery_diag` (L1120) — Returns the counters of interrupt delivery decisions (deferred, delivered, and each reason for skipping).
-- `psx_interrupt_check_path_diag` (L1137) — Returns the counters for each path taken through the interrupt check.
-- `psx_interrupt_delivery_needed` (L1148) — Cheap block-edge predicate for generated/native code.
-- `poll_staged_user_snapshot` (L1175) — Applies a staged user save state at a safe point in the interrupt poll, when no exception is being handled.
-- `psx_check_interrupts` (L1184) — Called from the dispatch loop after each function returns.
-- `psx_check_interrupts_at` (L2386) — Compatibility shim: the ape-flavored generated code calls psx_check_interrupts_at(cpu, resume_pc); the mmx6-fw baseline runtime delivers interrupts via psx_check_interrupts (cpu->pc / scratch sentinel
-- `psx_interrupts_checked_at_current_cycle` (L2393) — True when the interrupt check already ran at this cycle for the given resume PC.
-- `psx_check_interrupts_dispatch_entry` (L2398) — Dispatch-entry check for re-enterable compiled PCs.
+- `psx_exception_setjmp_epoch` (L627) — Returns the current exception setjmp epoch, which identifies the target of each longjmp.
+- `psx_last_irq_check_pc` (L650) — Most recent block-leader IRQ-check guest PC / compiled resume latch.
+- `psx_compiled_irq_resume_pc` (L651) — Returns the resume PC latched by the last compiled block-leader interrupt check.
+- `psx_last_irq_check_cycle` (L652) — Returns the cycle count at the most recent interrupt check.
+- `psx_interrupt_total_checks` (L653) — Returns how many interrupt checks have run since start.
+- `psx_interrupt_fast_maintenance` (L654) — Returns how many fast-path maintenance steps ran inside interrupt checks.
+- `psx_irq_resume_context_snapshot_site` (L655) — Returns the dirty-pump site id recorded for the current snapshot, 0 when none is active.
+- `psx_snapshot_host_call_begin` (L661) — A host adapter that preserves registers outside guest RAM is not a serializable continuation.
+- `psx_snapshot_host_call_end` (L662) — Leaves one host call that keeps register state outside guest RAM, lowering the nesting depth by one.
+- `psx_snapshot_host_call_reset` (L665) — Clears the host-call nesting depth to zero.
+- `psx_snapshot_host_call_depth` (L666) — Returns the current host-call nesting depth.
+- `psx_snapshot_host_call_restore` (L667) — Sets the host-call nesting depth back to a saved value.
+- `reset_dirty_snapshot_scope` (L669) — Clears the dirty-snapshot resume PC and dirty pump site, since a restore can leave the pump's epilogue behind.
+- `psx_irq_resume_context_snapshot_pc` (L676) — Returns the safe resume PC recorded for the dirty snapshot.
+- `psx_irq_resume_context_snapshot_safe_at` (L681) — Returns 1 when a snapshot at resume_pc can be taken now: no mod function is running and no host call is in progress.
+- `psx_irq_resume_context_snapshot_safe` (L715) — True when the current IRQ poll has a materialized CPUState/register context matching its resume PC.
+- `psx_irq_clear_resume_latches` (L720) — Soft-return / netplay BYE: drop sticky resume latches so rematch dig0 snaps cannot inherit a prior-match game PC (see pick_snap_resume_pc).
+- `psx_irq_arm_compiled_resume_pc` (L731) — Publish the known resume PC before the first post-load / flush_resume dispatch.
+- `psx_irq_compiled_resume_pc` (L741) — The host-fiber thread scheduler (traps.c) keeps the compiled resume latch per thread: it is set by a frame on that thread's native stack.
+- `psx_irq_set_compiled_resume_pc` (L742) — Sets the compiled resume latch of the current thread to pc.
+- `defer_switch_enabled` (L767) — A/B toggle: PSX_DEFER_SWITCH=0 forces the legacy immediate-switch behavior (longjmp the instant a mid-exception ChangeThread is detected, regardless of nesting) so the deferred-switch fix can be compa
+- `same_guest_pc` (L773) — True when two guest PCs match in their low 29 bits, ignoring the top segment bits.
+- `psx_get_in_exception` (L777) — Query whether we are currently inside an exception handler dispatch.
+- `psx_exception_nest_depth` (L778) — Returns how many exception deliveries are nested right now (1 = outermost handler).
+- `psx_note_changethread_in_handler_switch` (L779) — Marks that a ChangeThread inside the handler moved the current thread, so this delivery unwinds to the scheduler at once instead of deferring.
+- `interrupts_cosim_hash` (L790) — Co-sim (COSIM_ORACLE.md): fold the GENUINE guest-timing interrupt statics into the state hash.
+- `interrupts_cosim_dump` (L801) — Co-sim field dump: expose the exact irqctl-timing fields so a divergence can be field-diffed (is it cycles_since_vblank = VBLANK-raise-timing, or in_exception, ...).
+- `rfe_steps_over_gte_command` (L819) — Called by the recompiled 'rfe' opcode (after it pops the COP0 SR stack).
+- `psx_rfe_mark_escape` (L828) — Flags a pending RFE escape when an RFE runs outside the exception handler window; the flag is checked later.
+- `rfe_outside_window_unwind` (L853) — Called in the dispatch trampoline after a function returns (cpu->pc holds the real resume EPC).
+- `psx_rfe_escape_check` (L871) — If an RFE escape is pending outside the handler, unwinds the return back to the interrupted code and clears the flag.
+- `psx_get_freeze_diag` (L907) — Fills the out parameters with the interrupt counters and exception state used to diagnose a frozen emulator.
+- `interrupts_init` (L925) — Resets all interrupt dispatch state, exception nesting and the check counters to zero.
+- `interrupts_resync_after_restore` (L963) — Save-state restore: re-anchor host-only IRQ pacing after psx_cycle_count is overwritten from a snapshot.
+- `interrupts_log_last_vblank_irqctx` (L1015) — Netplay diag: last VBLANK irqctx exit/restore (+ v0) for peer diff.
+- `deferred_exception_longjmp` (L1062) — Defer a longjmp to the fiber that owns the current exception setjmp.
+- `psx_exception_longjmp` (L1082) — longjmp back to psx_check_interrupts, unwinding the exception handler.
+- `psx_restore_state_escape` (L1087) — longjmp back to psx_check_interrupts for RestoreState redirection.
+- `cycles_to_next_event` (L1109) — Cycle-budgeted precise event slicing — single source of truth.
+- `psx_interrupt_delivery_diag` (L1128) — Returns the counters of interrupt delivery decisions (deferred, delivered, and each reason for skipping).
+- `psx_interrupt_check_path_diag` (L1145) — Returns the counters for each path taken through the interrupt check.
+- `psx_interrupt_delivery_needed` (L1156) — Cheap block-edge predicate for generated/native code.
+- `poll_staged_user_snapshot` (L1183) — Applies a staged user save state at a safe point in the interrupt poll, when no exception is being handled.
+- `psx_check_interrupts` (L1192) — Called from the dispatch loop after each function returns.
+- `psx_check_interrupts_at` (L2401) — Compatibility shim: the ape-flavored generated code calls psx_check_interrupts_at(cpu, resume_pc); the mmx6-fw baseline runtime delivers interrupts via psx_check_interrupts (cpu->pc / scratch sentinel
+- `psx_interrupts_checked_at_current_cycle` (L2408) — True when the interrupt check already ran at this cycle for the given resume PC.
+- `psx_check_interrupts_dispatch_entry` (L2413) — Dispatch-entry check for re-enterable compiled PCs.
 
 ### runtime/src/iso_reader.cpp
 
@@ -10187,11 +10189,13 @@ Handles guest traps and the thread scheduler: crash and break reporting, saving 
 - `psx_scheduler_can_resume_at` (L985) — Returns 1 when the scheduler can resume at the PC: it is inside the scheduler run, the HLE scheduler is on and the PC is dispatchable.
 - `psx_scheduler_rfe_resume` (L991) — Records a resume at the given PC for the current thread in the scheduler escape, for an exception return.
 - `psx_scheduler_run` (L1001) — Runs the scheduler loop, dispatching guest code until it escapes or the run ends.
-- `psx_syscall` (L1139) — Trap trampolines — defined in runtime/src/traps.c psx_syscall returns 1 if control transfers (cpu->pc set to a dispatch target; the caller must return to the trampoline), 0 for a directly-handled "voi
-- `psx_break` (L1288) — Reports a BREAK instruction with its PC and code as a crash.
-- `psx_arith_overflow` (L1296) — Reports an arithmetic overflow at the CPU's PC as a crash.
-- `psx_unaligned_access` (L1304) — Logs an unaligned memory access, up to three times, and lets the current function return early.
-- `psx_unknown_dispatch` (L1320) — Unknown dispatch — defined in runtime/src/traps.c
+- `psx_changethread_in_handler_stats` (L1172) — out[0] calls that switched, out[1] calls that named the current thread, out[2] calls that named another thread and were not taken; of the first switch: out[3] the interrupted PC, out[4] the target blo
+- `psx_change_thread_in_handler` (L1181) — SYS(03h) inside a handler: saves the registers at the call into the current TCB, sets its v0 to 1 and moves the current-thread pointer to the target, as the kernel does.
+- `psx_syscall` (L1214) — Trap trampolines — defined in runtime/src/traps.c psx_syscall returns 1 if control transfers (cpu->pc set to a dispatch target; the caller must return to the trampoline), 0 for a directly-handled "voi
+- `psx_break` (L1365) — Reports a BREAK instruction with its PC and code as a crash.
+- `psx_arith_overflow` (L1373) — Reports an arithmetic overflow at the CPU's PC as a crash.
+- `psx_unaligned_access` (L1381) — Logs an unaligned memory access, up to three times, and lets the current function return early.
+- `psx_unknown_dispatch` (L1397) — Unknown dispatch — defined in runtime/src/traps.c
 
 ### runtime/src/video_telemetry.cpp
 
