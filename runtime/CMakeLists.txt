@@ -304,6 +304,11 @@ if(BUILD_TESTING)
                 "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_kseg2_inline_load.py"
                 --cc "${CMAKE_C_COMPILER}")
         endif()
+        if(CMAKE_C_COMPILER_ID STREQUAL "GNU")
+            add_test(NAME dma_otc_start_test COMMAND "${Python3_EXECUTABLE}"
+                "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_dma_otc_start.py"
+                --cc "${CMAKE_C_COMPILER}")
+        endif()
         if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
             add_test(NAME menu_video_snapshot_test COMMAND ${Python3_EXECUTABLE}
                 ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_menu_video_snapshot.py
@@ -1398,13 +1403,6 @@ if(BUILD_TESTING)
     add_executable(spu_signed_nibble_test tests/test_spu_signed_nibble.c src/crc32.c)
     target_include_directories(spu_signed_nibble_test PRIVATE include)
     add_test(NAME spu_signed_nibble_test COMMAND spu_signed_nibble_test)
-    # Same story as sio_dualshock_rumble_test: registered but unlinkable on
-    # origin/master (crc32_update undefined), so it never ran. With crc32 linked
-    # it now runs 137 checks and fails 4, all in one ADSR sweep region
-    # (mid > 0, late > mid, fall_mid < 0x7FFE, fall_late < fall_mid). Rebuilding
-    # it against a zero-returning crc32 stub reproduces exactly those 4, so the
-    # crc32 linkage is not the cause — the envelope sweep genuinely disagrees.
-    set_tests_properties(spu_fidelity_test PROPERTIES DISABLED TRUE)
 
     add_executable(overlay_capture_retry_test
         tests/test_overlay_capture_retry.cpp
@@ -1740,6 +1738,22 @@ if(BUILD_TESTING)
                  COMMAND autocompile_degraded_test)
     endif()
 
+    # The compiler child must inherit its log pipe and nothing else, or an
+    # open save, replay or settings file cannot be renamed while a compile
+    # runs. The fault is a Windows one (a held file does not block rename()
+    # on POSIX), so the test is registered everywhere and reports itself
+    # skipped, with the reason, off Windows.
+    add_executable(autocompile_handle_inherit_test
+        tests/test_autocompile_handle_inherit.c)
+    if(WIN32)
+        target_sources(autocompile_handle_inherit_test PRIVATE src/autocompile.c)
+        target_include_directories(autocompile_handle_inherit_test PRIVATE include)
+    endif()
+    add_test(NAME autocompile_handle_inherit_test
+             COMMAND autocompile_handle_inherit_test)
+    set_tests_properties(autocompile_handle_inherit_test PROPERTIES
+        SKIP_RETURN_CODE 77 TIMEOUT 120)
+
     # OVL-20: data shard capture, replay and .dss validation (file cases are Windows-only).
     add_executable(data_shards_test
         tests/test_data_shards.c
@@ -1871,6 +1885,12 @@ if(BUILD_TESTING)
         find_package(Threads REQUIRED)
         target_link_libraries(render_thread_test PRIVATE Threads::Threads)
         add_test(NAME render_thread_test COMMAND render_thread_test)
+        # exit() with the host sampler running: the process ends and no
+        # sample lands after host_sampler_stop (Windows; skipped elsewhere).
+        add_executable(host_sampler_exit_test tests/test_host_sampler_exit.c src/host_sampler.c)
+        target_include_directories(host_sampler_exit_test PRIVATE include)
+        add_test(NAME host_sampler_exit_test COMMAND host_sampler_exit_test)
+        set_tests_properties(host_sampler_exit_test PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 300)
         # Present thread core ([video] present_thread): submission order is
         # presentation order, slots are never composed while queued or on
         # screen, done tokens reach the next composer, stop drains.
@@ -2227,6 +2247,17 @@ if(BUILD_TESTING)
     target_include_directories(psx_vblank_clock_test PRIVATE include)
     add_test(NAME psx_vblank_clock_test COMMAND psx_vblank_clock_test)
 
+    # A data shard replay marks its RAM writes executable by physical address.
+    # The test includes data_shards.c; whole-program optimization drops the rest.
+    if(CMAKE_C_COMPILER_ID STREQUAL "GNU")
+        add_executable(data_shard_exec_mark_test tests/test_data_shard_exec_mark.c)
+        target_include_directories(data_shard_exec_mark_test PRIVATE include)
+        target_compile_definitions(data_shard_exec_mark_test PRIVATE
+            PSX_ENABLE_BLOCK_CYCLES=1 PSX_NO_DEBUG_TOOLS=1)
+        target_compile_options(data_shard_exec_mark_test PRIVATE -O2 -fwhole-program)
+        add_test(NAME data_shard_exec_mark_test COMMAND data_shard_exec_mark_test)
+    endif()
+
     add_executable(psx_video_timing_test
         tests/test_psx_video_timing.c
         src/psx_video_timing.c)
@@ -2322,6 +2353,15 @@ if(BUILD_TESTING)
             add_test(NAME overlay_retry_c11_test COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_overlay_retry_c11.py --compiler ${CMAKE_C_COMPILER})
         endif()
         add_test(NAME setup_bios_assets_test COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_setup_bios_assets.py)
+        # The hand-over to the product forces the launcher for a player and
+        # honours a headless start. Without recomp-ui or a C compiler it
+        # cannot run and exits 77: "Skipped", not "Passed".
+        add_test(NAME codegen_host_handover_launcher_test
+                 COMMAND ${Python3_EXECUTABLE} -B
+                         ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_codegen_host_handover_launcher.py)
+        set_tests_properties(codegen_host_handover_launcher_test PROPERTIES
+                 SKIP_RETURN_CODE 77
+                 ENVIRONMENT "RECOMP_UI_ROOT=${RECOMP_UI_ROOT}")
         if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
             add_test(NAME launch_disc_path_test COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_launch_disc_path.py --compiler ${CMAKE_CXX_COMPILER})
             add_test(NAME persisted_settings_paths_test COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_persisted_settings_paths.py --compiler ${CMAKE_CXX_COMPILER})
@@ -2371,6 +2411,10 @@ if(BUILD_TESTING)
         add_test(NAME cdrom_lid_integration_test
                  COMMAND ${Python3_EXECUTABLE}
                          ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_cdrom_lid_integration.py)
+        add_test(NAME cdrom_audio_disc_read_test
+                 COMMAND ${Python3_EXECUTABLE}
+                         ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_cdrom_audio_disc_read.py
+                         ${CMAKE_C_COMPILER} ${CMAKE_CURRENT_BINARY_DIR}/audio-disc-read)
         add_test(NAME bios_registry_zero_entry_guard_test
                  COMMAND ${Python3_EXECUTABLE}
                          ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_bios_registry_zero_entry.py)
@@ -2641,4 +2685,23 @@ if(BUILD_TESTING AND CMAKE_C_COMPILER_ID STREQUAL "GNU")
         target_link_libraries(gpu_rare_commands_test PRIVATE m)
     endif()
     add_test(NAME gpu_rare_commands_test COMMAND gpu_rare_commands_test)
+
+    # GPUREAD after a VRAM-to-CPU transfer and the GP1(10h) info latch.
+    add_executable(gpu_gpuread_latch_test tests/test_gpu_gpuread_latch.c)
+    target_include_directories(gpu_gpuread_latch_test PRIVATE include)
+    target_compile_definitions(gpu_gpuread_latch_test PRIVATE PSX_ENABLE_BLOCK_CYCLES=1 PSX_NO_DEBUG_TOOLS=1)
+    target_compile_options(gpu_gpuread_latch_test PRIVATE -O2 -fwhole-program)
+    if(NOT WIN32)
+        target_link_libraries(gpu_gpuread_latch_test PRIVATE m)
+    endif()
+    add_test(NAME gpu_gpuread_latch_test COMMAND gpu_gpuread_latch_test)
+endif()
+
+# Focused memory-map fixture: whole-program optimization discards unused device paths.
+if(BUILD_TESTING AND CMAKE_C_COMPILER_ID STREQUAL "GNU")
+    add_executable(memory_cd_register_mirror_test tests/test_memory_cd_register_mirror.c)
+    target_include_directories(memory_cd_register_mirror_test PRIVATE include)
+    target_compile_definitions(memory_cd_register_mirror_test PRIVATE PSX_ENABLE_BLOCK_CYCLES=1 PSX_NO_DEBUG_TOOLS=1)
+    target_compile_options(memory_cd_register_mirror_test PRIVATE -O2 -fwhole-program)
+    add_test(NAME memory_cd_register_mirror_test COMMAND memory_cd_register_mirror_test)
 endif()

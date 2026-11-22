@@ -26,6 +26,11 @@ void host_sampler_start(void);
 /* Called by the render thread when it starts: with PSX_HOST_SAMPLER_THREAD=render
  * (Windows) the sampler samples that thread instead, into the same ring. */
 void host_sampler_register_render_thread(void);
+/* Stop sampling for good. Windows: when it returns no suspension of a
+ * sampled thread is in progress or will start. host_sampler_start registers
+ * it with atexit, so exit() cannot terminate the sampler while it holds the
+ * exiting thread suspended. */
+void host_sampler_stop(void);
 int host_sampler_supported(void);
 /* Total samples recorded; the ring holds the newest HOST_SAMPLER_CAP. */
 uint64_t host_sampler_seq(void);

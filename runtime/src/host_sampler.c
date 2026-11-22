@@ -49,11 +49,19 @@ static void record(uintptr_t pc, uintptr_t caller, uintptr_t caller2, int outsid
 /* Production builds carry no sampler: it reports unsupported. */
 void host_sampler_start(void) {}
 void host_sampler_register_render_thread(void) {}
+void host_sampler_stop(void) {}
 
 #elif defined(_WIN32)
 #include <windows.h>
 
 static HANDLE s_target;
+/* Held across each SuspendThread..ResumeThread. exit() terminates the other
+ * threads after the atexit handlers run; a sampler terminated between its
+ * suspend and its resume leaves the suspended thread suspended for good, and
+ * the process never ends. host_sampler_stop (an atexit handler) takes the
+ * lock, so no suspension is in progress or can start after it returns. */
+static SRWLOCK s_sample_lock = SRWLOCK_INIT;
+static int s_stopped;
 #if !defined(_WIN32_WINNT) || _WIN32_WINNT < 0x0602
 /* kernel32 since Windows 8; the headers declare it only for that target */
 WINBASEAPI VOID WINAPI GetCurrentThreadStackLimits(PULONG_PTR LowLimit, PULONG_PTR HighLimit);
@@ -204,7 +212,15 @@ static DWORD WINAPI sampler_main(LPVOID arg) {
             s_stack_lo = s_render_stack_lo;
             s_stack_hi = s_render_stack_hi;
         }
-        if (SuspendThread(target) == (DWORD)-1) continue;
+        AcquireSRWLockExclusive(&s_sample_lock);
+        if (s_stopped) {
+            ReleaseSRWLockExclusive(&s_sample_lock);
+            break;
+        }
+        if (SuspendThread(target) == (DWORD)-1) {
+            ReleaseSRWLockExclusive(&s_sample_lock);
+            continue;
+        }
         CONTEXT ctx;
         memset(&ctx, 0, sizeof ctx);
         ctx.ContextFlags = CONTEXT_FULL;
@@ -220,8 +236,17 @@ static DWORD WINAPI sampler_main(LPVOID arg) {
 #endif
         }
         ResumeThread(target);
+        ReleaseSRWLockExclusive(&s_sample_lock);
     }
+    if (timer) CloseHandle(timer);
     return 0;
+}
+
+void host_sampler_stop(void) {
+    if (!s_supported) return;
+    AcquireSRWLockExclusive(&s_sample_lock);
+    s_stopped = 1;
+    ReleaseSRWLockExclusive(&s_sample_lock);
 }
 
 void host_sampler_start(void) {
@@ -247,6 +272,7 @@ void host_sampler_start(void) {
     SetThreadPriority(t, THREAD_PRIORITY_TIME_CRITICAL);
     CloseHandle(t);
     s_supported = 1;
+    atexit(host_sampler_stop);
 }
 
 #elif defined(__linux__) || defined(__APPLE__)
@@ -322,10 +348,13 @@ void host_sampler_start(void) {
 }
 /* The emulation thread only here (the SIGPROF handler keys on it). */
 void host_sampler_register_render_thread(void) {}
+/* SIGPROF samples the thread it lands on; nothing suspends a thread. */
+void host_sampler_stop(void) {}
 
 #else
 void host_sampler_start(void) {}
 void host_sampler_register_render_thread(void) {}
+void host_sampler_stop(void) {}
 #endif
 
 int host_sampler_supported(void) { return s_supported; }
