@@ -38,4 +38,30 @@ inline bool psx_controller_handle_needs_close(bool controller_selected,
            std::strcmp(selected_guid, active_guid) != 0;
 }
 
+/* A physical Valve controller (Steam Controller 2015 / 2026, Steam Deck) seen
+ * directly through SDL's HIDAPI driver, i.e. NOT Steam Input's virtual pad
+ * (28DE:11FF). Outside a Steam launch the Steam client still applies its
+ * Desktop Configuration to such a pad and injects keyboard/mouse input
+ * (B = Escape, Back = Tab, A = Enter, triggers = mouse clicks) next to the
+ * gamepad reports SDL reads. */
+inline bool psx_controller_is_physical_valve_pad(unsigned vendor,
+                                                 unsigned product) {
+    return vendor == 0x28DEu && product != 0x11FFu;
+}
+
+/* Steam desktop-layout echo guard: while P1's pad is a physical Valve pad
+ * and it has input held (or released within the trailing window), keyboard
+ * and mouse input is Steam's synthesized echo of that same press and must
+ * not reach the game, the host hotkeys (Tab turbo) or the menu (Escape). */
+inline bool psx_steam_desktop_echo_active(bool p1_physical_valve_pad,
+                                          bool pad_input_held,
+                                          unsigned long long now_ms,
+                                          unsigned long long last_held_ms,
+                                          unsigned long long window_ms) {
+    if (!p1_physical_valve_pad) return false;
+    if (pad_input_held) return true;
+    return last_held_ms != 0 && now_ms >= last_held_ms &&
+           now_ms - last_held_ms <= window_ms;
+}
+
 #endif
