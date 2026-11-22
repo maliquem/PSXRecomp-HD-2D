@@ -1885,6 +1885,12 @@ if(BUILD_TESTING)
         find_package(Threads REQUIRED)
         target_link_libraries(render_thread_test PRIVATE Threads::Threads)
         add_test(NAME render_thread_test COMMAND render_thread_test)
+        # exit() with the host sampler running: the process ends and no
+        # sample lands after host_sampler_stop (Windows; skipped elsewhere).
+        add_executable(host_sampler_exit_test tests/test_host_sampler_exit.c src/host_sampler.c)
+        target_include_directories(host_sampler_exit_test PRIVATE include)
+        add_test(NAME host_sampler_exit_test COMMAND host_sampler_exit_test)
+        set_tests_properties(host_sampler_exit_test PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 300)
         # Present thread core ([video] present_thread): submission order is
         # presentation order, slots are never composed while queued or on
         # screen, done tokens reach the next composer, stop drains.
