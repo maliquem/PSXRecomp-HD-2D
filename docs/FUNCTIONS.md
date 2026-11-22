@@ -3050,15 +3050,15 @@ Identifies a PS1 disc image: reads its serial, region, header, CRC32 and SHA-256
 - `read_at` (L33) — Seeks to an offset in the file and reads len bytes into out; true only when the whole read succeeded.
 - `is_iso_pvd` (L41) — True when a 2048-byte sector is an ISO 9660 primary volume descriptor (type 1 with the CD001 magic).
 - `region_from_serial` (L46) — "SCUS-94236" -> region.
-- `normalize_serial` (L58) — Normalize a scanned EXE-style id "SCUS_942.36" to the game-id form "SCUS-94236".
-- `scan_boot_serial` (L74) — Scan the SYSTEM.CNF text region for the BOOT serial.
-- `crc32_stream` (L104) — CRC32 of the whole file, read from the start, returned as a 32-bit value; false if the read fails.
-- `hex_sha256` (L118) — SHA-256 of the canonical identity string, returned as hex text.
-- `fill_toc_from_mount` (L129) — Copies the cue and mount details of the resolved disc path into the identity's table-of-contents fields.
-- `is_chd_path` (L170) — True when the path has a .chd extension, ignoring case.
-- `crc32_chd` (L176) — CRC32 over every raw 2352-byte sector of the disc; false if any sector cannot be read.
-- `apply_netplay_disc_expect` (L190) — Apply / re-apply netplay mount policy onto an already-identified disc.
-- `identify_disc` (L236) — Identifies a disc from a path: resolves the data track, reads serial, region and header, optionally CRC32, and checks expected serial, CRC and netplay policy.
+- `normalize_serial` (L58) — Normalize a scanned EXE-style id "SCUS_942.36" to the game-id form "SCUS-94236"; a fifth letter after a known territory prefix (SLUSP012.06) is dropped.
+- `scan_boot_serial` (L78) — Scan the SYSTEM.CNF text region for the BOOT serial.
+- `crc32_stream` (L108) — CRC32 of the whole file, read from the start, returned as a 32-bit value; false if the read fails.
+- `hex_sha256` (L122) — SHA-256 of the canonical identity string, returned as hex text.
+- `fill_toc_from_mount` (L133) — Copies the cue and mount details of the resolved disc path into the identity's table-of-contents fields.
+- `is_chd_path` (L174) — True when the path has a .chd extension, ignoring case.
+- `crc32_chd` (L180) — CRC32 over every raw 2352-byte sector of the disc; false if any sector cannot be read.
+- `apply_netplay_disc_expect` (L194) — Apply / re-apply netplay mount policy onto an already-identified disc.
+- `identify_disc` (L240) — Identifies a disc from a path: resolves the data track, reads serial, region and header, optionally CRC32, and checks expected serial, CRC and netplay policy.
 
 ### runtime/src/disc_path.cpp
 
