@@ -4031,196 +4031,196 @@ The PS1 GPU emulation: GP0 and GP1 command handling, software rasterising, VRAM 
 - `gpu_vblank_flush_present` (L5436) — Presents the frame now, clearing the reentrancy guard.
 - `gpu_vblank_tick` (L5493) — Runs the GPU's VBlank processing (display timing and deferred present).
 - `gpu_get_vram` (L5563) — Returns the VRAM buffer.
-- `depth24_note_upload` (L5572) — Depth24: note/query/reset the CPU→VRAM upload span tracked above.
-- `gpu_depth24_rgb_limit` (L5580) — Depth24: RGB columns covered by CPU→VRAM uploads since the last reset.
-- `gpu_depth24_upload_span_reset` (L5595) — Resets the depth-24 upload span.
-- `gpu_depth24_present_hold_tick` (L5599) — MotK intro cuts retarget GP1(07h): the guest-state hold counts down at guest VBlank (gpu_vblank_tick).
-- `gpu_depth24_on_savestate_loaded` (L5603) — After savestate restore: clear ephemeral hold so the restored depth24 frame can present immediately (span/prev_h come from the GPU snap).
-- `gpu_set_screen_kind` (L5629) — Present-time screen-colour model (see color_lut.h ScreenKind: 0=raw, 1=crt, 2=composite, 3=trinitron).
-- `screen_lut_ensure` (L5636) — Makes sure the screen colour lookup table exists for the current screen kind.
-- `gpu_rgb555_to_rgb888` (L5661) — Converts a 15-bit RGB555 colour to 8-bit RGB.
-- `gpu_display_pixel_rgb_in` (L5674) — Converts an input pixel to display RGB for the given input format.
-- `gpu_display_pixel_rgb` (L5702) — Converts a VRAM pixel to display RGB.
-- `gpu_display_pixel_argb` (L5707) — Converts a VRAM pixel to display ARGB.
-- `gpu_depth24_present_row` (L5723) — Batch depth24 (FMV) scanline → ARGB.
-- `gpu_depth24_stage_scanout` (L5760) — Depth24 present staging, shared by every CPU present path: compose the GP1(07h) intersection with active video into the PAL/NTSC canvas (rows off-screen are clipping, not a shift), then black-fill the
-- `gpu_display_is_depth24` (L5788) — GP1(08h) bit4 — 24-bit display.
-- `gpu_get_display_info` (L5797) — The display info is a pure function of these GP1 registers; the widescreen code asks for it per primitive.
-- `gpu_compute_display_info` (L5816) — Computes the display info from the GP1 registers.
-- `gpu_get_crtc_debug` (L5897) — Debug accessors for GP1 display-range / mode (TCP gpu_state).
-- `gpu_set_vblank_callback` (L5907) — Sets the callback that runs at each VBlank.
-- `sign_extend` (L5912) — Sign-extend an N-bit value to int32_t
-- `parse_vertex` (L5920) — Parse a vertex position word: signed 11-bit X and Y
-- `gpu_pgxp_rederive_enable` (L5936) — Arm the PGXP dataflow transport for any consumer.
-- `psx_mod_set_native_wide_projection_correction` (L5943) — Enable render-only recovery of saturated horizontal GTE projections and camera-plane clipping in native-wide gameplay.
-- `gpu_ws_native_wide_projection_correction` (L5952) — 1 when native-wide projection correction is enabled.
-- `gpu_ws_projective_enabled` (L5957) — 1 when projective correction is enabled.
-- `psx_mod_set_native_wide_near_clip` (L5962) — Deprecated compatibility entry point; enabled is ignored.
-- `native_wide_projection_x` (L5973) — The PS1 clamps each projected X independently.
-- `gpu_triangle_rejected` (L5998) — Original, unsubdivided world faces can exceed the PS1 size limit after the wider view admits them.
-- `gpu_texture_correction_set` (L6025) — Perspective-correct UV interpolation for textured world polygons ([video] perspective_texturing).
-- `gpu_texture_correction_enabled` (L6030) — 1 when perspective-correct texture coordinates are enabled.
-- `gpu_texture_correction_hits` (L6034) — Triangles drawn with perspective-correct UVs since startup.
-- `prepare_precise_triangle` (L6050) — Per-vertex precise positions (PGXP, docs/ENHANCEMENTS.md G1).
-- `textured_quad_precise_vertices` (L6179) — A textured quad whose four packet vertices form an axis-aligned rectangle (in integer screen space and in UV) is drawn by the 2D rectangle shortcut, at the native integer position and without perspect
-- `gpu_texture_correction_stats` (L6212) — Returns the perspective texture correction statistics.
-- `prepare_texture_triangle` (L6225) — Enable perspective UVs only when every position word came from an exact SWC2 projection store at that same DMA packet address.
-- `draw_area_wide_x_margin` (L6272) — Inclusive draw-area reject (same predicate as the hardware clip).
-- `draw_area_host_x_bounds` (L6281) — Host X bounds of the drawing area.
-- `draw_area_out_point` (L6298) — 1 when a point lies outside the drawing area.
-- `draw_area_out_bbox` (L6305) — 1 when a bounding box lies outside the drawing area.
-- `draw_area_out_poly` (L6325) — A polygon wholly past the drawing area draws nothing.
-- `draw_area_out_rect` (L6342) — 1 when a rectangle lies outside the drawing area.
-- `gp0_exec_mono_tri` (L6353) — Execute mono triangle (GP0 0x20-0x23)
-- `ws_local_viewport_divider` (L6377) — Execute mono quad (GP0 0x28-0x2B) — two triangles: (0,1,2) and (2,1,3) A native split divider belongs to the combined framebuffer.
-- `gp0_exec_mono_quad` (L6388) — Draws a flat-colour quad (two triangles) as GP0 commands.
-- `gp0_exec_shaded_tri` (L6511) — Execute shaded triangle (GP0 0x30-0x33) — Gouraud shaded
-- `gpu_arm_shaded_quad_capture` (L6537) — Arms a capture of the next shaded quad.
-- `gpu_get_shaded_quad_capture` (L6538) — Returns the captured shaded quad.
-- `gp0_exec_shaded_quad` (L6545) — Execute shaded quad (GP0 0x38-0x3B)
-- `current_texpage` (L6598) — Helper: build texpage word from GPU state for SW renderer.
-- `set_tpage_from_poly` (L6611) — Hardware: the texpage attribute word carried inside every textured polygon (GP0 0x24-0x3F with the texture bit) is copied into the GPU draw-mode state (GPUSTAT bits 0-8) exactly like GP0(E1) bits 0-8
-- `setup_textured_draw` (L6621) — Helper: set up SW renderer state before a textured draw.
-- `native_wide_projective_draw` (L6633) — A close corner may cross the camera plane while the face is still visible.
-- `gp0_exec_textured_tri` (L6668) — Execute textured triangle (GP0 0x24-0x27)
-- `gp0_exec_textured_quad` (L6716) — Execute textured quad (GP0 0x2C-0x2F)
-- `gp0_exec_shaded_textured_tri` (L6850) — Execute shaded textured triangle (GP0 0x34-0x37)
-- `psx_mod_texture_banks_supported` (L6917) — 1 when the texture banks are supported by the mod.
-- `gp0_exec_shaded_textured_quad` (L6922) — Execute shaded textured quad (GP0 0x3C-0x3F)
-- `gp0_exec_mono_line` (L6997) — Execute mono line (GP0 0x40-0x47) — Bresenham
-- `gp0_exec_shaded_line` (L7027) — Execute shaded line (GP0 0x50-0x57)
-- `gp0_exec_mono_rect` (L7049) — Execute mono rectangle (GP0 0x60-0x63)
-- `ws_repeat_textured_rect_reveal` (L7089) — Repeats a textured rectangle into the native-wide reveal margins.
-- `ws_fb_base_holding` (L7116) — The framebuffer whose canonical columns hold VRAM x, or -1.
-- `ws_feedback_rect_reveal` (L7125) — A tagged 15-bit sprite copying another framebuffer continues into the bands from that buffer's wide surface (it has no band columns in VRAM).
-- `gp0_exec_textured_rect` (L7156) — Execute textured rectangle (GP0 0x64-0x67)
-- `gp0_exec_mono_dot` (L7246) — Execute 1x1 dot (GP0 0x68-0x6B)
-- `gp0_exec_textured_dot` (L7260) — Execute textured 1x1 dot (GP0 0x6C-0x6F)
-- `gp0_exec_textured_8x8` (L7279) — Execute 8x8 textured sprite (GP0 0x74-0x77)
-- `gp0_exec_mono_8x8` (L7306) — Execute 8x8 sprite (GP0 0x70-0x73)
-- `gp0_exec_textured_16x16` (L7324) — Execute 16x16 textured sprite (GP0 0x7C-0x7F)
-- `gp0_exec_nop` (L7369) — GP0 no-op command handler.
-- `gp0_exec_fill_rect` (L7373) — GP0 fill-rectangle command handler: fills a VRAM rectangle with a colour.
-- `gp0_exec_draw_mode` (L7405) — GP0 draw-mode (texpage) command handler.
-- `gp0_exec_texture_window` (L7427) — GP0 texture-window command handler.
-- `gp0_exec_draw_area_tl` (L7437) — GP0 draw-area top-left command handler.
-- `gp0_exec_draw_area_br` (L7452) — GP0 draw-area bottom-right command handler.
-- `gp0_exec_draw_offset` (L7466) — GP0 draw-offset command handler.
-- `gp0_exec_mask_bit` (L7482) — GP0 mask-bit setting command handler.
-- `gpu_get_a0_history` (L7514) — Returns the history of GP0 0xC0 reads.
-- `gpu_get_a0_count` (L7524) — Number of GP0 0xA0 transfer records.
-- `gpu_get_a0_extra` (L7525) — Extra arguments of the last GP0 0xA0 transfer.
-- `gpu_get_a0_src` (L7536) — True source pointer + arg regs + frame for the LoadImage upload (s2 = source).
-- `gp0_exec_cpu_to_vram` (L7545) — GP0 CPU-to-VRAM transfer command handler.
-- `gpu_get_c0_total` (L7615) — Total GP0 C0 reads since boot; the ring holds the newest C0_HISTORY_CAP.
-- `gpu_get_c0_count` (L7616) — Number of GP0 0xC0 reads kept in the ring.
-- `gpu_get_c0_history` (L7620) — index 0 = oldest entry still in the ring.
-- `gpu_get_c0_frame` (L7636) — Frame of a GP0 0xC0 read.
-- `gp0_exec_vram_to_cpu` (L7643) — GP0 VRAM-to-CPU transfer command handler.
-- `gp0_command_word_count` (L7680) — Determine how many words a GP0 command requires (header only, not counting variable-length data for 0xA0).
-- `gpu_gp0_command_word_count` (L7766) — Fixed command words; -1 denotes a terminated polyline, 0 an unknown opcode.
-- `ws_ui_prepass_add` (L7770) — Adds a UI prepass record for a primitive.
-- `ws_ui_untextured_op` (L7911) — 1 when a primitive is an untextured operation for UI grouping.
-- `ws_ui_encloses` (L7916) — 1 when one UI item encloses another.
-- `ws_ui_attached` (L7926) — Part of the same widget: sharing screen columns and overlapping or stacked within WS_UI_GROUP_STACK_GAP rows (ws_ui_group.c same_element()).
-- `gpu_ws_prepass_linked_list` (L7937) — Prepass over the linked list that collects UI and backdrop primitives.
-- `gpu_ws_set_backdrop_images` (L8338) — The backdrop-image rule (native-wide): what a frame draws before its 3D world, as images (a picture's tiles together, a band each for pieces stacked in it), each decided on its own: past the wide edge
-- `bdi_enabled` (L8340) — 1 when backdrop images are enabled.
-- `bdi_find` (L8348) — Finds a backdrop image record.
-- `bdi_insert` (L8359) — Inserts a backdrop image record.
-- `bdi_texel` (L8371) — One texel as BGR555 with its stp bit, 0 = transparent.
-- `bdi_colour` (L8384) — A sample's colour (BGR555, no stp) as drawn: the texel times the vertex colour (0x80 = 1.0) unless raw; untextured: the vertex colour.
-- `bdi_side_samples` (L8408) — One side of a band (whole: of an image, all its bands): its edge (the primitives at that extreme, each by the two vertices furthest that way: a slanted edge, a perspective plane whose top row is narro
-- `bdi_mode` (L8438) — The colour most samples sit within 'tol' levels of; *count how many do.
-- `bdi_dark` (L8454) — A colour's brightest channel at most 'lv' levels (of 31).
-- `bdi_flat` (L8462) — Mostly one colour: the colour at least 90% of the samples sit within 1 level of (a lighter edge with a faint pattern is art, not a flat colour); a very dark edge (a night sky with faint clouds: up to
-- `bdi_prim_parse` (L8472) — Parses a backdrop primitive's position and colour.
-- `bdi_prim_rows` (L8514) — Returns the rows a backdrop primitive covers.
-- `bdi_split_bands` (L8525) — Each image into bands: its primitives whose rows overlap (by more than a row: pieces stacked edge to edge are apart).
-- `bdi_tile_of` (L8570) — Returns the tile index of a backdrop primitive.
-- `bdi_tile_eq` (L8578) — 1 when two backdrop tiles are equal.
-- `bdi_tile_mem` (L8587) — Memory tile comparison for backdrop tiles.
-- `bdi_strip` (L8604) — A band laid as one row of textured rectangles: their indices by x.
-- `bdi_tiles_learn` (L8620) — Each strip's neighbouring tiles, remembered.
-- `bdi_wrap_side` (L8640) — A strip's side short of the wide edge: the tiles seen beyond its end (one after another, up to 3) planned there; 0 (nothing planned) when they are not remembered or do not reach the wide edge.
-- `bdi_side_piece_w` (L8663) — The narrowest piece at a side of a band (whole: of an image).
-- `bdi_drop_wraps` (L8677) — Drops wrapped backdrop tile records.
-- `bdi_decide` (L8689) — One band (whole: an image, all its bands together): its stretch, filled sides and (a band) tiles drawn in its gaps into *im.
-- `bdi_fill_runs` (L8745) — A filled side, row by row: the colour at the edge on that row (a sky's gradient goes on into the margin with no seam), the side's main colour where no primitive is at the edge; kept as runs of one col
-- `bdi_square` (L8785) — A primitive laid square: a rectangle, or a quad whose corners sit on two columns and two rows (to a pixel).
-- `bdi_gte_polygon` (L8796) — A polygon with a corner the GTE projected (PGXP's dataflow shadow of its packet word): 3D world, not a still.
-- `bdi_prepass` (L8811) — Prepass that collects backdrop images from the linked list.
-- `bdi_gate` (L8964) — The answer for the primitive being drawn: -1 none (not a backdrop image); 0 drawn as it is; else (marked ?
-- `bdi_fill_note` (L8976) — At an image's first primitive: its filled margins, before any of it.
-- `gpu_ws_backdrop_images_json` (L9008) — TCP ws_backdrop_images: the last linked list's images.
-- `ws_ui_prepass_order_cmp` (L9030) — qsort comparison of two UI prepass records.
-- `ws_ui_prepass_find_node` (L9038) — The first prepass record of 'resolved', as the linear scan found it.
-- `gpu_ws_validate_linked_list_header` (L9060) — Validates a linked-list header word for the widescreen state.
-- `gpu_ws_validate_linked_list_node` (L9072) — Validates a linked-list node for the widescreen state.
-- `gpu_get_opcode_count` (L9102) — Number of opcodes seen in the GP0 stream, for diagnostics.
-- `gp0_capture_builder_chain` (L9124) — Bounded guest-stack unwind for VRAM-copy builder attribution.
-- `gpu_gp0_ring_set_frozen` (L9162) — Freeze/unfreeze the always-on GP0 command ring (capture mark).
-- `gp0_ring_record` (L9164) — Records one GP0 word in the command ring.
-- `gpu_gp0_ring_total` (L9190) — Public accessors for debug_server.c
-- `gpu_gp0_ring_capacity` (L9191) — Capacity of the GP0 command ring in commands.
-- `gpu_gp0_ring_max_words` (L9192) — Maximum words stored per GP0 command in the ring.
-- `gpu_gp0_ring_dump_frame` (L9197) — Fill 'out[0..max_out-1]' with entries from the requested frame; returns count.
-- `gpu_gp0_ring_frame_span` (L9213) — Report the frame range currently held in the ring (oldest..newest).
-- `gpu_set_gp0_source` (L9246) — Sets the RAM source address of the current GP0 word.
-- `prim_sx_extent` (L9277) — Screen-X extent (raw vertex coords = SX, pre-draw_offset) across a prim's position vertices.
-- `gpu_ws_prim_x_span` (L9300) — The screen-X span of the primitive being drawn, for a title's native-wide predicate (gpu.h): polygons by their vertices, rectangles with their width, lines by both ends; in the coordinates the game se
-- `ws_note_overhang` (L9329) — Natural-overhang noter (see the ws_ovh_* block up top for the rationale).
-- `ws_note_backdrop` (L9363) — Finite-backdrop noter (ws_backdrop_extent.h).
-- `ws_census_record` (L9384) — Records one census row for the widescreen census.
-- `gpu_ws_census_dump` (L9406) — Dump census rows for frames [f0,f1] to a CSV file.
-- `gpu_ws_census_set` (L9427) — Sets the widescreen census state.
-- `gpu_ws_census_seq` (L9428) — Current sequence number of the widescreen census.
-- `psx_mod_set_turbo_pgxp_skip` (L9455) — The turbo keeps the PGXP hooks off while a frame it will not show computes its geometry (gpu.c).
-- `draw_skip_hold` (L9459) — Holds a draw skip decision for a frame.
-- `gpu_draw_skip_shown_partial` (L9467) — 1 when a partially shown frame skipped its draws.
-- `gpu_draw_skip_vblank` (L9468) — Reports a VBlank in the draw-skip state.
-- `gpu_draw_skip_counts` (L9480) — Counts draw skips for the diagnostic output.
-- `gpu_draw_skip_pgxp_frames` (L9485) — Counts PGXP frames skipped by the turbo.
-- `draw_skip_prim` (L9489) — 1 when the turbo drops this primitive; a dropped textured polygon still latches its texpage.
-- `gp0_execute_command` (L9498) — Executes one GP0 command word, dispatching by its opcode.
-- `gp0_irq_request` (L9562) — GP0(1Fh): sets the GPUSTAT bit 24 flag and raises I_STAT bit 1 (IRQ_GPU).
-- `gp0_dispatch_command` (L9568) — Dispatches a GP0 command to its handler.
-- `gpu_get_gp0_count` (L9779) — Total number of GP0 writes since init.
-- `gpu_get_gp0_stats` (L9781) — uint64_t gpu_get_gp0_count(void); /* Total GP0 writes since init
-- `gpu_get_draw_area` (L9786) — Returns the drawing area rectangle.
-- `gpu_vram_peek` (L9795) — One VRAM pixel as the GPU has it.
-- `gpu_vram_drawn_check` (L9811) — TCP vram_drawn_check: the proof of the cells above.
-- `psx_mod_vram_write` (L9830) — psx_mod_vram_write: a title's own pixels, as an unmasked CPU->VRAM copy, in the guest's VRAM and the renderer's (as shadow_blob_key_put does).
-- `gpu_write_gp0_body` (L9842) — Body of a GP0 write, handling the command and data words.
-- `gpu_write_gp0` (L10039) — Wall-time sampler bracket (phase_profile): tag GP0 command processing — rasterization / batching / VRAM transfer work on the emu thread — as its own phase so it is separable from the guest code that i
-- `gp1_reset` (L10050) — GP1 reset command handler (0x00): resets the GPU.
-- `gp1_reset_command_buffer` (L10057) — GP1 reset-command-buffer handler (0x01).
-- `gp1_ack_irq1` (L10066) — GP1 acknowledge-IRQ handler (0x02).
-- `gp1_display_enable` (L10071) — GP1 display enable handler (0x03).
-- `gp1_dma_direction` (L10085) — GP1 DMA direction handler (0x04).
-- `gpu_display_flips` (L10093) — Display starts that moved (GP1(05h) to another place): the game's own frames of a double-buffered picture, for the FPS readout.
-- `gp1_display_area_start` (L10095) — GP1 display area start handler (0x05).
-- `gp1_h_display_range` (L10121) — GP1 horizontal display range handler (0x06).
-- `gp1_v_display_range` (L10129) — GP1 vertical display range handler (0x07).
-- `gp1_display_mode` (L10148) — GP1 display mode handler (0x08).
-- `gp1_get_info` (L10177) — GP1 get-info handler (0x10): returns the requested GPU info.
-- `gpu_write_gp1` (L10217) — Writes a GP1 control word and dispatches it by its command number.
-- `gpu_snap_emit` (L10290) — GPU snap fields are scalars / u32 arrays — emit as LE u32/i32 (no struct pad).
-- `gpu_snap_parse` (L10327) — Reads GPU snapshot fields from a buffer.
-- `gpu_snapshot_bytes` (L10370) — Byte size of the GPU snapshot.
-- `gpu_snapshot_write` (L10375) — Writes the GPU snapshot into a buffer.
-- `gpu_cosim_snapshot_bytes` (L10380) — Byte size of the co-simulation snapshot.
-- `gpu_cosim_snapshot_write` (L10381) — Writes the co-simulation snapshot into a buffer.
-- `gpu_cosim_dump` (L10382) — Debug: dumps the co-simulation state.
-- `gpu_snapshot_validate` (L10423) — Pass-1 check for boot_state's two-pass load: refuses a GP0 state the parser would accept but gpu_write_gp0 would index gp0_cmd_buf out of range with.
-- `gpu_snapshot_read` (L10438) — Restores the GPU state from a snapshot buffer.
-- `gpu_pass_provenance_transfer` (L10516) — One transfer list keeps save and restore symmetric.
-- `gpu_pass_scene_transfer` (L10561) — Scene transfer list for a render pass checkpoint.
-- `gpu_pass_checkpoint_save` (L10594) — Render-pass GPU register checkpoint (render_pass.c).
-- `gpu_pass_checkpoint_restore` (L10612) — Restores the GPU registers from a render-pass checkpoint.
-- `gpu_pass_state_hash` (L10639) — FNV-1a over the checkpointed register set (PSX_RENDER_PASS_VERIFY).
-- `gpu_get_vram_ptr` (L10652) — Pointer to the VRAM buffer.
-- `gpu_get_vram_bytes` (L10653) — Size of the VRAM buffer in bytes.
+- `depth24_note_upload` (L5573) — Depth24: note/query/reset the CPU→VRAM upload span tracked above.
+- `gpu_depth24_rgb_limit` (L5581) — Depth24: RGB columns covered by CPU→VRAM uploads since the last reset.
+- `gpu_depth24_upload_span_reset` (L5596) — Resets the depth-24 upload span.
+- `gpu_depth24_present_hold_tick` (L5600) — MotK intro cuts retarget GP1(07h): the guest-state hold counts down at guest VBlank (gpu_vblank_tick).
+- `gpu_depth24_on_savestate_loaded` (L5604) — After savestate restore: clear ephemeral hold so the restored depth24 frame can present immediately (span/prev_h come from the GPU snap).
+- `gpu_set_screen_kind` (L5630) — Present-time screen-colour model (see color_lut.h ScreenKind: 0=raw, 1=crt, 2=composite, 3=trinitron).
+- `screen_lut_ensure` (L5637) — Makes sure the screen colour lookup table exists for the current screen kind.
+- `gpu_rgb555_to_rgb888` (L5662) — Converts a 15-bit RGB555 colour to 8-bit RGB.
+- `gpu_display_pixel_rgb_in` (L5675) — Converts an input pixel to display RGB for the given input format.
+- `gpu_display_pixel_rgb` (L5703) — Converts a VRAM pixel to display RGB.
+- `gpu_display_pixel_argb` (L5708) — Converts a VRAM pixel to display ARGB.
+- `gpu_depth24_present_row` (L5724) — Batch depth24 (FMV) scanline → ARGB.
+- `gpu_depth24_stage_scanout` (L5761) — Depth24 present staging, shared by every CPU present path: compose the GP1(07h) intersection with active video into the PAL/NTSC canvas (rows off-screen are clipping, not a shift), then black-fill the
+- `gpu_display_is_depth24` (L5789) — GP1(08h) bit4 — 24-bit display.
+- `gpu_get_display_info` (L5798) — The display info is a pure function of these GP1 registers; the widescreen code asks for it per primitive.
+- `gpu_compute_display_info` (L5817) — Computes the display info from the GP1 registers.
+- `gpu_get_crtc_debug` (L5898) — Debug accessors for GP1 display-range / mode (TCP gpu_state).
+- `gpu_set_vblank_callback` (L5908) — Sets the callback that runs at each VBlank.
+- `sign_extend` (L5913) — Sign-extend an N-bit value to int32_t
+- `parse_vertex` (L5921) — Parse a vertex position word: signed 11-bit X and Y
+- `gpu_pgxp_rederive_enable` (L5937) — Arm the PGXP dataflow transport for any consumer.
+- `psx_mod_set_native_wide_projection_correction` (L5944) — Enable render-only recovery of saturated horizontal GTE projections and camera-plane clipping in native-wide gameplay.
+- `gpu_ws_native_wide_projection_correction` (L5953) — 1 when native-wide projection correction is enabled.
+- `gpu_ws_projective_enabled` (L5958) — 1 when projective correction is enabled.
+- `psx_mod_set_native_wide_near_clip` (L5963) — Deprecated compatibility entry point; enabled is ignored.
+- `native_wide_projection_x` (L5974) — The PS1 clamps each projected X independently.
+- `gpu_triangle_rejected` (L5999) — Original, unsubdivided world faces can exceed the PS1 size limit after the wider view admits them.
+- `gpu_texture_correction_set` (L6026) — Perspective-correct UV interpolation for textured world polygons ([video] perspective_texturing).
+- `gpu_texture_correction_enabled` (L6031) — 1 when perspective-correct texture coordinates are enabled.
+- `gpu_texture_correction_hits` (L6035) — Triangles drawn with perspective-correct UVs since startup.
+- `prepare_precise_triangle` (L6051) — Per-vertex precise positions (PGXP, docs/ENHANCEMENTS.md G1).
+- `textured_quad_precise_vertices` (L6180) — A textured quad whose four packet vertices form an axis-aligned rectangle (in integer screen space and in UV) is drawn by the 2D rectangle shortcut, at the native integer position and without perspect
+- `gpu_texture_correction_stats` (L6213) — Returns the perspective texture correction statistics.
+- `prepare_texture_triangle` (L6226) — Enable perspective UVs only when every position word came from an exact SWC2 projection store at that same DMA packet address.
+- `draw_area_wide_x_margin` (L6273) — Inclusive draw-area reject (same predicate as the hardware clip).
+- `draw_area_host_x_bounds` (L6282) — Host X bounds of the drawing area.
+- `draw_area_out_point` (L6299) — 1 when a point lies outside the drawing area.
+- `draw_area_out_bbox` (L6306) — 1 when a bounding box lies outside the drawing area.
+- `draw_area_out_poly` (L6326) — A polygon wholly past the drawing area draws nothing.
+- `draw_area_out_rect` (L6343) — 1 when a rectangle lies outside the drawing area.
+- `gp0_exec_mono_tri` (L6354) — Execute mono triangle (GP0 0x20-0x23)
+- `ws_local_viewport_divider` (L6378) — Execute mono quad (GP0 0x28-0x2B) — two triangles: (0,1,2) and (2,1,3) A native split divider belongs to the combined framebuffer.
+- `gp0_exec_mono_quad` (L6389) — Draws a flat-colour quad (two triangles) as GP0 commands.
+- `gp0_exec_shaded_tri` (L6512) — Execute shaded triangle (GP0 0x30-0x33) — Gouraud shaded
+- `gpu_arm_shaded_quad_capture` (L6538) — Arms a capture of the next shaded quad.
+- `gpu_get_shaded_quad_capture` (L6539) — Returns the captured shaded quad.
+- `gp0_exec_shaded_quad` (L6546) — Execute shaded quad (GP0 0x38-0x3B)
+- `current_texpage` (L6599) — Helper: build texpage word from GPU state for SW renderer.
+- `set_tpage_from_poly` (L6612) — Hardware: the texpage attribute word carried inside every textured polygon (GP0 0x24-0x3F with the texture bit) is copied into the GPU draw-mode state (GPUSTAT bits 0-8) exactly like GP0(E1) bits 0-8
+- `setup_textured_draw` (L6622) — Helper: set up SW renderer state before a textured draw.
+- `native_wide_projective_draw` (L6634) — A close corner may cross the camera plane while the face is still visible.
+- `gp0_exec_textured_tri` (L6669) — Execute textured triangle (GP0 0x24-0x27)
+- `gp0_exec_textured_quad` (L6717) — Execute textured quad (GP0 0x2C-0x2F)
+- `gp0_exec_shaded_textured_tri` (L6851) — Execute shaded textured triangle (GP0 0x34-0x37)
+- `psx_mod_texture_banks_supported` (L6918) — 1 when the texture banks are supported by the mod.
+- `gp0_exec_shaded_textured_quad` (L6923) — Execute shaded textured quad (GP0 0x3C-0x3F)
+- `gp0_exec_mono_line` (L6998) — Execute mono line (GP0 0x40-0x47) — Bresenham
+- `gp0_exec_shaded_line` (L7028) — Execute shaded line (GP0 0x50-0x57)
+- `gp0_exec_mono_rect` (L7050) — Execute mono rectangle (GP0 0x60-0x63)
+- `ws_repeat_textured_rect_reveal` (L7090) — Repeats a textured rectangle into the native-wide reveal margins.
+- `ws_fb_base_holding` (L7117) — The framebuffer whose canonical columns hold VRAM x, or -1.
+- `ws_feedback_rect_reveal` (L7126) — A tagged 15-bit sprite copying another framebuffer continues into the bands from that buffer's wide surface (it has no band columns in VRAM).
+- `gp0_exec_textured_rect` (L7157) — Execute textured rectangle (GP0 0x64-0x67)
+- `gp0_exec_mono_dot` (L7247) — Execute 1x1 dot (GP0 0x68-0x6B)
+- `gp0_exec_textured_dot` (L7261) — Execute textured 1x1 dot (GP0 0x6C-0x6F)
+- `gp0_exec_textured_8x8` (L7280) — Execute 8x8 textured sprite (GP0 0x74-0x77)
+- `gp0_exec_mono_8x8` (L7307) — Execute 8x8 sprite (GP0 0x70-0x73)
+- `gp0_exec_textured_16x16` (L7325) — Execute 16x16 textured sprite (GP0 0x7C-0x7F)
+- `gp0_exec_nop` (L7370) — GP0 no-op command handler.
+- `gp0_exec_fill_rect` (L7374) — GP0 fill-rectangle command handler: fills a VRAM rectangle with a colour.
+- `gp0_exec_draw_mode` (L7406) — GP0 draw-mode (texpage) command handler.
+- `gp0_exec_texture_window` (L7428) — GP0 texture-window command handler.
+- `gp0_exec_draw_area_tl` (L7438) — GP0 draw-area top-left command handler.
+- `gp0_exec_draw_area_br` (L7453) — GP0 draw-area bottom-right command handler.
+- `gp0_exec_draw_offset` (L7467) — GP0 draw-offset command handler.
+- `gp0_exec_mask_bit` (L7483) — GP0 mask-bit setting command handler.
+- `gpu_get_a0_history` (L7515) — Returns the history of GP0 0xC0 reads.
+- `gpu_get_a0_count` (L7525) — Number of GP0 0xA0 transfer records.
+- `gpu_get_a0_extra` (L7526) — Extra arguments of the last GP0 0xA0 transfer.
+- `gpu_get_a0_src` (L7537) — True source pointer + arg regs + frame for the LoadImage upload (s2 = source).
+- `gp0_exec_cpu_to_vram` (L7546) — GP0 CPU-to-VRAM transfer command handler.
+- `gpu_get_c0_total` (L7616) — Total GP0 C0 reads since boot; the ring holds the newest C0_HISTORY_CAP.
+- `gpu_get_c0_count` (L7617) — Number of GP0 0xC0 reads kept in the ring.
+- `gpu_get_c0_history` (L7621) — index 0 = oldest entry still in the ring.
+- `gpu_get_c0_frame` (L7637) — Frame of a GP0 0xC0 read.
+- `gp0_exec_vram_to_cpu` (L7644) — GP0 VRAM-to-CPU transfer command handler.
+- `gp0_command_word_count` (L7681) — Determine how many words a GP0 command requires (header only, not counting variable-length data for 0xA0).
+- `gpu_gp0_command_word_count` (L7767) — Fixed command words; -1 denotes a terminated polyline, 0 an unknown opcode.
+- `ws_ui_prepass_add` (L7771) — Adds a UI prepass record for a primitive.
+- `ws_ui_untextured_op` (L7912) — 1 when a primitive is an untextured operation for UI grouping.
+- `ws_ui_encloses` (L7917) — 1 when one UI item encloses another.
+- `ws_ui_attached` (L7927) — Part of the same widget: sharing screen columns and overlapping or stacked within WS_UI_GROUP_STACK_GAP rows (ws_ui_group.c same_element()).
+- `gpu_ws_prepass_linked_list` (L7938) — Prepass over the linked list that collects UI and backdrop primitives.
+- `gpu_ws_set_backdrop_images` (L8339) — The backdrop-image rule (native-wide): what a frame draws before its 3D world, as images (a picture's tiles together, a band each for pieces stacked in it), each decided on its own: past the wide edge
+- `bdi_enabled` (L8341) — 1 when backdrop images are enabled.
+- `bdi_find` (L8349) — Finds a backdrop image record.
+- `bdi_insert` (L8360) — Inserts a backdrop image record.
+- `bdi_texel` (L8372) — One texel as BGR555 with its stp bit, 0 = transparent.
+- `bdi_colour` (L8385) — A sample's colour (BGR555, no stp) as drawn: the texel times the vertex colour (0x80 = 1.0) unless raw; untextured: the vertex colour.
+- `bdi_side_samples` (L8409) — One side of a band (whole: of an image, all its bands): its edge (the primitives at that extreme, each by the two vertices furthest that way: a slanted edge, a perspective plane whose top row is narro
+- `bdi_mode` (L8439) — The colour most samples sit within 'tol' levels of; *count how many do.
+- `bdi_dark` (L8455) — A colour's brightest channel at most 'lv' levels (of 31).
+- `bdi_flat` (L8463) — Mostly one colour: the colour at least 90% of the samples sit within 1 level of (a lighter edge with a faint pattern is art, not a flat colour); a very dark edge (a night sky with faint clouds: up to
+- `bdi_prim_parse` (L8473) — Parses a backdrop primitive's position and colour.
+- `bdi_prim_rows` (L8515) — Returns the rows a backdrop primitive covers.
+- `bdi_split_bands` (L8526) — Each image into bands: its primitives whose rows overlap (by more than a row: pieces stacked edge to edge are apart).
+- `bdi_tile_of` (L8571) — Returns the tile index of a backdrop primitive.
+- `bdi_tile_eq` (L8579) — 1 when two backdrop tiles are equal.
+- `bdi_tile_mem` (L8588) — Memory tile comparison for backdrop tiles.
+- `bdi_strip` (L8605) — A band laid as one row of textured rectangles: their indices by x.
+- `bdi_tiles_learn` (L8621) — Each strip's neighbouring tiles, remembered.
+- `bdi_wrap_side` (L8641) — A strip's side short of the wide edge: the tiles seen beyond its end (one after another, up to 3) planned there; 0 (nothing planned) when they are not remembered or do not reach the wide edge.
+- `bdi_side_piece_w` (L8664) — The narrowest piece at a side of a band (whole: of an image).
+- `bdi_drop_wraps` (L8678) — Drops wrapped backdrop tile records.
+- `bdi_decide` (L8690) — One band (whole: an image, all its bands together): its stretch, filled sides and (a band) tiles drawn in its gaps into *im.
+- `bdi_fill_runs` (L8746) — A filled side, row by row: the colour at the edge on that row (a sky's gradient goes on into the margin with no seam), the side's main colour where no primitive is at the edge; kept as runs of one col
+- `bdi_square` (L8786) — A primitive laid square: a rectangle, or a quad whose corners sit on two columns and two rows (to a pixel).
+- `bdi_gte_polygon` (L8797) — A polygon with a corner the GTE projected (PGXP's dataflow shadow of its packet word): 3D world, not a still.
+- `bdi_prepass` (L8812) — Prepass that collects backdrop images from the linked list.
+- `bdi_gate` (L8965) — The answer for the primitive being drawn: -1 none (not a backdrop image); 0 drawn as it is; else (marked ?
+- `bdi_fill_note` (L8977) — At an image's first primitive: its filled margins, before any of it.
+- `gpu_ws_backdrop_images_json` (L9009) — TCP ws_backdrop_images: the last linked list's images.
+- `ws_ui_prepass_order_cmp` (L9031) — qsort comparison of two UI prepass records.
+- `ws_ui_prepass_find_node` (L9039) — The first prepass record of 'resolved', as the linear scan found it.
+- `gpu_ws_validate_linked_list_header` (L9061) — Validates a linked-list header word for the widescreen state.
+- `gpu_ws_validate_linked_list_node` (L9073) — Validates a linked-list node for the widescreen state.
+- `gpu_get_opcode_count` (L9103) — Number of opcodes seen in the GP0 stream, for diagnostics.
+- `gp0_capture_builder_chain` (L9125) — Bounded guest-stack unwind for VRAM-copy builder attribution.
+- `gpu_gp0_ring_set_frozen` (L9163) — Freeze/unfreeze the always-on GP0 command ring (capture mark).
+- `gp0_ring_record` (L9165) — Records one GP0 word in the command ring.
+- `gpu_gp0_ring_total` (L9191) — Public accessors for debug_server.c
+- `gpu_gp0_ring_capacity` (L9192) — Capacity of the GP0 command ring in commands.
+- `gpu_gp0_ring_max_words` (L9193) — Maximum words stored per GP0 command in the ring.
+- `gpu_gp0_ring_dump_frame` (L9198) — Fill 'out[0..max_out-1]' with entries from the requested frame; returns count.
+- `gpu_gp0_ring_frame_span` (L9214) — Report the frame range currently held in the ring (oldest..newest).
+- `gpu_set_gp0_source` (L9247) — Sets the RAM source address of the current GP0 word.
+- `prim_sx_extent` (L9278) — Screen-X extent (raw vertex coords = SX, pre-draw_offset) across a prim's position vertices.
+- `gpu_ws_prim_x_span` (L9301) — The screen-X span of the primitive being drawn, for a title's native-wide predicate (gpu.h): polygons by their vertices, rectangles with their width, lines by both ends; in the coordinates the game se
+- `ws_note_overhang` (L9330) — Natural-overhang noter (see the ws_ovh_* block up top for the rationale).
+- `ws_note_backdrop` (L9364) — Finite-backdrop noter (ws_backdrop_extent.h).
+- `ws_census_record` (L9385) — Records one census row for the widescreen census.
+- `gpu_ws_census_dump` (L9407) — Dump census rows for frames [f0,f1] to a CSV file.
+- `gpu_ws_census_set` (L9428) — Sets the widescreen census state.
+- `gpu_ws_census_seq` (L9429) — Current sequence number of the widescreen census.
+- `psx_mod_set_turbo_pgxp_skip` (L9456) — The turbo keeps the PGXP hooks off while a frame it will not show computes its geometry (gpu.c).
+- `draw_skip_hold` (L9460) — Holds a draw skip decision for a frame.
+- `gpu_draw_skip_shown_partial` (L9468) — 1 when a partially shown frame skipped its draws.
+- `gpu_draw_skip_vblank` (L9469) — Reports a VBlank in the draw-skip state.
+- `gpu_draw_skip_counts` (L9481) — Counts draw skips for the diagnostic output.
+- `gpu_draw_skip_pgxp_frames` (L9486) — Counts PGXP frames skipped by the turbo.
+- `draw_skip_prim` (L9490) — 1 when the turbo drops this primitive; a dropped textured polygon still latches its texpage.
+- `gp0_execute_command` (L9499) — Executes one GP0 command word, dispatching by its opcode.
+- `gp0_irq_request` (L9563) — GP0(1Fh): sets the GPUSTAT bit 24 flag and raises I_STAT bit 1 (IRQ_GPU).
+- `gp0_dispatch_command` (L9569) — Dispatches a GP0 command to its handler.
+- `gpu_get_gp0_count` (L9780) — Total number of GP0 writes since init.
+- `gpu_get_gp0_stats` (L9782) — uint64_t gpu_get_gp0_count(void); /* Total GP0 writes since init
+- `gpu_get_draw_area` (L9787) — Returns the drawing area rectangle.
+- `gpu_vram_peek` (L9796) — One VRAM pixel as the GPU has it.
+- `gpu_vram_drawn_check` (L9812) — TCP vram_drawn_check: the proof of the cells above.
+- `psx_mod_vram_write` (L9831) — psx_mod_vram_write: a title's own pixels, as an unmasked CPU->VRAM copy, in the guest's VRAM and the renderer's (as shadow_blob_key_put does).
+- `gpu_write_gp0_body` (L9843) — Body of a GP0 write, handling the command and data words.
+- `gpu_write_gp0` (L10040) — Wall-time sampler bracket (phase_profile): tag GP0 command processing — rasterization / batching / VRAM transfer work on the emu thread — as its own phase so it is separable from the guest code that i
+- `gp1_reset` (L10051) — GP1 reset command handler (0x00): resets the GPU.
+- `gp1_reset_command_buffer` (L10058) — GP1 reset-command-buffer handler (0x01).
+- `gp1_ack_irq1` (L10067) — GP1 acknowledge-IRQ handler (0x02).
+- `gp1_display_enable` (L10072) — GP1 display enable handler (0x03).
+- `gp1_dma_direction` (L10086) — GP1 DMA direction handler (0x04).
+- `gpu_display_flips` (L10094) — Display starts that moved (GP1(05h) to another place): the game's own frames of a double-buffered picture, for the FPS readout.
+- `gp1_display_area_start` (L10096) — GP1 display area start handler (0x05).
+- `gp1_h_display_range` (L10122) — GP1 horizontal display range handler (0x06).
+- `gp1_v_display_range` (L10130) — GP1 vertical display range handler (0x07).
+- `gp1_display_mode` (L10149) — GP1 display mode handler (0x08).
+- `gp1_get_info` (L10178) — GP1 get-info handler (0x10): returns the requested GPU info.
+- `gpu_write_gp1` (L10218) — Writes a GP1 control word and dispatches it by its command number.
+- `gpu_snap_emit` (L10291) — GPU snap fields are scalars / u32 arrays — emit as LE u32/i32 (no struct pad).
+- `gpu_snap_parse` (L10328) — Reads GPU snapshot fields from a buffer.
+- `gpu_snapshot_bytes` (L10371) — Byte size of the GPU snapshot.
+- `gpu_snapshot_write` (L10376) — Writes the GPU snapshot into a buffer.
+- `gpu_cosim_snapshot_bytes` (L10381) — Byte size of the co-simulation snapshot.
+- `gpu_cosim_snapshot_write` (L10382) — Writes the co-simulation snapshot into a buffer.
+- `gpu_cosim_dump` (L10383) — Debug: dumps the co-simulation state.
+- `gpu_snapshot_validate` (L10424) — Pass-1 check for boot_state's two-pass load: refuses a GP0 state the parser would accept but gpu_write_gp0 would index gp0_cmd_buf out of range with.
+- `gpu_snapshot_read` (L10439) — Restores the GPU state from a snapshot buffer.
+- `gpu_pass_provenance_transfer` (L10517) — One transfer list keeps save and restore symmetric.
+- `gpu_pass_scene_transfer` (L10562) — Scene transfer list for a render pass checkpoint.
+- `gpu_pass_checkpoint_save` (L10595) — Render-pass GPU register checkpoint (render_pass.c).
+- `gpu_pass_checkpoint_restore` (L10613) — Restores the GPU registers from a render-pass checkpoint.
+- `gpu_pass_state_hash` (L10640) — FNV-1a over the checkpointed register set (PSX_RENDER_PASS_VERIFY).
+- `gpu_get_vram_ptr` (L10653) — Pointer to the VRAM buffer.
+- `gpu_get_vram_bytes` (L10654) — Size of the VRAM buffer in bytes.
 
 ### runtime/src/gpu_edge.inc
 
