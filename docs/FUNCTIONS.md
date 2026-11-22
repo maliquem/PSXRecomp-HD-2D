@@ -5753,58 +5753,58 @@ Interrupt and timing core of the emulated CPU: VBlank scheduling, interrupt deli
 - `psx_spu_sample_event_service` (L467) — When sample events are on and an audio pump is set, renders the pending SPU samples through the pump and checks the IRQ state.
 - `fire_vblank_edge` (L489) — Raises one VBlank event: consumes one VBlank period from the cycle counter, resets the dispatch count and raises the VBlank interrupt.
 - `interrupts_service_scheduled_events` (L515) — Fires every VBlank that has come due, unless an exception is being handled or the VBlank must wait for serial I/O.
-- `interrupts_cycles_to_vblank` (L524) — Returns the number of PSX cycles left until the next VBlank edge.
-- `interrupts_get_cycles_since_vblank` (L528) — VBlank phase within the current frame (0 ..
-- `interrupts_set_cycles_since_vblank` (L532) — Sets the cycles elapsed since the last VBlank; used when a save state is restored.
-- `interrupts_advance_cycles` (L536) — Accumulate emitted PSX cycles toward the next VBlank trigger.
-- `psx_exception_setjmp_epoch` (L627) — Returns the current exception setjmp epoch, which identifies the target of each longjmp.
-- `psx_last_irq_check_pc` (L650) — Most recent block-leader IRQ-check guest PC / compiled resume latch.
-- `psx_compiled_irq_resume_pc` (L651) — Returns the resume PC latched by the last compiled block-leader interrupt check.
-- `psx_last_irq_check_cycle` (L652) — Returns the cycle count at the most recent interrupt check.
-- `psx_interrupt_total_checks` (L653) — Returns how many interrupt checks have run since start.
-- `psx_interrupt_fast_maintenance` (L654) — Returns how many fast-path maintenance steps ran inside interrupt checks.
-- `psx_irq_resume_context_snapshot_site` (L655) — Returns the dirty-pump site id recorded for the current snapshot, 0 when none is active.
-- `psx_snapshot_host_call_begin` (L661) — A host adapter that preserves registers outside guest RAM is not a serializable continuation.
-- `psx_snapshot_host_call_end` (L662) — Leaves one host call that keeps register state outside guest RAM, lowering the nesting depth by one.
-- `psx_snapshot_host_call_reset` (L665) — Clears the host-call nesting depth to zero.
-- `psx_snapshot_host_call_depth` (L666) — Returns the current host-call nesting depth.
-- `psx_snapshot_host_call_restore` (L667) — Sets the host-call nesting depth back to a saved value.
-- `reset_dirty_snapshot_scope` (L669) — Clears the dirty-snapshot resume PC and dirty pump site, since a restore can leave the pump's epilogue behind.
-- `psx_irq_resume_context_snapshot_pc` (L676) — Returns the safe resume PC recorded for the dirty snapshot.
-- `psx_irq_resume_context_snapshot_safe_at` (L681) — Returns 1 when a snapshot at resume_pc can be taken now: no mod function is running and no host call is in progress.
-- `psx_irq_resume_context_snapshot_safe` (L715) — True when the current IRQ poll has a materialized CPUState/register context matching its resume PC.
-- `psx_irq_clear_resume_latches` (L720) — Soft-return / netplay BYE: drop sticky resume latches so rematch dig0 snaps cannot inherit a prior-match game PC (see pick_snap_resume_pc).
-- `psx_irq_arm_compiled_resume_pc` (L731) — Publish the known resume PC before the first post-load / flush_resume dispatch.
-- `psx_irq_compiled_resume_pc` (L741) — The host-fiber thread scheduler (traps.c) keeps the compiled resume latch per thread: it is set by a frame on that thread's native stack.
-- `psx_irq_set_compiled_resume_pc` (L742) — Sets the compiled resume latch of the current thread to pc.
-- `psx_defer_switch_pending` (L761) — Nonzero while a thread switch taken in an exception handler waits for a site-0 poll.
-- `defer_switch_enabled` (L769) — A/B toggle: PSX_DEFER_SWITCH=0 forces the legacy immediate-switch behavior (longjmp the instant a mid-exception ChangeThread is detected, regardless of nesting) so the deferred-switch fix can be compa
-- `same_guest_pc` (L775) — True when two guest PCs match in their low 29 bits, ignoring the top segment bits.
-- `psx_get_in_exception` (L779) — Query whether we are currently inside an exception handler dispatch.
-- `psx_exception_nest_depth` (L780) — Returns how many exception deliveries are nested right now (1 = outermost handler).
-- `psx_note_changethread_in_handler_switch` (L781) — Marks that a ChangeThread inside the handler moved the current thread, so this delivery unwinds to the scheduler at once instead of deferring.
-- `interrupts_cosim_hash` (L792) — Co-sim (COSIM_ORACLE.md): fold the GENUINE guest-timing interrupt statics into the state hash.
-- `interrupts_cosim_dump` (L803) — Co-sim field dump: expose the exact irqctl-timing fields so a divergence can be field-diffed (is it cycles_since_vblank = VBLANK-raise-timing, or in_exception, ...).
-- `rfe_steps_over_gte_command` (L821) — Called by the recompiled 'rfe' opcode (after it pops the COP0 SR stack).
-- `psx_rfe_mark_escape` (L830) — Flags a pending RFE escape when an RFE runs outside the exception handler window; the flag is checked later.
-- `rfe_outside_window_unwind` (L855) — Called in the dispatch trampoline after a function returns (cpu->pc holds the real resume EPC).
-- `psx_rfe_escape_check` (L873) — If an RFE escape is pending outside the handler, unwinds the return back to the interrupted code and clears the flag.
-- `psx_get_freeze_diag` (L909) — Fills the out parameters with the interrupt counters and exception state used to diagnose a frozen emulator.
-- `interrupts_init` (L927) — Resets all interrupt dispatch state, exception nesting and the check counters to zero.
-- `interrupts_resync_after_restore` (L965) — Save-state restore: re-anchor host-only IRQ pacing after psx_cycle_count is overwritten from a snapshot.
-- `interrupts_log_last_vblank_irqctx` (L1017) — Netplay diag: last VBLANK irqctx exit/restore (+ v0) for peer diff.
-- `deferred_exception_longjmp` (L1064) — Defer a longjmp to the fiber that owns the current exception setjmp.
-- `psx_exception_longjmp` (L1084) — longjmp back to psx_check_interrupts, unwinding the exception handler.
-- `psx_restore_state_escape` (L1089) — longjmp back to psx_check_interrupts for RestoreState redirection.
-- `cycles_to_next_event` (L1111) — Cycle-budgeted precise event slicing — single source of truth.
-- `psx_interrupt_delivery_diag` (L1130) — Returns the counters of interrupt delivery decisions (deferred, delivered, and each reason for skipping).
-- `psx_interrupt_check_path_diag` (L1147) — Returns the counters for each path taken through the interrupt check.
-- `psx_interrupt_delivery_needed` (L1158) — Cheap block-edge predicate for generated/native code.
-- `poll_staged_user_snapshot` (L1185) — Applies a staged user save state at a safe point in the interrupt poll, when no exception is being handled.
-- `psx_check_interrupts` (L1194) — Called from the dispatch loop after each function returns.
-- `psx_check_interrupts_at` (L2403) — Compatibility shim: the ape-flavored generated code calls psx_check_interrupts_at(cpu, resume_pc); the mmx6-fw baseline runtime delivers interrupts via psx_check_interrupts (cpu->pc / scratch sentinel
-- `psx_interrupts_checked_at_current_cycle` (L2410) — True when the interrupt check already ran at this cycle for the given resume PC.
-- `psx_check_interrupts_dispatch_entry` (L2415) — Dispatch-entry check for re-enterable compiled PCs.
+- `interrupts_cycles_to_vblank` (L526) — Returns the number of PSX cycles left until the next VBlank edge.
+- `interrupts_get_cycles_since_vblank` (L530) — VBlank phase within the current frame (0 ..
+- `interrupts_set_cycles_since_vblank` (L534) — Sets the cycles elapsed since the last VBlank; used when a save state is restored.
+- `interrupts_advance_cycles` (L538) — Accumulate emitted PSX cycles toward the next VBlank trigger.
+- `psx_exception_setjmp_epoch` (L629) — Returns the current exception setjmp epoch, which identifies the target of each longjmp.
+- `psx_last_irq_check_pc` (L652) — Most recent block-leader IRQ-check guest PC / compiled resume latch.
+- `psx_compiled_irq_resume_pc` (L653) — Returns the resume PC latched by the last compiled block-leader interrupt check.
+- `psx_last_irq_check_cycle` (L654) — Returns the cycle count at the most recent interrupt check.
+- `psx_interrupt_total_checks` (L655) — Returns how many interrupt checks have run since start.
+- `psx_interrupt_fast_maintenance` (L656) — Returns how many fast-path maintenance steps ran inside interrupt checks.
+- `psx_irq_resume_context_snapshot_site` (L657) — Returns the dirty-pump site id recorded for the current snapshot, 0 when none is active.
+- `psx_snapshot_host_call_begin` (L663) — A host adapter that preserves registers outside guest RAM is not a serializable continuation.
+- `psx_snapshot_host_call_end` (L664) — Leaves one host call that keeps register state outside guest RAM, lowering the nesting depth by one.
+- `psx_snapshot_host_call_reset` (L667) — Clears the host-call nesting depth to zero.
+- `psx_snapshot_host_call_depth` (L668) — Returns the current host-call nesting depth.
+- `psx_snapshot_host_call_restore` (L669) — Sets the host-call nesting depth back to a saved value.
+- `reset_dirty_snapshot_scope` (L671) — Clears the dirty-snapshot resume PC and dirty pump site, since a restore can leave the pump's epilogue behind.
+- `psx_irq_resume_context_snapshot_pc` (L678) — Returns the safe resume PC recorded for the dirty snapshot.
+- `psx_irq_resume_context_snapshot_safe_at` (L683) — Returns 1 when a snapshot at resume_pc can be taken now: no mod function is running and no host call is in progress.
+- `psx_irq_resume_context_snapshot_safe` (L717) — True when the current IRQ poll has a materialized CPUState/register context matching its resume PC.
+- `psx_irq_clear_resume_latches` (L722) — Soft-return / netplay BYE: drop sticky resume latches so rematch dig0 snaps cannot inherit a prior-match game PC (see pick_snap_resume_pc).
+- `psx_irq_arm_compiled_resume_pc` (L733) — Publish the known resume PC before the first post-load / flush_resume dispatch.
+- `psx_irq_compiled_resume_pc` (L743) — The host-fiber thread scheduler (traps.c) keeps the compiled resume latch per thread: it is set by a frame on that thread's native stack.
+- `psx_irq_set_compiled_resume_pc` (L744) — Sets the compiled resume latch of the current thread to pc.
+- `psx_defer_switch_pending` (L763) — Nonzero while a thread switch taken in an exception handler waits for a site-0 poll.
+- `defer_switch_enabled` (L771) — A/B toggle: PSX_DEFER_SWITCH=0 forces the legacy immediate-switch behavior (longjmp the instant a mid-exception ChangeThread is detected, regardless of nesting) so the deferred-switch fix can be compa
+- `same_guest_pc` (L777) — True when two guest PCs match in their low 29 bits, ignoring the top segment bits.
+- `psx_get_in_exception` (L781) — Query whether we are currently inside an exception handler dispatch.
+- `psx_exception_nest_depth` (L782) — Returns how many exception deliveries are nested right now (1 = outermost handler).
+- `psx_note_changethread_in_handler_switch` (L783) — Marks that a ChangeThread inside the handler moved the current thread, so this delivery unwinds to the scheduler at once instead of deferring.
+- `interrupts_cosim_hash` (L794) — Co-sim (COSIM_ORACLE.md): fold the GENUINE guest-timing interrupt statics into the state hash.
+- `interrupts_cosim_dump` (L805) — Co-sim field dump: expose the exact irqctl-timing fields so a divergence can be field-diffed (is it cycles_since_vblank = VBLANK-raise-timing, or in_exception, ...).
+- `rfe_steps_over_gte_command` (L823) — Called by the recompiled 'rfe' opcode (after it pops the COP0 SR stack).
+- `psx_rfe_mark_escape` (L832) — Flags a pending RFE escape when an RFE runs outside the exception handler window; the flag is checked later.
+- `rfe_outside_window_unwind` (L857) — Called in the dispatch trampoline after a function returns (cpu->pc holds the real resume EPC).
+- `psx_rfe_escape_check` (L875) — If an RFE escape is pending outside the handler, unwinds the return back to the interrupted code and clears the flag.
+- `psx_get_freeze_diag` (L911) — Fills the out parameters with the interrupt counters and exception state used to diagnose a frozen emulator.
+- `interrupts_init` (L929) — Resets all interrupt dispatch state, exception nesting and the check counters to zero.
+- `interrupts_resync_after_restore` (L967) — Save-state restore: re-anchor host-only IRQ pacing after psx_cycle_count is overwritten from a snapshot.
+- `interrupts_log_last_vblank_irqctx` (L1019) — Netplay diag: last VBLANK irqctx exit/restore (+ v0) for peer diff.
+- `deferred_exception_longjmp` (L1066) — Defer a longjmp to the fiber that owns the current exception setjmp.
+- `psx_exception_longjmp` (L1086) — longjmp back to psx_check_interrupts, unwinding the exception handler.
+- `psx_restore_state_escape` (L1091) — longjmp back to psx_check_interrupts for RestoreState redirection.
+- `cycles_to_next_event` (L1113) — Cycle-budgeted precise event slicing — single source of truth.
+- `psx_interrupt_delivery_diag` (L1132) — Returns the counters of interrupt delivery decisions (deferred, delivered, and each reason for skipping).
+- `psx_interrupt_check_path_diag` (L1149) — Returns the counters for each path taken through the interrupt check.
+- `psx_interrupt_delivery_needed` (L1160) — Cheap block-edge predicate for generated/native code.
+- `poll_staged_user_snapshot` (L1187) — Applies a staged user save state at a safe point in the interrupt poll, when no exception is being handled.
+- `psx_check_interrupts` (L1196) — Called from the dispatch loop after each function returns.
+- `psx_check_interrupts_at` (L2405) — Compatibility shim: the ape-flavored generated code calls psx_check_interrupts_at(cpu, resume_pc); the mmx6-fw baseline runtime delivers interrupts via psx_check_interrupts (cpu->pc / scratch sentinel
+- `psx_interrupts_checked_at_current_cycle` (L2412) — True when the interrupt check already ran at this cycle for the given resume PC.
+- `psx_check_interrupts_dispatch_entry` (L2417) — Dispatch-entry check for re-enterable compiled PCs.
 
 ### runtime/src/iso_reader.cpp
 
