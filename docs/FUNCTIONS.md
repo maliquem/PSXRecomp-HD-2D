@@ -1586,11 +1586,11 @@ Background overlay compiler: runs the configured compile command as a child proc
 - `ac_reserve_core` (L1153) — Runs with the child still suspended, so nothing in the tree ever executes on the reserved core.
 - `ac_game_thread_tick` (L1193) — Records the game thread's current processor group and number, for choosing a core later.
 - `autocompile_request` (L1207) — Kick a compile if configured and idle.
-- `parse_shard_result` (L1500) — Scan the child-output tail ring for the LAST "PSX_SHARD_RESULT ok=N failed=M skipped=K" line and record the counts.
-- `autocompile_poll_main` (L1541) — Emu-thread tick: applies a finished compile (cache rescan on success).
-- `autocompile_shutdown` (L1632) — Process-shutdown teardown, emu thread only: stops the publication pipeline, kills the compiler process tree (job object), and JOINS the watcher and preparer threads — waiting out any in-flight LoadLib
-- `json_escape_into` (L1687) — Minimal JSON string escaper for the output tail.
-- `autocompile_status_json` (L1706) — JSON status blob for the debug server: state, run/fail counters, last exit code, and the output tail.
+- `parse_shard_result` (L1531) — Scan the child-output tail ring for the LAST "PSX_SHARD_RESULT ok=N failed=M skipped=K" line and record the counts.
+- `autocompile_poll_main` (L1572) — Emu-thread tick: applies a finished compile (cache rescan on success).
+- `autocompile_shutdown` (L1663) — Process-shutdown teardown, emu thread only: stops the publication pipeline, kills the compiler process tree (job object), and JOINS the watcher and preparer threads — waiting out any in-flight LoadLib
+- `json_escape_into` (L1718) — Minimal JSON string escaper for the output tail.
+- `autocompile_status_json` (L1737) — JSON status blob for the debug server: state, run/fail counters, last exit code, and the output tail.
 
 ### runtime/src/autocompile_child_env.h
 
@@ -2006,162 +2006,164 @@ Keeps the first 32 completed memory-card reads as a summary for debug output, wi
 
 PS1 CD-ROM controller: register interface, command handling, sector reads, CD-DA and XA audio, timing and debug history.
 
-- `cdrom_set_disc_scex` (L83) — Disc license region for GetID ("SCEE"/"SCEA"/"SCEI"); derived from the mounted disc's boot serial at launch.
-- `rb_available` (L170) — Returns 1 when the sector data buffer still has bytes left to read.
-- `load_data_fifo` (L174) — An explicit BFRD request may reload the retained announced sector after software clears the FIFO.
-- `ring_note_starved` (L189) — Counts a moment when the sector ring holds data but the read buffer is empty.
-- `cdrom_set_speed` (L318) — Set disc speed multiplier immediately.
-- `cdrom_set_game_speed` (L323) — Store the configured speed for post-BIOS application.
-- `cdrom_notify_game_started` (L328) — Called by fntrace_record on first game-range dispatch.
-- `cdrom_get_setloc_lba` (L332) — LBA of the most recent SetLoc command (-1 if none yet).
-- `cdrom_get_delivered_lba` (L339) — The sector most recently DELIVERED into the data buffer -- as opposed to the game's last SetLoc.
-- `cdrom_xa_stream_active` (L342) — Frontend XA-stream probe (FMV auto-skip / turbo-load gating in main.cpp).
-- `cdrom_fmv_stream_pending` (L344) — True while a CD read is armed with XA/FMV mode bits (or XA already streaming).
-- `cdrom_resync_deadlines_after_restore` (L356) — Re-arm host absolute CD deadlines from restored relative delays after boot_state / RB snap load (read stream + pending/present dues from snap).
-- `cdrom_register_warm_route` (L439) — Registers a warm route: a list of sector addresses served at a set rate once a SetLoc names its arm address.
-- `cdrom_warm_route_set_enabled` (L460) — Turns the warm route feature on or off, disarming any armed or active route when turned off.
-- `warm_route_current` (L472) — Returns the warm route that is currently active, or NULL when none is.
-- `cdrom_warm_route_stats_json` (L478) — Writes the warm route state and counters as JSON into a buffer.
-- `warm_route_on_setloc` (L503) — When a SetLoc names a route's arm address, arms that route.
-- `cdrom_set_instant_rate` (L563) — 'instant' per-frame sector-IRQ budget (step 3).
-- `cdrom_get_instant_rate` (L568) — Returns the current instant mode per-frame sector budget.
-- `instant_period` (L570) — Cycles between sectors in instant mode: one vblank divided by the per-frame budget, with a minimum.
-- `warm_route_period` (L575) — Cycles between sectors on the active warm route, from its rate, with a minimum.
-- `apply_speed` (L582) — Scales a sector delay by the drive speed setting, keeping authentic timing during XA streams and instant timing when unlimited.
-- `apply_read_speed` (L592) — Scales a read delay by the speed setting only for explicit data-read routes; FMV and XA reads keep authentic timing.
-- `host_ms` (L615) — Monotonic host milliseconds, used to timestamp CD read bursts.
-- `burst_note_sector` (L625) — Records one sector read in the burst log, starting a new burst after a gap.
-- `cdrom_get_bursts` (L646) — Copy out the most recent 'max' bursts, newest first.
-- `cdrom_get_burst_total` (L655) — Returns the total number of CD read bursts recorded.
-- `sector_delay_cycles` (L657) — Cycles between sector deliveries: half the 1x period at double speed, passed through the speed setting.
-- `initial_read_delay_cycles` (L666) — Cycles before the first sector after a read command starts, with the same speed rules.
-- `seek_complete_delay_cycles` (L676) — Cycles a seek takes to complete: about four sector periods for a far seek, a short fixed delay when near.
-- `cycles_until_due` (L696) — Guest cycles left until a due time; 0 if it has passed, capped to a 31-bit value.
-- `pending_rem_cycles` (L702) — Cycles left until the pending command response is due, or 0 when nothing is pending.
-- `irq_present_rem_cycles` (L707) — Cycles left until the pending interrupt is presented to the CPU.
-- `pending_arm` (L711) — Schedules a pending command response to come due after a latency, counted from now.
-- `seek_in_flight` (L721) — SeekL/SeekP armed: the drive is moving the head (phase 2 = a Setloc retargeted it mid-seek, see process_pending).
-- `cmd_leaves_drive_alone` (L727) — Commands that neither move the drive nor arm a second response.
-- `pending_set_remaining` (L737) — Sets the pending response to come due after the given cycles, or clears it when nothing is pending.
-- `irq_present_set_remaining` (L746) — Sets the interrupt presentation to come due after the given cycles, or clears it when none remain.
-- `update_last_valid_subq` (L784) — Reads a sector's subchannel data and keeps it as the last valid one when it is valid.
-- `trace_cdrom` (L796) — Records one register access (kind, address, value and width) in the CD-ROM trace ring.
-- `record_command_history` (L827) — Records a command and its parameters in the command history ring.
-- `xa_is_audio_realtime` (L872) — Returns true when a sector is XA audio in realtime mode (Mode 2 with audio and realtime submode bits).
-- `classify_raw_sector` (L879) — Reads the mode and XA submode of a raw sector and returns its delivery classification.
-- `record_sector_history` (L894) — Records a delivered sector (LBA, size, mode and classification) in the sector history ring.
-- `has_disc` (L924) — Returns true when media is in the drive and the lid is closed.
-- `response_clear` (L945) — Empties the response FIFO.
-- `response_push` (L950) — Adds one byte to the response FIFO if it has room.
-- `set_irq` (L956) — Sets the CD interrupt type and starts a new interrupt generation to be presented to the CPU.
-- `present_lid_open_irq_if_ready` (L975) — Presents the pending lid-open interrupt once the previous interrupt has been acknowledged.
-- `process_lid_state` (L988) — Presents a pending lid interrupt and closes the lid once its delay has passed.
-- `present_cdrom_irq` (L1011) — Present the current CD INT to the CPU interrupt controller exactly once per generation.
-- `fire_cdrom_irq` (L1032) — Fire CDROM IRQ into the interrupt controller (explicit, per command/response).
-- `refresh_cdrom_irq_line` (L1039) — Re-presents the CD interrupt line to the interrupt controller.
-- `bcd_to_bin` (L1043) — Converts a BCD byte to a plain number.
-- `msf_to_lba` (L1047) — Converts minutes, seconds and frames to a sector number (LBA), removing the 150-frame lead-in.
-- `cd_timing_lookup` (L1051) — Finds a timing record by sequence number, or NULL if it has been overwritten.
-- `cd_timing_begin_sector` (L1058) — Starts a timing record for a sector read and returns its sequence number.
-- `cd_timing_flag` (L1070) — Adds flags to a timing record found by sequence number.
-- `cd_timing_arm_irq` (L1075) — Marks a timing record as having its interrupt armed now.
-- `cd_timing_note_intc` (L1083) — Marks the latest armed interrupt as presented to the interrupt controller, once.
-- `cdrom_timing_reset` (L1090) — Passive physical-deadline -> buffer -> INT1 exposure telemetry (L1.5).
-- `cdrom_timing_total` (L1101) — Returns the total number of timing records made.
-- `cdrom_timing_record` (L1103) — Copies one timing record into the public struct; returns 0 if it is no longer kept.
-- `cdrom_timing_stats_json` (L1117) — Writes timing statistics as JSON into a buffer, including how many records were dropped.
-- `bin_to_bcd` (L1219) — Converts a number from 0 to 99 to BCD.
-- `lba_to_msf` (L1223) — Converts a sector number to minutes, seconds and frames, adding the pregap.
-- `clamp16_cd` (L1232) — Clamps a 32-bit audio value to the 16-bit range.
-- `xa_reset_decode` (L1238) — Clears the XA audio decoder history and stream selection.
-- `cd_apply_decode_volume` (L1257) — Applies the CD-audio left and right volume matrix to a block of stereo samples in place.
-- `xa_decode_sector_4bit_stereo` (L1272) — Decodes one XA-ADPCM sector of 4-bit stereo audio into 16-bit samples.
-- `xa_decode_sector_4bit_mono` (L1317) — Decodes one XA-ADPCM sector of 4-bit mono audio into 16-bit samples.
-- `xa_resample_to_44100` (L1355) — Resamples decoded XA audio to 44100 Hz and returns how many frames were produced.
-- `xa_zero_scan` (L1387) — Always-on XA zero-run scanner (audio_trace event ring).
-- `maybe_deliver_xa_audio` (L1406) — Sends a realtime XA audio sector to the audio output when XA is on and not muted.
-- `read_sector_at` (L1463) — Reads the sector at a minute, second and frame address into the buffers and returns its delivery info.
-- `advance_msf` (L1570) — Moves a minute, second and frame address forward by one sector.
-- `clear_sector_buffer` (L1576) — Empties the data FIFO and clears all sector buffers.
-- `cdrom_clear_pending_dataready` (L1615) — Drive-state changes (Read/Play/Pause/Stop/Seek) cancel a pended notification, matching Beetle's ClearAIP in every such command.
-- `read_continues_current_stream` (L1642) — A Read issued while the drive is ALREADY streaming the very sector the pending Setloc names is not a new read -- it is the game saying "keep going".
-- `stop_cdda_playback` (L1653) — Stops CD-DA playback and leaves the head (read_*) where the music stopped.
-- `start_read_stream` (L1664) — Starts a data read stream after a read command, resetting CD-DA playback and read timing.
-- `stop_read_stream` (L1719) — Stops the data read stream and its timing.
-- `deliver_cdda_data_end` (L1728) — Sends the pending CD-DA end response once the interrupt line is clear.
-- `deliver_xa_data_end` (L1737) — Sends the pending XA end response once the interrupt line is clear.
-- `deliver_cdda_report` (L1754) — CD-DA position reports (Setmode bit2), psx-spx "Command 03h - Play": INT1(stat, track, index, mm/amm, ss+80h/ass, sect/asect, peaklo, peakhi) on every 10th frame of absolute time — asect BCD 00/20/40/
-- `cdda_track_for_lba` (L1794) — Returns the audio track that contains a sector, or 0 if none does.
-- `cdda_track_end_lba` (L1804) — Returns the sector where a track ends: the next track's start, or the end of the disc.
-- `start_cdda_playback` (L1811) — Starts CD-DA playback from a requested track, or from the current position.
-- `process_cdda_stream` (L1844) — Advances CD-DA playback by the elapsed cycles, sending timed reports and the end response.
-- `data_fifo_ready` (L1902) — Returns 1 when the CPU has requested data and data is available, counting starved moments.
-- `cdrom_get_dataready_fires` (L1908) — static uint64_t s_dataready_fires; /* INT1 (data-ready) raised per streamed sector — FMV dispatch probe
-- `deliver_read_sector` (L1910) — Reads the next sector of the data stream into the buffers, advances the position and raises the data-ready interrupt.
-- `deliver_read_sector_without_irq` (L1940) — A continuing DMA needs the newly filled slot immediately.
-- `cd_bisect_cmd_log` (L1954) — §93 P1: cmd timeline under PSX_RB_CD_BISECT (window via netplay).
-- `try_execute_queued_command` (L2027) — Runs a queued command once the interrupt line is clear.
-- `queue_or_exec_command` (L2046) — Runs a command now if the interrupt line is clear, otherwise queues it.
-- `pause_complete_delay_cycles` (L2080) — Pause (0x09) completion latency — Beetle PS_CDC::Command_Pause.
-- `exec_command` (L2092) — Runs one CD-ROM controller command, setting its response and timing; the core of the command dispatcher.
-- `process_pending` (L2609) — Completes a pending command response once its due cycle has passed.
-- `warm_route_consumer_blocked` (L2714) — Route-only HLE producer/consumer handshake.
-- `authentic_sector_period` (L2755) — Returns the sector period at the real drive speed, halved in double-speed mode.
-- `accelerated_read_active` (L2760) — Returns 1 when reads run faster than the real drive speed, not during XA or filter modes.
-- `accelerated_consumer_blocked` (L2765) — Returns 1 when an accelerated read must wait for the CPU to take the last sector or interrupt.
-- `process_read_stream` (L2772) — Advances the data read stream by the elapsed cycles, delivering sectors when due and waiting for the CPU when it is behind.
-- `present_pending_dataready` (L2857) — Present a pended data-ready INT1 the moment the guest fully acks the previous INT (Beetle CheckAIP: async results present as soon as the IRQ register clears).
-- `cdrom_init` (L2873) — Starts the CD-ROM controller: clears its FIFOs and buffers, then mounts the disc image from the cue path.
-- `cdrom_has_disc` (L2967) — Did cdrom_init() actually mount an image?
-- `cdrom_read` (L2971) — MMIO read/write (0x1F801800-0x1F801803)
-- `cdrom_write` (L3021) — Handles a CPU write to the CD-ROM registers, tracing it and dispatching by register and index.
-- `cdrom_cycles_to_irq` (L3110) — Cycle-budgeted precise event slicing: guest CPU cycles until the CD-ROM raises a DELIVERABLE IRQ (bit2 unmasked in i_mask).
-- `cdrom_advance` (L3142) — Advance CD-ROM state machine by guest CPU cycles.
-- `cdrom_tick` (L3165) — Legacy frame-paced entry point for interpreter/oracle builds.
-- `cdrom_dma_read` (L3169) — DMA channel 3 interface
-- `cdrom_dma_ready` (L3181) — Returns 1 when DMA can take data now, first loading any announced sector into the FIFO.
-- `cdrom_dma_sector_word_count` (L3190) — Returns the word count for a CD DMA transfer, using one sector's size when the count is zero.
-- `cdrom_debug_snapshot` (L3203) — Copies the controller's registers and state into a debug struct.
-- `cdrom_debug_get_trace` (L3258) — Returns the register trace ring and its total count.
-- `cdrom_debug_clear_trace` (L3263) — Clears the register trace ring.
-- `cdrom_debug_get_command_history` (L3268) — Returns the command history ring and its total count.
-- `cdrom_debug_clear_command_history` (L3273) — Clears the command history ring.
-- `cdrom_debug_get_sector_history` (L3278) — Returns the sector history ring and its total count.
-- `cdrom_debug_clear_sector_history` (L3283) — Clears the sector history ring.
-- `cdrom_debug_copy_last_sector` (L3288) — Copies part of the last sector read into a buffer and fills in its debug state.
-- `cdrom_load_in_progress` (L3317) — Load-in-progress predicate for turbo-through-loads (step 4).
-- `cdrom_data_read_active` (L3328) — Physical non-XA data-read command state, without the logical load gap bridge used by cdrom_load_in_progress().
-- `cdrom_apply_savestate_delay_caps` (L3341) — Limits long pending and interrupt delays after a savestate load so the game does not stall.
-- `cdrom_accelerate_after_savestate` (L3366) — After savestate restore: clamp long CD second-response / read-start delays and arm a short boost window so post-load ReadTOC/seek/Init waits do not freeze the picture for ~1s+.
-- `cdrom_savestate_boost_vblank` (L3377) — Call once per host vblank while the boost window is armed.
-- `cdrom_savestate_cd_wait_active` (L3383) — Non-zero while boost is armed AND a CD wait is outstanding (pending second response or non-XA read).
-- `cdrom_savestate_boost_vblanks_remaining` (L3390) — Remaining boost vblanks (0 when idle).
-- `cdrom_snap_emit` (L3404) — Writes the CD-ROM controller state into a snapshot writer, in the legacy or extended layout.
-- `cdrom_snap_parse` (L3482) — Reads the CD-ROM controller state from a snapshot reader, in the legacy or extended layout.
-- `cdrom_snapshot_level_bytes` (L3576) — Returns the wire size of the snapshot layout at a given level (0 = legacy, CDROM_SNAP_LEVEL_CURRENT = newest).
-- `cdrom_snapshot_level` (L3583) — Maps a snapshot block length to its layout level; -1 when no level has that size.
-- `cdrom_snapshot_legacy_bytes` (L3589) — Returns the size of the legacy snapshot layout.
-- `cdrom_snapshot_fifos_ok` (L3595) — The parameter and response FIFO cursors index param_fifo / response_fifo; every layout starts with the legacy prefix, so this applies to all of them.
-- `cdrom_snapshot_validate` (L3605) — Checks that a snapshot block has a length matching the legacy or current layout.
-- `cdrom_snapshot_prepare_disc` (L3651) — A state taken on another disc of the roster: open that disc's image now, while the load can still be refused, so applying it cannot fail.
-- `cdrom_snapshot_drop_prepared` (L3664) — Close a disc image opened for a state that was then refused.
-- `cdrom_snapshot_disc_matches` (L3674) — 0 when the state was taken on another disc of this game's roster than the one mounted now: its LBAs, TOC and file table belong to that other disc.
-- `cdrom_snapshot_bytes` (L3681) — boot_state / netplay digest — full controller FSM (sector FIFOs included).
-- `cdrom_snapshot_write` (L3684) — Writes the current CD-ROM snapshot block into a buffer.
-- `cdrom_snapshot_read` (L3690) — Reads a CD-ROM snapshot block, checking its length first; returns 1 on success.
-- `begin_tray_open_cycle` (L3723) — Open the tray: stop every transfer in flight, hide the media, and arm the timed close.
-- `debug_force_cd_reinsert` (L3739) — Simulates a disc swap by opening the tray, which hides the media until the timed close. — Notify the guest that the mounted disc was reinserted.
-- `cdrom_disc_roster_set` (L3743) — Sets the list of disc image paths the player can switch between, and which one is selected.
-- `cdrom_disc_roster_count` (L3763) — Returns how many discs are in the roster.
-- `cdrom_mounted_sector_count` (L3765) — TOC of the image currently mounted; 0 when the drive is empty.
-- `cdrom_mounted_track_count` (L3769) — Returns the number of tracks in the mounted image, 0 when the drive is empty.
-- `cdrom_disc_selected` (L3773) — Returns the 1-based number of the selected disc.
-- `cdrom_disc_roster_path` (L3775) — Returns the path of a disc in the roster by 1-based index, or NULL if out of range.
-- `swap_image` (L3793) — Change the mounted image mid-session, the way a player changes a disc.
-- `cdrom_disc_select` (L3811) — Change the mounted image mid-session, the way a player changes a disc.
-- `cdrom_disc_mount_quiet` (L3842) — The same image swap without the lid: no ShellOpen, no 2 s wait, transfers and position kept.
-- `cdrom_disc_set_pending_quiet` (L3853) — Mount disc N quietly right before the next command that positions the drive (Setloc, Play, ReadN, ReadS, SeekL, SeekP); 0 cancels.
-- `cdrom_disc_pending_quiet` (L3858) — Disc waiting to be mounted quietly before the next positioning command, 0 none.
+- `cdrom_set_disc_scex` (L84) — Disc license region for GetID ("SCEE"/"SCEA"/"SCEI"); derived from the mounted disc's boot serial at launch.
+- `rb_available` (L171) — Returns 1 when the sector data buffer still has bytes left to read.
+- `load_data_fifo` (L175) — An explicit BFRD request may reload the retained announced sector after software clears the FIFO.
+- `ring_note_starved` (L190) — Counts a moment when the sector ring holds data but the read buffer is empty.
+- `cdrom_set_speed` (L323) — Set disc speed multiplier immediately.
+- `cdrom_set_game_speed` (L328) — Store the configured speed for post-BIOS application.
+- `cdrom_notify_game_started` (L333) — Called by fntrace_record on first game-range dispatch.
+- `cdrom_get_setloc_lba` (L337) — LBA of the most recent SetLoc command (-1 if none yet).
+- `cdrom_get_delivered_lba` (L344) — The sector most recently DELIVERED into the data buffer -- as opposed to the game's last SetLoc.
+- `cdrom_xa_stream_active` (L347) — Frontend XA-stream probe (FMV auto-skip / turbo-load gating in main.cpp).
+- `cdrom_fmv_stream_pending` (L349) — True while a CD read is armed with XA/FMV mode bits (or XA already streaming).
+- `cdrom_resync_deadlines_after_restore` (L361) — Re-arm host absolute CD deadlines from restored relative delays after boot_state / RB snap load (read stream + pending/present dues from snap).
+- `cdrom_register_warm_route` (L444) — Registers a warm route: a list of sector addresses served at a set rate once a SetLoc names its arm address.
+- `cdrom_warm_route_set_enabled` (L465) — Turns the warm route feature on or off, disarming any armed or active route when turned off.
+- `warm_route_current` (L477) — Returns the warm route that is currently active, or NULL when none is.
+- `cdrom_warm_route_stats_json` (L483) — Writes the warm route state and counters as JSON into a buffer.
+- `warm_route_on_setloc` (L508) — When a SetLoc names a route's arm address, arms that route.
+- `cdrom_set_instant_rate` (L568) — 'instant' per-frame sector-IRQ budget (step 3).
+- `cdrom_get_instant_rate` (L573) — Returns the current instant mode per-frame sector budget.
+- `instant_period` (L575) — Cycles between sectors in instant mode: one vblank divided by the per-frame budget, with a minimum.
+- `warm_route_period` (L580) — Cycles between sectors on the active warm route, from its rate, with a minimum.
+- `apply_speed` (L587) — Scales a sector delay by the drive speed setting, keeping authentic timing during XA streams and instant timing when unlimited.
+- `apply_read_speed` (L597) — Scales a read delay by the speed setting only for explicit data-read routes; FMV and XA reads keep authentic timing.
+- `host_ms` (L620) — Monotonic host milliseconds, used to timestamp CD read bursts.
+- `burst_note_sector` (L630) — Records one sector read in the burst log, starting a new burst after a gap.
+- `cdrom_get_bursts` (L651) — Copy out the most recent 'max' bursts, newest first.
+- `cdrom_get_burst_total` (L660) — Returns the total number of CD read bursts recorded.
+- `sector_delay_cycles` (L662) — Cycles between sector deliveries: half the 1x period at double speed, passed through the speed setting.
+- `initial_read_delay_cycles` (L671) — Cycles before the first sector after a read command starts, with the same speed rules.
+- `seek_complete_delay_cycles` (L681) — Cycles a seek takes to complete: about four sector periods for a far seek, a short fixed delay when near.
+- `cycles_until_due` (L701) — Guest cycles left until a due time; 0 if it has passed, capped to a 31-bit value.
+- `pending_rem_cycles` (L707) — Cycles left until the pending command response is due, or 0 when nothing is pending.
+- `irq_present_rem_cycles` (L712) — Cycles left until the pending interrupt is presented to the CPU.
+- `pending_arm` (L716) — Schedules a pending command response to come due after a latency, counted from now.
+- `seek_in_flight` (L726) — SeekL/SeekP armed: the drive is moving the head (phase 2 = a Setloc retargeted it mid-seek, see process_pending).
+- `cmd_leaves_drive_alone` (L732) — Commands that neither move the drive nor arm a second response.
+- `pending_set_remaining` (L742) — Sets the pending response to come due after the given cycles, or clears it when nothing is pending.
+- `irq_present_set_remaining` (L751) — Sets the interrupt presentation to come due after the given cycles, or clears it when none remain.
+- `update_last_valid_subq` (L789) — Reads a sector's subchannel data and keeps it as the last valid one when it is valid.
+- `trace_cdrom` (L801) — Records one register access (kind, address, value and width) in the CD-ROM trace ring.
+- `record_command_history` (L832) — Records a command and its parameters in the command history ring.
+- `xa_is_audio_realtime` (L877) — Returns true when a sector is XA audio in realtime mode (Mode 2 with audio and realtime submode bits).
+- `classify_raw_sector` (L884) — Reads the mode and XA submode of a raw sector and returns its delivery classification.
+- `record_sector_history` (L899) — Records a delivered sector (LBA, size, mode and classification) in the sector history ring.
+- `has_disc` (L929) — Returns true when media is in the drive and the lid is closed.
+- `response_clear` (L950) — Empties the response FIFO.
+- `response_push` (L955) — Adds one byte to the response FIFO if it has room.
+- `set_irq` (L961) — Sets the CD interrupt type and starts a new interrupt generation to be presented to the CPU.
+- `present_lid_open_irq_if_ready` (L981) — Presents the pending lid-open interrupt once the previous interrupt has been acknowledged.
+- `process_lid_state` (L994) — Presents a pending lid interrupt and closes the lid once its delay has passed.
+- `present_cdrom_irq` (L1017) — Present the current CD INT to the CPU interrupt controller exactly once per generation.
+- `fire_cdrom_irq` (L1038) — Fire CDROM IRQ into the interrupt controller (explicit, per command/response).
+- `refresh_cdrom_irq_line` (L1045) — Re-presents the CD interrupt line to the interrupt controller.
+- `bcd_to_bin` (L1049) — Converts a BCD byte to a plain number.
+- `msf_to_lba` (L1053) — Converts minutes, seconds and frames to a sector number (LBA), removing the 150-frame lead-in.
+- `cd_timing_lookup` (L1057) — Finds a timing record by sequence number, or NULL if it has been overwritten.
+- `cd_timing_begin_sector` (L1064) — Starts a timing record for a sector read and returns its sequence number.
+- `cd_timing_flag` (L1076) — Adds flags to a timing record found by sequence number.
+- `cd_timing_arm_irq` (L1081) — Marks a timing record as having its interrupt armed now.
+- `cd_timing_note_intc` (L1089) — Marks the latest armed interrupt as presented to the interrupt controller, once.
+- `cdrom_timing_reset` (L1096) — Passive physical-deadline -> buffer -> INT1 exposure telemetry (L1.5).
+- `cdrom_timing_total` (L1107) — Returns the total number of timing records made.
+- `cdrom_timing_record` (L1109) — Copies one timing record into the public struct; returns 0 if it is no longer kept.
+- `cdrom_timing_stats_json` (L1123) — Writes timing statistics as JSON into a buffer, including how many records were dropped.
+- `bin_to_bcd` (L1225) — Converts a number from 0 to 99 to BCD.
+- `lba_to_msf` (L1229) — Converts a sector number to minutes, seconds and frames, adding the pregap.
+- `clamp16_cd` (L1238) — Clamps a 32-bit audio value to the 16-bit range.
+- `xa_reset_decode` (L1244) — Clears the XA audio decoder history and stream selection.
+- `cd_apply_decode_volume` (L1263) — Applies the CD-audio left and right volume matrix to a block of stereo samples in place.
+- `xa_decode_sector_4bit_stereo` (L1278) — Decodes one XA-ADPCM sector of 4-bit stereo audio into 16-bit samples.
+- `xa_decode_sector_4bit_mono` (L1323) — Decodes one XA-ADPCM sector of 4-bit mono audio into 16-bit samples.
+- `xa_resample_to_44100` (L1361) — Resamples decoded XA audio to 44100 Hz and returns how many frames were produced.
+- `xa_zero_scan` (L1393) — Always-on XA zero-run scanner (audio_trace event ring).
+- `maybe_deliver_xa_audio` (L1412) — Sends a realtime XA audio sector to the audio output when XA is on and not muted.
+- `read_sector_at` (L1469) — Reads the sector at a minute, second and frame address into the buffers and returns its delivery info.
+- `advance_msf` (L1576) — Moves a minute, second and frame address forward by one sector.
+- `clear_sector_buffer` (L1582) — Empties the data FIFO and clears all sector buffers.
+- `cdrom_clear_pending_dataready` (L1621) — Drive-state changes (Read/Play/Pause/Stop/Seek) cancel a pended notification, matching Beetle's ClearAIP in every such command.
+- `read_continues_current_stream` (L1648) — A Read issued while the drive is ALREADY streaming the very sector the pending Setloc names is not a new read -- it is the game saying "keep going".
+- `read_seek_landed` (L1659) — A read's first sector arrived: ends its seek, so the status says Read instead of Seek and GetlocL has a header again.
+- `stop_cdda_playback` (L1665) — Stops CD-DA playback and leaves the head (read_*) where the music stopped.
+- `start_read_stream` (L1676) — Starts a data read stream after a read command, resetting CD-DA playback and read timing.
+- `stop_read_stream` (L1742) — Stops the data read stream and its timing.
+- `deliver_cdda_data_end` (L1751) — Sends the pending CD-DA end response once the interrupt line is clear.
+- `deliver_xa_data_end` (L1760) — Sends the pending XA end response once the interrupt line is clear.
+- `deliver_cdda_report` (L1777) — CD-DA position reports (Setmode bit2), psx-spx "Command 03h - Play": INT1(stat, track, index, mm/amm, ss+80h/ass, sect/asect, peaklo, peakhi) on every 10th frame of absolute time — asect BCD 00/20/40/
+- `cdda_track_for_lba` (L1817) — Returns the audio track that contains a sector, or 0 if none does.
+- `cdda_track_end_lba` (L1827) — Returns the sector where a track ends: the next track's start, or the end of the disc.
+- `start_cdda_playback` (L1834) — Starts CD-DA playback from a requested track, or from the current position.
+- `process_cdda_stream` (L1867) — Advances CD-DA playback by the elapsed cycles, sending timed reports and the end response.
+- `data_fifo_ready` (L1925) — Returns 1 when the CPU has requested data and data is available, counting starved moments.
+- `cdrom_get_dataready_fires` (L1931) — static uint64_t s_dataready_fires; /* INT1 (data-ready) raised per streamed sector — FMV dispatch probe
+- `deliver_read_sector` (L1933) — Reads the next sector of the data stream into the buffers, advances the position and raises the data-ready interrupt.
+- `deliver_read_sector_without_irq` (L1963) — A continuing DMA needs the newly filled slot immediately.
+- `cd_bisect_cmd_log` (L1977) — §93 P1: cmd timeline under PSX_RB_CD_BISECT (window via netplay).
+- `try_execute_queued_command` (L2050) — Runs a queued command once the interrupt line is clear.
+- `queue_or_exec_command` (L2069) — Runs a command now if the interrupt line is clear, otherwise queues it.
+- `pause_complete_delay_cycles` (L2103) — Pause (0x09) completion latency — Beetle PS_CDC::Command_Pause.
+- `reject_audio_disc_data_read` (L2122) — Audio-only media cannot satisfy a data read.
+- `exec_command` (L2133) — Runs one CD-ROM controller command, setting its response and timing; the core of the command dispatcher.
+- `process_pending` (L2655) — Completes a pending command response once its due cycle has passed.
+- `warm_route_consumer_blocked` (L2760) — Route-only HLE producer/consumer handshake.
+- `authentic_sector_period` (L2801) — Returns the sector period at the real drive speed, halved in double-speed mode.
+- `accelerated_read_active` (L2806) — Returns 1 when reads run faster than the real drive speed, not during XA or filter modes.
+- `accelerated_consumer_blocked` (L2811) — Returns 1 when an accelerated read must wait for the CPU to take the last sector or interrupt.
+- `process_read_stream` (L2818) — Advances the data read stream by the elapsed cycles, delivering sectors when due and waiting for the CPU when it is behind.
+- `present_pending_dataready` (L2903) — Present a pended data-ready INT1 the moment the guest fully acks the previous INT (Beetle CheckAIP: async results present as soon as the IRQ register clears).
+- `cdrom_init` (L2919) — Starts the CD-ROM controller: clears its FIFOs and buffers, then mounts the disc image from the cue path.
+- `cdrom_has_disc` (L3013) — Did cdrom_init() actually mount an image?
+- `cdrom_read` (L3017) — MMIO read/write (0x1F801800-0x1F801803)
+- `cdrom_write` (L3067) — Handles a CPU write to the CD-ROM registers, tracing it and dispatching by register and index.
+- `cdrom_cycles_to_irq` (L3156) — Cycle-budgeted precise event slicing: guest CPU cycles until the CD-ROM raises a DELIVERABLE IRQ (bit2 unmasked in i_mask).
+- `cdrom_advance` (L3188) — Advance CD-ROM state machine by guest CPU cycles.
+- `cdrom_tick` (L3211) — Legacy frame-paced entry point for interpreter/oracle builds.
+- `cdrom_dma_read` (L3215) — DMA channel 3 interface
+- `cdrom_dma_ready` (L3227) — Returns 1 when DMA can take data now, first loading any announced sector into the FIFO.
+- `cdrom_dma_sector_word_count` (L3236) — Returns the word count for a CD DMA transfer, using one sector's size when the count is zero.
+- `cdrom_debug_snapshot` (L3249) — Copies the controller's registers and state into a debug struct.
+- `cdrom_debug_get_trace` (L3304) — Returns the register trace ring and its total count.
+- `cdrom_debug_clear_trace` (L3309) — Clears the register trace ring.
+- `cdrom_debug_get_command_history` (L3314) — Returns the command history ring and its total count.
+- `cdrom_debug_clear_command_history` (L3319) — Clears the command history ring.
+- `cdrom_debug_get_sector_history` (L3324) — Returns the sector history ring and its total count.
+- `cdrom_debug_clear_sector_history` (L3329) — Clears the sector history ring.
+- `cdrom_debug_copy_last_sector` (L3334) — Copies part of the last sector read into a buffer and fills in its debug state.
+- `cdrom_load_in_progress` (L3363) — Load-in-progress predicate for turbo-through-loads (step 4).
+- `cdrom_data_read_active` (L3374) — Physical non-XA data-read command state, without the logical load gap bridge used by cdrom_load_in_progress().
+- `cdrom_apply_savestate_delay_caps` (L3387) — Limits long pending and interrupt delays after a savestate load so the game does not stall.
+- `cdrom_accelerate_after_savestate` (L3412) — After savestate restore: clamp long CD second-response / read-start delays and arm a short boost window so post-load ReadTOC/seek/Init waits do not freeze the picture for ~1s+.
+- `cdrom_savestate_boost_vblank` (L3423) — Call once per host vblank while the boost window is armed.
+- `cdrom_savestate_cd_wait_active` (L3429) — Non-zero while boost is armed AND a CD wait is outstanding (pending second response or non-XA read).
+- `cdrom_savestate_boost_vblanks_remaining` (L3436) — Remaining boost vblanks (0 when idle).
+- `cdrom_snap_emit` (L3450) — Writes the CD-ROM controller state into a snapshot writer, in the legacy or extended layout.
+- `cdrom_snap_parse` (L3528) — Reads the CD-ROM controller state from a snapshot reader, in the legacy or extended layout.
+- `cdrom_snapshot_level_bytes` (L3622) — Returns the wire size of the snapshot layout at a given level (0 = legacy, CDROM_SNAP_LEVEL_CURRENT = newest).
+- `cdrom_snapshot_level` (L3629) — Maps a snapshot block length to its layout level; -1 when no level has that size.
+- `cdrom_snapshot_legacy_bytes` (L3635) — Returns the size of the legacy snapshot layout.
+- `cdrom_snapshot_fifos_ok` (L3641) — The parameter and response FIFO cursors index param_fifo / response_fifo; every layout starts with the legacy prefix, so this applies to all of them.
+- `cdrom_snapshot_validate` (L3651) — Checks that a snapshot block has a length matching the legacy or current layout.
+- `cdrom_snapshot_prepare_disc` (L3697) — A state taken on another disc of the roster: open that disc's image now, while the load can still be refused, so applying it cannot fail.
+- `cdrom_snapshot_drop_prepared` (L3710) — Close a disc image opened for a state that was then refused.
+- `cdrom_snapshot_disc_matches` (L3720) — 0 when the state was taken on another disc of this game's roster than the one mounted now: its LBAs, TOC and file table belong to that other disc.
+- `cdrom_snapshot_bytes` (L3727) — boot_state / netplay digest — full controller FSM (sector FIFOs included).
+- `cdrom_snapshot_write` (L3730) — Writes the current CD-ROM snapshot block into a buffer.
+- `cdrom_snapshot_read` (L3736) — Reads a CD-ROM snapshot block, checking its length first; returns 1 on success.
+- `begin_tray_open_cycle` (L3769) — Open the tray: stop every transfer in flight, hide the media, and arm the timed close.
+- `debug_force_cd_reinsert` (L3785) — Simulates a disc swap by opening the tray, which hides the media until the timed close. — Notify the guest that the mounted disc was reinserted.
+- `cdrom_disc_roster_set` (L3789) — Sets the list of disc image paths the player can switch between, and which one is selected.
+- `cdrom_disc_roster_count` (L3809) — Returns how many discs are in the roster.
+- `cdrom_mounted_sector_count` (L3811) — TOC of the image currently mounted; 0 when the drive is empty.
+- `cdrom_mounted_track_count` (L3815) — Returns the number of tracks in the mounted image, 0 when the drive is empty.
+- `cdrom_disc_selected` (L3819) — Returns the 1-based number of the selected disc.
+- `cdrom_disc_roster_path` (L3821) — Returns the path of a disc in the roster by 1-based index, or NULL if out of range.
+- `swap_image` (L3839) — Change the mounted image mid-session, the way a player changes a disc.
+- `cdrom_disc_select` (L3857) — Change the mounted image mid-session, the way a player changes a disc.
+- `cdrom_disc_mount_quiet` (L3888) — The same image swap without the lid: no ShellOpen, no 2 s wait, transfers and position kept.
+- `cdrom_disc_set_pending_quiet` (L3899) — Mount disc N quietly right before the next command that positions the drive (Setloc, Play, ReadN, ReadS, SeekL, SeekP); 0 cancels.
+- `cdrom_disc_pending_quiet` (L3904) — Disc waiting to be mounted quietly before the next positioning command, 0 none.
 
 ### runtime/src/cdrom_irq.h
 
@@ -2316,9 +2318,9 @@ Memoizes pure game functions: records what a call reads and writes, then replays
 - `ds_load_key` (L349) — Loads the cached shard files for one key into memory, once per key.
 - `ds_verify` (L400) — Checks that every recorded read range still matches live memory; returns 1 only when all of them match.
 - `ds_apply` (L414) — Replays a shard's recorded writes into guest memory through the normal write paths and marks executable ranges.
-- `psx_datashard_enter` (L451) — Called on entry to a memoized function: replays a matching stored shard and returns 1, or arms a capture and returns 0 so the body runs.
-- `psx_datashard_ret` (L488) — Called when the memoized function returns: finalizes the armed capture into a stored shard.
-- `ds_stats_json` (L498) — Debug/TCP surface.
+- `psx_datashard_enter` (L454) — Called on entry to a memoized function: replays a matching stored shard and returns 1, or arms a capture and returns 0 so the body runs.
+- `psx_datashard_ret` (L491) — Called when the memoized function returns: finalizes the armed capture into a stored shard.
+- `ds_stats_json` (L501) — Debug/TCP surface.
 
 ### runtime/src/debug_server.c
 
@@ -3111,34 +3113,34 @@ Emulates the PS1 DMA controller: its seven channels, transfer timing, interrupt 
 - `execute_ch4_spu` (L1044) — Returns the number of words moved so the caller can schedule a faithful delayed completion (DMA_SPU_CYCLES_PER_WORD).
 - `execute_ch6_otc` (L1081) — Runs an OTC transfer: writes a backward-linked ordering table into RAM ending with the 0xFFFFFF marker.
 - `try_execute` (L1106) — Starts a transfer on the channel when its start bit is set and the channel is enabled in DPCR, dispatching by channel.
-- `dma_get_dicr` (L1181) — The DICR register value as the CPU reads it.
-- `dma_gpu_linked_list_active` (L1183) — A GPU linked-list walk is in flight (render passes refuse to start then).
-- `dma_get_dpcr` (L1184) — The DPCR register value (DMA channel priority and enable).
-- `dma_cdrom_transfer_active` (L1185) — Nonzero while the asynchronous CD-ROM transfer is active.
-- `dma_cycles_to_irq` (L1198) — Cycle-budgeted precise event slicing: guest CPU cycles until DMA raises a DELIVERABLE IRQ (bit3 unmasked in i_mask).
-- `dma_cycles_to_internal_event` (L1221) — Mask-blind scheduler boundary: next DMA word movement or delayed completion, not merely the final IRQ.
-- `dma_cycles_to_deliverable_irq` (L1277) — Strict deliverability form for wait-loop elision: unlike the conservative scheduler bound, ignores channel completions whose DICR IRQ is disabled.
-- `dma_advance` (L1304) — Advances all DMA activity by the given guest cycles: MDEC and linked-list walks, delayed completions and CD-ROM transfers.
-- `dma_init` (L1381) — Resets all DMA channels and registers to their power-on state.
-- `dma_read` (L1393) — Reads a DMA register at the given address (DPCR, DICR or a channel register) and returns its value.
-- `dma_write_masked` (L1437) — Writes a DMA register under a bit mask, handling DPCR, DICR acknowledge bits and the channel control registers.
-- `dma_write` (L1502) — Writes a full 32-bit DMA register value.
-- `dma_debug_get_gpu_ot_stats` (L1506) — Debug accessor: copies the GPU ordering-table statistics into out.
-- `dma_debug_get_trace` (L1513) — Debug accessor: returns the DMA trace ring and its entry count.
-- `dma_debug_clear_trace` (L1518) — Clears the DMA trace ring.
-- `dma_debug_get_cdrom_history` (L1523) — Debug accessor: returns the CD-ROM DMA history ring and its entry count.
-- `dma_debug_clear_cdrom_history` (L1528) — Clears the CD-ROM DMA history ring.
-- `dma_debug_get_state` (L1536) — Debug accessor: fills out with the DMA state (registers and channel status).
-- `dma_w_async` (L1574) — Saves one asynchronous channel's state into a snapshot writer; returns 1 on success.
-- `dma_r_async` (L1579) — Restores one asynchronous channel's state from a snapshot reader; returns 1 on success.
-- `dma_w_gpu_ll` (L1584) — Saves the GPU linked-list state into a snapshot writer; returns 1 on success.
-- `dma_r_gpu_ll` (L1594) — Restores the GPU linked-list state from a snapshot reader; returns 1 on success.
-- `dma_w_delay` (L1606) — Saves a delayed-completion state into a snapshot writer; returns 1 on success.
-- `dma_r_delay` (L1610) — Restores a delayed-completion state from a snapshot reader; returns 1 on success.
-- `dma_snapshot_bytes` (L1615) — Byte size of the DMA snapshot section.
-- `dma_snapshot_write` (L1617) — Writes the DMA state into the snapshot buffer p.
-- `dma_snapshot_validate` (L1642) — Pass-1 check for boot_state's two-pass load: parses into locals and refuses an async start address outside live RAM or remaining words above the total.
-- `dma_snapshot_read` (L1657) — Restores the DMA state from a snapshot buffer of len bytes; returns nonzero on success.
+- `dma_get_dicr` (L1185) — The DICR register value as the CPU reads it.
+- `dma_gpu_linked_list_active` (L1187) — A GPU linked-list walk is in flight (render passes refuse to start then).
+- `dma_get_dpcr` (L1188) — The DPCR register value (DMA channel priority and enable).
+- `dma_cdrom_transfer_active` (L1189) — Nonzero while the asynchronous CD-ROM transfer is active.
+- `dma_cycles_to_irq` (L1202) — Cycle-budgeted precise event slicing: guest CPU cycles until DMA raises a DELIVERABLE IRQ (bit3 unmasked in i_mask).
+- `dma_cycles_to_internal_event` (L1225) — Mask-blind scheduler boundary: next DMA word movement or delayed completion, not merely the final IRQ.
+- `dma_cycles_to_deliverable_irq` (L1281) — Strict deliverability form for wait-loop elision: unlike the conservative scheduler bound, ignores channel completions whose DICR IRQ is disabled.
+- `dma_advance` (L1308) — Advances all DMA activity by the given guest cycles: MDEC and linked-list walks, delayed completions and CD-ROM transfers.
+- `dma_init` (L1385) — Resets all DMA channels and registers to their power-on state.
+- `dma_read` (L1397) — Reads a DMA register at the given address (DPCR, DICR or a channel register) and returns its value.
+- `dma_write_masked` (L1441) — Writes a DMA register under a bit mask, handling DPCR, DICR acknowledge bits and the channel control registers.
+- `dma_write` (L1506) — Writes a full 32-bit DMA register value.
+- `dma_debug_get_gpu_ot_stats` (L1510) — Debug accessor: copies the GPU ordering-table statistics into out.
+- `dma_debug_get_trace` (L1517) — Debug accessor: returns the DMA trace ring and its entry count.
+- `dma_debug_clear_trace` (L1522) — Clears the DMA trace ring.
+- `dma_debug_get_cdrom_history` (L1527) — Debug accessor: returns the CD-ROM DMA history ring and its entry count.
+- `dma_debug_clear_cdrom_history` (L1532) — Clears the CD-ROM DMA history ring.
+- `dma_debug_get_state` (L1540) — Debug accessor: fills out with the DMA state (registers and channel status).
+- `dma_w_async` (L1578) — Saves one asynchronous channel's state into a snapshot writer; returns 1 on success.
+- `dma_r_async` (L1583) — Restores one asynchronous channel's state from a snapshot reader; returns 1 on success.
+- `dma_w_gpu_ll` (L1588) — Saves the GPU linked-list state into a snapshot writer; returns 1 on success.
+- `dma_r_gpu_ll` (L1598) — Restores the GPU linked-list state from a snapshot reader; returns 1 on success.
+- `dma_w_delay` (L1610) — Saves a delayed-completion state into a snapshot writer; returns 1 on success.
+- `dma_r_delay` (L1614) — Restores a delayed-completion state from a snapshot reader; returns 1 on success.
+- `dma_snapshot_bytes` (L1619) — Byte size of the DMA snapshot section.
+- `dma_snapshot_write` (L1621) — Writes the DMA state into the snapshot buffer p.
+- `dma_snapshot_validate` (L1646) — Pass-1 check for boot_state's two-pass load: parses into locals and refuses an async start address outside live RAM or remaining words above the total.
+- `dma_snapshot_read` (L1661) — Restores the DMA state from a snapshot buffer of len bytes; returns nonzero on success.
 
 ### runtime/src/dma_gpu_ll.c
 
@@ -4015,209 +4017,209 @@ The PS1 GPU emulation: GP0 and GP1 command handling, software rasterising, VRAM 
 - `gpu_ws_end_linked_list` (L5055) — Ends a GPU linked-list walk for the widescreen state.
 - `gpu_ot_front_now` (L5066) — The primitive being drawn is in its ordering table's last entries, where a game draws its UI over everything (never a sprite standing in the world).
 - `gpu_ws_restore_linked_list_rank` (L5071) — Restores the linked-list rank of the widescreen state.
-- `gpu_reset_state` (L5127) — Resets the GPU state to its power-on values.
-- `gpu_init` (L5230) — Initialises the GPU.
-- `gpu_set_power_on_video_mode` (L5236) — void gpu_vblank_tick(void); /* Toggle LCF, called at each simulated vblank Video standard before the first GP1(08h) (disc region: 1 = PAL).
-- `gpu_read_gpustat` (L5244) — Reads the GPUSTAT register.
-- `gpu_read_gpuread` (L5340) — Reads the GPUREAD register (the next word of a VRAM transfer).
-- `rgb888_to_rgb555` (L5380) — Convert 24-bit RGB888 to 16-bit RGB555 (PS1 VRAM format)
-- `gpu_vblank_clear_deferred_present` (L5396) — Clears a queued deferred present.
-- `gpu_vblank_arm_deferred_present` (L5403) — Queue one deferred present (netplay RB resume when I_STAT already has VBlank — snap resync cleared the pending callback).
-- `gpu_vblank_present_pending` (L5411) — 1 while a netplay deferred present is armed (MotK CD54 VBlank hold).
-- `gpu_vblank_release_present_flush_guard` (L5415) — Clear flush_present reentrancy guard before longjmp (flush_resume).
-- `gpu_vblank_flush_present` (L5419) — Presents the frame now, clearing the reentrancy guard.
-- `gpu_vblank_tick` (L5476) — Runs the GPU's VBlank processing (display timing and deferred present).
-- `gpu_get_vram` (L5546) — Returns the VRAM buffer.
-- `depth24_note_upload` (L5555) — Depth24: note/query/reset the CPU→VRAM upload span tracked above.
-- `gpu_depth24_rgb_limit` (L5563) — Depth24: RGB columns covered by CPU→VRAM uploads since the last reset.
-- `gpu_depth24_upload_span_reset` (L5578) — Resets the depth-24 upload span.
-- `gpu_depth24_present_hold_tick` (L5582) — MotK intro cuts retarget GP1(07h): the guest-state hold counts down at guest VBlank (gpu_vblank_tick).
-- `gpu_depth24_on_savestate_loaded` (L5586) — After savestate restore: clear ephemeral hold so the restored depth24 frame can present immediately (span/prev_h come from the GPU snap).
-- `gpu_set_screen_kind` (L5612) — Present-time screen-colour model (see color_lut.h ScreenKind: 0=raw, 1=crt, 2=composite, 3=trinitron).
-- `screen_lut_ensure` (L5619) — Makes sure the screen colour lookup table exists for the current screen kind.
-- `gpu_rgb555_to_rgb888` (L5644) — Converts a 15-bit RGB555 colour to 8-bit RGB.
-- `gpu_display_pixel_rgb_in` (L5657) — Converts an input pixel to display RGB for the given input format.
-- `gpu_display_pixel_rgb` (L5685) — Converts a VRAM pixel to display RGB.
-- `gpu_display_pixel_argb` (L5690) — Converts a VRAM pixel to display ARGB.
-- `gpu_depth24_present_row` (L5706) — Batch depth24 (FMV) scanline → ARGB.
-- `gpu_depth24_stage_scanout` (L5743) — Depth24 present staging, shared by every CPU present path: compose the GP1(07h) intersection with active video into the PAL/NTSC canvas (rows off-screen are clipping, not a shift), then black-fill the
-- `gpu_display_is_depth24` (L5771) — GP1(08h) bit4 — 24-bit display.
-- `gpu_get_display_info` (L5780) — The display info is a pure function of these GP1 registers; the widescreen code asks for it per primitive.
-- `gpu_compute_display_info` (L5799) — Computes the display info from the GP1 registers.
-- `gpu_get_crtc_debug` (L5880) — Debug accessors for GP1 display-range / mode (TCP gpu_state).
-- `gpu_set_vblank_callback` (L5890) — Sets the callback that runs at each VBlank.
-- `sign_extend` (L5895) — Sign-extend an N-bit value to int32_t
-- `parse_vertex` (L5903) — Parse a vertex position word: signed 11-bit X and Y
-- `gpu_pgxp_rederive_enable` (L5919) — Arm the PGXP dataflow transport for any consumer.
-- `psx_mod_set_native_wide_projection_correction` (L5926) — Enable render-only recovery of saturated horizontal GTE projections and camera-plane clipping in native-wide gameplay.
-- `gpu_ws_native_wide_projection_correction` (L5935) — 1 when native-wide projection correction is enabled.
-- `gpu_ws_projective_enabled` (L5940) — 1 when projective correction is enabled.
-- `psx_mod_set_native_wide_near_clip` (L5945) — Deprecated compatibility entry point; enabled is ignored.
-- `native_wide_projection_x` (L5956) — The PS1 clamps each projected X independently.
-- `gpu_triangle_rejected` (L5981) — Original, unsubdivided world faces can exceed the PS1 size limit after the wider view admits them.
-- `gpu_texture_correction_set` (L6008) — Perspective-correct UV interpolation for textured world polygons ([video] perspective_texturing).
-- `gpu_texture_correction_enabled` (L6013) — 1 when perspective-correct texture coordinates are enabled.
-- `gpu_texture_correction_hits` (L6017) — Triangles drawn with perspective-correct UVs since startup.
-- `prepare_precise_triangle` (L6033) — Per-vertex precise positions (PGXP, docs/ENHANCEMENTS.md G1).
-- `textured_quad_precise_vertices` (L6162) — A textured quad whose four packet vertices form an axis-aligned rectangle (in integer screen space and in UV) is drawn by the 2D rectangle shortcut, at the native integer position and without perspect
-- `gpu_texture_correction_stats` (L6195) — Returns the perspective texture correction statistics.
-- `prepare_texture_triangle` (L6208) — Enable perspective UVs only when every position word came from an exact SWC2 projection store at that same DMA packet address.
-- `draw_area_wide_x_margin` (L6255) — Inclusive draw-area reject (same predicate as the hardware clip).
-- `draw_area_host_x_bounds` (L6264) — Host X bounds of the drawing area.
-- `draw_area_out_point` (L6281) — 1 when a point lies outside the drawing area.
-- `draw_area_out_bbox` (L6288) — 1 when a bounding box lies outside the drawing area.
-- `draw_area_out_poly` (L6308) — A polygon wholly past the drawing area draws nothing.
-- `draw_area_out_rect` (L6325) — 1 when a rectangle lies outside the drawing area.
-- `gp0_exec_mono_tri` (L6336) — Execute mono triangle (GP0 0x20-0x23)
-- `ws_local_viewport_divider` (L6360) — Execute mono quad (GP0 0x28-0x2B) — two triangles: (0,1,2) and (2,1,3) A native split divider belongs to the combined framebuffer.
-- `gp0_exec_mono_quad` (L6371) — Draws a flat-colour quad (two triangles) as GP0 commands.
-- `gp0_exec_shaded_tri` (L6494) — Execute shaded triangle (GP0 0x30-0x33) — Gouraud shaded
-- `gpu_arm_shaded_quad_capture` (L6520) — Arms a capture of the next shaded quad.
-- `gpu_get_shaded_quad_capture` (L6521) — Returns the captured shaded quad.
-- `gp0_exec_shaded_quad` (L6528) — Execute shaded quad (GP0 0x38-0x3B)
-- `current_texpage` (L6581) — Helper: build texpage word from GPU state for SW renderer.
-- `set_tpage_from_poly` (L6594) — Hardware: the texpage attribute word carried inside every textured polygon (GP0 0x24-0x3F with the texture bit) is copied into the GPU draw-mode state (GPUSTAT bits 0-8) exactly like GP0(E1) bits 0-8
-- `setup_textured_draw` (L6604) — Helper: set up SW renderer state before a textured draw.
-- `native_wide_projective_draw` (L6616) — A close corner may cross the camera plane while the face is still visible.
-- `gp0_exec_textured_tri` (L6651) — Execute textured triangle (GP0 0x24-0x27)
-- `gp0_exec_textured_quad` (L6699) — Execute textured quad (GP0 0x2C-0x2F)
-- `gp0_exec_shaded_textured_tri` (L6833) — Execute shaded textured triangle (GP0 0x34-0x37)
-- `psx_mod_texture_banks_supported` (L6900) — 1 when the texture banks are supported by the mod.
-- `gp0_exec_shaded_textured_quad` (L6905) — Execute shaded textured quad (GP0 0x3C-0x3F)
-- `gp0_exec_mono_line` (L6980) — Execute mono line (GP0 0x40-0x47) — Bresenham
-- `gp0_exec_shaded_line` (L7010) — Execute shaded line (GP0 0x50-0x57)
-- `gp0_exec_mono_rect` (L7032) — Execute mono rectangle (GP0 0x60-0x63)
-- `ws_repeat_textured_rect_reveal` (L7072) — Repeats a textured rectangle into the native-wide reveal margins.
-- `ws_fb_base_holding` (L7099) — The framebuffer whose canonical columns hold VRAM x, or -1.
-- `ws_feedback_rect_reveal` (L7108) — A tagged 15-bit sprite copying another framebuffer continues into the bands from that buffer's wide surface (it has no band columns in VRAM).
-- `gp0_exec_textured_rect` (L7139) — Execute textured rectangle (GP0 0x64-0x67)
-- `gp0_exec_mono_dot` (L7229) — Execute 1x1 dot (GP0 0x68-0x6B)
-- `gp0_exec_textured_dot` (L7243) — Execute textured 1x1 dot (GP0 0x6C-0x6F)
-- `gp0_exec_textured_8x8` (L7262) — Execute 8x8 textured sprite (GP0 0x74-0x77)
-- `gp0_exec_mono_8x8` (L7289) — Execute 8x8 sprite (GP0 0x70-0x73)
-- `gp0_exec_textured_16x16` (L7307) — Execute 16x16 textured sprite (GP0 0x7C-0x7F)
-- `gp0_exec_nop` (L7352) — GP0 no-op command handler.
-- `gp0_exec_fill_rect` (L7356) — GP0 fill-rectangle command handler: fills a VRAM rectangle with a colour.
-- `gp0_exec_draw_mode` (L7388) — GP0 draw-mode (texpage) command handler.
-- `gp0_exec_texture_window` (L7410) — GP0 texture-window command handler.
-- `gp0_exec_draw_area_tl` (L7420) — GP0 draw-area top-left command handler.
-- `gp0_exec_draw_area_br` (L7435) — GP0 draw-area bottom-right command handler.
-- `gp0_exec_draw_offset` (L7449) — GP0 draw-offset command handler.
-- `gp0_exec_mask_bit` (L7465) — GP0 mask-bit setting command handler.
-- `gpu_get_a0_history` (L7497) — Returns the history of GP0 0xC0 reads.
-- `gpu_get_a0_count` (L7507) — Number of GP0 0xA0 transfer records.
-- `gpu_get_a0_extra` (L7508) — Extra arguments of the last GP0 0xA0 transfer.
-- `gpu_get_a0_src` (L7519) — True source pointer + arg regs + frame for the LoadImage upload (s2 = source).
-- `gp0_exec_cpu_to_vram` (L7528) — GP0 CPU-to-VRAM transfer command handler.
-- `gpu_get_c0_total` (L7598) — Total GP0 C0 reads since boot; the ring holds the newest C0_HISTORY_CAP.
-- `gpu_get_c0_count` (L7599) — Number of GP0 0xC0 reads kept in the ring.
-- `gpu_get_c0_history` (L7603) — index 0 = oldest entry still in the ring.
-- `gpu_get_c0_frame` (L7619) — Frame of a GP0 0xC0 read.
-- `gp0_exec_vram_to_cpu` (L7626) — GP0 VRAM-to-CPU transfer command handler.
-- `gp0_command_word_count` (L7663) — Determine how many words a GP0 command requires (header only, not counting variable-length data for 0xA0).
-- `gpu_gp0_command_word_count` (L7749) — Fixed command words; -1 denotes a terminated polyline, 0 an unknown opcode.
-- `ws_ui_prepass_add` (L7753) — Adds a UI prepass record for a primitive.
-- `ws_ui_untextured_op` (L7894) — 1 when a primitive is an untextured operation for UI grouping.
-- `ws_ui_encloses` (L7899) — 1 when one UI item encloses another.
-- `ws_ui_attached` (L7909) — Part of the same widget: sharing screen columns and overlapping or stacked within WS_UI_GROUP_STACK_GAP rows (ws_ui_group.c same_element()).
-- `gpu_ws_prepass_linked_list` (L7920) — Prepass over the linked list that collects UI and backdrop primitives.
-- `gpu_ws_set_backdrop_images` (L8321) — The backdrop-image rule (native-wide): what a frame draws before its 3D world, as images (a picture's tiles together, a band each for pieces stacked in it), each decided on its own: past the wide edge
-- `bdi_enabled` (L8323) — 1 when backdrop images are enabled.
-- `bdi_find` (L8331) — Finds a backdrop image record.
-- `bdi_insert` (L8342) — Inserts a backdrop image record.
-- `bdi_texel` (L8354) — One texel as BGR555 with its stp bit, 0 = transparent.
-- `bdi_colour` (L8367) — A sample's colour (BGR555, no stp) as drawn: the texel times the vertex colour (0x80 = 1.0) unless raw; untextured: the vertex colour.
-- `bdi_side_samples` (L8391) — One side of a band (whole: of an image, all its bands): its edge (the primitives at that extreme, each by the two vertices furthest that way: a slanted edge, a perspective plane whose top row is narro
-- `bdi_mode` (L8421) — The colour most samples sit within 'tol' levels of; *count how many do.
-- `bdi_dark` (L8437) — A colour's brightest channel at most 'lv' levels (of 31).
-- `bdi_flat` (L8445) — Mostly one colour: the colour at least 90% of the samples sit within 1 level of (a lighter edge with a faint pattern is art, not a flat colour); a very dark edge (a night sky with faint clouds: up to
-- `bdi_prim_parse` (L8455) — Parses a backdrop primitive's position and colour.
-- `bdi_prim_rows` (L8497) — Returns the rows a backdrop primitive covers.
-- `bdi_split_bands` (L8508) — Each image into bands: its primitives whose rows overlap (by more than a row: pieces stacked edge to edge are apart).
-- `bdi_tile_of` (L8553) — Returns the tile index of a backdrop primitive.
-- `bdi_tile_eq` (L8561) — 1 when two backdrop tiles are equal.
-- `bdi_tile_mem` (L8570) — Memory tile comparison for backdrop tiles.
-- `bdi_strip` (L8587) — A band laid as one row of textured rectangles: their indices by x.
-- `bdi_tiles_learn` (L8603) — Each strip's neighbouring tiles, remembered.
-- `bdi_wrap_side` (L8623) — A strip's side short of the wide edge: the tiles seen beyond its end (one after another, up to 3) planned there; 0 (nothing planned) when they are not remembered or do not reach the wide edge.
-- `bdi_side_piece_w` (L8646) — The narrowest piece at a side of a band (whole: of an image).
-- `bdi_drop_wraps` (L8660) — Drops wrapped backdrop tile records.
-- `bdi_decide` (L8672) — One band (whole: an image, all its bands together): its stretch, filled sides and (a band) tiles drawn in its gaps into *im.
-- `bdi_fill_runs` (L8728) — A filled side, row by row: the colour at the edge on that row (a sky's gradient goes on into the margin with no seam), the side's main colour where no primitive is at the edge; kept as runs of one col
-- `bdi_square` (L8768) — A primitive laid square: a rectangle, or a quad whose corners sit on two columns and two rows (to a pixel).
-- `bdi_gte_polygon` (L8779) — A polygon with a corner the GTE projected (PGXP's dataflow shadow of its packet word): 3D world, not a still.
-- `bdi_prepass` (L8794) — Prepass that collects backdrop images from the linked list.
-- `bdi_gate` (L8947) — The answer for the primitive being drawn: -1 none (not a backdrop image); 0 drawn as it is; else (marked ?
-- `bdi_fill_note` (L8959) — At an image's first primitive: its filled margins, before any of it.
-- `gpu_ws_backdrop_images_json` (L8991) — TCP ws_backdrop_images: the last linked list's images.
-- `ws_ui_prepass_order_cmp` (L9013) — qsort comparison of two UI prepass records.
-- `ws_ui_prepass_find_node` (L9021) — The first prepass record of 'resolved', as the linear scan found it.
-- `gpu_ws_validate_linked_list_header` (L9043) — Validates a linked-list header word for the widescreen state.
-- `gpu_ws_validate_linked_list_node` (L9055) — Validates a linked-list node for the widescreen state.
-- `gpu_get_opcode_count` (L9085) — Number of opcodes seen in the GP0 stream, for diagnostics.
-- `gp0_capture_builder_chain` (L9107) — Bounded guest-stack unwind for VRAM-copy builder attribution.
-- `gpu_gp0_ring_set_frozen` (L9145) — Freeze/unfreeze the always-on GP0 command ring (capture mark).
-- `gp0_ring_record` (L9147) — Records one GP0 word in the command ring.
-- `gpu_gp0_ring_total` (L9173) — Public accessors for debug_server.c
-- `gpu_gp0_ring_capacity` (L9174) — Capacity of the GP0 command ring in commands.
-- `gpu_gp0_ring_max_words` (L9175) — Maximum words stored per GP0 command in the ring.
-- `gpu_gp0_ring_dump_frame` (L9180) — Fill 'out[0..max_out-1]' with entries from the requested frame; returns count.
-- `gpu_gp0_ring_frame_span` (L9196) — Report the frame range currently held in the ring (oldest..newest).
-- `gpu_set_gp0_source` (L9229) — Sets the RAM source address of the current GP0 word.
-- `prim_sx_extent` (L9260) — Screen-X extent (raw vertex coords = SX, pre-draw_offset) across a prim's position vertices.
-- `gpu_ws_prim_x_span` (L9283) — The screen-X span of the primitive being drawn, for a title's native-wide predicate (gpu.h): polygons by their vertices, rectangles with their width, lines by both ends; in the coordinates the game se
-- `ws_note_overhang` (L9312) — Natural-overhang noter (see the ws_ovh_* block up top for the rationale).
-- `ws_note_backdrop` (L9346) — Finite-backdrop noter (ws_backdrop_extent.h).
-- `ws_census_record` (L9367) — Records one census row for the widescreen census.
-- `gpu_ws_census_dump` (L9389) — Dump census rows for frames [f0,f1] to a CSV file.
-- `gpu_ws_census_set` (L9410) — Sets the widescreen census state.
-- `gpu_ws_census_seq` (L9411) — Current sequence number of the widescreen census.
-- `psx_mod_set_turbo_pgxp_skip` (L9438) — The turbo keeps the PGXP hooks off while a frame it will not show computes its geometry (gpu.c).
-- `draw_skip_hold` (L9442) — Holds a draw skip decision for a frame.
-- `gpu_draw_skip_shown_partial` (L9450) — 1 when a partially shown frame skipped its draws.
-- `gpu_draw_skip_vblank` (L9451) — Reports a VBlank in the draw-skip state.
-- `gpu_draw_skip_counts` (L9463) — Counts draw skips for the diagnostic output.
-- `gpu_draw_skip_pgxp_frames` (L9468) — Counts PGXP frames skipped by the turbo.
-- `draw_skip_prim` (L9472) — 1 when the turbo drops this primitive; a dropped textured polygon still latches its texpage.
-- `gp0_execute_command` (L9481) — Executes one GP0 command word, dispatching by its opcode.
-- `gp0_irq_request` (L9545) — GP0(1Fh): sets the GPUSTAT bit 24 flag and raises I_STAT bit 1 (IRQ_GPU).
-- `gp0_dispatch_command` (L9551) — Dispatches a GP0 command to its handler.
-- `gpu_get_gp0_count` (L9762) — Total number of GP0 writes since init.
-- `gpu_get_gp0_stats` (L9764) — uint64_t gpu_get_gp0_count(void); /* Total GP0 writes since init
-- `gpu_get_draw_area` (L9769) — Returns the drawing area rectangle.
-- `gpu_vram_peek` (L9778) — One VRAM pixel as the GPU has it.
-- `gpu_vram_drawn_check` (L9794) — TCP vram_drawn_check: the proof of the cells above.
-- `psx_mod_vram_write` (L9813) — psx_mod_vram_write: a title's own pixels, as an unmasked CPU->VRAM copy, in the guest's VRAM and the renderer's (as shadow_blob_key_put does).
-- `gpu_write_gp0_body` (L9825) — Body of a GP0 write, handling the command and data words.
-- `gpu_write_gp0` (L10022) — Wall-time sampler bracket (phase_profile): tag GP0 command processing — rasterization / batching / VRAM transfer work on the emu thread — as its own phase so it is separable from the guest code that i
-- `gp1_reset` (L10033) — GP1 reset command handler (0x00): resets the GPU.
-- `gp1_reset_command_buffer` (L10040) — GP1 reset-command-buffer handler (0x01).
-- `gp1_ack_irq1` (L10049) — GP1 acknowledge-IRQ handler (0x02).
-- `gp1_display_enable` (L10054) — GP1 display enable handler (0x03).
-- `gp1_dma_direction` (L10068) — GP1 DMA direction handler (0x04).
-- `gpu_display_flips` (L10076) — Display starts that moved (GP1(05h) to another place): the game's own frames of a double-buffered picture, for the FPS readout.
-- `gp1_display_area_start` (L10078) — GP1 display area start handler (0x05).
-- `gp1_h_display_range` (L10104) — GP1 horizontal display range handler (0x06).
-- `gp1_v_display_range` (L10112) — GP1 vertical display range handler (0x07).
-- `gp1_display_mode` (L10131) — GP1 display mode handler (0x08).
-- `gp1_get_info` (L10160) — GP1 get-info handler (0x10): returns the requested GPU info.
-- `gpu_write_gp1` (L10193) — Writes a GP1 control word and dispatches it by its command number.
-- `gpu_snap_emit` (L10266) — GPU snap fields are scalars / u32 arrays — emit as LE u32/i32 (no struct pad).
-- `gpu_snap_parse` (L10303) — Reads GPU snapshot fields from a buffer.
-- `gpu_snapshot_bytes` (L10344) — Byte size of the GPU snapshot.
-- `gpu_snapshot_write` (L10349) — Writes the GPU snapshot into a buffer.
-- `gpu_cosim_snapshot_bytes` (L10354) — Byte size of the co-simulation snapshot.
-- `gpu_cosim_snapshot_write` (L10355) — Writes the co-simulation snapshot into a buffer.
-- `gpu_cosim_dump` (L10356) — Debug: dumps the co-simulation state.
-- `gpu_snapshot_validate` (L10397) — Pass-1 check for boot_state's two-pass load: refuses a GP0 state the parser would accept but gpu_write_gp0 would index gp0_cmd_buf out of range with.
-- `gpu_snapshot_read` (L10412) — Restores the GPU state from a snapshot buffer.
-- `gpu_pass_provenance_transfer` (L10490) — One transfer list keeps save and restore symmetric.
-- `gpu_pass_scene_transfer` (L10535) — Scene transfer list for a render pass checkpoint.
-- `gpu_pass_checkpoint_save` (L10567) — Render-pass GPU register checkpoint (render_pass.c).
-- `gpu_pass_checkpoint_restore` (L10584) — Restores the GPU registers from a render-pass checkpoint.
-- `gpu_pass_state_hash` (L10610) — FNV-1a over the checkpointed register set (PSX_RENDER_PASS_VERIFY).
-- `gpu_get_vram_ptr` (L10623) — Pointer to the VRAM buffer.
-- `gpu_get_vram_bytes` (L10624) — Size of the VRAM buffer in bytes.
+- `gpu_reset_state` (L5130) — Resets the GPU state to its power-on values.
+- `gpu_init` (L5234) — Initialises the GPU.
+- `gpu_set_power_on_video_mode` (L5240) — void gpu_vblank_tick(void); /* Toggle LCF, called at each simulated vblank Video standard before the first GP1(08h) (disc region: 1 = PAL).
+- `gpu_read_gpustat` (L5248) — Reads the GPUSTAT register.
+- `gpu_read_gpuread` (L5344) — Reads the GPUREAD register (the next word of a VRAM transfer).
+- `rgb888_to_rgb555` (L5384) — Convert 24-bit RGB888 to 16-bit RGB555 (PS1 VRAM format)
+- `gpu_vblank_clear_deferred_present` (L5400) — Clears a queued deferred present.
+- `gpu_vblank_arm_deferred_present` (L5407) — Queue one deferred present (netplay RB resume when I_STAT already has VBlank — snap resync cleared the pending callback).
+- `gpu_vblank_present_pending` (L5415) — 1 while a netplay deferred present is armed (MotK CD54 VBlank hold).
+- `gpu_vblank_release_present_flush_guard` (L5419) — Clear flush_present reentrancy guard before longjmp (flush_resume).
+- `gpu_vblank_flush_present` (L5423) — Presents the frame now, clearing the reentrancy guard.
+- `gpu_vblank_tick` (L5480) — Runs the GPU's VBlank processing (display timing and deferred present).
+- `gpu_get_vram` (L5550) — Returns the VRAM buffer.
+- `depth24_note_upload` (L5559) — Depth24: note/query/reset the CPU→VRAM upload span tracked above.
+- `gpu_depth24_rgb_limit` (L5567) — Depth24: RGB columns covered by CPU→VRAM uploads since the last reset.
+- `gpu_depth24_upload_span_reset` (L5582) — Resets the depth-24 upload span.
+- `gpu_depth24_present_hold_tick` (L5586) — MotK intro cuts retarget GP1(07h): the guest-state hold counts down at guest VBlank (gpu_vblank_tick).
+- `gpu_depth24_on_savestate_loaded` (L5590) — After savestate restore: clear ephemeral hold so the restored depth24 frame can present immediately (span/prev_h come from the GPU snap).
+- `gpu_set_screen_kind` (L5616) — Present-time screen-colour model (see color_lut.h ScreenKind: 0=raw, 1=crt, 2=composite, 3=trinitron).
+- `screen_lut_ensure` (L5623) — Makes sure the screen colour lookup table exists for the current screen kind.
+- `gpu_rgb555_to_rgb888` (L5648) — Converts a 15-bit RGB555 colour to 8-bit RGB.
+- `gpu_display_pixel_rgb_in` (L5661) — Converts an input pixel to display RGB for the given input format.
+- `gpu_display_pixel_rgb` (L5689) — Converts a VRAM pixel to display RGB.
+- `gpu_display_pixel_argb` (L5694) — Converts a VRAM pixel to display ARGB.
+- `gpu_depth24_present_row` (L5710) — Batch depth24 (FMV) scanline → ARGB.
+- `gpu_depth24_stage_scanout` (L5747) — Depth24 present staging, shared by every CPU present path: compose the GP1(07h) intersection with active video into the PAL/NTSC canvas (rows off-screen are clipping, not a shift), then black-fill the
+- `gpu_display_is_depth24` (L5775) — GP1(08h) bit4 — 24-bit display.
+- `gpu_get_display_info` (L5784) — The display info is a pure function of these GP1 registers; the widescreen code asks for it per primitive.
+- `gpu_compute_display_info` (L5803) — Computes the display info from the GP1 registers.
+- `gpu_get_crtc_debug` (L5884) — Debug accessors for GP1 display-range / mode (TCP gpu_state).
+- `gpu_set_vblank_callback` (L5894) — Sets the callback that runs at each VBlank.
+- `sign_extend` (L5899) — Sign-extend an N-bit value to int32_t
+- `parse_vertex` (L5907) — Parse a vertex position word: signed 11-bit X and Y
+- `gpu_pgxp_rederive_enable` (L5923) — Arm the PGXP dataflow transport for any consumer.
+- `psx_mod_set_native_wide_projection_correction` (L5930) — Enable render-only recovery of saturated horizontal GTE projections and camera-plane clipping in native-wide gameplay.
+- `gpu_ws_native_wide_projection_correction` (L5939) — 1 when native-wide projection correction is enabled.
+- `gpu_ws_projective_enabled` (L5944) — 1 when projective correction is enabled.
+- `psx_mod_set_native_wide_near_clip` (L5949) — Deprecated compatibility entry point; enabled is ignored.
+- `native_wide_projection_x` (L5960) — The PS1 clamps each projected X independently.
+- `gpu_triangle_rejected` (L5985) — Original, unsubdivided world faces can exceed the PS1 size limit after the wider view admits them.
+- `gpu_texture_correction_set` (L6012) — Perspective-correct UV interpolation for textured world polygons ([video] perspective_texturing).
+- `gpu_texture_correction_enabled` (L6017) — 1 when perspective-correct texture coordinates are enabled.
+- `gpu_texture_correction_hits` (L6021) — Triangles drawn with perspective-correct UVs since startup.
+- `prepare_precise_triangle` (L6037) — Per-vertex precise positions (PGXP, docs/ENHANCEMENTS.md G1).
+- `textured_quad_precise_vertices` (L6166) — A textured quad whose four packet vertices form an axis-aligned rectangle (in integer screen space and in UV) is drawn by the 2D rectangle shortcut, at the native integer position and without perspect
+- `gpu_texture_correction_stats` (L6199) — Returns the perspective texture correction statistics.
+- `prepare_texture_triangle` (L6212) — Enable perspective UVs only when every position word came from an exact SWC2 projection store at that same DMA packet address.
+- `draw_area_wide_x_margin` (L6259) — Inclusive draw-area reject (same predicate as the hardware clip).
+- `draw_area_host_x_bounds` (L6268) — Host X bounds of the drawing area.
+- `draw_area_out_point` (L6285) — 1 when a point lies outside the drawing area.
+- `draw_area_out_bbox` (L6292) — 1 when a bounding box lies outside the drawing area.
+- `draw_area_out_poly` (L6312) — A polygon wholly past the drawing area draws nothing.
+- `draw_area_out_rect` (L6329) — 1 when a rectangle lies outside the drawing area.
+- `gp0_exec_mono_tri` (L6340) — Execute mono triangle (GP0 0x20-0x23)
+- `ws_local_viewport_divider` (L6364) — Execute mono quad (GP0 0x28-0x2B) — two triangles: (0,1,2) and (2,1,3) A native split divider belongs to the combined framebuffer.
+- `gp0_exec_mono_quad` (L6375) — Draws a flat-colour quad (two triangles) as GP0 commands.
+- `gp0_exec_shaded_tri` (L6498) — Execute shaded triangle (GP0 0x30-0x33) — Gouraud shaded
+- `gpu_arm_shaded_quad_capture` (L6524) — Arms a capture of the next shaded quad.
+- `gpu_get_shaded_quad_capture` (L6525) — Returns the captured shaded quad.
+- `gp0_exec_shaded_quad` (L6532) — Execute shaded quad (GP0 0x38-0x3B)
+- `current_texpage` (L6585) — Helper: build texpage word from GPU state for SW renderer.
+- `set_tpage_from_poly` (L6598) — Hardware: the texpage attribute word carried inside every textured polygon (GP0 0x24-0x3F with the texture bit) is copied into the GPU draw-mode state (GPUSTAT bits 0-8) exactly like GP0(E1) bits 0-8
+- `setup_textured_draw` (L6608) — Helper: set up SW renderer state before a textured draw.
+- `native_wide_projective_draw` (L6620) — A close corner may cross the camera plane while the face is still visible.
+- `gp0_exec_textured_tri` (L6655) — Execute textured triangle (GP0 0x24-0x27)
+- `gp0_exec_textured_quad` (L6703) — Execute textured quad (GP0 0x2C-0x2F)
+- `gp0_exec_shaded_textured_tri` (L6837) — Execute shaded textured triangle (GP0 0x34-0x37)
+- `psx_mod_texture_banks_supported` (L6904) — 1 when the texture banks are supported by the mod.
+- `gp0_exec_shaded_textured_quad` (L6909) — Execute shaded textured quad (GP0 0x3C-0x3F)
+- `gp0_exec_mono_line` (L6984) — Execute mono line (GP0 0x40-0x47) — Bresenham
+- `gp0_exec_shaded_line` (L7014) — Execute shaded line (GP0 0x50-0x57)
+- `gp0_exec_mono_rect` (L7036) — Execute mono rectangle (GP0 0x60-0x63)
+- `ws_repeat_textured_rect_reveal` (L7076) — Repeats a textured rectangle into the native-wide reveal margins.
+- `ws_fb_base_holding` (L7103) — The framebuffer whose canonical columns hold VRAM x, or -1.
+- `ws_feedback_rect_reveal` (L7112) — A tagged 15-bit sprite copying another framebuffer continues into the bands from that buffer's wide surface (it has no band columns in VRAM).
+- `gp0_exec_textured_rect` (L7143) — Execute textured rectangle (GP0 0x64-0x67)
+- `gp0_exec_mono_dot` (L7233) — Execute 1x1 dot (GP0 0x68-0x6B)
+- `gp0_exec_textured_dot` (L7247) — Execute textured 1x1 dot (GP0 0x6C-0x6F)
+- `gp0_exec_textured_8x8` (L7266) — Execute 8x8 textured sprite (GP0 0x74-0x77)
+- `gp0_exec_mono_8x8` (L7293) — Execute 8x8 sprite (GP0 0x70-0x73)
+- `gp0_exec_textured_16x16` (L7311) — Execute 16x16 textured sprite (GP0 0x7C-0x7F)
+- `gp0_exec_nop` (L7356) — GP0 no-op command handler.
+- `gp0_exec_fill_rect` (L7360) — GP0 fill-rectangle command handler: fills a VRAM rectangle with a colour.
+- `gp0_exec_draw_mode` (L7392) — GP0 draw-mode (texpage) command handler.
+- `gp0_exec_texture_window` (L7414) — GP0 texture-window command handler.
+- `gp0_exec_draw_area_tl` (L7424) — GP0 draw-area top-left command handler.
+- `gp0_exec_draw_area_br` (L7439) — GP0 draw-area bottom-right command handler.
+- `gp0_exec_draw_offset` (L7453) — GP0 draw-offset command handler.
+- `gp0_exec_mask_bit` (L7469) — GP0 mask-bit setting command handler.
+- `gpu_get_a0_history` (L7501) — Returns the history of GP0 0xC0 reads.
+- `gpu_get_a0_count` (L7511) — Number of GP0 0xA0 transfer records.
+- `gpu_get_a0_extra` (L7512) — Extra arguments of the last GP0 0xA0 transfer.
+- `gpu_get_a0_src` (L7523) — True source pointer + arg regs + frame for the LoadImage upload (s2 = source).
+- `gp0_exec_cpu_to_vram` (L7532) — GP0 CPU-to-VRAM transfer command handler.
+- `gpu_get_c0_total` (L7602) — Total GP0 C0 reads since boot; the ring holds the newest C0_HISTORY_CAP.
+- `gpu_get_c0_count` (L7603) — Number of GP0 0xC0 reads kept in the ring.
+- `gpu_get_c0_history` (L7607) — index 0 = oldest entry still in the ring.
+- `gpu_get_c0_frame` (L7623) — Frame of a GP0 0xC0 read.
+- `gp0_exec_vram_to_cpu` (L7630) — GP0 VRAM-to-CPU transfer command handler.
+- `gp0_command_word_count` (L7667) — Determine how many words a GP0 command requires (header only, not counting variable-length data for 0xA0).
+- `gpu_gp0_command_word_count` (L7753) — Fixed command words; -1 denotes a terminated polyline, 0 an unknown opcode.
+- `ws_ui_prepass_add` (L7757) — Adds a UI prepass record for a primitive.
+- `ws_ui_untextured_op` (L7898) — 1 when a primitive is an untextured operation for UI grouping.
+- `ws_ui_encloses` (L7903) — 1 when one UI item encloses another.
+- `ws_ui_attached` (L7913) — Part of the same widget: sharing screen columns and overlapping or stacked within WS_UI_GROUP_STACK_GAP rows (ws_ui_group.c same_element()).
+- `gpu_ws_prepass_linked_list` (L7924) — Prepass over the linked list that collects UI and backdrop primitives.
+- `gpu_ws_set_backdrop_images` (L8325) — The backdrop-image rule (native-wide): what a frame draws before its 3D world, as images (a picture's tiles together, a band each for pieces stacked in it), each decided on its own: past the wide edge
+- `bdi_enabled` (L8327) — 1 when backdrop images are enabled.
+- `bdi_find` (L8335) — Finds a backdrop image record.
+- `bdi_insert` (L8346) — Inserts a backdrop image record.
+- `bdi_texel` (L8358) — One texel as BGR555 with its stp bit, 0 = transparent.
+- `bdi_colour` (L8371) — A sample's colour (BGR555, no stp) as drawn: the texel times the vertex colour (0x80 = 1.0) unless raw; untextured: the vertex colour.
+- `bdi_side_samples` (L8395) — One side of a band (whole: of an image, all its bands): its edge (the primitives at that extreme, each by the two vertices furthest that way: a slanted edge, a perspective plane whose top row is narro
+- `bdi_mode` (L8425) — The colour most samples sit within 'tol' levels of; *count how many do.
+- `bdi_dark` (L8441) — A colour's brightest channel at most 'lv' levels (of 31).
+- `bdi_flat` (L8449) — Mostly one colour: the colour at least 90% of the samples sit within 1 level of (a lighter edge with a faint pattern is art, not a flat colour); a very dark edge (a night sky with faint clouds: up to
+- `bdi_prim_parse` (L8459) — Parses a backdrop primitive's position and colour.
+- `bdi_prim_rows` (L8501) — Returns the rows a backdrop primitive covers.
+- `bdi_split_bands` (L8512) — Each image into bands: its primitives whose rows overlap (by more than a row: pieces stacked edge to edge are apart).
+- `bdi_tile_of` (L8557) — Returns the tile index of a backdrop primitive.
+- `bdi_tile_eq` (L8565) — 1 when two backdrop tiles are equal.
+- `bdi_tile_mem` (L8574) — Memory tile comparison for backdrop tiles.
+- `bdi_strip` (L8591) — A band laid as one row of textured rectangles: their indices by x.
+- `bdi_tiles_learn` (L8607) — Each strip's neighbouring tiles, remembered.
+- `bdi_wrap_side` (L8627) — A strip's side short of the wide edge: the tiles seen beyond its end (one after another, up to 3) planned there; 0 (nothing planned) when they are not remembered or do not reach the wide edge.
+- `bdi_side_piece_w` (L8650) — The narrowest piece at a side of a band (whole: of an image).
+- `bdi_drop_wraps` (L8664) — Drops wrapped backdrop tile records.
+- `bdi_decide` (L8676) — One band (whole: an image, all its bands together): its stretch, filled sides and (a band) tiles drawn in its gaps into *im.
+- `bdi_fill_runs` (L8732) — A filled side, row by row: the colour at the edge on that row (a sky's gradient goes on into the margin with no seam), the side's main colour where no primitive is at the edge; kept as runs of one col
+- `bdi_square` (L8772) — A primitive laid square: a rectangle, or a quad whose corners sit on two columns and two rows (to a pixel).
+- `bdi_gte_polygon` (L8783) — A polygon with a corner the GTE projected (PGXP's dataflow shadow of its packet word): 3D world, not a still.
+- `bdi_prepass` (L8798) — Prepass that collects backdrop images from the linked list.
+- `bdi_gate` (L8951) — The answer for the primitive being drawn: -1 none (not a backdrop image); 0 drawn as it is; else (marked ?
+- `bdi_fill_note` (L8963) — At an image's first primitive: its filled margins, before any of it.
+- `gpu_ws_backdrop_images_json` (L8995) — TCP ws_backdrop_images: the last linked list's images.
+- `ws_ui_prepass_order_cmp` (L9017) — qsort comparison of two UI prepass records.
+- `ws_ui_prepass_find_node` (L9025) — The first prepass record of 'resolved', as the linear scan found it.
+- `gpu_ws_validate_linked_list_header` (L9047) — Validates a linked-list header word for the widescreen state.
+- `gpu_ws_validate_linked_list_node` (L9059) — Validates a linked-list node for the widescreen state.
+- `gpu_get_opcode_count` (L9089) — Number of opcodes seen in the GP0 stream, for diagnostics.
+- `gp0_capture_builder_chain` (L9111) — Bounded guest-stack unwind for VRAM-copy builder attribution.
+- `gpu_gp0_ring_set_frozen` (L9149) — Freeze/unfreeze the always-on GP0 command ring (capture mark).
+- `gp0_ring_record` (L9151) — Records one GP0 word in the command ring.
+- `gpu_gp0_ring_total` (L9177) — Public accessors for debug_server.c
+- `gpu_gp0_ring_capacity` (L9178) — Capacity of the GP0 command ring in commands.
+- `gpu_gp0_ring_max_words` (L9179) — Maximum words stored per GP0 command in the ring.
+- `gpu_gp0_ring_dump_frame` (L9184) — Fill 'out[0..max_out-1]' with entries from the requested frame; returns count.
+- `gpu_gp0_ring_frame_span` (L9200) — Report the frame range currently held in the ring (oldest..newest).
+- `gpu_set_gp0_source` (L9233) — Sets the RAM source address of the current GP0 word.
+- `prim_sx_extent` (L9264) — Screen-X extent (raw vertex coords = SX, pre-draw_offset) across a prim's position vertices.
+- `gpu_ws_prim_x_span` (L9287) — The screen-X span of the primitive being drawn, for a title's native-wide predicate (gpu.h): polygons by their vertices, rectangles with their width, lines by both ends; in the coordinates the game se
+- `ws_note_overhang` (L9316) — Natural-overhang noter (see the ws_ovh_* block up top for the rationale).
+- `ws_note_backdrop` (L9350) — Finite-backdrop noter (ws_backdrop_extent.h).
+- `ws_census_record` (L9371) — Records one census row for the widescreen census.
+- `gpu_ws_census_dump` (L9393) — Dump census rows for frames [f0,f1] to a CSV file.
+- `gpu_ws_census_set` (L9414) — Sets the widescreen census state.
+- `gpu_ws_census_seq` (L9415) — Current sequence number of the widescreen census.
+- `psx_mod_set_turbo_pgxp_skip` (L9442) — The turbo keeps the PGXP hooks off while a frame it will not show computes its geometry (gpu.c).
+- `draw_skip_hold` (L9446) — Holds a draw skip decision for a frame.
+- `gpu_draw_skip_shown_partial` (L9454) — 1 when a partially shown frame skipped its draws.
+- `gpu_draw_skip_vblank` (L9455) — Reports a VBlank in the draw-skip state.
+- `gpu_draw_skip_counts` (L9467) — Counts draw skips for the diagnostic output.
+- `gpu_draw_skip_pgxp_frames` (L9472) — Counts PGXP frames skipped by the turbo.
+- `draw_skip_prim` (L9476) — 1 when the turbo drops this primitive; a dropped textured polygon still latches its texpage.
+- `gp0_execute_command` (L9485) — Executes one GP0 command word, dispatching by its opcode.
+- `gp0_irq_request` (L9549) — GP0(1Fh): sets the GPUSTAT bit 24 flag and raises I_STAT bit 1 (IRQ_GPU).
+- `gp0_dispatch_command` (L9555) — Dispatches a GP0 command to its handler.
+- `gpu_get_gp0_count` (L9766) — Total number of GP0 writes since init.
+- `gpu_get_gp0_stats` (L9768) — uint64_t gpu_get_gp0_count(void); /* Total GP0 writes since init
+- `gpu_get_draw_area` (L9773) — Returns the drawing area rectangle.
+- `gpu_vram_peek` (L9782) — One VRAM pixel as the GPU has it.
+- `gpu_vram_drawn_check` (L9798) — TCP vram_drawn_check: the proof of the cells above.
+- `psx_mod_vram_write` (L9817) — psx_mod_vram_write: a title's own pixels, as an unmasked CPU->VRAM copy, in the guest's VRAM and the renderer's (as shadow_blob_key_put does).
+- `gpu_write_gp0_body` (L9829) — Body of a GP0 write, handling the command and data words.
+- `gpu_write_gp0` (L10026) — Wall-time sampler bracket (phase_profile): tag GP0 command processing — rasterization / batching / VRAM transfer work on the emu thread — as its own phase so it is separable from the guest code that i
+- `gp1_reset` (L10037) — GP1 reset command handler (0x00): resets the GPU.
+- `gp1_reset_command_buffer` (L10044) — GP1 reset-command-buffer handler (0x01).
+- `gp1_ack_irq1` (L10053) — GP1 acknowledge-IRQ handler (0x02).
+- `gp1_display_enable` (L10058) — GP1 display enable handler (0x03).
+- `gp1_dma_direction` (L10072) — GP1 DMA direction handler (0x04).
+- `gpu_display_flips` (L10080) — Display starts that moved (GP1(05h) to another place): the game's own frames of a double-buffered picture, for the FPS readout.
+- `gp1_display_area_start` (L10082) — GP1 display area start handler (0x05).
+- `gp1_h_display_range` (L10108) — GP1 horizontal display range handler (0x06).
+- `gp1_v_display_range` (L10116) — GP1 vertical display range handler (0x07).
+- `gp1_display_mode` (L10135) — GP1 display mode handler (0x08).
+- `gp1_get_info` (L10164) — GP1 get-info handler (0x10): returns the requested GPU info.
+- `gpu_write_gp1` (L10204) — Writes a GP1 control word and dispatches it by its command number.
+- `gpu_snap_emit` (L10277) — GPU snap fields are scalars / u32 arrays — emit as LE u32/i32 (no struct pad).
+- `gpu_snap_parse` (L10314) — Reads GPU snapshot fields from a buffer.
+- `gpu_snapshot_bytes` (L10357) — Byte size of the GPU snapshot.
+- `gpu_snapshot_write` (L10362) — Writes the GPU snapshot into a buffer.
+- `gpu_cosim_snapshot_bytes` (L10367) — Byte size of the co-simulation snapshot.
+- `gpu_cosim_snapshot_write` (L10368) — Writes the co-simulation snapshot into a buffer.
+- `gpu_cosim_dump` (L10369) — Debug: dumps the co-simulation state.
+- `gpu_snapshot_validate` (L10410) — Pass-1 check for boot_state's two-pass load: refuses a GP0 state the parser would accept but gpu_write_gp0 would index gp0_cmd_buf out of range with.
+- `gpu_snapshot_read` (L10425) — Restores the GPU state from a snapshot buffer.
+- `gpu_pass_provenance_transfer` (L10503) — One transfer list keeps save and restore symmetric.
+- `gpu_pass_scene_transfer` (L10548) — Scene transfer list for a render pass checkpoint.
+- `gpu_pass_checkpoint_save` (L10581) — Render-pass GPU register checkpoint (render_pass.c).
+- `gpu_pass_checkpoint_restore` (L10599) — Restores the GPU registers from a render-pass checkpoint.
+- `gpu_pass_state_hash` (L10626) — FNV-1a over the checkpointed register set (PSX_RENDER_PASS_VERIFY).
+- `gpu_get_vram_ptr` (L10639) — Pointer to the VRAM buffer.
+- `gpu_get_vram_bytes` (L10640) — Size of the VRAM buffer in bytes.
 
 ### runtime/src/gpu_edge.inc
 
@@ -5705,17 +5707,18 @@ Background sampler that records where the emulation thread's instruction pointer
 - `record` (L35) — Store a decision's quality_* keys in us (for save_user_settings).
 - `host_sampler_start` (L50) — Production builds carry no sampler: it reports unsupported.
 - `host_sampler_register_render_thread` (L51) — Called by the render thread when it starts: with PSX_HOST_SAMPLER_THREAD=render (Windows) the sampler samples that thread instead, into the same ring.
-- `sample_render_thread` (L79) — Returns 1 when the PSX_HOST_SAMPLER_THREAD environment variable asks for the render thread to be sampled instead, else 0; read once and cached.
-- `umod_add` (L100) — Registers one loaded module's exception unwind table in the sampler's module list, skipping duplicates and stopping when the list is full.
-- `umod_init` (L113) — Registers the unwind tables of the executable and the common Windows system and GPU driver modules so stacks can be walked through them.
-- `umod_lookup` (L126) — The unwind entry of pc (a binary search of its module's sorted table); NULL with *base set: a leaf in a known module; *base 0: an unknown module.
-- `unwind_to_image` (L150) — A sample outside the executable (waiting in ntdll, inside the driver): walk the suspended thread's stack by the unwind tables to the first return address back in the executable, the code that called o
-- `sampler_main` (L182) — Body of the Windows sampler thread: every millisecond it suspends the emulation thread, reads its instruction pointer and stack, and stores the sample in the ring.
-- `on_prof` (L273) — POSIX profiling-timer signal handler: records the interrupted thread's program counter and stack pointer into the sample ring.
-- `host_sampler_supported` (L331) — Returns 1 when this build has a working host sampler, 0 otherwise.
-- `host_sampler_seq` (L333) — Total samples recorded; the ring holds the newest HOST_SAMPLER_CAP.
-- `host_sampler_image_base` (L335) — Returns the load address of the executable; recorded sample addresses are stored relative to it.
-- `host_sampler_get` (L337) — Sample 'seq', if it is still in the ring.
+- `host_sampler_stop` (L52) — Stop sampling for good.
+- `sample_render_thread` (L87) — Returns 1 when the PSX_HOST_SAMPLER_THREAD environment variable asks for the render thread to be sampled instead, else 0; read once and cached.
+- `umod_add` (L108) — Registers one loaded module's exception unwind table in the sampler's module list, skipping duplicates and stopping when the list is full.
+- `umod_init` (L121) — Registers the unwind tables of the executable and the common Windows system and GPU driver modules so stacks can be walked through them.
+- `umod_lookup` (L134) — The unwind entry of pc (a binary search of its module's sorted table); NULL with *base set: a leaf in a known module; *base 0: an unknown module.
+- `unwind_to_image` (L158) — A sample outside the executable (waiting in ntdll, inside the driver): walk the suspended thread's stack by the unwind tables to the first return address back in the executable, the code that called o
+- `sampler_main` (L190) — Body of the Windows sampler thread: every millisecond it suspends the emulation thread, reads its instruction pointer and stack, and stores the sample in the ring.
+- `on_prof` (L299) — POSIX profiling-timer signal handler: records the interrupted thread's program counter and stack pointer into the sample ring.
+- `host_sampler_supported` (L360) — Returns 1 when this build has a working host sampler, 0 otherwise.
+- `host_sampler_seq` (L362) — Total samples recorded; the ring holds the newest HOST_SAMPLER_CAP.
+- `host_sampler_image_base` (L364) — Returns the load address of the executable; recorded sample addresses are stored relative to it.
+- `host_sampler_get` (L366) — Sample 'seq', if it is still in the ring.
 
 ### runtime/src/host_time.c
 
@@ -7418,161 +7421,162 @@ Loads native overlay code (compiled DLL shards of the game's own functions) on d
 - `ov_ranges_watch` (L599) — Registers each code range with the RAM write watch so writes to it are noticed.
 - `cand_live_crc` (L609) — 1 and *live = CRC of the live bytes, or 0 when a range has no live bytes.
 - `cand_gensum` (L613) — Generation sum over a candidate's code ranges.
-- `static_range_offset` (L643) — Main-RAM offset of a variant code range, through the one geometry contract (psx_memory.h).
-- `psx_overlay_static_code_matches` (L650) — 1 when the live RAM bytes of the listed code ranges match expected_crc; counts a miss otherwise.
-- `psx_overlay_resident_crc_at` (L766) — Occupant fingerprint for an interpreted PC (tier-1 enrichment, DirtyRamPcEntry.occ_crc / occ_ok).
-- `overlay_loader_static_match_stats` (L794) — Reports how often static code matching rehashed, missed the CRC, or took the generation fast path.
-- `man_structurally_valid` (L837) — 1 when a manifest function entry is well formed: it has a CRC, a legal range count and a legal segment address.
-- `manifest_is_space` (L868) — 1 for a space, tab, carriage return, vertical tab or form feed.
-- `manifest_skip_space` (L872) — Advances a manifest text pointer past blank characters.
-- `manifest_hex_field` (L877) — Reads a hex number from the manifest text at the cursor, up to max_digits, and moves the cursor past it.
-- `manifest_record_end` (L897) — 1 when only blanks remain on the manifest line.
-- `parse_manifest` (L905) — 'S <seg>' (§5.7) names the segment the shard was compiled for: 00000000 (KUSEG), 80000000 (KSEG0) or A0000000 (KSEG1).
-- `man_find` (L1054) — Finds the manifest function with this entry address, or NULL.
-- `mips_control_kind` (L1063) — 1 = supported R3000A control transfer with a delay slot, 0 = ordinary instruction, -1 = reserved/unsupported branch encoding that native shards must never claim.
-- `ranges_contain_word` (L1083) — 1 when a word-aligned physical address lies inside one of the listed ranges.
-- `ranges_delay_slots_hashed` (L1099) — Defense in depth for caches generated before guarded capture/codegen.
-- `manifest_pair_equal` (L1170) — 1 when two manifest function lists have the same entries, CRCs and sizes.
-- `man_delay_slots_hashed` (L1186) — 1 when the code ranges of a manifest function are covered by delay-slot hashing.
-- `cand_delay_slots_hashed` (L1190) — Same delay-slot hashing check for a loaded candidate's code ranges.
-- `loaded_pair_find` (L1194) — Finds an already loaded shard pair matching tier, provenance, pair id and manifest; -1 when none matches.
-- `loaded_pair_commit` (L1207) — Records a loaded shard pair so that the same pair is not loaded twice.
-- `cand_register` (L1228) — static void loader_log(const char *fmt, ...); /* defined below
-- `idx_head_seg` (L1292) — Finds the candidate at this address for a given segment; -1 when none.
-- `loader_log` (L1321) — Formats a loader event message into the last-message buffer.
-- `overlay_loader_last_msg` (L1328) — Most recent loader event string (DLL load success/failure).
-- `cache_entry_suppress_for_shortfall` (L1360) — 1 when a cache entry must be skipped because there is not enough candidate capacity left for it.
-- `cache_entry_suppress_at_capacity` (L1389) — Candidates are process-lifetime objects, so reaching CAND_CAP is permanent.
-- `path_component_eq` (L1400) — 1 when the path has a folder component equal to wanted, with either slash style.
-- `cache_tier_from_path` (L1421) — Returns the cache tier (gcc, tcc or unknown) named by the folders in the path.
-- `cache_dir_name_eq` (L1435) — 1 when a folder name equals want, ignoring case.
-- `cache_seg_from_path` (L1441) — Returns the segment encoded in the cache folder name, or the default code segment.
-- `cache_name_is_immutable` (L1454) — 1 when a cache file name has the immutable region and CRC form.
-- `cache_path_char_equal` (L1464) — Compares two path characters, ignoring case and slash style on Windows.
-- `cache_path_equal` (L1473) — 1 when two paths are equal under the path character comparison.
-- `cache_path_has_root` (L1484) — 1 when the path starts with the given root folder.
-- `overlay_image_warm_main` (L1528) — Worker thread that pre-maps the cached overlay DLL images so their first call does not pay the mapping cost.
-- `overlay_image_warm_init` (L1558) — Reads PSX_OVERLAY_IMAGE_WARM and sets the start time, so that warming waits until boot has settled.
-- `overlay_image_warm_queue` (L1567) — Queues cached overlay DLLs for background warming; does nothing when warming is off or the candidate store is full.
-- `overlay_image_warm_cancel` (L1602) — Marks a queued warm job as cancelled.
-- `overlay_image_warm_release` (L1607) — Frees a warmed library reference once the job is finished and no longer needed.
-- `overlay_image_warm_drop_all` (L1615) — Cancels and releases every warmed image.
-- `lazy_miss_invalidate_loader` (L1679) — Invalidates all negative lazy lookups by bumping the loader generation.
-- `lazy_miss_cached` (L1688) — Keyed by the full PC: a miss for one segment says nothing about another segment's shard of the same bytes (§5.7).
-- `lazy_miss_record` (L1695) — Remembers that a lazy lookup at this PC found nothing, keyed by the current generations.
-- `overlay_loader_note_code_write` (L1703) — Invalidate negative lazy-lookups after a write to manifested code pages.
-- `rebuild_lazy_manifest_index` (L1710) — Rebuilds the exact-entry bitmap and the lazy manifest index from the loaded manifests.
-- `cache_path_hash` (L1824) — FNV-1a hash of a cache path, with case and slash style folded on Windows.
-- `cidx_set_add` (L1836) — Adds a cache index entry to the path hash set.
-- `cache_idx_has_path` (L1841) — 1 when a cache file with this path is already indexed; rebuilds the path set first when it is stale.
-- `cache_filename_equal` (L1856) — Cache discovery is idempotent only by full path.
-- `cache_path_is_bios_resident` (L1872) — 1 when the DLL path has the BIOS-resident shared-library form.
-- `refresh_bios_resident_flags` (L1890) — Recomputes the BIOS-resident flag of every indexed cache entry.
-- `overlay_loader_arch_abi` (L1898) — PSX_OVERLAY_ARCH_ABI (the cache layout's "<os>-<arch>") is defined in overlay_loader.h, so autocompile.c can hand it to the compile it spawns.
-- `add_posix_cache_file` (L1901) — Visitor that adds one cache file to the index, keeping legacy pairs from ever running in place of an immutable one.
-- `scan_one_cache_dir` (L1936) — Scan one directory for <addr8>_<crc8>.dll cache entries into the index.
-- `warn_on_cgtag_mismatch` (L1995) — Scan the namespaced gcc cache: gcc/<arch-abi>/cg<codegen-ver>/.
-- `cache_idx_remove_path` (L2044) — Removes a cache entry by path from the index and bumps the index generation.
-- `posix_abi_sweep_file` (L2060) — Visitor that opens one immutable cache library to check its ABI version against the current build.
-- `abi_preflight_sweep` (L2107) — ---- ABI pre-flight sweep (batch purge) ---------------------------------- A contract-ABI bump (e.g.
-- `scan_tier_cache_dirs` (L2180) — Scans the cache folder of one tier (gcc or tcc) for this game, build and config.
-- `scan_cache_dir` (L2199) — Indexes the cache folders of both tiers so the runtime can pick a usable artifact, preferring GCC.
-- `overlay_loader_has_cached_crc` (L2243) — True if the cache holds a usable DLL for this region/logical image CRC.
-- `overlay_unit_defer_enabled` (L2340) — A/B toggle for the nested-unit IRQ deferral (PSX_OVERLAY_UNIT_DEFER, default ON).
-- `overlay_unit_irq_defer_enabled` (L2351) — Legacy blanket IRQ deferral inside call units (overlay_unit_defer.h): default OFF; PSX_OVERLAY_UNIT_IRQ_DEFER=1 restores it for A/B bisection.
-- `overlay_loader_set_irq_suppress` (L2361) — Turns overlay interrupt suppression on or off with a rate limit, and resets its counters.
-- `overlay_loader_get_irq_suppress` (L2369) — Reports the interrupt suppression mode, its rate limit and the suppressed count.
-- `overlay_loader_get_ci_skip_diag` (L2385) — Reports how many interrupt checks the overlay wrapper skipped, by reason.
-- `overlay_loader_call_unit_depth` (L2395) — Current depth of nested call units.
-- `overlay_loader_native_nesting` (L2401) — Native-shard nesting for a landing that longjmps out of a shard and then resumes the interrupted code (the render-pass watchdog abort, render_pass.c): the active-candidate stack depth and the in-progr
-- `overlay_loader_set_native_nesting` (L2405) — Restores the active-candidate depth and the in-progress entry after a longjmp resumes interrupted code.
-- `overlay_irq_suppressed_now` (L2412) — 1 when an interrupt must be held back now, during a shadow run or under the rate limit; counts each hold.
-- `overlay_sw_irq_pending` (L2442) — COP0 software interrupts (Cause.IP0/IP1 & SR.IM0/IM1): a guest MTC0 to Cause raises them with no INTC bit, so the area edge must test them like the static edge (psx_edge.h) and psx_check_interrupts do
-- `overlay_irq_sr_allows` (L2448) — IEc must be set; the INTC line needs IM2, a software interrupt only its own IM bit (already folded into sw).
-- `overlay_ci_wrapper` (L2457) — Interrupt-check hook for overlay code: skips delivery inside a nested call unit when that legacy deferral is on.
-- `overlay_idle_note_is_internal_or_return` (L2487) — Full-VA compares (§5.7): the resume PC a shard bakes is in its own segment, so it is the caller's return point only when it equals $ra exactly, and it is internal only to a running shard of the same s
-- `overlay_ci_at_wrapper` (L2502) — extern int psx_idle_skip_area_site(uint32_t pc); /* psx_cycles.c
-- `overlay_irq_budget_blocks_now` (L2541) — 1 when the cycles since the last interrupt check are within the budget, so interrupts are held back now.
-- `overlay_post_dispatch_irq_pump` (L2553) — After a dispatch, delivers a pending interrupt, but never inside a shadow run.
-- `overlay_dispatch_call_probed` (L2570) — extern int g_exec_phase; /* wall-time sampler phase (dirty_ram_interp.c)
-- `init_callbacks` (L2579) — Fills the host callback table with the dispatch, interrupt-check and escape functions the overlay DLLs call.
-- `load_overlay_dll` (L2787) — Loads one cache DLL from its path, resolves its entries and registers them as candidates.
-- `load_bios_resident_shards` (L3060) — Loads every complete BIOS-resident shard that is not loaded yet.
-- `overlay_loader_callbacks` (L3082) — The host callback table, for a consumer that loads overlay-style modules before (or without) overlay_loader_init: the BIOS module host activates a player's retail backend during BIOS selection, ahead
-- `overlay_loader_init` (L3087) — Sets up the overlay loader for a cache folder, game id and config hash, resetting the page index and scanning the cache.
-- `overlay_loader_check_cache` (L3160) — Does nothing at load time: DLL loading is deferred to the first dispatch miss.
-- `already_checked` (L3175) — 1 when this region has already been checked against the cache.
-- `mark_checked` (L3180) — Remembers that a region has been checked against the cache.
-- `overlay_loader_clear_lazy_miss` (L3184) — Drop the negative lazy-lookup memo (host-only).
-- `overlay_loader_resync_validation_after_restore` (L3190) — After RAM restore: bust overlay candidate gen fast-path + static-match cache so native vs interp is re-decided against restored bytes.
-- `overlay_loader_rescan` (L3210) — Re-scan the cache dir for DLLs compiled after init (step 2.8 autocompile) and clear the checked-regions memo so the next dispatch into a window region reconsiders the cache.
-- `native_rank_allows` (L3235) — 1 when this candidate is within the native rank limit; gives it a rank on first use and logs it.
-- `dll_already_loaded` (L3255) — 1 when a DLL with this path is already loaded.
-- `cache_entry_already_loaded` (L3266) — A lazy manifest chain may have hundreds of functions from the same DLL.
-- `overlay_library_close` (L3275) — Closes an overlay library handle with FreeLibrary or dlclose; ignores NULL.
-- `load_one_dll` (L3286) — Consumes prepared on every path.
-- `load_one_dll_prepared` (L3389) — Publishes a prepared library by passing it to the normal single-DLL loader.
-- `published_root_canonical` (L3396) — Resolves the cache root to its canonical path once; returns 0 while it cannot be resolved, so the publish is refused.
-- `published_path_valid` (L3413) — Validates dll_path and writes its CANONICAL form into canon; every later consumer (LoadLibrary, .ranges derivation, loaded-path tracking) uses the canonical string, never the raw pipe text.
-- `overlay_loader_prepare_published` (L3436) — Checks a published DLL path and loads it into a prepared image that can be committed later; NULL when the path is invalid.
-- `overlay_loader_commit_published` (L3477) — Commits a prepared image into the loader when loads are allowed, otherwise discards it; returns 1 when committed.
-- `overlay_loader_discard_prepared` (L3498) — Closes and frees a prepared image that will not be committed.
-- `lazy_man_contains` (L3505) — 1 when a lazy manifest's entries or code ranges cover this physical address in the same segment.
-- `lazy_man_crc` (L3516) — 1 and *crc = CRC of the manifest's live bytes, 0 when it has none.
-- `lazy_man_gensum` (L3520) — Generation sum over the code ranges of a lazy manifest.
-- `lazy_man_matches` (L3524) — 1 when the live bytes of a lazy manifest still match its CRC; records the result as valid or invalid.
-- `lazy_bundle_matches` (L3546) — A CPS DLL can directly own internal tail targets, so one matching entry does not prove the rest of that captured snapshot is current.
-- `lazy_candidate_preferred` (L3568) — Same-tier artifacts that both pass the live-byte gate compute the same thing, but their block edges differ (where a page cut or another capture's branch targets end a block), so under cpu_timing = "bl
-- `lazy_choose_complete_or_fallback` (L3580) — Prefer GCC over TCC even when the TCC option happens to be a broader bundle.
-- `overlay_image_warm_seed_boot_text` (L3594) — A streamed variant is not byte-coherent until immediately before its first call, too late to hide Windows' first image-map cost.
-- `lazy_is_loadable` (L3608) — 1 when a lazy manifest entry can be loaded now for this region and segment.
-- `lazy_better_bundle` (L3625) — Chooses between two lazy bundles by manifest index order only, never by size or timestamp.
-- `lazy_load_selected` (L3635) — Loads the cache entry of a selected lazy manifest, unless it has failed, is suppressed or is already loaded.
-- `try_load_region` (L3657) — Load the cached shard of 'seg' (§5.7) that serves phys.
-- `lazy_has_exact_entry` (L3758) — O(1)-bucket discriminator between a real manifested function entry and an interior CPS continuation.
-- `range_candidate_matches` (L3782) — CPS (§25): find a non-blacklisted candidate whose code range CONTAINS phys — i.e.
-- `range_candidate_preferred` (L3835) — 1 when candidate should replace current: a higher tier wins, and among equal tiers the newer candidate wins.
-- `overlay_find_by_range` (L3842) — Finds the candidate whose code range holds this physical address in the given segment; -1 when none or the loader is off.
-- `overlay_loader_dispatch` (L3885) — Called from dirty_ram_dispatch before the interpreter.
-- `overlay_loader_dispatch_seg` (L3919) — A shard's body bakes the PCs of the segment it was compiled for: the $ra a jal/jalr writes, its jump and exception-resume PCs, its I-cache fetch tags and store-PC stamps (docs/SEGMENT_AWARE_CODE.md §5
-- `overlay_loader_active_write_check` (L4274) — ---- Self-modification of an actively-executing entry (§8.5) ------------ Lazy re-hash on the NEXT dispatch is too late if a native function modifies its own code and continues executing the modified
-- `overlay_loader_get_counters` (L4301) — Reports the loader counters: loads, invalidations, native and interpreted dispatches, and details of the last write.
-- `overlay_loader_get_load_timing` (L4322) — Reports the total, maximum and last DLL load times, in microseconds.
-- `overlay_loader_take_hot_native` (L4329) — Opt-in PSX_RUNTIME_PERF_DIAG sampler: returns and clears the hottest native owner since the preceding call.
-- `overlay_loader_get_reload_debug` (L4354) — Reload diagnostics. Repurposed for the per-entry model: r0_valid -> candidates currently VALID r0_writes...
-- `overlay_loader_registered_count` (L4370) — Returns number of functions currently registered in the dynamic table.
-- `overlay_loader_gen_fastpath` (L4375) — Dispatches that ran native via the unchanged-page-generation fast path, i.e.
-- `overlay_loader_range_link_count` (L4376) — Number of range index links in use.
-- `overlay_loader_range_index_overflow` (L4377) — 1 when the range index ran out of space.
-- `overlay_loader_lazy_manifest_count` (L4378) — Number of lazy manifest entries indexed.
-- `overlay_loader_lazy_manifest_overflow` (L4379) — 1 when the lazy manifest table overflowed.
-- `overlay_loader_candidate_overflow` (L4380) — Number of candidates refused because the candidate table was full.
-- `overlay_loader_pair_aliases` (L4381) — Number of shard pairs that aliased an already loaded pair.
-- `overlay_loader_segment_alias_interp` (L4382) — KUSEG/KSEG1 (and unmapped-segment) dispatches the loader left to the interpreter: no shard compiled for their segment is cached or valid yet (docs/SEGMENT_AWARE_CODE.md §5.7).
-- `overlay_loader_segment_native` (L4383) — KUSEG/KSEG1 dispatches run natively by a shard compiled for their segment.
-- `overlay_loader_is_candidate` (L4410) — 1 when the physical address is a known exact function entry and the loader is active.
-- `overlay_fp_enabled` (L4415) — 1 when the fingerprint log is on, set by the PSX_OVERLAY_FP_LOG variable.
-- `overlay_loader_get_shadow_summary` (L4461) — Reports the shadow-diff call and divergence counts and the first divergent PC.
-- `overlay_loader_set_diff_mode` (L4469) — Turns shadow diff mode on or off.
-- `shadow_cpu_diff` (L4480) — Compares two CPU states field by field; returns the kind of the first difference, with its index and both values.
-- `run_shadow_diff` (L4523) — Authoritative interpreter RECORD + side-effect-free native REPLAY.
-- `shadow_escape_cleanup` (L4702) — A nonlocal scheduler bail during the speculative native replay pass (see overlay_loader_shadow_native_thread_switch_bail) means the interpreter pass — authoritative and already complete by the time th
-- `shadow_escape_flush_cycles` (L4733) — Commits pending cycles and clears the cycle-flush hook after a host unwind skipped a candidate's epilogue.
-- `overlay_loader_shadow_escape_fixup` (L4753) — Called by deferred_exception_longjmp() (interrupts.c) before it unwinds.
-- `overlay_loader_shadow_scheduler_escape_fixup` (L4763) — The deterministic HLE scheduler uses a different jmp_buf and therefore has no exception-setjmp epoch.
-- `overlay_loader_dump_shadow_detail` (L4768) — Writes the captured shadow-diff detail (address and registers) as JSON into out; returns the length.
-- `overlay_loader_dump_shadow` (L4789) — Writes the shadow-diff summary and its records as JSON into out; returns the length.
-- `overlay_regs_crc` (L4828) — Fingerprint over the general registers (r1..r31) + hi/lo.
-- `overlay_regs_snap` (L4837) — Snapshot r0..r31 + hi/lo into a 34-word buffer (entry-state capture).
-- `regs34_crc` (L4844) — CRC over words 1..33 (r0 excluded — always 0), matching overlay_regs_crc.
-- `overlay_fp_log` (L4850) — Records one fingerprint entry (address, cycle, registers, native or interpreted) in the ring.
-- `overlay_loader_call_native` (L4874) — Execute 'addr' natively if a validated overlay candidate exists, keeping the §5-E fingerprint record (same as the dirty_ram_dispatch chokepoint).
-- `overlay_loader_write_fp_file` (L4906) — Write the whole fingerprint log to a file (no TCP size limit).
-- `overlay_loader_dump_native_ring` (L4937) — Dump the native-call ring (most-recent first) + the in-progress entry.
-- `overlay_loader_dump_candidates` (L4963) — Diagnostic: dump every candidate with its stored vs live hash and generation state, so reload behaviour can be inspected directly (Rule 3 — visibility via the debug server, not logs).
-- `overlay_loader_dump_candidates_at` (L4986) — Focused form for live miss diagnosis.
-- `overlay_loader_dump_lazy_at` (L5013) — Focused view of manifest-only candidates that have not been loaded yet.
-- `overlay_loader_get_status` (L5063) — Reports the loader status: active flag, registered count, regions checked, cache folder, game id and last CRC.
+- `static_range_offset` (L651) — Main-RAM offset of a variant code range, through the one geometry contract (psx_memory.h).
+- `psx_overlay_static_code_matches` (L658) — 1 when the live RAM bytes of the listed code ranges match expected_crc; counts a miss otherwise.
+- `psx_overlay_resident_crc_at` (L776) — Occupant fingerprint for an interpreted PC (tier-1 enrichment, DirtyRamPcEntry.occ_crc / occ_ok).
+- `overlay_loader_resident_crc_scans` (L809) — How many times the resident-overlay CRC lookup had to scan the table (inside the static span); test counter.
+- `overlay_loader_static_match_stats` (L811) — Reports how often static code matching rehashed, missed the CRC, or took the generation fast path.
+- `man_structurally_valid` (L854) — 1 when a manifest function entry is well formed: it has a CRC, a legal range count and a legal segment address.
+- `manifest_is_space` (L885) — 1 for a space, tab, carriage return, vertical tab or form feed.
+- `manifest_skip_space` (L889) — Advances a manifest text pointer past blank characters.
+- `manifest_hex_field` (L894) — Reads a hex number from the manifest text at the cursor, up to max_digits, and moves the cursor past it.
+- `manifest_record_end` (L914) — 1 when only blanks remain on the manifest line.
+- `parse_manifest` (L922) — 'S <seg>' (§5.7) names the segment the shard was compiled for: 00000000 (KUSEG), 80000000 (KSEG0) or A0000000 (KSEG1).
+- `man_find` (L1071) — Finds the manifest function with this entry address, or NULL.
+- `mips_control_kind` (L1080) — 1 = supported R3000A control transfer with a delay slot, 0 = ordinary instruction, -1 = reserved/unsupported branch encoding that native shards must never claim.
+- `ranges_contain_word` (L1100) — 1 when a word-aligned physical address lies inside one of the listed ranges.
+- `ranges_delay_slots_hashed` (L1116) — Defense in depth for caches generated before guarded capture/codegen.
+- `manifest_pair_equal` (L1187) — 1 when two manifest function lists have the same entries, CRCs and sizes.
+- `man_delay_slots_hashed` (L1203) — 1 when the code ranges of a manifest function are covered by delay-slot hashing.
+- `cand_delay_slots_hashed` (L1207) — Same delay-slot hashing check for a loaded candidate's code ranges.
+- `loaded_pair_find` (L1211) — Finds an already loaded shard pair matching tier, provenance, pair id and manifest; -1 when none matches.
+- `loaded_pair_commit` (L1224) — Records a loaded shard pair so that the same pair is not loaded twice.
+- `cand_register` (L1245) — static void loader_log(const char *fmt, ...); /* defined below
+- `idx_head_seg` (L1309) — Finds the candidate at this address for a given segment; -1 when none.
+- `loader_log` (L1338) — Formats a loader event message into the last-message buffer.
+- `overlay_loader_last_msg` (L1345) — Most recent loader event string (DLL load success/failure).
+- `cache_entry_suppress_for_shortfall` (L1377) — 1 when a cache entry must be skipped because there is not enough candidate capacity left for it.
+- `cache_entry_suppress_at_capacity` (L1406) — Candidates are process-lifetime objects, so reaching CAND_CAP is permanent.
+- `path_component_eq` (L1417) — 1 when the path has a folder component equal to wanted, with either slash style.
+- `cache_tier_from_path` (L1438) — Returns the cache tier (gcc, tcc or unknown) named by the folders in the path.
+- `cache_dir_name_eq` (L1452) — 1 when a folder name equals want, ignoring case.
+- `cache_seg_from_path` (L1458) — Returns the segment encoded in the cache folder name, or the default code segment.
+- `cache_name_is_immutable` (L1471) — 1 when a cache file name has the immutable region and CRC form.
+- `cache_path_char_equal` (L1481) — Compares two path characters, ignoring case and slash style on Windows.
+- `cache_path_equal` (L1490) — 1 when two paths are equal under the path character comparison.
+- `cache_path_has_root` (L1501) — 1 when the path starts with the given root folder.
+- `overlay_image_warm_main` (L1545) — Worker thread that pre-maps the cached overlay DLL images so their first call does not pay the mapping cost.
+- `overlay_image_warm_init` (L1575) — Reads PSX_OVERLAY_IMAGE_WARM and sets the start time, so that warming waits until boot has settled.
+- `overlay_image_warm_queue` (L1584) — Queues cached overlay DLLs for background warming; does nothing when warming is off or the candidate store is full.
+- `overlay_image_warm_cancel` (L1619) — Marks a queued warm job as cancelled.
+- `overlay_image_warm_release` (L1624) — Frees a warmed library reference once the job is finished and no longer needed.
+- `overlay_image_warm_drop_all` (L1632) — Cancels and releases every warmed image.
+- `lazy_miss_invalidate_loader` (L1696) — Invalidates all negative lazy lookups by bumping the loader generation.
+- `lazy_miss_cached` (L1705) — Keyed by the full PC: a miss for one segment says nothing about another segment's shard of the same bytes (§5.7).
+- `lazy_miss_record` (L1712) — Remembers that a lazy lookup at this PC found nothing, keyed by the current generations.
+- `overlay_loader_note_code_write` (L1720) — Invalidate negative lazy-lookups after a write to manifested code pages.
+- `rebuild_lazy_manifest_index` (L1727) — Rebuilds the exact-entry bitmap and the lazy manifest index from the loaded manifests.
+- `cache_path_hash` (L1841) — FNV-1a hash of a cache path, with case and slash style folded on Windows.
+- `cidx_set_add` (L1853) — Adds a cache index entry to the path hash set.
+- `cache_idx_has_path` (L1858) — 1 when a cache file with this path is already indexed; rebuilds the path set first when it is stale.
+- `cache_filename_equal` (L1873) — Cache discovery is idempotent only by full path.
+- `cache_path_is_bios_resident` (L1889) — 1 when the DLL path has the BIOS-resident shared-library form.
+- `refresh_bios_resident_flags` (L1907) — Recomputes the BIOS-resident flag of every indexed cache entry.
+- `overlay_loader_arch_abi` (L1915) — PSX_OVERLAY_ARCH_ABI (the cache layout's "<os>-<arch>") is defined in overlay_loader.h, so autocompile.c can hand it to the compile it spawns.
+- `add_posix_cache_file` (L1918) — Visitor that adds one cache file to the index, keeping legacy pairs from ever running in place of an immutable one.
+- `scan_one_cache_dir` (L1953) — Scan one directory for <addr8>_<crc8>.dll cache entries into the index.
+- `warn_on_cgtag_mismatch` (L2012) — Scan the namespaced gcc cache: gcc/<arch-abi>/cg<codegen-ver>/.
+- `cache_idx_remove_path` (L2061) — Removes a cache entry by path from the index and bumps the index generation.
+- `posix_abi_sweep_file` (L2077) — Visitor that opens one immutable cache library to check its ABI version against the current build.
+- `abi_preflight_sweep` (L2124) — ---- ABI pre-flight sweep (batch purge) ---------------------------------- A contract-ABI bump (e.g.
+- `scan_tier_cache_dirs` (L2197) — Scans the cache folder of one tier (gcc or tcc) for this game, build and config.
+- `scan_cache_dir` (L2216) — Indexes the cache folders of both tiers so the runtime can pick a usable artifact, preferring GCC.
+- `overlay_loader_has_cached_crc` (L2260) — True if the cache holds a usable DLL for this region/logical image CRC.
+- `overlay_unit_defer_enabled` (L2357) — A/B toggle for the nested-unit IRQ deferral (PSX_OVERLAY_UNIT_DEFER, default ON).
+- `overlay_unit_irq_defer_enabled` (L2368) — Legacy blanket IRQ deferral inside call units (overlay_unit_defer.h): default OFF; PSX_OVERLAY_UNIT_IRQ_DEFER=1 restores it for A/B bisection.
+- `overlay_loader_set_irq_suppress` (L2378) — Turns overlay interrupt suppression on or off with a rate limit, and resets its counters.
+- `overlay_loader_get_irq_suppress` (L2386) — Reports the interrupt suppression mode, its rate limit and the suppressed count.
+- `overlay_loader_get_ci_skip_diag` (L2402) — Reports how many interrupt checks the overlay wrapper skipped, by reason.
+- `overlay_loader_call_unit_depth` (L2412) — Current depth of nested call units.
+- `overlay_loader_native_nesting` (L2418) — Native-shard nesting for a landing that longjmps out of a shard and then resumes the interrupted code (the render-pass watchdog abort, render_pass.c): the active-candidate stack depth and the in-progr
+- `overlay_loader_set_native_nesting` (L2422) — Restores the active-candidate depth and the in-progress entry after a longjmp resumes interrupted code.
+- `overlay_irq_suppressed_now` (L2429) — 1 when an interrupt must be held back now, during a shadow run or under the rate limit; counts each hold.
+- `overlay_sw_irq_pending` (L2459) — COP0 software interrupts (Cause.IP0/IP1 & SR.IM0/IM1): a guest MTC0 to Cause raises them with no INTC bit, so the area edge must test them like the static edge (psx_edge.h) and psx_check_interrupts do
+- `overlay_irq_sr_allows` (L2465) — IEc must be set; the INTC line needs IM2, a software interrupt only its own IM bit (already folded into sw).
+- `overlay_ci_wrapper` (L2474) — Interrupt-check hook for overlay code: skips delivery inside a nested call unit when that legacy deferral is on.
+- `overlay_idle_note_is_internal_or_return` (L2504) — Full-VA compares (§5.7): the resume PC a shard bakes is in its own segment, so it is the caller's return point only when it equals $ra exactly, and it is internal only to a running shard of the same s
+- `overlay_ci_at_wrapper` (L2519) — extern int psx_idle_skip_area_site(uint32_t pc); /* psx_cycles.c
+- `overlay_irq_budget_blocks_now` (L2558) — 1 when the cycles since the last interrupt check are within the budget, so interrupts are held back now.
+- `overlay_post_dispatch_irq_pump` (L2570) — After a dispatch, delivers a pending interrupt, but never inside a shadow run.
+- `overlay_dispatch_call_probed` (L2587) — extern int g_exec_phase; /* wall-time sampler phase (dirty_ram_interp.c)
+- `init_callbacks` (L2596) — Fills the host callback table with the dispatch, interrupt-check and escape functions the overlay DLLs call.
+- `load_overlay_dll` (L2804) — Loads one cache DLL from its path, resolves its entries and registers them as candidates.
+- `load_bios_resident_shards` (L3077) — Loads every complete BIOS-resident shard that is not loaded yet.
+- `overlay_loader_callbacks` (L3099) — The host callback table, for a consumer that loads overlay-style modules before (or without) overlay_loader_init: the BIOS module host activates a player's retail backend during BIOS selection, ahead
+- `overlay_loader_init` (L3104) — Sets up the overlay loader for a cache folder, game id and config hash, resetting the page index and scanning the cache.
+- `overlay_loader_check_cache` (L3177) — Does nothing at load time: DLL loading is deferred to the first dispatch miss.
+- `already_checked` (L3192) — 1 when this region has already been checked against the cache.
+- `mark_checked` (L3197) — Remembers that a region has been checked against the cache.
+- `overlay_loader_clear_lazy_miss` (L3201) — Drop the negative lazy-lookup memo (host-only).
+- `overlay_loader_resync_validation_after_restore` (L3207) — After RAM restore: bust overlay candidate gen fast-path + static-match cache so native vs interp is re-decided against restored bytes.
+- `overlay_loader_rescan` (L3227) — Re-scan the cache dir for DLLs compiled after init (step 2.8 autocompile) and clear the checked-regions memo so the next dispatch into a window region reconsiders the cache.
+- `native_rank_allows` (L3252) — 1 when this candidate is within the native rank limit; gives it a rank on first use and logs it.
+- `dll_already_loaded` (L3272) — 1 when a DLL with this path is already loaded.
+- `cache_entry_already_loaded` (L3283) — A lazy manifest chain may have hundreds of functions from the same DLL.
+- `overlay_library_close` (L3292) — Closes an overlay library handle with FreeLibrary or dlclose; ignores NULL.
+- `load_one_dll` (L3303) — Consumes prepared on every path.
+- `load_one_dll_prepared` (L3406) — Publishes a prepared library by passing it to the normal single-DLL loader.
+- `published_root_canonical` (L3413) — Resolves the cache root to its canonical path once; returns 0 while it cannot be resolved, so the publish is refused.
+- `published_path_valid` (L3430) — Validates dll_path and writes its CANONICAL form into canon; every later consumer (LoadLibrary, .ranges derivation, loaded-path tracking) uses the canonical string, never the raw pipe text.
+- `overlay_loader_prepare_published` (L3453) — Checks a published DLL path and loads it into a prepared image that can be committed later; NULL when the path is invalid.
+- `overlay_loader_commit_published` (L3494) — Commits a prepared image into the loader when loads are allowed, otherwise discards it; returns 1 when committed.
+- `overlay_loader_discard_prepared` (L3515) — Closes and frees a prepared image that will not be committed.
+- `lazy_man_contains` (L3522) — 1 when a lazy manifest's entries or code ranges cover this physical address in the same segment.
+- `lazy_man_crc` (L3533) — 1 and *crc = CRC of the manifest's live bytes, 0 when it has none.
+- `lazy_man_gensum` (L3537) — Generation sum over the code ranges of a lazy manifest.
+- `lazy_man_matches` (L3541) — 1 when the live bytes of a lazy manifest still match its CRC; records the result as valid or invalid.
+- `lazy_bundle_matches` (L3563) — A CPS DLL can directly own internal tail targets, so one matching entry does not prove the rest of that captured snapshot is current.
+- `lazy_candidate_preferred` (L3585) — Same-tier artifacts that both pass the live-byte gate compute the same thing, but their block edges differ (where a page cut or another capture's branch targets end a block), so under cpu_timing = "bl
+- `lazy_choose_complete_or_fallback` (L3597) — Prefer GCC over TCC even when the TCC option happens to be a broader bundle.
+- `overlay_image_warm_seed_boot_text` (L3611) — A streamed variant is not byte-coherent until immediately before its first call, too late to hide Windows' first image-map cost.
+- `lazy_is_loadable` (L3625) — 1 when a lazy manifest entry can be loaded now for this region and segment.
+- `lazy_better_bundle` (L3642) — Chooses between two lazy bundles by manifest index order only, never by size or timestamp.
+- `lazy_load_selected` (L3652) — Loads the cache entry of a selected lazy manifest, unless it has failed, is suppressed or is already loaded.
+- `try_load_region` (L3674) — Load the cached shard of 'seg' (§5.7) that serves phys.
+- `lazy_has_exact_entry` (L3775) — O(1)-bucket discriminator between a real manifested function entry and an interior CPS continuation.
+- `range_candidate_matches` (L3799) — CPS (§25): find a non-blacklisted candidate whose code range CONTAINS phys — i.e.
+- `range_candidate_preferred` (L3852) — 1 when candidate should replace current: a higher tier wins, and among equal tiers the newer candidate wins.
+- `overlay_find_by_range` (L3859) — Finds the candidate whose code range holds this physical address in the given segment; -1 when none or the loader is off.
+- `overlay_loader_dispatch` (L3902) — Called from dirty_ram_dispatch before the interpreter.
+- `overlay_loader_dispatch_seg` (L3936) — A shard's body bakes the PCs of the segment it was compiled for: the $ra a jal/jalr writes, its jump and exception-resume PCs, its I-cache fetch tags and store-PC stamps (docs/SEGMENT_AWARE_CODE.md §5
+- `overlay_loader_active_write_check` (L4291) — ---- Self-modification of an actively-executing entry (§8.5) ------------ Lazy re-hash on the NEXT dispatch is too late if a native function modifies its own code and continues executing the modified
+- `overlay_loader_get_counters` (L4318) — Reports the loader counters: loads, invalidations, native and interpreted dispatches, and details of the last write.
+- `overlay_loader_get_load_timing` (L4339) — Reports the total, maximum and last DLL load times, in microseconds.
+- `overlay_loader_take_hot_native` (L4346) — Opt-in PSX_RUNTIME_PERF_DIAG sampler: returns and clears the hottest native owner since the preceding call.
+- `overlay_loader_get_reload_debug` (L4371) — Reload diagnostics. Repurposed for the per-entry model: r0_valid -> candidates currently VALID r0_writes...
+- `overlay_loader_registered_count` (L4387) — Returns number of functions currently registered in the dynamic table.
+- `overlay_loader_gen_fastpath` (L4392) — Dispatches that ran native via the unchanged-page-generation fast path, i.e.
+- `overlay_loader_range_link_count` (L4393) — Number of range index links in use.
+- `overlay_loader_range_index_overflow` (L4394) — 1 when the range index ran out of space.
+- `overlay_loader_lazy_manifest_count` (L4395) — Number of lazy manifest entries indexed.
+- `overlay_loader_lazy_manifest_overflow` (L4396) — 1 when the lazy manifest table overflowed.
+- `overlay_loader_candidate_overflow` (L4397) — Number of candidates refused because the candidate table was full.
+- `overlay_loader_pair_aliases` (L4398) — Number of shard pairs that aliased an already loaded pair.
+- `overlay_loader_segment_alias_interp` (L4399) — KUSEG/KSEG1 (and unmapped-segment) dispatches the loader left to the interpreter: no shard compiled for their segment is cached or valid yet (docs/SEGMENT_AWARE_CODE.md §5.7).
+- `overlay_loader_segment_native` (L4400) — KUSEG/KSEG1 dispatches run natively by a shard compiled for their segment.
+- `overlay_loader_is_candidate` (L4427) — 1 when the physical address is a known exact function entry and the loader is active.
+- `overlay_fp_enabled` (L4432) — 1 when the fingerprint log is on, set by the PSX_OVERLAY_FP_LOG variable.
+- `overlay_loader_get_shadow_summary` (L4478) — Reports the shadow-diff call and divergence counts and the first divergent PC.
+- `overlay_loader_set_diff_mode` (L4486) — Turns shadow diff mode on or off.
+- `shadow_cpu_diff` (L4497) — Compares two CPU states field by field; returns the kind of the first difference, with its index and both values.
+- `run_shadow_diff` (L4540) — Authoritative interpreter RECORD + side-effect-free native REPLAY.
+- `shadow_escape_cleanup` (L4719) — A nonlocal scheduler bail during the speculative native replay pass (see overlay_loader_shadow_native_thread_switch_bail) means the interpreter pass — authoritative and already complete by the time th
+- `shadow_escape_flush_cycles` (L4750) — Commits pending cycles and clears the cycle-flush hook after a host unwind skipped a candidate's epilogue.
+- `overlay_loader_shadow_escape_fixup` (L4770) — Called by deferred_exception_longjmp() (interrupts.c) before it unwinds.
+- `overlay_loader_shadow_scheduler_escape_fixup` (L4780) — The deterministic HLE scheduler uses a different jmp_buf and therefore has no exception-setjmp epoch.
+- `overlay_loader_dump_shadow_detail` (L4785) — Writes the captured shadow-diff detail (address and registers) as JSON into out; returns the length.
+- `overlay_loader_dump_shadow` (L4806) — Writes the shadow-diff summary and its records as JSON into out; returns the length.
+- `overlay_regs_crc` (L4845) — Fingerprint over the general registers (r1..r31) + hi/lo.
+- `overlay_regs_snap` (L4854) — Snapshot r0..r31 + hi/lo into a 34-word buffer (entry-state capture).
+- `regs34_crc` (L4861) — CRC over words 1..33 (r0 excluded — always 0), matching overlay_regs_crc.
+- `overlay_fp_log` (L4867) — Records one fingerprint entry (address, cycle, registers, native or interpreted) in the ring.
+- `overlay_loader_call_native` (L4891) — Execute 'addr' natively if a validated overlay candidate exists, keeping the §5-E fingerprint record (same as the dirty_ram_dispatch chokepoint).
+- `overlay_loader_write_fp_file` (L4923) — Write the whole fingerprint log to a file (no TCP size limit).
+- `overlay_loader_dump_native_ring` (L4954) — Dump the native-call ring (most-recent first) + the in-progress entry.
+- `overlay_loader_dump_candidates` (L4980) — Diagnostic: dump every candidate with its stored vs live hash and generation state, so reload behaviour can be inspected directly (Rule 3 — visibility via the debug server, not logs).
+- `overlay_loader_dump_candidates_at` (L5003) — Focused form for live miss diagnosis.
+- `overlay_loader_dump_lazy_at` (L5030) — Focused view of manifest-only candidates that have not been loaded yet.
+- `overlay_loader_get_status` (L5080) — Reports the loader status: active flag, registered count, regions checked, cache folder, game id and last CRC.
 
 ### runtime/src/overlay_path_canon.c
 
@@ -9239,21 +9243,21 @@ Host-timed render passes: runs a draw callback inside a checkpointed transaction
 - `state_hash` (L496) — Guest-visible state hash for PSX_RENDER_PASS_VERIFY.
 - `checkpoint_save` (L554) — Copies the whole live RAM, DMA state and related hardware state into the checkpoint so a pass can be rolled back; returns 1 on success.
 - `checkpoint_restore` (L601) — Restores the saved checkpoint: GPU, DMA, timers, interrupts and RAM.
-- `ema_ms` (L627) — Exponential moving average of a time cost in ms, weighting each new sample at 10 percent.
-- `watchdog_overrun` (L632) — Counts a pass that ran past its cycle budget and logs the first few with PC and call details.
-- `render_pass_mmio_read_allowed` (L646) — memory.c calls this before a pass reads MMIO.
-- `note_fault` (L673) — Counts a rolled-back pass, logs the first few, and latches a fault limit when faults pile up.
-- `local_scope_set` (L684) — Sets the local-view scope flag and tells the GPU.
-- `psx_mod_local_view_scope` (L688) — 1 while a psx_mod_render_local_view draw runs.
-- `transaction_kind` (L690) — Maps an eye to its transaction kind: 1 for a stereo eye, 2 for the local view, 0 for a plain pass.
-- `transaction_end` (L694) — Ends the matching transaction (stereo eye, local view or plain pass), keeping or discarding its output.
-- `render_transaction` (L701) — Runs one render transaction: checkpoints state, runs the draw, then keeps or rolls back and records its timing.
-- `psx_mod_render_local_view` (L886) — Runs a pass drawing into a local rectangle of the view; refuses rectangles out of bounds.
-- `psx_mod_render_local_view_status` (L900) — Returns the local-view transaction status.
-- `psx_mod_render_pass` (L904) — Runs a full render pass with the given callback; returns 1 on success.
-- `stereo_eye_draw` (L914) — Calls the stereo callback for one eye with its eye index.
-- `psx_mod_render_stereo` (L920) — Renders a stereo pair, one draw per eye, within a time budget; returns 1 on success.
-- `psx_mod_render_capture_rgba` (L1004) — Renders a pass into an RGBA buffer; returns 0 when the buffer, rectangle or status does not allow it.
+- `ema_ms` (L630) — Exponential moving average of a time cost in ms, weighting each new sample at 10 percent.
+- `watchdog_overrun` (L635) — Counts a pass that ran past its cycle budget and logs the first few with PC and call details.
+- `render_pass_mmio_read_allowed` (L649) — memory.c calls this before a pass reads MMIO.
+- `note_fault` (L676) — Counts a rolled-back pass, logs the first few, and latches a fault limit when faults pile up.
+- `local_scope_set` (L687) — Sets the local-view scope flag and tells the GPU.
+- `psx_mod_local_view_scope` (L691) — 1 while a psx_mod_render_local_view draw runs.
+- `transaction_kind` (L693) — Maps an eye to its transaction kind: 1 for a stereo eye, 2 for the local view, 0 for a plain pass.
+- `transaction_end` (L697) — Ends the matching transaction (stereo eye, local view or plain pass), keeping or discarding its output.
+- `render_transaction` (L704) — Runs one render transaction: checkpoints state, runs the draw, then keeps or rolls back and records its timing.
+- `psx_mod_render_local_view` (L889) — Runs a pass drawing into a local rectangle of the view; refuses rectangles out of bounds.
+- `psx_mod_render_local_view_status` (L903) — Returns the local-view transaction status.
+- `psx_mod_render_pass` (L907) — Runs a full render pass with the given callback; returns 1 on success.
+- `stereo_eye_draw` (L917) — Calls the stereo callback for one eye with its eye index.
+- `psx_mod_render_stereo` (L923) — Renders a stereo pair, one draw per eye, within a time budget; returns 1 on success.
+- `psx_mod_render_capture_rgba` (L1007) — Renders a pass into an RGBA buffer; returns 0 when the buffer, rectangle or status does not allow it.
 
 ### runtime/src/render_pass_frame.c
 
@@ -9962,40 +9966,40 @@ Models the PS1 Sound Processing Unit: its registers and DMA, the ADPCM voices wi
 - `spu_private_voice_active` (L1171) — Returns a bit mask of the active private voices, bit n for slot n.
 - `spu_init` (L1178) — Clears SPU RAM, frees the sample banks and resets voices, reverb and output state to power-on values.
 - `spu_render_block` (L1223) — Renders the given number of stereo frames of SPU output into the buffer, mixing voices, reverb and CD audio.
-- `spu_set_output_gate` (L1596) — Host gate: while it returns nonzero (rollback resimulation, FMV-skip mute) rendered samples advance SPU state but are not queued.
-- `spu_out_push` (L1598) — Appends stereo frames to the output queue; when the queue is full the oldest frame is dropped.
-- `spu_catch_up` (L1616) — Guest-clocked SPU: render every whole sample owed up to the current guest cycle (768 cycles per 44.1 kHz sample) into the output queue.
-- `spu_output_available` (L1643) — extern void (*spu_perf_observer)(int begin); /* perf_meter.c
-- `spu_output_pop` (L1645) — Copies up to max_frames queued stereo frames into the output buffer and returns how many were copied.
-- `spu_output_drop` (L1656) — Discards up to the given number of oldest frames from the output queue.
-- `spu_output_flush` (L1662) — void spu_output_drop(uint32_t frames); /* oldest first
-- `spu_output_overflow_drops` (L1663) — Returns how many output frames were dropped because the host fell behind.
-- `spu_debug_info` (L1665) — Fills an SpuDebugInfo struct with the control register, volumes and counters for the debug server.
-- `spu_read` (L1691) — MMIO read/write (0x1F801C00-0x1F801FFF)
-- `spu_write` (L1781) — Handles a guest write to an SPU register address, catching the render up before applying it.
-- `spu_dma_write` (L1889) — DMA channel 4 interface.
-- `spu_dma_read` (L1906) — DMA4 SPU->CPU direction: read one little-endian 32-bit word from SPU RAM at the transfer address, advance it by 4 and run the IRQ compare — the exact mirror of spu_dma_write.
-- `spu_dma_ready` (L1921) — Always returns 1; the SPU accepts DMA at once.
-- `spu_get_ram` (L1925) — Get pointer to SPU RAM for direct access (512KB)
-- `spu_get_voice_state` (L1929) — Copies the state of one voice into the output struct; zeroes it for an invalid index.
-- `spu_ram_peek` (L1954) — Debug peek into SPU RAM (spu_ram TCP command).
-- `spu_ctrl_read` (L1961) — SPUCNT (0x1F801DAA) alone.
-- `spu_get_global_state` (L1965) — Fills the output struct with the global SPU state: control, main volume and related registers.
-- `spu_event_total` (L2005) — Returns the total number of SPU events recorded so far.
-- `spu_event_get` (L2007) — Copies up to max_count of the most recent SPU events into the output array and returns how many were copied.
-- `spu_event_reset` (L2020) — uint32_t spu_event_get(SpuEvent* out, uint32_t max_count); /* most recent up to max_count
-- `spu_w_voice` (L2036) — Writes the state of one voice into the snapshot stream.
-- `spu_r_voice` (L2057) — Reads the state of one voice back from the snapshot stream.
-- `spu_snapshot_bytes_v1` (L2093) — + 4: guest-clock phase (cycles since the SPU's last whole sample).
-- `spu_snapshot_bytes` (L2096) — Returns the snapshot size: the v1 layout plus four bytes for the guest-clock phase.
-- `spu_snapshot_len_ok` (L2097) — Returns 1 when a snapshot length matches one of the accepted layouts.
-- `spu_voice_wire_ok` (L2109) — Saved voice values the mixer indexes with: the sample bank bindings, the decode cursor (at most one block ahead: voice_step decodes once and the Gaussian window holds 3 + 28 samples) and the 12-bit pi
-- `spu_snapshot_validate` (L2123) — Pass-1 check for boot_state's two-pass load: walks the snapshot without touching the SPU and refuses every value spu_snapshot_read would reject halfway or the SPU would later index out of range with.
-- `spu_snapshot_write` (L2148) — Catches the SPU up to the current cycle and writes its state snapshot into the buffer.
-- `spu_snapshot_read` (L2183) — Restores the SPU state from a snapshot buffer; returns 0 on a bad length or bad data.
-- `spu_get_ram_ptr` (L2237) — Returns a pointer to the 512 KB of SPU RAM.
-- `spu_get_ram_bytes` (L2238) — Returns the size in bytes of SPU RAM.
-- `spu_snapshot_part_digests` (L2240) — Computes checksums of the separate sections of the SPU snapshot and stores them in the output struct.
+- `spu_set_output_gate` (L1604) — Host gate: while it returns nonzero (rollback resimulation, FMV-skip mute) rendered samples advance SPU state but are not queued.
+- `spu_out_push` (L1606) — Appends stereo frames to the output queue; when the queue is full the oldest frame is dropped.
+- `spu_catch_up` (L1624) — Guest-clocked SPU: render every whole sample owed up to the current guest cycle (768 cycles per 44.1 kHz sample) into the output queue.
+- `spu_output_available` (L1651) — extern void (*spu_perf_observer)(int begin); /* perf_meter.c
+- `spu_output_pop` (L1653) — Copies up to max_frames queued stereo frames into the output buffer and returns how many were copied.
+- `spu_output_drop` (L1664) — Discards up to the given number of oldest frames from the output queue.
+- `spu_output_flush` (L1670) — void spu_output_drop(uint32_t frames); /* oldest first
+- `spu_output_overflow_drops` (L1671) — Returns how many output frames were dropped because the host fell behind.
+- `spu_debug_info` (L1673) — Fills an SpuDebugInfo struct with the control register, volumes and counters for the debug server.
+- `spu_read` (L1699) — MMIO read/write (0x1F801C00-0x1F801FFF)
+- `spu_write` (L1789) — Handles a guest write to an SPU register address, catching the render up before applying it.
+- `spu_dma_write` (L1897) — DMA channel 4 interface.
+- `spu_dma_read` (L1914) — DMA4 SPU->CPU direction: read one little-endian 32-bit word from SPU RAM at the transfer address, advance it by 4 and run the IRQ compare — the exact mirror of spu_dma_write.
+- `spu_dma_ready` (L1929) — Always returns 1; the SPU accepts DMA at once.
+- `spu_get_ram` (L1933) — Get pointer to SPU RAM for direct access (512KB)
+- `spu_get_voice_state` (L1937) — Copies the state of one voice into the output struct; zeroes it for an invalid index.
+- `spu_ram_peek` (L1962) — Debug peek into SPU RAM (spu_ram TCP command).
+- `spu_ctrl_read` (L1969) — SPUCNT (0x1F801DAA) alone.
+- `spu_get_global_state` (L1973) — Fills the output struct with the global SPU state: control, main volume and related registers.
+- `spu_event_total` (L2013) — Returns the total number of SPU events recorded so far.
+- `spu_event_get` (L2015) — Copies up to max_count of the most recent SPU events into the output array and returns how many were copied.
+- `spu_event_reset` (L2028) — uint32_t spu_event_get(SpuEvent* out, uint32_t max_count); /* most recent up to max_count
+- `spu_w_voice` (L2044) — Writes the state of one voice into the snapshot stream.
+- `spu_r_voice` (L2065) — Reads the state of one voice back from the snapshot stream.
+- `spu_snapshot_bytes_v1` (L2101) — + 4: guest-clock phase (cycles since the SPU's last whole sample).
+- `spu_snapshot_bytes` (L2104) — Returns the snapshot size: the v1 layout plus four bytes for the guest-clock phase.
+- `spu_snapshot_len_ok` (L2105) — Returns 1 when a snapshot length matches one of the accepted layouts.
+- `spu_voice_wire_ok` (L2117) — Saved voice values the mixer indexes with: the sample bank bindings, the decode cursor (at most one block ahead: voice_step decodes once and the Gaussian window holds 3 + 28 samples) and the 12-bit pi
+- `spu_snapshot_validate` (L2131) — Pass-1 check for boot_state's two-pass load: walks the snapshot without touching the SPU and refuses every value spu_snapshot_read would reject halfway or the SPU would later index out of range with.
+- `spu_snapshot_write` (L2156) — Catches the SPU up to the current cycle and writes its state snapshot into the buffer.
+- `spu_snapshot_read` (L2191) — Restores the SPU state from a snapshot buffer; returns 0 on a bad length or bad data.
+- `spu_get_ram_ptr` (L2245) — Returns a pointer to the 512 KB of SPU RAM.
+- `spu_get_ram_bytes` (L2246) — Returns the size in bytes of SPU RAM.
+- `spu_snapshot_part_digests` (L2248) — Computes checksums of the separate sections of the SPU snapshot and stores them in the output struct.
 
 ### runtime/src/spu_clone_music.c
 

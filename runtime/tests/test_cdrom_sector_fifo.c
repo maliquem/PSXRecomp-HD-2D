@@ -8,10 +8,11 @@ static int test_dma_active;
 static int test_iso_closes;
 static int test_xa_audio; /* serve real-time XA audio sectors (mono, 37.8 kHz, 4-bit) */
 static int pushed_frames, pushed_nonzero;
+static uint8_t test_submode = 8;
 int dma_cdrom_transfer_active(void) { return test_dma_active; }
 void psx_irq_raise(uint32_t bit, uint32_t detail) { (void)detail; i_stat |= bit; }
 int iso_read_raw_sector(void* h, uint32_t lba, uint8_t* out, int size) {
-    (void)h; memset(out, 0, size); out[15]=2; out[16]=out[20]=9; out[17]=out[21]=7; out[18]=out[22]=8;
+    (void)h; memset(out, 0, size); out[15]=2; out[16]=out[20]=9; out[17]=out[21]=7; out[18]=out[22]=test_submode;
     if (test_xa_audio) { out[18]=out[22]=0x64; memset(out+24, 0x11, 2324); return 1; }
     memset(out+24, (unsigned char)lba, 2048); return 1;
 }
@@ -19,6 +20,7 @@ int iso_read_sector(void* h,uint32_t lba,uint8_t* out,int size) {(void)h;memset(
 
 static void setup(void) {
     test_dma_active = 0;
+    test_submode = 8;
     psx_cycle_count = 1000000;
     cdrom_init("synthetic");
     mode_reg = 0x80;

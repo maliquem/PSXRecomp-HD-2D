@@ -194,7 +194,11 @@ static void ring_note_starved(void) {
 static uint8_t last_sector_buffer[SECTOR_BUFFER_SIZE];
 static int last_sector_lba;
 /* Set from a read's seek until its first sector arrives: the last sector's header
- * no longer says where the drive is, so GetlocL has nothing to report. */
+ * no longer says where the drive is, so GetlocL has nothing to report (PSX-SPX
+ * cdromdrive, "GetlocL - Command 10h": it fails in the Seek phase "shortly after a
+ * new ReadN/ReadS command"). The status says Seek instead of Read for the same span
+ * (PSX-SPX cdromdrive, "Stat Seek/Play/Read bits": only one of the three is set at a
+ * time, and Read is not set until the seek completes). */
 static uint8_t last_sector_header_stale;
 static int last_sector_size;
 static uint32_t last_sector_frame;
@@ -972,6 +976,7 @@ static void set_irq(int type) {
 
 static void fire_cdrom_irq(void);
 static void stop_read_stream(void);
+static void read_seek_landed(void);
 
 static void present_lid_open_irq_if_ready(void)
 {
@@ -1544,7 +1549,7 @@ static int read_sector_at(int min, int sec, int sect) {
         }
     }
     last_sector_lba = lba;
-    last_sector_header_stale = 0;
+    read_seek_landed();
     last_sector_size = delivery.data_delivered ? wb->size : history_size;
     last_sector_frame = (uint32_t)s_frame_count;
     last_sector_mode = mode_reg;
@@ -1651,6 +1656,12 @@ static int read_continues_current_stream(void) {
     return 1;
 }
 
+static void read_seek_landed(void) {
+    if (last_sector_header_stale && (stat_reg & CDSTAT_SEEK))
+        stat_reg = (uint8_t)((stat_reg & ~CDSTAT_SEEK) | CDSTAT_READ);
+    last_sector_header_stale = 0;
+}
+
 static void stop_cdda_playback(void) {
     /* The head stays where the music stopped (psx-spx 09h Pause); a later
      * Play or ReadN without a pending Setloc resumes from read_*. */
@@ -1690,7 +1701,18 @@ static void start_read_stream(uint8_t cmd) {
     s_cd_timing_next_due = psx_cycle_count + (uint64_t)read_delay;
     s_cd_timing_stream_starts++;
     reading = 1;
-    stat_reg |= CDSTAT_READ | CDSTAT_MOTOR;
+    /* ENIGMA checks Read before polling GetlocL for a voice line's end, and gives up on
+     * the line after 10 NOT READY answers. Those can all land inside one seek, and then
+     * the voice plays on past its end, so Read has to wait for the first sector.
+     * Only a read with an unprocessed Setloc seeks; one without it continues or resumes
+     * (PSX-SPX cdromdrive, "Setloc, Read, Pause"), so it says Read at once.
+     * PSX-SPX does not say which status the ReadN/ReadS INT3 response carries. It is
+     * pushed after this, so on a seeked read it says Seek; that has not been measured. */
+    stat_reg |= CDSTAT_MOTOR;
+    if (last_sector_header_stale)
+        stat_reg = (uint8_t)((stat_reg & ~CDSTAT_READ) | CDSTAT_SEEK);
+    else
+        stat_reg |= CDSTAT_READ;
     /* ENQUEUE: sector-read stream scheduled (due in read_delay cycles). A
      * content load that happens in OFF but not ON shows up as a missing
      * SRC_CD_READ enqueue here. */
@@ -2295,7 +2317,10 @@ static void exec_command(uint8_t cmd) {
         stop_cdda_playback();
         xa_reset_decode();
         spu_cd_audio_reset();
-        stat_reg &= ~(CDSTAT_READ | CDSTAT_PLAY);
+        /* PSX-SPX cdromdrive, "Pause - Command 09h": during some phases of a seek,
+         * including a read's own, Pause fails with INT5(stat,80h). Here it always
+         * succeeds and ends the seek too. */
+        stat_reg &= ~(CDSTAT_READ | CDSTAT_PLAY | CDSTAT_SEEK);
         response_push(stat_reg);
         set_irq(CDIRQ_ACK);
         pending_arm(0x09, complete_delay, 1);
