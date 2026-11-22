@@ -7330,59 +7330,66 @@ Picks the overlay compile backend (gcc, tcc or auto) once at startup and reports
 Writes overlay capture manifests and snapshots to disk (atomically, with history and background writers) and drives the automatic capture trigger.
 
 - `capture_next_sequence` (L77) — Returns the next snapshot sequence number, using an atomic add so it never waits on the file lock.
-- `capture_process_id` (L87) — Current process id, used to build unique temporary file names.
-- `sanitize_filename` (L96) — Copies src into dst keeping only filename-safe characters, truncated to fit.
-- `sync_file` (L107) — Flushes a file and forces its data to disk; 1 on success.
-- `atomic_replace_file` (L117) — Renames tmp_path over path as one write-through step; 1 on success.
-- `capture_file_sig` (L127) — 64-bit FNV-1a hash of a file's bytes; 0 when the file cannot be read.
-- `capture_path_dirname` (L146) — Directory portion of 'path' (no trailing separator); "." when 'path' has no separator.
-- `write_b64` (L169) — Writes binary data to the file as base64 text.
-- `overlay_capture_set_out_dir` (L185) — Call once at startup (before the run loop) with the exe directory.
-- `overlay_capture_set_path` (L194) — Set the canonical capture manifest path directly.
-- `overlay_capture_init` (L209) — Legacy init alias kept for compatibility; same as set_out_dir.
-- `overlay_capture_set_enabled` (L214) — Enable/disable overlay capture.
-- `overlay_capture_configure_history` (L219) — Sets whether the capture history is kept, where it persists and the game id it is filed under.
-- `overlay_capture_on_dma` (L263) — Notes a CD-to-RAM DMA of an overlay, recording its load address, size and a copy of its bytes.
-- `write_json_window` (L325) — Emit every dirty-page run within [win_lo_page, win_hi_page) as a capture region.
-- `write_json_snapshot` (L484) — Writes one capture snapshot of the region bitmaps to path as JSON.
-- `capture_copy_file` (L529) — Copies one file to another; 1 on success.
-- `capture_files_equal` (L550) — 1 when two files have identical bytes.
-- `copy_file_atomic` (L567) — Copies a file through a temporary file and renames it into place, so readers never see a partial copy.
-- `append_history_record` (L598) — Append the canonical JSON array as one minified JSONL record.
-- `write_json_string` (L647) — Writes a string as a JSON string literal, with escapes.
-- `append_history_reference` (L667) — Dev persistence already owns an atomically published immutable full JSON snapshot.
-- `persist_history_snapshot` (L696) — Keeps a copy of a snapshot in the persistent history folder, named by its content signature.
-- `capture_commit_temp` (L744) — Persist one coherent snapshot for three deliberately different roles: - capture_path is the legacy/latest manifest consumed by existing tools; - capture_path.d/<content-hash>.json is immutable additiv
-- `capture_executed_pages` (L837) — Marks as captured every RAM page that executed code within the scope, optionally with its neighbouring pages.
-- `overlay_capture_write_current` (L865) — Writes the current capture for a scope (manifest and history) and returns its content signature.
-- `overlay_capture_write_json` (L890) — Write overlay_captures.json to the directory supplied at init time.
-- `overlay_capture_before_dma` (L900) — Called before a to-RAM CD DMA overwrites its destination.
-- `overlay_capture_count` (L950) — Returns number of unique overlays captured so far.
-- `autocap_now_ms` (L1020) — Milliseconds since the SDL timer started, used for auto-capture timing.
-- `overlay_autocapture_set_enabled` (L1068) — Variant-capture automation (step 2.8): per-vblank tick that fires an automatic capture + background compile when the dirty-RAM interpreter shows sustained pressure inside a capture window (an uncovere
-- `overlay_autocapture_get_status` (L1072) — Reports whether auto-capture is enabled, how many triggers fired and the last instruction delta.
-- `overlay_autocapture_last_insns_delta` (L1079) — Instruction count difference measured at the last pressure sample.
-- `overlay_autocapture_get_futility` (L1083) — Reports the current backoff and the count of futile captures.
-- `overlay_autocapture_gate_name` (L1093) — Wedge report: the latched gate and time since the last completed pressure sample.
-- `overlay_autocapture_ms_since_sample` (L1107) — Milliseconds since the last completed pressure sample; 0 before the first sample (nothing to conclude yet).
-- `overlay_autocapture_get_gates` (L1113) — Reports the state of each capture gate: capture active, background write state and attempts, and provider pending and attempts.
-- `overlay_capture_test_write_state` (L1130) — Test hook: current state of the background manifest writer.
-- `overlay_capture_test_write_attempts` (L1133) — Test hook: how many attempts the pending manifest write has made.
-- `overlay_capture_test_provider_pending` (L1136) — Test hook: 1 while a compile request to the provider is pending.
-- `autocap_write_job_free` (L1145) — FNV-1a of the just-written capture manifest.
-- `autocap_write_thread_main` (L1153) — Thread body that writes the capture manifest in the background and stores its signature in the job.
-- `autocap_write_retry_delay` (L1165) — Frames to wait before retrying a failed manifest write; grows with the attempt count up to a cap.
-- `autocap_provider_request_try` (L1177) — A durable contribution and a successfully started compiler request are two separate commits.
-- `autocap_write_launch` (L1215) — Marks a background manifest write as in progress and starts it on a worker thread.
-- `capture_snapshot_create` (L1231) — Copy coherent inputs on the emulation thread, then perform base64 formatting, file I/O, and verification reread on a worker.
-- `autocap_write_start` (L1287) — Starts a background manifest write covering the executed code, scoped to live coverage to keep it small.
-- `preserve_write_thread_main` (L1303) — Worker loop that writes queued preserved snapshots to disk, retrying on failure.
-- `preserve_writer_start` (L1350) — Creates the preserve-writer mutex, condition and worker thread once; 0 when that fails.
-- `preserve_snapshot_enqueue_owned` (L1370) — Transfer ownership of an already-coherent immutable snapshot to the retrying FIFO.
-- `preserve_snapshot_async` (L1391) — Capture coherent bytes before DMA mutates RAM, but keep base64, hashing, copying, and fsync off the emulation thread.
-- `overlay_autocapture_tick` (L1401) — Per-vblank check of auto-capture pressure: samples it, latches the gates and fires a capture when pressure stays high.
-- `overlay_capture_wait_pending` (L1510) — Join any background snapshot writer before process shutdown.
-- `overlay_autocapture_shutdown` (L1539) — Join any in-flight atomic writer before the final shutdown snapshot.
+- `capture_process_id` (L98) — Current process id, used to build unique temporary file names.
+- `sanitize_filename` (L107) — Copies src into dst keeping only filename-safe characters, truncated to fit.
+- `sync_file` (L118) — Flushes a file and forces its data to disk; 1 on success.
+- `atomic_replace_file` (L128) — Renames tmp_path over path as one write-through step; 1 on success.
+- `capture_file_sig` (L138) — 64-bit FNV-1a hash of a file's bytes; 0 when the file cannot be read.
+- `capture_path_dirname` (L157) — Directory portion of 'path' (no trailing separator); "." when 'path' has no separator.
+- `write_b64` (L180) — Writes binary data to the file as base64 text.
+- `overlay_capture_set_out_dir` (L196) — Call once at startup (before the run loop) with the exe directory.
+- `overlay_capture_set_path` (L205) — Set the canonical capture manifest path directly.
+- `overlay_capture_init` (L220) — Legacy init alias kept for compatibility; same as set_out_dir.
+- `overlay_capture_set_enabled` (L225) — Enable/disable overlay capture.
+- `overlay_capture_configure_history` (L230) — Sets whether the capture history is kept, where it persists and the game id it is filed under.
+- `overlay_capture_on_dma` (L274) — Notes a CD-to-RAM DMA of an overlay, recording its load address, size and a copy of its bytes.
+- `write_json_window` (L336) — Emit every dirty-page run within [win_lo_page, win_hi_page) as a capture region.
+- `write_json_snapshot` (L495) — Writes one capture snapshot of the region bitmaps to path as JSON.
+- `capture_copy_file` (L540) — Copies one file to another; 1 on success.
+- `capture_files_equal` (L561) — 1 when two files have identical bytes.
+- `copy_file_atomic` (L578) — Copies a file through a temporary file and renames it into place, so readers never see a partial copy.
+- `append_history_record` (L609) — Append the canonical JSON array as one minified JSONL record.
+- `write_json_string` (L658) — Writes a string as a JSON string literal, with escapes.
+- `append_history_reference` (L678) — Dev persistence already owns an atomically published immutable full JSON snapshot.
+- `persist_history_snapshot` (L707) — Keeps a copy of a snapshot in the persistent history folder, named by its content signature.
+- `capture_commit_temp` (L755) — Persist one coherent snapshot for three deliberately different roles: - capture_path is the legacy/latest manifest consumed by existing tools; - capture_path.d/<content-hash>.json is immutable additiv
+- `capture_executed_pages` (L848) — Marks as captured every RAM page that executed code within the scope, optionally with its neighbouring pages.
+- `overlay_capture_write_current` (L876) — Writes the current capture for a scope (manifest and history) and returns its content signature.
+- `overlay_capture_write_json` (L901) — Write overlay_captures.json to the directory supplied at init time.
+- `overlay_capture_before_dma` (L911) — Called before a to-RAM CD DMA overwrites its destination.
+- `overlay_capture_count` (L979) — Returns number of unique overlays captured so far.
+- `autocap_now_ms` (L1049) — Milliseconds since the SDL timer started, used for auto-capture timing.
+- `preserve_queue_has_room` (L1121) — 1 while the outgoing-snapshot queue holds fewer entries than its cap.
+- `preserve_entry_released` (L1132) — The writer is done with an entry: committed, or given up at shutdown.
+- `overlay_autocapture_set_enabled` (L1139) — Variant-capture automation (step 2.8): per-vblank tick that fires an automatic capture + background compile when the dirty-RAM interpreter shows sustained pressure inside a capture window (an uncovere
+- `overlay_autocapture_get_status` (L1143) — Reports whether auto-capture is enabled, how many triggers fired and the last instruction delta.
+- `overlay_autocapture_last_insns_delta` (L1150) — Instruction count difference measured at the last pressure sample.
+- `overlay_autocapture_get_futility` (L1154) — Reports the current backoff and the count of futile captures.
+- `overlay_autocapture_gate_name` (L1164) — Wedge report: the latched gate and time since the last completed pressure sample.
+- `overlay_autocapture_ms_since_sample` (L1178) — Milliseconds since the last completed pressure sample; 0 before the first sample (nothing to conclude yet).
+- `overlay_autocapture_get_gates` (L1184) — Reports the state of each capture gate: capture active, background write state and attempts, and provider pending and attempts.
+- `overlay_capture_test_write_state` (L1201) — Test hook: current state of the background manifest writer.
+- `overlay_capture_test_write_attempts` (L1204) — Test hook: how many attempts the pending manifest write has made.
+- `overlay_capture_test_provider_pending` (L1207) — Test hook: 1 while a compile request to the provider is pending.
+- `overlay_capture_test_set_preserve_cap` (L1211) — The queue of outgoing snapshots: a cap of 0 restores the built-in one.
+- `overlay_capture_test_preserve_cap` (L1217) — Test hook: the current cap of the outgoing-snapshot queue.
+- `overlay_capture_test_hold_preserve_writer` (L1219) — While held the writer takes no entry, so a test fills the queue exactly.
+- `overlay_capture_test_preserve_losses` (L1230) — Snapshots dropped on the emulation thread; failed writes of the writer thread; entries it gave up at shutdown.
+- `overlay_capture_test_preserve_counts` (L1242) — Entries queued or being written now; the most there ever were; entries ever queued; snapshots committed on the emulation thread at the cap.
+- `autocap_write_job_free` (L1264) — FNV-1a of the just-written capture manifest.
+- `autocap_write_thread_main` (L1272) — Thread body that writes the capture manifest in the background and stores its signature in the job.
+- `autocap_write_retry_delay` (L1284) — Frames to wait before retrying a failed manifest write; grows with the attempt count up to a cap.
+- `autocap_provider_request_try` (L1296) — A durable contribution and a successfully started compiler request are two separate commits.
+- `autocap_write_launch` (L1334) — Marks a background manifest write as in progress and starts it on a worker thread.
+- `capture_snapshot_create` (L1350) — Copy coherent inputs on the emulation thread, then perform base64 formatting, file I/O, and verification reread on a worker.
+- `autocap_write_start` (L1406) — Starts a background manifest write covering the executed code, scoped to live coverage to keep it small.
+- `preserve_write_thread_main` (L1422) — Worker loop that writes queued preserved snapshots to disk, retrying on failure.
+- `preserve_writer_start` (L1486) — Creates the preserve-writer mutex, condition and worker thread once; 0 when that fails.
+- `preserve_snapshot_enqueue_owned` (L1506) — Transfer ownership of an already-coherent immutable snapshot to the retrying FIFO.
+- `preserve_snapshot_async` (L1530) — Capture coherent bytes before DMA mutates RAM, but keep base64, hashing, copying, and fsync off the emulation thread.
+- `overlay_autocapture_tick` (L1540) — Per-vblank check of auto-capture pressure: samples it, latches the gates and fires a capture when pressure stays high.
+- `overlay_capture_wait_pending` (L1649) — Join any background snapshot writer before process shutdown.
+- `overlay_autocapture_shutdown` (L1678) — Join any in-flight atomic writer before the final shutdown snapshot.
 
 ### runtime/src/overlay_loader.c
 
