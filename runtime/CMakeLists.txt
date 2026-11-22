@@ -2374,6 +2374,11 @@ if(BUILD_TESTING)
                      COMMAND ${Python3_EXECUTABLE}
                              ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_memory_debug_trace_guard.py
                              --cc ${CMAKE_C_COMPILER})
+            # Guest RAM 0..0F survives the game-entry handoff (PSX-SPX kernelbios).
+            add_test(NAME lowram_game_handoff
+                     COMMAND ${Python3_EXECUTABLE}
+                             ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_lowram_game_handoff.py
+                             --cc ${CMAKE_C_COMPILER})
             add_test(NAME memory_byte_recorder_test
                      COMMAND ${Python3_EXECUTABLE}
                              ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_memory_byte_recorder.py
