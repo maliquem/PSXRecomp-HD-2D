@@ -5361,13 +5361,21 @@ static int bcls_lean(int b3d, int tex, int add, int bp) {
 /* GEO_FS u_badd for blend `semi`: 1 adds the colour (mode 1), 4 a quarter of
  * it (mode 3), 0 not additive. */
 #define BCLS_ADD(semi) ((semi) == 1 ? 1 : (semi) == 3 ? 4 : 0)
-/* DRAW (an untextured draw set up with blend `semi`, mask_stencil_ex(mask,
+/* Mode 2 is the full draw-area depth rectangle emitted by depth_clear_now.
+ * Its queued surface scissor already clips it to the same pixels. A hardware
+ * clear writes the same far depth without shading two screen-sized triangles;
+ * keep the record in painter order, including tile and wide replay. Colour
+ * and stencil are untouched. The real-GL depth fixture compares all three
+ * attachments with the former draw at native, 4x and 9x scale.
+ *
+ * DRAW (an untextured draw set up with blend `semi`, mask_stencil_ex(mask,
  * check) and PGXP depth mode `dmode`; b3d as above), then (mask on) its
  * marking passes. GEO semi modes 1 and 3 add. A semi-transparent primitive
  * does not clear: what shows through it (a lamp under a fog or shade quad)
  * keeps glowing. */
 #define BCLS_DRAW(semi, dmode, mask, check, b3d, DRAW) do {                    \
-        DRAW;                                                                 \
+        if ((dmode) == 2) { glClearDepth(0.99995); glClear(GL_DEPTH_BUFFER_BIT); } \
+        else { DRAW; }                                                         \
         if ((s_bcls_on || s_b3d_on) && (dmode) != 2 && (!s_fg_drawing || s_fg_marks)) { \
             if (s_bcls_on) {                                                  \
                 const int bcls_p_ = bcls_lean((b3d), 0, BCLS_ADD(semi),      \
