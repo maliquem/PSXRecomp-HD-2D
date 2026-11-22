@@ -10159,44 +10159,45 @@ Handles guest traps and the thread scheduler: crash and break reporting, saving 
 - `psx_assert_no_sentinel_pc` (L307) — Fail-closed: the host exception sentinel must NEVER be persisted into a TCB as a thread's resume PC, nor read back out of one.
 - `psx_save_context_to_tcb` (L318) — Saves the CPU registers and the resume PC into a thread's control block.
 - `psx_store_change_thread_result` (L343) — ChangeTh (B 10h) returns 1 to its caller.
-- `psx_restore_context_from_tcb` (L348) — Loads the CPU registers of a thread from its control block and returns its resume PC.
-- `psx_sched_save_context` (L389) — Deferred cooperative thread switch (Ape Escape memcard fix #2).
-- `psx_sched_set_current_tcb` (L394) — Sets the current thread control block for the scheduler.
-- `psx_sched_current_tcb` (L399) — Returns the current thread control block address for the scheduler.
-- `psx_tcb_state` (L418) — Returns the state word of a thread control block, or 0 when the block is not valid.
-- `psx_current_host_fiber` (L423) — Returns the host fiber of the main thread, converting the current thread to a fiber on first use.
-- `psx_find_host_thread` (L435) — Returns the host fiber slot bound to a thread control block, or NULL when none is bound.
-- `psx_alloc_host_thread` (L445) — Returns a free host fiber slot, cleared, or NULL when all slots are in use.
-- `psx_bind_current_host_thread` (L458) — Binds a thread control block to a host fiber slot, creating the binding for the current thread.
-- `psx_thread_fiber_entry` (L474) — Entry point of a host fiber that runs a guest thread.
-- `psx_fiber_nesting_save` (L529) — Saves the dispatch depth and bail flags of the host nesting before a fiber switch.
-- `psx_fiber_nesting_restore` (L541) — Restores the dispatch depth and bail flags saved before a fiber switch.
-- `psx_fiber_drop_threads` (L565) — Releases all host thread fibers except the current one.
-- `psx_fiber_take_restore` (L580) — Called where the main fiber resumes after a switch: if a restore is waiting, unwind this fiber's stack to the scheduler loop, as the HLE scheduler unwinds its single stack.
-- `psx_fiber_take_restore_unnested` (L589) — Takes a pending fiber restore when there is no nesting record.
-- `psx_get_or_create_host_thread` (L594) — Returns the host fiber of a thread control block, creating one when the thread is in the expected state; NULL otherwise.
-- `psx_change_thread_fiber` (L636) — Switches the running guest thread to the target thread by way of a host fiber.
-- `psx_fiber_preempt_switch` (L752) — In-exception thread switch on the host-fiber scheduler.
-- `psx_request_thread_switch` (L804) — ── Deterministic TCB scheduler — LIVE (carve-out, replaces the fiber bridge) ─ psx_request_thread_switch performs a cooperative thread switch by committing the yielding thread's full context to its TC
-- `psx_scheduler_top_level_resume_active` (L869) — After resume_at, dispatch is top-level — there is no abandoned mid-block native chain under the resume PC.
-- `psx_scheduler_top_level_resume_clear` (L874) — Clears the flag that marks the scheduler resume as top level.
-- `psx_scheduler_resume_at` (L881) — Save-state restore: unwind to psx_scheduler_run and re-dispatch resume_pc (the restored CPUState's PC).
-- `psx_hle_scheduler_set_default` (L937) — HLE-tier standing subsystem replacement (CLAUDE.md §0 amendments 2026-06-29 + 2026-07-02).
-- `psx_hle_scheduler_enabled` (L942) — Returns 1 when the HLE scheduler is enabled by PSX_HLE_SCHEDULER, read once.
-- `psx_change_thread` (L953) — Switches to a target thread through the HLE scheduler or the fiber path, depending on whether the HLE scheduler is enabled.
-- `psx_clear_return_to_lobby` (L963) — Clears the pending return-to-lobby request.
-- `psx_return_to_lobby_requested` (L968) — Returns 1 when a return to the lobby has been requested.
-- `psx_request_return_to_lobby` (L973) — Soft-exit netplay back to the lobby UI.
-- `psx_scheduler_can_resume_at` (L985) — Returns 1 when the scheduler can resume at the PC: it is inside the scheduler run, the HLE scheduler is on and the PC is dispatchable.
-- `psx_scheduler_rfe_resume` (L991) — Records a resume at the given PC for the current thread in the scheduler escape, for an exception return.
-- `psx_scheduler_run` (L1001) — Runs the scheduler loop, dispatching guest code until it escapes or the run ends.
-- `psx_changethread_in_handler_stats` (L1172) — out[0] calls that switched, out[1] calls that named the current thread, out[2] calls that named another thread and were not taken; of the first switch: out[3] the interrupted PC, out[4] the target blo
-- `psx_change_thread_in_handler` (L1181) — SYS(03h) inside a handler: saves the registers at the call into the current TCB, sets its v0 to 1 and moves the current-thread pointer to the target, as the kernel does.
-- `psx_syscall` (L1214) — Trap trampolines — defined in runtime/src/traps.c psx_syscall returns 1 if control transfers (cpu->pc set to a dispatch target; the caller must return to the trampoline), 0 for a directly-handled "voi
-- `psx_break` (L1365) — Reports a BREAK instruction with its PC and code as a crash.
-- `psx_arith_overflow` (L1373) — Reports an arithmetic overflow at the CPU's PC as a crash.
-- `psx_unaligned_access` (L1381) — Logs an unaligned memory access, up to three times, and lets the current function return early.
-- `psx_unknown_dispatch` (L1397) — Unknown dispatch — defined in runtime/src/traps.c
+- `psx_save_critical_context` (L352) — Critical fast paths omit guest exception entry, but the kernel's saved context is observable when a thread block is reused.
+- `psx_restore_context_from_tcb` (L373) — Loads the CPU registers of a thread from its control block and returns its resume PC.
+- `psx_sched_save_context` (L414) — Deferred cooperative thread switch (Ape Escape memcard fix #2).
+- `psx_sched_set_current_tcb` (L419) — Sets the current thread control block for the scheduler.
+- `psx_sched_current_tcb` (L424) — Returns the current thread control block address for the scheduler.
+- `psx_tcb_state` (L443) — Returns the state word of a thread control block, or 0 when the block is not valid.
+- `psx_current_host_fiber` (L448) — Returns the host fiber of the main thread, converting the current thread to a fiber on first use.
+- `psx_find_host_thread` (L460) — Returns the host fiber slot bound to a thread control block, or NULL when none is bound.
+- `psx_alloc_host_thread` (L470) — Returns a free host fiber slot, cleared, or NULL when all slots are in use.
+- `psx_bind_current_host_thread` (L483) — Binds a thread control block to a host fiber slot, creating the binding for the current thread.
+- `psx_thread_fiber_entry` (L499) — Entry point of a host fiber that runs a guest thread.
+- `psx_fiber_nesting_save` (L554) — Saves the dispatch depth and bail flags of the host nesting before a fiber switch.
+- `psx_fiber_nesting_restore` (L566) — Restores the dispatch depth and bail flags saved before a fiber switch.
+- `psx_fiber_drop_threads` (L590) — Releases all host thread fibers except the current one.
+- `psx_fiber_take_restore` (L605) — Called where the main fiber resumes after a switch: if a restore is waiting, unwind this fiber's stack to the scheduler loop, as the HLE scheduler unwinds its single stack.
+- `psx_fiber_take_restore_unnested` (L614) — Takes a pending fiber restore when there is no nesting record.
+- `psx_get_or_create_host_thread` (L619) — Returns the host fiber of a thread control block, creating one when the thread is in the expected state; NULL otherwise.
+- `psx_change_thread_fiber` (L661) — Switches the running guest thread to the target thread by way of a host fiber.
+- `psx_fiber_preempt_switch` (L777) — In-exception thread switch on the host-fiber scheduler.
+- `psx_request_thread_switch` (L829) — ── Deterministic TCB scheduler — LIVE (carve-out, replaces the fiber bridge) ─ psx_request_thread_switch performs a cooperative thread switch by committing the yielding thread's full context to its TC
+- `psx_scheduler_top_level_resume_active` (L894) — After resume_at, dispatch is top-level — there is no abandoned mid-block native chain under the resume PC.
+- `psx_scheduler_top_level_resume_clear` (L899) — Clears the flag that marks the scheduler resume as top level.
+- `psx_scheduler_resume_at` (L906) — Save-state restore: unwind to psx_scheduler_run and re-dispatch resume_pc (the restored CPUState's PC).
+- `psx_hle_scheduler_set_default` (L962) — HLE-tier standing subsystem replacement (CLAUDE.md §0 amendments 2026-06-29 + 2026-07-02).
+- `psx_hle_scheduler_enabled` (L967) — Returns 1 when the HLE scheduler is enabled by PSX_HLE_SCHEDULER, read once.
+- `psx_change_thread` (L978) — Switches to a target thread through the HLE scheduler or the fiber path, depending on whether the HLE scheduler is enabled.
+- `psx_clear_return_to_lobby` (L988) — Clears the pending return-to-lobby request.
+- `psx_return_to_lobby_requested` (L993) — Returns 1 when a return to the lobby has been requested.
+- `psx_request_return_to_lobby` (L998) — Soft-exit netplay back to the lobby UI.
+- `psx_scheduler_can_resume_at` (L1010) — Returns 1 when the scheduler can resume at the PC: it is inside the scheduler run, the HLE scheduler is on and the PC is dispatchable.
+- `psx_scheduler_rfe_resume` (L1016) — Records a resume at the given PC for the current thread in the scheduler escape, for an exception return.
+- `psx_scheduler_run` (L1026) — Runs the scheduler loop, dispatching guest code until it escapes or the run ends.
+- `psx_changethread_in_handler_stats` (L1197) — out[0] calls that switched, out[1] calls that named the current thread, out[2] calls that named another thread and were not taken; of the first switch: out[3] the interrupted PC, out[4] the target blo
+- `psx_change_thread_in_handler` (L1206) — SYS(03h) inside a handler: saves the registers at the call into the current TCB, sets its v0 to 1 and moves the current-thread pointer to the target, as the kernel does.
+- `psx_syscall` (L1239) — Trap trampolines — defined in runtime/src/traps.c psx_syscall returns 1 if control transfers (cpu->pc set to a dispatch target; the caller must return to the trampoline), 0 for a directly-handled "voi
+- `psx_break` (L1392) — Reports a BREAK instruction with its PC and code as a crash.
+- `psx_arith_overflow` (L1400) — Reports an arithmetic overflow at the CPU's PC as a crash.
+- `psx_unaligned_access` (L1408) — Logs an unaligned memory access, up to three times, and lets the current function return early.
+- `psx_unknown_dispatch` (L1424) — Unknown dispatch — defined in runtime/src/traps.c
 
 ### runtime/src/video_telemetry.cpp
 
