@@ -128,6 +128,14 @@ respective files.
 | `disc_serials` | game (multi-disc, optional) | array parallel to `discs`: the serial each disc carries (`["SCUS-94163", "SCUS-94164", "SCUS-94165"]`). Without it every disc is checked against `[game] id` — the BOOT disc's serial — so selecting disc 2 reports "wrong disc". A disc with no entry here is not serial-gated; the ISO-header check still applies. |
 | `disc_requests` | game (multi-disc, optional) | array of tables `[[game.disc_requests]]`, each `disc` (1-based index into `discs`), `addr` (hex guest address), `size` (1, 2 or 4 bytes, default 1, little-endian), `mask` (hex, default all ones) and `value` (hex). Once per frame the runtime reads each rule in order; the first where `(read & mask) == value` names the disc the game is asking for, and the runtime opens the lid, inserts that disc and shows a toast, once per request (a new attempt only after the condition clears). Runtime-only: not part of the overlay codegen hash. Ignored in netplay, which refuses every disc change. A rule naming a disc outside `discs`, a bad `size` or a `value` with bits outside `mask` is refused at load. |
 
+### Disc set and settings at the first start
+
+The setup host records the disc set in `disc.cfg` and the launcher settings in
+`settings.toml` beside the setup executable. When it starts the built product,
+after a rebuild or on a later start, it copies each file beside the product
+only if the product has none. An existing product `settings.toml`, even an
+empty one, keeps its contents; an empty product `disc.cfg` is filled in.
+
 ### Multi-disc selection
 
 Relative paths in executable-side `settings.toml` (`[disc] path`, `[bios] path`,
