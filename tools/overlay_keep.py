@@ -11,7 +11,8 @@ from the game's base list and the rest compiles on demand. This tool keeps only 
            main overlay_captures.json (the base list, never dropped).
   prune    show (default) or delete (--apply) everything else: records in
            overlay_captures.json.d/ and the DLL files of the current-hash cache dirs.
-           --drop-other-hashes also deletes the cache dirs of other codegen hashes.
+           --drop-other-hashes also deletes the cache dirs of other codegen hashes. Close the game
+           first (a loaded DLL cannot be deleted; running it again finishes).
   compile  rebuild exactly the listed DLLs (after a codegen-hash change, or into a test copy to
            prove the list): the regions with the game's own compile line, each from one record
            whose only roots are the listed entries; then each fragment with compile_overlays'
@@ -240,9 +241,15 @@ def cmd_prune(a):
                          % (len(keep_recs - have), a.build, min(keep_recs - have)))
     caps_out = files_gone = cap_bytes = caps_left = 0
     rewrites = []
+    seen = {record_id(c) for c in read_caps(main)} if main.exists() else set()
     for f in hist:
         caps = read_caps(f)
-        kept = [c for c in caps if record_id(c) in keep_recs]
+        kept = []
+        for c in caps:                   # one copy of each listed record (the same one sits in many files)
+            rid = record_id(c)
+            if rid in keep_recs and rid not in seen:
+                seen.add(rid)
+                kept.append(c)
         caps_left += len(kept)
         if len(kept) < len(caps):
             caps_out += len(caps) - len(kept)
@@ -253,7 +260,14 @@ def cmd_prune(a):
     h = codegen_hash(a.build)
     keys_c = {n.split("/")[-1].split("_")[1] for n in keep_dlls}
     removes, drop_dirs, nbytes = [], [], 0
-    for hh, d in cache_dirs(a.build):
+    dirs = cache_dirs(a.build)
+    if a.drop_other_hashes:
+        # the toolchain header can be older than the exe (guide): then the newest dir is the one in use
+        cur = [d.stat().st_mtime for hh, d in dirs if hh == h]
+        if not cur or any(hh != h and d.stat().st_mtime > max(cur) for hh, d in dirs):
+            raise SystemExit("hash %08x do overlay_codegen_hash.h sem pasta de cache ou mais velho que outra "
+                             "pasta: header desatualizado? nada apagado" % h)
+    for hh, d in dirs:
         if hh != h:
             if a.drop_other_hashes:
                 drop_dirs.append(d)

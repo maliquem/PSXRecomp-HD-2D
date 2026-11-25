@@ -1,6 +1,7 @@
 import base64
 import binascii
 import json
+import os
 import sys
 import tempfile
 import unittest
@@ -39,6 +40,7 @@ class OverlayKeepTest(unittest.TestCase):
             (d / "1.json").write_text(json.dumps([ra, rb]))
             (d / "2.json").write_text(json.dumps([cap(0x801A0000, c, [0x801A0000])]))
             (d / "3.json").write_text(json.dumps([rb2, ra_big]))
+            (d / "4.json").write_text(json.dumps([ra, main]))   # copies: the prune keeps one of each
             inc = t / "overlay_toolchain" / "include"
             inc.mkdir(parents=True)
             (inc / "overlay_codegen_hash.h").write_text("#define PSX_OVERLAY_CODEGEN_HASH 0x46bb7ed0u\n")
@@ -88,6 +90,12 @@ class OverlayKeepTest(unittest.TestCase):
                 ok.cmd_prune(Namespace(build=t, keep=t / "keep_x.json", apply=True, drop_other_hashes=True))
             self.assertTrue((cg / (other + ".dll")).exists())
 
+            os.utime(old, (cg.stat().st_mtime + 60,) * 2)   # stale hash header: the "old" dir is newer
+            with self.assertRaises(SystemExit):
+                ok.cmd_prune(Namespace(build=t, keep=t / "keep.json", apply=True, drop_other_hashes=True))
+            self.assertTrue(old.exists())
+            os.utime(old, (cg.stat().st_mtime - 60,) * 2)
+
             ok.cmd_prune(Namespace(build=t, keep=t / "keep.json", apply=False, drop_other_hashes=True))
             self.assertTrue((cg / (other + ".dll")).exists())   # dry run deletes nothing
 
@@ -98,8 +106,8 @@ class OverlayKeepTest(unittest.TestCase):
             self.assertFalse(old.exists())
             self.assertFalse((d / "2.json").exists())
             self.assertTrue((t / "overlay_captures.json").exists())
-            kept = {ok.record_id(x) for f in d.glob("*.json") for x in ok.read_caps(f)}
-            self.assertEqual(kept, want - {ok.record_id(main)})
+            kept = [ok.record_id(x) for f in d.glob("*.json") for x in ok.read_caps(f)]
+            self.assertEqual(sorted(kept), sorted(want - {ok.record_id(main)}))   # no copies left
 
             recs, _, entries, _ = ok.load_keep(t / "keep.json")
             regions, by_img = ok.protected_captures(t, recs, entries, lambda data, load, pc: pc == 0x80180000)
