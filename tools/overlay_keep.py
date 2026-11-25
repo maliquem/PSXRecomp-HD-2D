@@ -233,7 +233,11 @@ def file_key(name):
 
 def cmd_prune(a):
     keep_recs, keep_dlls, _, _ = load_keep(a.keep)
-    _, hist = capture_files(a.build)                 # the main list is never touched
+    main, hist = capture_files(a.build)              # the main list is never touched
+    have = {record_id(c) for f in ([main] if main.exists() else []) + hist for c in read_caps(f)}
+    if keep_recs - have:     # without them a new hash could not rebuild the protected DLLs
+        raise SystemExit("%d registros da lista não estão nas capturas de %s (ex.: %s); repor antes de podar"
+                         % (len(keep_recs - have), a.build, min(keep_recs - have)))
     caps_out = files_gone = cap_bytes = caps_left = 0
     rewrites = []
     for f in hist:

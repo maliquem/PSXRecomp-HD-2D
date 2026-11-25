@@ -82,6 +82,12 @@ class OverlayKeepTest(unittest.TestCase):
             self.assertEqual(set(keep["records"]), want)
             self.assertEqual(sorted(keep["dlls"]), sorted([region, frag, hosted]))
 
+            k = json.loads((t / "keep.json").read_text())
+            (t / "keep_x.json").write_text(json.dumps(dict(k, records=k["records"] + ["00000000_00000000:0"])))
+            with self.assertRaises(SystemExit):   # a listed record not in the captures: refuses to prune
+                ok.cmd_prune(Namespace(build=t, keep=t / "keep_x.json", apply=True, drop_other_hashes=True))
+            self.assertTrue((cg / (other + ".dll")).exists())
+
             ok.cmd_prune(Namespace(build=t, keep=t / "keep.json", apply=False, drop_other_hashes=True))
             self.assertTrue((cg / (other + ".dll")).exists())   # dry run deletes nothing
 
